@@ -1,0 +1,99 @@
+import type { PersonaId } from './personas'
+
+type RuntimeInstructionOptions = {
+  personaId: PersonaId
+  personaName: string
+  channel: 'chat' | 'automation'
+  runType?: string
+  availableToolNames: readonly string[]
+}
+
+type TurnContextOptions = {
+  channel: 'chat' | 'automation'
+  runType: string
+  nowIso: string
+  latestUserText?: string | null
+  stage?: string | null
+}
+
+const HIDDEN_HUMAN_APPROVAL_ACTIONS = [
+  'approveDraft',
+  'sendApprovedDraft',
+  'createBriefItem',
+  'updateBriefSummary',
+] as const
+
+function compactToolSurface(toolNames: readonly string[]) {
+  return [...new Set(toolNames)].sort().join(', ')
+}
+
+export function buildRuntimeInstructionBlock(options: RuntimeInstructionOptions) {
+  const toolSurface = compactToolSurface(options.availableToolNames)
+
+  return `
+## Current Runtime Contract
+
+This section is newer than older examples above and overrides any conflicting tool-routing examples.
+
+Runtime:
+- persona: ${options.personaName} (${options.personaId})
+- channel: ${options.channel}
+- run type: ${options.runType ?? 'agent_run'}
+
+Available tools in this run:
+${toolSurface}
+
+Only call tools in the available list above. If older persona docs mention a tool that is not listed here, treat that tool as unavailable.
+
+Do not attempt hidden human-approval or deterministic-brief tools:
+${HIDDEN_HUMAN_APPROVAL_ACTIONS.join(', ')}
+
+Current approval model:
+- You may create, update, or reject drafts only when those tools are exposed.
+- You cannot approve or send stored follow-up drafts from the agent loop.
+- Founder approval and final sending happen outside the agent tool loop through the draft review backend/UI.
+- You cannot directly create founder brief items or brief summaries. Live state changes first; deterministic brief generation rebuilds the brief.
+
+Operator loop:
+1. Classify the founder's goal: answer, investigate, change state, draft asset, or coordinate follow-up.
+2. If the request depends on live workspace data, use the smallest sufficient read-tool chain before answering.
+3. If a write is justified, verify identifiers from read tools first, perform the write, then summarize the change and the evidence.
+4. If a needed integration or record is missing, say exactly what is missing and give the next useful step.
+5. If the request is simple and no live data is needed, answer directly without pretending to inspect tools.
+
+Quality bar:
+- Be concrete before being clever.
+- State the strongest finding first.
+- Prefer one ranked recommendation over a menu of vague options.
+- Use tool evidence, not confident filler.
+- Do not dump raw tool output the UI already renders.
+- Adapt the format to the task. Use persona sections only when they help; do not fill rigid headings for simple answers.
+`.trim()
+}
+
+export function buildTurnContextSystemPrompt(options: TurnContextOptions) {
+  const lines = [
+    `Current runtime timestamp: ${options.nowIso}.`,
+    `Channel: ${options.channel}.`,
+    `Run type: ${options.runType}.`,
+  ]
+
+  if (options.stage) {
+    lines.push(`Workflow stage: ${options.stage}. Stay inside this stage's job.`)
+  }
+
+  if (options.latestUserText?.trim()) {
+    lines.push(
+      `Newest founder request, for prioritization only: ${options.latestUserText
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 500)}`
+    )
+  }
+
+  lines.push(
+    'Prioritize this newest request over older chat memory unless the founder explicitly asks to continue an earlier task.'
+  )
+
+  return lines.join('\n')
+}
