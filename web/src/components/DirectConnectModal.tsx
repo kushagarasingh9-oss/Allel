@@ -102,7 +102,7 @@ export default function DirectConnectModal({
     setError(null)
     startTransition(async () => {
       try {
-        const result = await getGmailConnectUrl()
+        const result = await getGmailConnectUrl(provider)
         if (result.authUrl) {
           window.location.href = result.authUrl
         } else {
