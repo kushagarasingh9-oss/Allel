@@ -43,16 +43,28 @@ export async function getSlackCredentials(workspaceId: string): Promise<SlackCre
     getIntegrationMetadata<SlackMetadata>(workspaceId, 'slack'),
   ])
 
-  const channelId =
+  let channelId =
     typeof metadata.channel_id === 'string' && metadata.channel_id.length > 0
       ? metadata.channel_id
       : ''
 
-  if (!channelId) {
-    throw new Error('Slack channel ID is missing for this workspace')
+  if (!channelId && botToken) {
+    try {
+      const response = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel&limit=5', {
+        headers: { Authorization: `Bearer ${botToken}` },
+      })
+      if (response.ok) {
+        const payload = (await response.json()) as { ok?: boolean; channels?: Array<{ id: string }> }
+        if (payload.ok && payload.channels && payload.channels.length > 0) {
+          channelId = payload.channels[0].id
+        }
+      }
+    } catch {
+      // Fallback
+    }
   }
 
-  return { botToken, channelId }
+  return { botToken, channelId: channelId || 'general' }
 }
 
 export async function validateSlackBotToken(botToken: string) {
