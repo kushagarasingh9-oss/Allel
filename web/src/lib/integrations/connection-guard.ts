@@ -95,19 +95,21 @@ export async function getIntegrationConnection(
   }
 }
 
-/** Returns false for missing, disconnected, stale-error, and planned rows. */
+/** Returns true for active connected or syncable integration rows. */
 export async function isIntegrationConnected(
   supabase: SupabaseClient,
   workspaceId: string,
   provider: string
 ) {
   const connection = await getIntegrationConnection(supabase, workspaceId, provider)
-  return connection?.status === 'connected' && !isLegacyDemoConnection(connection)
+  return (
+    connection !== null &&
+    (connection.status === 'connected' || connection.status === 'needs_attention')
+  )
 }
 
 /**
  * Enforces the connection state before a provider token or API client is used.
- * Callers receive a stable, founder-facing error instead of cached/demo data.
  */
 export async function requireIntegrationConnected(
   supabase: SupabaseClient,
@@ -116,15 +118,8 @@ export async function requireIntegrationConnected(
 ): Promise<IntegrationConnection> {
   const connection = await getIntegrationConnection(supabase, workspaceId, provider)
 
-  if (
-    !connection ||
-    connection.status !== 'connected' ||
-    isLegacyDemoConnection(connection)
-  ) {
-    throw new IntegrationConnectionError(
-      provider,
-      isLegacyDemoConnection(connection) ? 'needs_attention' : connection?.status ?? 'missing'
-    )
+  if (!connection || connection.status === 'disconnected') {
+    throw new IntegrationConnectionError(provider, connection?.status ?? 'missing')
   }
 
   return connection
