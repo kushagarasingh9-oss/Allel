@@ -19,7 +19,7 @@ export type IntegrationProvider =
   | 'google_drive'
 
 export type IntegrationCapability = 'syncable' | 'tool_only' | 'planned'
-export type IntegrationConnectMethod = 'pipedream' | 'manual' | 'coming_soon'
+export type IntegrationConnectMethod = 'direct' | 'manual' | 'coming_soon'
 
 export type IntegrationDefinition = {
   provider: IntegrationProvider
@@ -45,7 +45,7 @@ export const INTEGRATION_DEFINITIONS: readonly IntegrationDefinition[] = [
     description: 'Billing, renewals, failed payments, and plan changes',
     disconnectedValue: 'Connect Stripe',
     comingSoonValue: 'Billing ingestion',
-    connectMethod: 'pipedream',
+    connectMethod: 'direct',
     unlockDescription: 'Enables billing risk detection, renewal tracking, failed payment alerts, and revenue-based account scoring. Your agent can offer rescue discounts and catch churn before it happens.',
   },
   {
@@ -57,7 +57,7 @@ export const INTEGRATION_DEFINITIONS: readonly IntegrationDefinition[] = [
     description: 'Usage trends, activation milestones, and feature engagement',
     disconnectedValue: 'Connect PostHog',
     comingSoonValue: 'Usage ingestion',
-    connectMethod: 'pipedream',
+    connectMethod: 'direct',
     unlockDescription: 'Enables usage-based risk signals: declining engagement, stalled onboarding, and feature drop-off. Your agent can spot accounts going quiet before they churn.',
   },
   {
@@ -69,7 +69,7 @@ export const INTEGRATION_DEFINITIONS: readonly IntegrationDefinition[] = [
     description: 'Founder follow-up history, drafts, and approval flow',
     disconnectedValue: 'Connect Gmail OAuth',
     comingSoonValue: 'Email sync',
-    connectMethod: 'pipedream',
+    connectMethod: 'direct',
     unlockDescription: 'Enables email thread tracking, auto-drafted follow-ups, and reply detection. Your agent can draft check-in emails and surface threads that need your attention.',
   },
   {
@@ -81,7 +81,7 @@ export const INTEGRATION_DEFINITIONS: readonly IntegrationDefinition[] = [
     description: 'Support context, frustration signals, and unresolved issues',
     disconnectedValue: 'Connect Intercom',
     comingSoonValue: 'Support signals',
-    connectMethod: 'pipedream',
+    connectMethod: 'direct',
     unlockDescription: 'Enables support ticket analysis, frustration detection, and unresolved issue tracking. Your agent can flag support-heavy accounts and suggest proactive outreach.',
   },
   {
@@ -93,7 +93,7 @@ export const INTEGRATION_DEFINITIONS: readonly IntegrationDefinition[] = [
     description: 'CRM companies, contacts, and lifecycle context',
     disconnectedValue: 'Connect HubSpot',
     comingSoonValue: 'CRM enrichment',
-    connectMethod: 'pipedream',
+    connectMethod: 'direct',
     unlockDescription: 'Enriches account profiles with CRM data: company size, lifecycle stage, and deal context. Gives your agent fuller context when drafting outreach.',
   },
   {
@@ -105,7 +105,7 @@ export const INTEGRATION_DEFINITIONS: readonly IntegrationDefinition[] = [
     description: 'Daily brief delivery and urgent churn alerts',
     disconnectedValue: 'Connect Slack',
     comingSoonValue: 'Brief delivery',
-    connectMethod: 'pipedream',
+    connectMethod: 'direct',
     unlockDescription: 'Delivers your daily brief to Slack and sends urgent churn alerts. Your agent can also post updates and summaries to channels.',
   },
   {
@@ -117,7 +117,7 @@ export const INTEGRATION_DEFINITIONS: readonly IntegrationDefinition[] = [
     description: 'Production issue signals that may explain churn risk',
     disconnectedValue: 'Connect Sentry',
     comingSoonValue: 'Issue monitoring',
-    connectMethod: 'pipedream',
+    connectMethod: 'direct',
     unlockDescription: 'Surfaces production errors that correlate with account churn. Your agent can connect bug reports to at-risk accounts automatically.',
   },
   {
@@ -129,7 +129,7 @@ export const INTEGRATION_DEFINITIONS: readonly IntegrationDefinition[] = [
     description: 'Bug and issue tracker context tied back to customer risk',
     disconnectedValue: 'Connect Linear',
     comingSoonValue: 'Issue tracker sync',
-    connectMethod: 'pipedream',
+    connectMethod: 'direct',
     unlockDescription: 'Connects engineering issues to customer accounts. Your agent can reference open bugs and feature requests when analyzing churn risk.',
   },
   {
@@ -141,7 +141,7 @@ export const INTEGRATION_DEFINITIONS: readonly IntegrationDefinition[] = [
     description: 'Search, read, and update Airtable records from agent tools',
     disconnectedValue: 'Connect Airtable',
     comingSoonValue: 'Tool-only workspace access',
-    connectMethod: 'pipedream',
+    connectMethod: 'direct',
     unlockDescription: 'Your agent can search, read, and update Airtable records on demand. Useful for custom trackers, lists, and lightweight databases you already use.',
   },
   {
@@ -153,7 +153,7 @@ export const INTEGRATION_DEFINITIONS: readonly IntegrationDefinition[] = [
     description: 'Meeting follow-ups, reminders, and founder agenda prep',
     disconnectedValue: 'Connect Google Calendar',
     comingSoonValue: 'Scheduling',
-    connectMethod: 'pipedream',
+    connectMethod: 'direct',
     unlockDescription: 'Your agent can check your calendar, prep for meetings, and suggest follow-ups based on upcoming calls with customers.',
   },
   {
@@ -165,7 +165,7 @@ export const INTEGRATION_DEFINITIONS: readonly IntegrationDefinition[] = [
     description: 'Search, create, and manage pages, docs, and lightweight planning',
     disconnectedValue: 'Connect Notion',
     comingSoonValue: 'Tool-only workspace access',
-    connectMethod: 'pipedream',
+    connectMethod: 'direct',
     unlockDescription: 'Your agent can search, create, and edit Notion pages on demand. Useful for documenting decisions, meeting notes, or account plans.',
   },
   {

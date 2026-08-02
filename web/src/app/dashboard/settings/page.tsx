@@ -28,7 +28,6 @@ import {
   SiZendesk,
 } from '@icons-pack/react-simple-icons'
 import { IconPlugConnected } from '@tabler/icons-react'
-import PipedreamConnectButton from '@/components/PipedreamConnectButton'
 import DirectConnectModal from '@/components/DirectConnectModal'
 import { disconnectIntegration, getConnectedProvidersAction } from './actions'
 import {

@@ -482,65 +482,6 @@ export async function getGmailAccessToken(workspaceId: string): Promise<string> 
     return decrypt(accessRow.encrypted_value, accessRow.iv, accessRow.auth_tag)
   }
 
-  // Pipedream owns refresh handling for accounts connected through Pipedream
-  // Connect. Re-read the account instead of requiring this app to also own the
-  // Google OAuth client secret.
-  const { data: connection, error: connectionError } = await supabase
-    .from('integration_connections')
-    .select('metadata')
-    .eq('workspace_id', workspaceId)
-    .eq('provider', 'gmail')
-    .maybeSingle()
-
-  if (connectionError) throw connectionError
-
-  const pipedreamAccountId =
-    typeof connection?.metadata?.pipedream_account_id === 'string'
-      ? connection.metadata.pipedream_account_id
-      : null
-
-  if (pipedreamAccountId) {
-    const { getAccountCredentials } = await import('./pipedream')
-    const { token, refreshToken } = await getAccountCredentials(pipedreamAccountId)
-    const encrypted = encrypt(token)
-    const expiresAt = new Date(Date.now() + 55 * 60 * 1000).toISOString()
-
-    const { error: updateError } = await supabase
-      .from('integration_tokens')
-      .update({
-        encrypted_value: encrypted.encrypted,
-        iv: encrypted.iv,
-        auth_tag: encrypted.authTag,
-        expires_at: expiresAt,
-      })
-      .eq('workspace_id', workspaceId)
-      .eq('provider', 'gmail')
-      .eq('token_type', 'oauth_access')
-
-    if (updateError) throw updateError
-
-    if (refreshToken) {
-      const encryptedRefreshToken = encrypt(refreshToken)
-      const { error: refreshUpdateError } = await supabase
-        .from('integration_tokens')
-        .upsert(
-          {
-            workspace_id: workspaceId,
-            provider: 'gmail',
-            token_type: 'oauth_refresh',
-            encrypted_value: encryptedRefreshToken.encrypted,
-            iv: encryptedRefreshToken.iv,
-            auth_tag: encryptedRefreshToken.authTag,
-          },
-          { onConflict: 'workspace_id,provider,token_type' }
-        )
-
-      if (refreshUpdateError) throw refreshUpdateError
-    }
-
-    return token
-  }
-
   const { data: refreshTokenRow, error: refreshTokenError } = await supabase
     .from('integration_tokens')
     .select('encrypted_value, iv, auth_tag')

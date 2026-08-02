@@ -31,7 +31,7 @@ export type IntegrationSyncTrigger =
   | 'daily_cron'
   | 'manual_sync'
   | 'manual_connect'
-  | 'pipedream_connect'
+  | 'direct_connect'
   | 'gmail_oauth_callback'
   | 'api_connect'
 

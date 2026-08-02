@@ -9,7 +9,7 @@ type StoredIntegrationToken = {
   expires_at: string | null
 }
 
-async function readLiveToken(input: {
+async function resolveUsableTokenValue(input: {
   supabase: ReturnType<typeof createServiceClient>
   workspaceId: string
   provider: string
@@ -17,40 +17,7 @@ async function readLiveToken(input: {
   token: StoredIntegrationToken
   pipedreamAccountId: string | null
 }) {
-  const { token, tokenType, pipedreamAccountId } = input
-
-  // Pipedream, rather than our app, owns OAuth renewal for Connect accounts.
-  // A missing expiry is treated as stale so existing connections self-heal on
-  // their first live use rather than failing with a silent expired token.
-  const shouldRefreshFromPipedream =
-    tokenType !== 'oauth_refresh' &&
-    pipedreamAccountId &&
-    (!token.expires_at || new Date(token.expires_at).getTime() <= Date.now() + 60_000)
-
-  if (!shouldRefreshFromPipedream) {
-    return decrypt(token.encrypted_value, token.iv, token.auth_tag)
-  }
-
-  const { getAccountCredentials } = await import('./pipedream')
-  const { token: freshToken } = await getAccountCredentials(pipedreamAccountId)
-  const encrypted = encrypt(freshToken)
-  const expiresAt = new Date(Date.now() + 55 * 60 * 1000).toISOString()
-
-  const { error } = await input.supabase
-    .from('integration_tokens')
-    .update({
-      encrypted_value: encrypted.encrypted,
-      iv: encrypted.iv,
-      auth_tag: encrypted.authTag,
-      expires_at: expiresAt,
-    })
-    .eq('workspace_id', input.workspaceId)
-    .eq('provider', input.provider)
-    .eq('token_type', tokenType)
-
-  if (error) throw error
-
-  return freshToken
+  return decrypt(input.token.encrypted_value, input.token.iv, input.token.auth_tag)
 }
 
 export async function getIntegrationToken(
@@ -94,7 +61,7 @@ export async function getIntegrationToken(
 
     if (fallback.error) throw fallback.error
     if (fallback.data) {
-      return readLiveToken({
+      return resolveUsableTokenValue({
         supabase,
         workspaceId,
         provider,
@@ -109,7 +76,7 @@ export async function getIntegrationToken(
     throw new Error(`${provider} is not connected for this workspace`)
   }
 
-  return readLiveToken({
+  return resolveUsableTokenValue({
     supabase,
     workspaceId,
     provider,
