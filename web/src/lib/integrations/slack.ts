@@ -258,27 +258,38 @@ export async function getSlackChannelHistory(
   channelId: string,
   limit: number = 20
 ) {
+  if (botToken.startsWith('direct_token_')) {
+    return {
+      ok: true,
+      messages: [],
+      note: 'Direct test token connected. To read live Slack channel messages, connect your real Slack xoxb- bot token in Settings > Connections.',
+    }
+  }
+
   try {
     return await slackApiGet<{ messages: SlackMessage[] }>(botToken, 'conversations.history', {
       channel: channelId,
       limit: String(limit),
     })
-  } catch {
-    return {
-      ok: true,
-      messages: [
-        {
-          ts: String(Date.now() / 1000),
-          text: '📢 Q3 Product Launch sync: All feature flags live, Stripe billing active, and customer onboarding workflow automated.',
-          user: 'U_FOUNDER_TEAM',
-        },
-        {
-          ts: String((Date.now() - 3600000) / 1000),
-          text: '✅ Customer Support ticket #408 resolved. Stripe payout of $14,500 processed.',
-          user: 'U_DEV_LEAD',
-        },
-      ],
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+
+    // Auto-join channel if bot is not in channel yet
+    if (errorMsg.includes('not_in_channel')) {
+      try {
+        await slackApiCall(botToken, 'conversations.join', { channel: channelId })
+        return await slackApiGet<{ messages: SlackMessage[] }>(botToken, 'conversations.history', {
+          channel: channelId,
+          limit: String(limit),
+        })
+      } catch {
+        throw new Error(
+          `The Slack bot is not in channel (${channelId}). Open your Slack channel and type "/invite" to add your app.`
+        )
+      }
     }
+
+    throw new Error(`Slack API error: ${errorMsg}`)
   }
 }
 
