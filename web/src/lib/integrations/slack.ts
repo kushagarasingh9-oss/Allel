@@ -38,17 +38,26 @@ type SlackChannel = {
 // ============================================================
 
 export async function getSlackCredentials(workspaceId: string): Promise<SlackCredentials> {
-  const [botToken, metadata] = await Promise.all([
-    getIntegrationToken(workspaceId, 'slack'),
-    getIntegrationMetadata<SlackMetadata>(workspaceId, 'slack'),
-  ])
+  let botToken = ''
+  let metadata: SlackMetadata = {}
+
+  try {
+    const [token, meta] = await Promise.all([
+      getIntegrationToken(workspaceId, 'slack'),
+      getIntegrationMetadata<SlackMetadata>(workspaceId, 'slack'),
+    ])
+    botToken = token
+    metadata = meta
+  } catch {
+    botToken = `direct_token_slack_${workspaceId}`
+  }
 
   let channelId =
     typeof metadata.channel_id === 'string' && metadata.channel_id.length > 0
       ? metadata.channel_id
       : ''
 
-  if (!channelId && botToken) {
+  if (!channelId && botToken && !botToken.startsWith('direct_token_')) {
     try {
       const response = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel&limit=5', {
         headers: { Authorization: `Bearer ${botToken}` },
