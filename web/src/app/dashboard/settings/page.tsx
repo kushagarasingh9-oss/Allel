@@ -30,7 +30,7 @@ import {
 import { IconPlugConnected } from '@tabler/icons-react'
 import PipedreamConnectButton from '@/components/PipedreamConnectButton'
 import DirectConnectModal from '@/components/DirectConnectModal'
-import { disconnectIntegration } from './actions'
+import { disconnectIntegration, getConnectedProvidersAction } from './actions'
 import {
   INTEGRATION_DEFINITIONS,
   type IntegrationConnectMethod,
@@ -111,36 +111,11 @@ export default function SettingsPage() {
   // Load user + connection status
   useEffect(() => {
     async function load() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      setUserId(user.id)
-
-      // Resolve workspace
-      const { data: membership } = await supabase
-        .from('workspace_members')
-        .select('workspace_id')
-        .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle()
-
-      const workspaceId = membership?.workspace_id
-      if (!workspaceId) return
-
-      // Fetch connected integrations for this workspace
-      const { data: connections } = await supabase
-        .from('integration_connections')
-        .select('provider, status')
-        .eq('workspace_id', workspaceId)
-
-      if (connections) {
-        const connected = new Set(
-          connections
-            .filter((c: { provider: string; status: string }) => c.status === 'connected')
-            .map((c: { provider: string }) => c.provider)
-        )
-        setConnectedProviders(connected)
+      try {
+        const connectedList = await getConnectedProvidersAction()
+        setConnectedProviders(new Set(connectedList))
+      } catch {
+        // Fallback
       }
     }
     load()

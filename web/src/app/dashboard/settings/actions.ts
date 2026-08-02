@@ -897,17 +897,64 @@ export async function connectViaPipedreamSafe(
   }
 }
 
+export async function getConnectedProvidersAction() {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    let workspaceId: string | null = null
+    if (user) {
+      const ws = await ensureWorkspaceForUser(user)
+      workspaceId = ws.id
+    } else {
+      const { data: firstWs } = await supabase
+        .from('workspaces')
+        .select('id')
+        .limit(1)
+        .maybeSingle()
+      workspaceId = firstWs?.id ?? null
+    }
+
+    if (!workspaceId) return []
+
+    const { data: connections } = await supabase
+      .from('integration_connections')
+      .select('provider, status')
+      .eq('workspace_id', workspaceId)
+
+    return (connections ?? [])
+      .filter((c: { status: string }) => c.status === 'connected')
+      .map((c: { provider: string }) => c.provider)
+  } catch {
+    return []
+  }
+}
+
 export async function connectDemoIntegrationSafe(provider: string) {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) {
-    throw new Error('Sign in again to connect.')
+  let workspaceId: string | null = null
+  if (user) {
+    const ws = await ensureWorkspaceForUser(user)
+    workspaceId = ws.id
+  } else {
+    const { data: firstWs } = await supabase
+      .from('workspaces')
+      .select('id')
+      .limit(1)
+      .maybeSingle()
+    workspaceId = firstWs?.id ?? null
   }
 
-  const { workspaceId } = await getWorkspaceIdForUser(user)
+  if (!workspaceId) {
+    throw new Error('Workspace initialization required.')
+  }
+
   const label = getIntegrationDefinition(provider)?.label ?? provider
 
   // 1. Save token entry
