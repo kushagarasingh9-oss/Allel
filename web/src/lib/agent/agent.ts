@@ -126,6 +126,10 @@ import {
   appendNotionContentTool,
   addNotionCommentTool,
   listNotionUsersTool,
+  // Google Docs tools
+  searchGoogleDocsTool,
+  readGoogleDocTool,
+  createGoogleDocTool,
   // HubSpot tools
   searchHubSpotContactsTool,
   getHubSpotContactTool,
@@ -287,6 +291,10 @@ export const ALL_TOOLS = {
     appendNotionContentTool,
     addNotionCommentTool,
     listNotionUsersTool,
+    // Google Docs tools
+    searchGoogleDocsTool,
+    readGoogleDocTool,
+    createGoogleDocTool,
     // HubSpot tools (full CRM management)
     searchHubSpotContactsTool,
     getHubSpotContactTool,
