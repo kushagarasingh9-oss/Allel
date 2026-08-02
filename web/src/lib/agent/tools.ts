@@ -37,7 +37,13 @@ import { syncSlackWorkspace } from '@/lib/integrations/slack-sync'
 import { syncSentryWorkspace } from '@/lib/integrations/sentry-sync'
 import { syncLinearWorkspace } from '@/lib/integrations/linear-sync'
 import { generateWorkspaceBrief } from '@/lib/briefs/generate-workspace-brief'
-import { getStripeClient, createRescueCoupon } from '@/lib/integrations/stripe'
+import { runProviderSyncWithHealth } from '@/lib/integrations/connection-state'
+import { isIntegrationConnected } from '@/lib/integrations/connection-guard'
+import {
+  getStripeClient,
+  createRescueCoupon,
+  syncSubscriptions,
+} from '@/lib/integrations/stripe'
 import {
   searchStripeCustomers,
   getStripeCustomer,
@@ -64,7 +70,7 @@ import {
   listEventDefinitions,
   listDashboards,
 } from '@/lib/integrations/posthog'
-import { fetchThreads, buildEmailSearchQuery, threadNeedsReply, getGmailProfile, isGmailConfigured, isGmailReadSyncEnabled } from '@/lib/integrations/gmail'
+import { fetchThreads, buildEmailSearchQuery, threadNeedsReply, classifyEmailThread, getGmailProfile, isGmailReadSyncEnabled } from '@/lib/integrations/gmail'
 import {
   getSlackCredentials,
   postSlackMessage,
@@ -169,208 +175,380 @@ import {
   deleteAirtableRecord as deleteAirtableRecordFn,
 } from '@/lib/integrations/airtable'
 
-// ----- Tool: Get Account Details -----
+type LiveStripeAccount = {
+  accountId: string | null
+  stripeCustomerId: string
+  name: string
+  email: string | null
+  plan: string | null
+  status: 'trial' | 'active' | 'past_due' | 'cancelled'
+  mrrCents: number
+  riskLevel: 'high' | 'medium' | 'low'
+  cancelAtPeriodEnd: boolean
+  currentPeriodEnd: string | null
+  subscriptionCount: number
+}
+
+function normalizeLiveStripeStatus(status: string): LiveStripeAccount['status'] {
+  if (status === 'trialing') return 'trial'
+  if (['past_due', 'unpaid', 'incomplete', 'incomplete_expired'].includes(status)) {
+    return 'past_due'
+  }
+  if (status === 'canceled') return 'cancelled'
+  return 'active'
+}
+
+function selectLiveStripeStatus(statuses: string[]): LiveStripeAccount['status'] {
+  const normalized = statuses.map(normalizeLiveStripeStatus)
+  if (normalized.includes('past_due')) return 'past_due'
+  if (normalized.includes('active')) return 'active'
+  if (normalized.includes('trial')) return 'trial'
+  return 'cancelled'
+}
+
+function liveStripeRisk(
+  status: LiveStripeAccount['status'],
+  cancelAtPeriodEnd: boolean
+): LiveStripeAccount['riskLevel'] {
+  if (status === 'past_due' || status === 'cancelled') return 'high'
+  if (cancelAtPeriodEnd) return 'medium'
+  return 'low'
+}
+
+/**
+ * This deliberately reads Stripe on every request. customer_accounts is a
+ * sync/cache table and can contain old seed rows, so it is never used as the
+ * source of billing truth for chat responses.
+ */
+async function listLiveStripeAccounts(workspaceId: string): Promise<LiveStripeAccount[]> {
+  const subscriptions = await syncSubscriptions(workspaceId)
+  const byCustomer = new Map<string, typeof subscriptions>()
+
+  for (const subscription of subscriptions) {
+    const existing = byCustomer.get(subscription.stripeCustomerId) ?? []
+    existing.push(subscription)
+    byCustomer.set(subscription.stripeCustomerId, existing)
+  }
+
+  // Internal IDs are only used as a bridge to founder-owned workflow actions
+  // (drafts, notes, approval records). They are never used for billing facts.
+  const supabase = createServiceClient()
+  const { data: contacts, error: contactsError } = await supabase
+    .from('account_contacts')
+    .select('customer_account_id, external_ids')
+    .eq('workspace_id', workspaceId)
+    .not('external_ids', 'is', null)
+
+  if (contactsError) throw contactsError
+
+  const internalAccountIdByStripeCustomerId = new Map<string, string>()
+  for (const contact of contacts ?? []) {
+    const stripeCustomerId =
+      typeof contact.external_ids?.stripe_customer_id === 'string'
+        ? contact.external_ids.stripe_customer_id
+        : null
+    if (stripeCustomerId) {
+      internalAccountIdByStripeCustomerId.set(
+        stripeCustomerId,
+        contact.customer_account_id
+      )
+    }
+  }
+
+  return Array.from(byCustomer.entries())
+    .map(([stripeCustomerId, customerSubscriptions]) => {
+      const latestPeriodEnd = customerSubscriptions
+        .map((subscription) => subscription.currentPeriodEnd)
+        .sort((left, right) => right.getTime() - left.getTime())[0]
+      const status = selectLiveStripeStatus(
+        customerSubscriptions.map((subscription) => subscription.status)
+      )
+      const cancelAtPeriodEnd = customerSubscriptions.some(
+        (subscription) => subscription.cancelAtPeriodEnd
+      )
+      const activeMrrCents = customerSubscriptions
+        .filter((subscription) =>
+          ['active', 'trialing', 'past_due', 'unpaid', 'incomplete'].includes(
+            subscription.status
+          )
+        )
+        .reduce((total, subscription) => total + subscription.mrrCents, 0)
+      const plans = Array.from(
+        new Set(
+          customerSubscriptions
+            .map((subscription) => subscription.planName)
+            .filter((plan): plan is string => Boolean(plan))
+        )
+      )
+      const identity = customerSubscriptions[0]
+
+      return {
+        accountId: internalAccountIdByStripeCustomerId.get(stripeCustomerId) ?? null,
+        stripeCustomerId,
+        name:
+          identity?.customerName?.trim() ||
+          identity?.customerEmail?.trim() ||
+          `Stripe customer ${stripeCustomerId}`,
+        email: identity?.customerEmail ?? null,
+        plan: plans.join(', ') || null,
+        status,
+        mrrCents: activeMrrCents,
+        riskLevel: liveStripeRisk(status, cancelAtPeriodEnd),
+        cancelAtPeriodEnd,
+        currentPeriodEnd: latestPeriodEnd?.toISOString() ?? null,
+        subscriptionCount: customerSubscriptions.length,
+      }
+    })
+    .sort((left, right) => right.mrrCents - left.mrrCents)
+}
+
+function formatLiveMrr(mrrCents: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(mrrCents / 100)
+}
+
+function liveStripeNextAction(account: LiveStripeAccount) {
+  if (account.status === 'past_due') {
+    return 'Resolve the live payment failure and review a recovery outreach.'
+  }
+  if (account.status === 'cancelled') {
+    return 'Review the cancellation and decide whether to start a save conversation.'
+  }
+  if (account.cancelAtPeriodEnd) {
+    return 'Start a renewal conversation before the scheduled cancellation date.'
+  }
+  return 'No billing action is currently required.'
+}
+
+const LIVE_BRIEF_SYNC_RUNNERS = {
+  stripe: (workspaceId: string) => syncStripeWorkspace(workspaceId, { refreshBrief: false }),
+  posthog: (workspaceId: string) => syncPostHogWorkspace(workspaceId, { refreshBrief: false }),
+  gmail: (workspaceId: string) => syncGmailWorkspace(workspaceId, { refreshBrief: false }),
+  intercom: (workspaceId: string) => syncIntercomWorkspace(workspaceId, { refreshBrief: false }),
+  hubspot: (workspaceId: string) => syncHubSpotWorkspace(workspaceId, { refreshBrief: false }),
+  sentry: (workspaceId: string) => syncSentryWorkspace(workspaceId, { refreshBrief: false }),
+  linear: (workspaceId: string) => syncLinearWorkspace(workspaceId, { refreshBrief: false }),
+} as const
+
+type LiveBriefSyncProvider = keyof typeof LIVE_BRIEF_SYNC_RUNNERS
+
+async function refreshConnectedSourcesForBrief(workspaceId: string) {
+  const supabase = createServiceClient()
+  const refreshedProviders: LiveBriefSyncProvider[] = []
+  const failedProviders: Array<{ provider: LiveBriefSyncProvider; error: string }> = []
+
+  // Run serially: each sync can update account links and signals that the
+  // subsequent source enriches. It also avoids concurrent brief writes.
+  for (const provider of Object.keys(LIVE_BRIEF_SYNC_RUNNERS) as LiveBriefSyncProvider[]) {
+    if (!(await isIntegrationConnected(supabase, workspaceId, provider))) continue
+
+    try {
+      await runProviderSyncWithHealth({
+        supabase,
+        workspaceId,
+        provider,
+        trigger: 'manual_sync',
+        overrideRunner: LIVE_BRIEF_SYNC_RUNNERS[provider],
+      })
+      refreshedProviders.push(provider)
+    } catch (error) {
+      failedProviders.push({
+        provider,
+        error: error instanceof Error ? error.message : 'Unknown sync error',
+      })
+    }
+  }
+
+  return { refreshedProviders, failedProviders }
+}
+
+// ----- Tool: Get Account Details (live Stripe only) -----
 
 export const getAccountDetails = tool({
   description:
-    'Look up a customer account by name or ID. Returns billing, usage, risk info, and recent signals. Use this first when asked about a specific account.',
+    'Look up a customer account by its Stripe customer ID or name. Billing facts are fetched live from Stripe; this never returns customer_accounts seed/cache rows.',
   inputSchema: z.object({
-    accountName: z
-      .string()
-      .optional()
-      .describe('The name of the account to look up'),
-    accountId: z
-      .string()
-      .uuid()
-      .optional()
-      .describe('The UUID of the account (if known)'),
+    accountName: z.string().optional().describe('The live Stripe customer name or email to look up'),
+    accountId: z.string().optional().describe('The live Stripe customer ID (cus_...) if known'),
     workspaceId: z.string().describe('The workspace ID'),
   }),
   execute: async ({ accountName, accountId, workspaceId }) => {
-    const supabase = createServiceClient()
-
-    let query = supabase
-      .from('customer_accounts')
-      .select(
-        'id, name, segment, plan_name, account_status, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, summary, last_touch_at, renewal_at'
-      )
-      .eq('workspace_id', workspaceId)
-
-    if (accountId) {
-      query = query.eq('id', accountId)
-    } else if (accountName) {
-      query = query.ilike('name', `%${accountName}%`)
-    } else {
-      return { error: 'Provide either accountName or accountId' }
+    if (!accountName && !accountId) {
+      return { error: 'Provide either a live Stripe customer ID or account name' }
     }
 
-    const { data: account, error } = await query.maybeSingle()
-    if (error) return { error: error.message }
-    if (!account) return { error: 'Account not found' }
+    try {
+      const accounts = await listLiveStripeAccounts(workspaceId)
+      const requestedName = accountName?.trim().toLowerCase()
+      const account = accounts.find((candidate) =>
+        accountId
+          ? candidate.stripeCustomerId === accountId || candidate.accountId === accountId
+          : candidate.name.toLowerCase().includes(requestedName ?? '') ||
+            candidate.email?.toLowerCase().includes(requestedName ?? '')
+      )
 
-    // Get recent signals
-    const { data: signals } = await supabase
-      .from('account_signals')
-      .select('signal_type, headline, detail, risk_level, event_at')
-      .eq('customer_account_id', account.id)
-      .order('event_at', { ascending: false })
-      .limit(5)
+      if (!account) {
+        return {
+          error:
+            'No matching live Stripe customer was found. Cached or seeded customer rows are intentionally excluded.',
+        }
+      }
 
-    // Get recent timeline
-    const { data: timeline } = await supabase
-      .from('account_timeline')
-      .select('event_type, headline, detail, source, event_at')
-      .eq('customer_account_id', account.id)
-      .order('event_at', { ascending: false })
-      .limit(5)
-    const accountMemory = await getStoredAccountMemory(workspaceId, account.id)
+      const daysUntilRenewal = account.currentPeriodEnd
+        ? Math.ceil(
+            (new Date(account.currentPeriodEnd).getTime() - Date.now()) /
+              (1000 * 60 * 60 * 24)
+          )
+        : null
 
-    const mrrFormatted = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(account.mrr_cents / 100)
-
-    const daysSinceTouch = account.last_touch_at
-      ? Math.floor(
-          (Date.now() - new Date(account.last_touch_at).getTime()) /
-            (1000 * 60 * 60 * 24)
-        )
-      : null
-
-    const daysUntilRenewal = account.renewal_at
-      ? Math.floor(
-          (new Date(account.renewal_at).getTime() - Date.now()) /
-            (1000 * 60 * 60 * 24)
-        )
-      : null
-
-    return {
-      id: account.id,
-      name: account.name,
-      segment: account.segment,
-      plan: account.plan_name,
-      status: account.account_status,
-      mrr: mrrFormatted,
-      mrrCents: account.mrr_cents,
-      riskLevel: account.risk_level,
-      usageDelta: `${account.usage_delta_percent}%`,
-      openIssue: sanitizeExternalText(account.open_issue, { maxLength: 180 }).text,
-      nextAction: account.next_action,
-      summary: sanitizeExternalText(account.summary, { maxLength: 320 }).text,
-      daysSinceFounderTouch: daysSinceTouch,
-      daysUntilRenewal,
-      recentSignals:
-        signals?.map((signal) => ({
-          ...signal,
-          headline: sanitizeExternalText(signal.headline).text,
-          detail: sanitizeExternalText(signal.detail, { maxLength: 400 }).text,
-        })) ?? [],
-      recentTimeline:
-        timeline?.map((entry) => ({
-          ...entry,
-          headline: sanitizeExternalText(entry.headline).text,
-          detail: sanitizeExternalText(entry.detail, { maxLength: 400 }).text,
-        })) ?? [],
-      memory: accountMemory,
+      return {
+        id: account.accountId ?? account.stripeCustomerId,
+        internalAccountId: account.accountId,
+        stripeCustomerId: account.stripeCustomerId,
+        name: account.name,
+        email: account.email,
+        plan: account.plan,
+        status: account.status,
+        mrr: formatLiveMrr(account.mrrCents),
+        mrrCents: account.mrrCents,
+        riskLevel: account.riskLevel,
+        cancelAtPeriodEnd: account.cancelAtPeriodEnd,
+        daysUntilRenewal,
+        nextAction: liveStripeNextAction(account),
+        source: 'stripe_live',
+        observedAt: new Date().toISOString(),
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Stripe API call failed' }
     }
   },
 })
 
-// ----- Tool: Get All Accounts -----
+// ----- Tool: Get All Accounts (live Stripe only) -----
 
 export const getAllAccounts = tool({
   description:
-    'Get all customer accounts for a workspace, ordered by risk. Use this for daily reviews or when the founder asks for an overview.',
+    'Get the current live Stripe customer billing state for the workspace. Never uses customer_accounts seed/cache rows.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
     riskFilter: z
       .enum(['all', 'high', 'medium', 'at_risk'])
       .optional()
-      .describe(
-        'Filter by risk level. "at_risk" returns high + medium. Default: all'
-      ),
+      .describe('Filter by live billing risk. "at_risk" returns high + medium. Default: all'),
   }),
   execute: async ({ workspaceId, riskFilter }) => {
-    const supabase = createServiceClient()
+    try {
+      const liveAccounts = await listLiveStripeAccounts(workspaceId)
+      const accounts = liveAccounts.filter((account) => {
+        if (riskFilter === 'high') return account.riskLevel === 'high'
+        if (riskFilter === 'medium') return account.riskLevel === 'medium'
+        if (riskFilter === 'at_risk') {
+          return account.riskLevel === 'high' || account.riskLevel === 'medium'
+        }
+        return true
+      })
 
-    let query = supabase
-      .from('customer_accounts')
-      .select(
-        'id, name, mrr_cents, risk_level, usage_delta_percent, open_issue, last_touch_at, account_status, summary'
-      )
-      .eq('workspace_id', workspaceId)
-      .order('risk_score', { ascending: false })
-      .order('mrr_cents', { ascending: false })
-
-    if (riskFilter === 'high') {
-      query = query.eq('risk_level', 'high')
-    } else if (riskFilter === 'medium') {
-      query = query.eq('risk_level', 'medium')
-    } else if (riskFilter === 'at_risk') {
-      query = query.in('risk_level', ['high', 'medium'])
-    }
-
-    const { data, error } = await query
-    if (error) return { error: error.message }
-
-    return {
-      accounts: (data ?? []).map((a) => ({
-        id: a.id,
-        name: a.name,
-        mrr: `$${(a.mrr_cents / 100).toFixed(0)}`,
-        mrrCents: a.mrr_cents,
-        riskLevel: a.risk_level,
-        usageDelta: `${a.usage_delta_percent}%`,
-        openIssue: sanitizeExternalText(a.open_issue, { maxLength: 180 }).text,
-        status: a.account_status,
-        summary: sanitizeExternalText(a.summary, { maxLength: 240 }).text,
-      })),
-      count: data?.length ?? 0,
+      return {
+        source: 'stripe_live',
+        observedAt: new Date().toISOString(),
+        accounts: accounts.map((account) => ({
+          id: account.accountId ?? account.stripeCustomerId,
+          internalAccountId: account.accountId,
+          stripeCustomerId: account.stripeCustomerId,
+          name: account.name,
+          email: account.email,
+          mrr: formatLiveMrr(account.mrrCents),
+          mrrCents: account.mrrCents,
+          riskLevel: account.riskLevel,
+          status: account.status,
+          plan: account.plan,
+          cancelAtPeriodEnd: account.cancelAtPeriodEnd,
+          currentPeriodEnd: account.currentPeriodEnd,
+          nextAction: liveStripeNextAction(account),
+        })),
+        count: accounts.length,
+        totalMrrCents: accounts.reduce((total, account) => total + account.mrrCents, 0),
+        totalMrr: formatLiveMrr(
+          accounts.reduce((total, account) => total + account.mrrCents, 0)
+        ),
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Stripe API call failed' }
     }
   },
 })
 
-// ----- Tool: Get Recent Signals -----
+// ----- Tool: Get Recent Signals (live Stripe only) -----
 
 export const getRecentSignals = tool({
   description:
-    'Fetch the latest signals across all accounts in a workspace. Signals include billing events, usage drops, support issues, and risk changes.',
+    'Derive current billing signals from live Stripe subscriptions. Never reads account_signals seed/cache rows.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    limit: z
-      .number()
-      .optional()
-      .describe('Max signals to return. Default: 10'),
+    limit: z.number().optional().describe('Max signals to return. Default: 10'),
   }),
   execute: async ({ workspaceId, limit }) => {
-    const supabase = createServiceClient()
+    try {
+      const observedAt = new Date().toISOString()
+      type LiveStripeSignal = {
+        account: string
+        accountId: string | null
+        stripeCustomerId: string
+        type: 'billing'
+        headline: string
+        detail: string
+        riskLevel: 'high' | 'medium'
+        time: string
+      }
 
-    const { data, error } = await supabase
-      .from('account_signals')
-      .select(
-        'headline, detail, signal_type, risk_level, event_at, customer_accounts(name)'
-      )
-      .eq('workspace_id', workspaceId)
-      .order('event_at', { ascending: false })
-      .limit(limit ?? 10)
+      const signals = (await listLiveStripeAccounts(workspaceId))
+        .flatMap<LiveStripeSignal>((account) => {
+          if (account.status === 'past_due') {
+            return [{
+              account: account.name,
+              accountId: account.accountId,
+              stripeCustomerId: account.stripeCustomerId,
+              type: 'billing',
+              headline: 'Live Stripe payment issue',
+              detail: `${account.name} is currently ${account.status.replace('_', ' ')} in Stripe.`,
+              riskLevel: 'high',
+              time: observedAt,
+            }]
+          }
+          if (account.status === 'cancelled') {
+            return [{
+              account: account.name,
+              accountId: account.accountId,
+              stripeCustomerId: account.stripeCustomerId,
+              type: 'billing',
+              headline: 'Live Stripe subscription cancelled',
+              detail: `${account.name} has no active Stripe subscription.`,
+              riskLevel: 'high',
+              time: observedAt,
+            }]
+          }
+          if (account.cancelAtPeriodEnd) {
+            return [{
+              account: account.name,
+              accountId: account.accountId,
+              stripeCustomerId: account.stripeCustomerId,
+              type: 'billing',
+              headline: 'Live Stripe cancellation scheduled',
+              detail: `${account.name} is scheduled to cancel at the current period end.`,
+              riskLevel: 'medium',
+              time: observedAt,
+            }]
+          }
+          return []
+        })
+        .slice(0, limit ?? 10)
 
-    if (error) return { error: error.message }
-
-    return {
-      signals: (data ?? []).map((s) => {
-        const account = Array.isArray(s.customer_accounts)
-          ? s.customer_accounts[0]
-          : s.customer_accounts
-        return {
-          account: (account as { name?: string } | null)?.name ?? 'Unknown',
-          type: s.signal_type,
-          headline: sanitizeExternalText(s.headline).text,
-          detail: sanitizeExternalText(s.detail, { maxLength: 400 }).text,
-          riskLevel: s.risk_level,
-          time: s.event_at,
-        }
-      }),
+      return { source: 'stripe_live', observedAt, signals, count: signals.length }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Stripe API call failed' }
     }
   },
 })
@@ -928,7 +1106,7 @@ export const resolveAccountByContact = tool({
 
     let contactQuery = supabase
       .from('account_contacts')
-      .select('customer_account_id, email, name, customer_accounts(id, name)')
+      .select('customer_account_id, email, name, external_ids, customer_accounts(id, name)')
       .eq('workspace_id', workspaceId)
 
     if (email) {
@@ -942,6 +1120,12 @@ export const resolveAccountByContact = tool({
     const { data: contact, error } = await contactQuery.maybeSingle()
     if (error) return { error: error.message }
     if (!contact) return { error: 'No matching contact found' }
+    if (!contact.external_ids || Object.keys(contact.external_ids).length === 0) {
+      return {
+        error:
+          'The matching contact has no verified live integration identity. Cached or seeded contact records are intentionally excluded.',
+      }
+    }
 
     const account = Array.isArray(contact.customer_accounts)
       ? contact.customer_accounts[0]
@@ -1102,14 +1286,32 @@ export const deliverSlackBriefTool = tool({
 
 export const buildDailyBriefFromLiveState = tool({
   description:
-    'Generate or refresh today’s founder brief directly from the current live workspace state.',
+    'Refresh every connected source provider from its real API, then generate today’s founder brief. Seed rows and unverified local accounts are excluded.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
   }),
   execute: async ({ workspaceId }) => {
+    const { refreshedProviders, failedProviders } =
+      await refreshConnectedSourcesForBrief(workspaceId)
+
+    if (refreshedProviders.length === 0) {
+      return {
+        error:
+          'No connected provider completed a live refresh, so no founder brief was generated from local or demo data.',
+        dataSource: 'connection_guard',
+        observedAt: new Date().toISOString(),
+        refreshedProviders,
+        failedProviders,
+      }
+    }
+
     const result = await generateWorkspaceBrief(workspaceId)
     return {
       success: true,
+      dataSource: 'synchronized_live_provider_state',
+      observedAt: new Date().toISOString(),
+      refreshedProviders,
+      failedProviders,
       briefId: result.briefId,
       itemCount: result.itemCount,
       headline: result.headline,
@@ -1122,37 +1324,45 @@ export const buildDailyBriefFromLiveState = tool({
 
 export const getStripeAccountState = tool({
   description:
-    'Fetch the current live Stripe billing state for a specific account. This calls the Stripe API directly, so the data is always fresh. Use this when you need to verify current billing status, not stored snapshots.',
+    'Fetch the current live Stripe billing state for a specific account. Accepts a Stripe customer ID from getAllAccounts or a linked internal account UUID. This calls Stripe directly and never returns a stored snapshot.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    accountId: z.string().uuid().describe('The customer account UUID'),
+    accountId: z.string().min(1).describe('The Stripe customer ID (cus_...) or linked internal account UUID'),
   }),
   execute: async ({ workspaceId, accountId }) => {
     const supabase = createServiceClient()
 
-    // Get the Stripe customer ID from account contacts
-    const { data: contact, error: contactError } = await supabase
-      .from('account_contacts')
-      .select('external_ids')
-      .eq('workspace_id', workspaceId)
-      .eq('customer_account_id', accountId)
-      .not('external_ids', 'is', null)
-      .limit(1)
-      .maybeSingle()
-
-    if (contactError) return { error: contactError.message }
-
-    const stripeCustomerId =
-      typeof contact?.external_ids?.stripe_customer_id === 'string'
-        ? contact.external_ids.stripe_customer_id
-        : null
-
-    if (!stripeCustomerId) {
-      return { error: 'No Stripe customer ID linked to this account' }
-    }
-
     try {
+      // getStripeClient enforces the mandatory connection state before any
+      // local mapping/cache lookup can influence the response.
       const stripe = await getStripeClient(workspaceId)
+      let stripeCustomerId = accountId.startsWith('cus_') ? accountId : null
+
+      if (!stripeCustomerId) {
+        const { data: contact, error: contactError } = await supabase
+          .from('account_contacts')
+          .select('external_ids')
+          .eq('workspace_id', workspaceId)
+          .eq('customer_account_id', accountId)
+          .not('external_ids', 'is', null)
+          .limit(1)
+          .maybeSingle()
+
+        if (contactError) return { error: contactError.message }
+
+        stripeCustomerId =
+          typeof contact?.external_ids?.stripe_customer_id === 'string'
+            ? contact.external_ids.stripe_customer_id
+            : null
+      }
+
+      if (!stripeCustomerId) {
+        return {
+          error:
+            'No live Stripe customer is linked to this account. Cached or seeded account rows are intentionally excluded.',
+        }
+      }
+
       const subscriptions = await stripe.subscriptions.list({
         customer: stripeCustomerId,
         limit: 5,
@@ -1161,6 +1371,8 @@ export const getStripeAccountState = tool({
 
       return {
         stripeCustomerId,
+        source: 'stripe_live',
+        observedAt: new Date().toISOString(),
         subscriptions: subscriptions.data.map((sub) => {
           // current_period_end may not be in the TS types for newer Stripe SDK versions
           const rawSub = sub as unknown as Record<string, unknown>
@@ -1196,35 +1408,36 @@ export const getPostHogAccountUsage = tool({
     accountId: z.string().uuid().describe('The customer account UUID'),
   }),
   execute: async ({ workspaceId, accountId }) => {
-    const supabase = createServiceClient()
-
-    // Get distinct IDs for this account's contacts
-    const { data: contacts, error: contactsError } = await supabase
-      .from('account_contacts')
-      .select('email, external_ids')
-      .eq('workspace_id', workspaceId)
-      .eq('customer_account_id', accountId)
-
-    if (contactsError) return { error: contactsError.message }
-    if (!contacts || contacts.length === 0) {
-      return { error: 'No contacts linked to this account' }
-    }
-
-    const distinctIds: string[] = []
-    for (const contact of contacts) {
-      const ids = contact.external_ids?.posthog_distinct_ids
-      if (Array.isArray(ids)) {
-        distinctIds.push(...ids.filter((id): id is string => typeof id === 'string'))
-      }
-    }
-
-    if (distinctIds.length === 0) {
-      return { error: 'No PostHog distinct IDs linked to this account' }
-    }
-
     try {
+      // Check the live PostHog connection before looking up a local account
+      // mapping. This prevents a disconnected workspace from receiving a
+      // misleading "no contacts" result based on seed rows.
       const { apiKey, projectId } = await getPostHogCredentials(workspaceId)
       if (!projectId) return { error: 'PostHog project ID is missing' }
+
+      const supabase = createServiceClient()
+      const { data: contacts, error: contactsError } = await supabase
+        .from('account_contacts')
+        .select('email, external_ids')
+        .eq('workspace_id', workspaceId)
+        .eq('customer_account_id', accountId)
+
+      if (contactsError) return { error: contactsError.message }
+      if (!contacts || contacts.length === 0) {
+        return { error: 'No live-linked contacts were found for this account' }
+      }
+
+      const distinctIds: string[] = []
+      for (const contact of contacts) {
+        const ids = contact.external_ids?.posthog_distinct_ids
+        if (Array.isArray(ids)) {
+          distinctIds.push(...ids.filter((id): id is string => typeof id === 'string'))
+        }
+      }
+
+      if (distinctIds.length === 0) {
+        return { error: 'No live PostHog identities are linked to this account' }
+      }
 
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -1243,7 +1456,11 @@ export const getPostHogAccountUsage = tool({
           },
         })
 
-        if (!response.ok) continue
+        if (!response.ok) {
+          throw new Error(
+            `PostHog API error while reading live account usage: ${response.status} ${response.statusText}`
+          )
+        }
 
         const data = (await response.json()) as { results?: Array<{ timestamp?: string }> }
         for (const event of data.results ?? []) {
@@ -1259,6 +1476,8 @@ export const getPostHogAccountUsage = tool({
       }
 
       return {
+        source: 'posthog_live',
+        observedAt: new Date().toISOString(),
         distinctIdCount: distinctIds.length,
         events7d,
         events30d,
@@ -1281,38 +1500,37 @@ export const getGmailThreadsForAccount = tool({
     accountId: z.string().uuid('Must be a valid UUID — use getMyInbox for founder inbox queries').describe('The customer account UUID from Supabase'),
   }),
   execute: async ({ workspaceId, accountId }) => {
-    if (!isGmailConfigured() || !isGmailReadSyncEnabled()) {
-      return { error: 'Gmail read sync is not enabled' }
-    }
-
-    const supabase = createServiceClient()
-
-    const { data: contacts, error: contactsError } = await supabase
-      .from('account_contacts')
-      .select('email, name, is_primary')
-      .eq('workspace_id', workspaceId)
-      .eq('customer_account_id', accountId)
-
-    if (contactsError) return { error: contactsError.message }
-    if (!contacts || contacts.length === 0) {
-      return { error: 'No contacts linked to this account' }
+    if (!isGmailReadSyncEnabled()) {
+      return {
+        error:
+          'Gmail is connected in send-only mode. Reconnect it in Settings > Connections with inbox-read permission to search live mail.',
+      }
     }
 
     try {
+      // getGmailProfile performs the mandatory connection check before any
+      // cached account metadata is consulted.
       const profile = await getGmailProfile(workspaceId)
+      const supabase = createServiceClient()
+      const { data: contacts, error: contactsError } = await supabase
+        .from('account_contacts')
+        .select('email, name, is_primary')
+        .eq('workspace_id', workspaceId)
+        .eq('customer_account_id', accountId)
+
+      if (contactsError) return { error: contactsError.message }
+      if (!contacts || contacts.length === 0) {
+        return { error: 'No live-linked contacts were found for this account' }
+      }
 
       const allThreads = []
       for (const contact of contacts.slice(0, 3)) {
-        try {
-          const threads = await fetchThreads(
-            workspaceId,
-            buildEmailSearchQuery(contact.email),
-            5
-          )
-          allThreads.push(...threads)
-        } catch {
-          // Skip contacts that fail to fetch
-        }
+        const threads = await fetchThreads(
+          workspaceId,
+          buildEmailSearchQuery(contact.email),
+          5
+        )
+        allThreads.push(...threads)
       }
 
       // Dedupe by thread ID and sort by latest message
@@ -1329,23 +1547,33 @@ export const getGmailThreadsForAccount = tool({
         .slice(0, 10)
 
       return {
+        source: 'gmail_live',
+        observedAt: new Date().toISOString(),
         ownerEmail: profile.emailAddress,
         threadCount: dedupedThreads.length,
         contentSafety: getExternalContentSafetyMeta('gmail'),
-        threads: dedupedThreads.map((thread) => ({
-          threadId: thread.threadId,
-          subject: sanitizeExternalText(thread.subject, { maxLength: 160 }).text,
-          from: sanitizeExternalText(thread.from, { maxLength: 160 }).text,
-          lastMessageAt: thread.lastMessageAt,
-          snippet: buildExternalContentSnippet({
-            source: 'gmail',
-            text: thread.snippet,
-            maxLength: 220,
-            title: thread.subject,
-          }).text,
-          isUnread: thread.isUnread,
-          needsReply: threadNeedsReply(thread, profile.emailAddress, null),
-        })),
+        threads: dedupedThreads.map((thread) => {
+          const classification = classifyEmailThread(thread)
+          return {
+            threadId: thread.threadId,
+            subject: sanitizeExternalText(thread.subject, { maxLength: 160 }).text,
+            from: sanitizeExternalText(thread.from, { maxLength: 160 }).text,
+            lastMessageAt: thread.lastMessageAt,
+            snippet: buildExternalContentSnippet({
+              source: 'gmail',
+              text: thread.snippet,
+              maxLength: 220,
+              title: thread.subject,
+            }).text,
+            isUnread: thread.isUnread,
+            category: classification.category,
+            priority: classification.priority,
+            personName: classification.personName,
+            needsReply:
+              classification.needsReply &&
+              threadNeedsReply(thread, profile.emailAddress, null),
+          }
+        }),
       }
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Gmail API call failed' }
@@ -1356,43 +1584,82 @@ export const getGmailThreadsForAccount = tool({
 
 export const getMyInbox = tool({
   description:
-    'Fetch the most recent Gmail threads from the FOUNDER\'S OWN inbox. Use this when the founder asks about their email, inbox, or "what did you find in my Gmail". This does NOT need an account ID — it reads the founder\'s own connected Gmail. Do NOT use getGmailThreadsForAccount for this — that tool is only for customer accounts.',
+    'Fetch and triage the most recent Gmail threads from the FOUNDER\'S OWN inbox. Use this when the founder asks about email, inbox, or "what needs my attention". It returns only reply/review-worthy threads by default plus digest counts, so summarize decisions instead of listing every email. This does NOT need an account ID — it reads the founder\'s own connected Gmail.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    query: z.string().optional().describe('Optional Gmail search query to narrow results (e.g. "is:unread", "from:someone@example.com")'),
-    limit: z.number().optional().describe('Max threads to return, default 10'),
+    query: z.string().optional().describe('Optional Gmail search query to narrow results (e.g. "newer_than:2d", "is:unread", "from:someone@example.com")'),
+    limit: z.number().optional().describe('Max threads to return, default 25'),
+    includeLowPriority: z
+      .boolean()
+      .optional()
+      .describe('Include individual marketing and digest threads. Default false; use only when the founder explicitly asks to review them.'),
   }),
-  execute: async ({ workspaceId, query, limit = 10 }) => {
-    if (!isGmailConfigured() || !isGmailReadSyncEnabled()) {
-      return { error: 'Gmail is not connected for this workspace' }
+  execute: async ({ workspaceId, query, limit = 25, includeLowPriority = false }) => {
+    if (!isGmailReadSyncEnabled()) {
+      return {
+        error:
+          'Gmail is connected in send-only mode. Reconnect it in Settings > Connections with inbox-read permission to read live mail.',
+      }
     }
 
     try {
       const profile = await getGmailProfile(workspaceId)
-      const searchQuery = query ?? 'is:unread newer_than:7d'
-
+      const searchQuery = query ?? 'newer_than:2d'
       const rawThreads = await fetchThreads(workspaceId, searchQuery, limit)
 
-      const threads = rawThreads
-        .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
-        .map((thread) => ({
-          threadId: thread.threadId,
-          subject: sanitizeExternalText(thread.subject, { maxLength: 160 }).text,
-          from: sanitizeExternalText(thread.from, { maxLength: 160 }).text,
-          lastMessageAt: thread.lastMessageAt,
-          snippet: buildExternalContentSnippet({
-            source: 'gmail',
-            text: thread.snippet,
-            maxLength: 220,
-            title: thread.subject,
-          }).text,
-          isUnread: thread.isUnread,
-          needsReply: threadNeedsReply(thread, profile.emailAddress, null),
-        }))
+      const priorityRank = { critical: 0, high: 1, medium: 2, low: 3 } as const
+      const classifiedThreads = rawThreads
+        .map((thread) => {
+          const classification = classifyEmailThread(thread)
+          return {
+            threadId: thread.threadId,
+            subject: sanitizeExternalText(thread.subject, { maxLength: 160 }).text,
+            from: sanitizeExternalText(thread.from, { maxLength: 160 }).text,
+            lastMessageAt: thread.lastMessageAt,
+            snippet: buildExternalContentSnippet({
+              source: 'gmail',
+              text: thread.snippet,
+              maxLength: 220,
+              title: thread.subject,
+            }).text,
+            isUnread: thread.isUnread,
+            category: classification.category,
+            priority: classification.priority,
+            personName: classification.personName,
+            needsReply:
+              classification.needsReply &&
+              threadNeedsReply(thread, profile.emailAddress, null),
+          }
+        })
+        .sort((left, right) => {
+          const priorityDifference = priorityRank[left.priority] - priorityRank[right.priority]
+          if (priorityDifference !== 0) return priorityDifference
+          if (left.needsReply !== right.needsReply) return left.needsReply ? -1 : 1
+          return new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime()
+        })
+
+      const replyThreads = classifiedThreads.filter((thread) => thread.needsReply)
+      const reviewThreads = classifiedThreads.filter(
+        (thread) => !thread.needsReply && thread.priority !== 'low'
+      )
+      const ignoredDigestCount = classifiedThreads.filter(
+        (thread) => thread.category === 'marketing_digest'
+      ).length
+      const threads = includeLowPriority
+        ? classifiedThreads
+        : classifiedThreads.filter((thread) => thread.needsReply || thread.priority !== 'low')
 
       return {
+        source: 'gmail_live',
+        observedAt: new Date().toISOString(),
         ownerEmail: profile.emailAddress,
-        threadCount: threads.length,
+        threadCount: classifiedThreads.length,
+        triage: {
+          replyCount: replyThreads.length,
+          reviewCount: reviewThreads.length,
+          ignoredDigestCount,
+          visibleThreadCount: threads.length,
+        },
         contentSafety: getExternalContentSafetyMeta('gmail'),
         threads,
       }
@@ -1805,8 +2072,6 @@ export const sendGmailReply = tool({
     }
 
     try {
-      if (!isGmailConfigured()) return { error: 'Gmail is not configured. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI.' }
-
       const { sendEmail } = await import('@/lib/integrations/gmail')
 
       const result = await sendEmail(workspaceId, {
@@ -1855,8 +2120,6 @@ export const composeNewEmail = tool({
     }
 
     try {
-      if (!isGmailConfigured()) return { error: 'Gmail is not configured' }
-
       const { sendEmail } = await import('@/lib/integrations/gmail')
 
       const result = await sendEmail(workspaceId, { to, subject, body })

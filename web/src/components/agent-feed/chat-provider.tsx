@@ -15,6 +15,7 @@ import { Chat, useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import type { UIMessage } from "ai"
 import type { PersonaId } from "@/lib/agent/personas"
+import { buildAgentChatStorageScope } from "@/lib/agent/chat-session"
 import {
   buildPersonaThreadChatId,
   buildPersonaThreadStorageKey,
@@ -30,6 +31,14 @@ type HydrationStatus = "idle" | "loading" | "restored" | "empty"
 
 /** The unified agent ID — backward-compatible with the old 'alex' persona */
 const AGENT_ID: PersonaId = "alex"
+
+export type SavedChatSession = {
+  id: string
+  title: string
+  createdAt: string
+  messageCount: number
+  messages: UIMessage[]
+}
 
 type ChatContextType = {
   messages: UIMessage[]
@@ -47,6 +56,10 @@ type ChatContextType = {
     lastMessageRole: UIMessage["role"] | null
   }>
   hydrationStatus: HydrationStatus
+  savedSessions: SavedChatSession[]
+  startNewChat: () => void
+  loadChatSession: (session: SavedChatSession) => void
+  deleteChatSession: (id: string) => void
 }
 
 const ChatContext = React.createContext<ChatContextType | null>(null)
@@ -108,16 +121,24 @@ export function ChatProvider({
 }) {
   const storageUserId = storageScope?.userId ?? null
   const storageWorkspaceId = storageScope?.workspaceId ?? null
-  const resolvedStorageScope = React.useMemo(
-    () =>
-      storageUserId && storageWorkspaceId
-        ? resolveChatStorageScope({
-          userId: storageUserId,
-          workspaceId: storageWorkspaceId,
-        })
-        : null,
-    [storageUserId, storageWorkspaceId]
-  )
+  const [activeSessionId, setActiveSessionId] = React.useState<string | null>(null)
+  const pendingLoadRef = React.useRef<UIMessage[] | null>(null)
+  const skipHydrationRef = React.useRef(false)
+
+  const resolvedStorageScope = React.useMemo(() => {
+    if (!storageUserId || !storageWorkspaceId) return null
+    if (activeSessionId) {
+      return buildAgentChatStorageScope(
+        { userId: storageUserId, workspaceId: storageWorkspaceId },
+        activeSessionId
+      )
+    }
+    return resolveChatStorageScope({
+      userId: storageUserId,
+      workspaceId: storageWorkspaceId,
+    })
+  }, [storageUserId, storageWorkspaceId, activeSessionId])
+
   const scopeKey = resolvedStorageScope
     ? `${resolvedStorageScope.userId}:${resolvedStorageScope.workspaceId}:${resolvedStorageScope.sessionId}`
     : "anonymous"
@@ -143,6 +164,12 @@ export function ChatProvider({
   }
 
   const chat = chatRef.current.chat
+
+  // Apply pending messages from loadChatSession after Chat object is recreated
+  if (pendingLoadRef.current && pendingLoadRef.current.length > 0) {
+    chat.messages = pendingLoadRef.current
+    pendingLoadRef.current = null
+  }
   const [hydrationStatus, setHydrationStatus] = React.useState<HydrationStatus>("idle")
 
   const persistThread = React.useCallback(() => {
@@ -200,8 +227,8 @@ export function ChatProvider({
         personaId: AGENT_ID,
       })
 
-      if (sanitizedMessages.length > 0) {
-        chat.messages = sanitizedMessages
+      if (sanitizedMessages.length > 0 && chatRef.current) {
+        chatRef.current.chat.messages = sanitizedMessages
         setMessages(sanitizedMessages)
       }
     } catch {
@@ -209,13 +236,20 @@ export function ChatProvider({
         buildPersonaThreadStorageKey(resolvedStorageScope)
       )
     }
-  }, [chat, resolvedStorageScope, setMessages])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedStorageScope?.sessionId])
 
   // ── Server Hydration ──
   React.useEffect(() => {
-    if (typeof window === "undefined" || !resolvedStorageScope) return
+    if (typeof window === "undefined" || !resolvedStorageScope || !chatRef.current) return
     if (hydrationStatus !== "idle") return
-    if (chat.messages.length > 0) {
+    // Skip server hydration when explicitly loading from local history
+    if (skipHydrationRef.current) {
+      skipHydrationRef.current = false
+      setHydrationStatus("restored")
+      return
+    }
+    if (chatRef.current.chat.messages.length > 0) {
       setHydrationStatus("empty")
       return
     }
@@ -235,8 +269,8 @@ export function ChatProvider({
         const data = await response.json()
         const serverMessages = data.messages as UIMessage[] | undefined
 
-        if (serverMessages && serverMessages.length > 0 && !cancelled) {
-          chat.messages = serverMessages
+        if (serverMessages && serverMessages.length > 0 && !cancelled && chatRef.current) {
+          chatRef.current.chat.messages = serverMessages
           setMessages(serverMessages)
           setHydrationStatus("restored")
           persistThread()
@@ -251,11 +285,12 @@ export function ChatProvider({
     hydrateFromServer()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedStorageScope?.sessionId, chat, persistThread, setMessages])
+  }, [resolvedStorageScope?.sessionId])
 
   // ── Observable callbacks ──
   React.useEffect(() => {
-    const observableChat = chat as ObservableChat
+    if (!chatRef.current) return
+    const observableChat = chatRef.current.chat as ObservableChat
     const unregisterMessages = observableChat["~registerMessagesCallback"]?.(() => {
       persistThread()
     })
@@ -270,7 +305,8 @@ export function ChatProvider({
     return () => {
       cleanups.forEach((cleanup) => cleanup())
     }
-  }, [chat, persistThread])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedStorageScope?.sessionId])
 
   const isLoading = status === "submitted" || status === "streaming"
 
@@ -312,6 +348,186 @@ export function ChatProvider({
     stop,
   ])
 
+  // ── Saved Chat History Management ──
+  const [savedSessions, setSavedSessions] = React.useState<SavedChatSession[]>([])
+  const [currentSessionId, setCurrentSessionId] = React.useState<string>(() => {
+    // Restore session ID from sessionStorage to prevent duplicate history entries on re-mount
+    if (typeof window !== "undefined") {
+      const stored = window.sessionStorage.getItem("cofounder.current-session-id")
+      if (stored) return stored
+    }
+    const fresh = `session-${Date.now()}`
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("cofounder.current-session-id", fresh)
+    }
+    return fresh
+  })
+
+  // Load saved sessions from localStorage on mount, re-title and deduplicate
+  React.useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      const raw = window.localStorage.getItem("cofounder.chat-history.v1")
+      if (raw) {
+        const parsed = JSON.parse(raw) as SavedChatSession[]
+        // Re-generate titles for all stored sessions using the latest logic
+        const refreshed = parsed.map((session) => ({
+          ...session,
+          title: session.messages?.length > 0
+            ? generateRefinedTitle(session.messages)
+            : session.title,
+        }))
+        // Deduplicate: if multiple entries share the same title, keep only the newest
+        const seen = new Set<string>()
+        const deduped = refreshed.filter((session) => {
+          if (seen.has(session.title)) return false
+          seen.add(session.title)
+          return true
+        })
+        setSavedSessions(deduped)
+        // Persist the cleaned list back
+        window.localStorage.setItem("cofounder.chat-history.v1", JSON.stringify(deduped))
+      }
+    } catch {
+      // Ignore storage read error
+    }
+  }, [])
+
+function generateRefinedTitle(messages: UIMessage[]): string {
+  const userMsgs = messages.filter((m) => m.role === "user")
+  if (userMsgs.length === 0) return "Casual Greeting"
+
+  // Collect all user text, strip greeting prefixes
+  const allUserText = userMsgs
+    .map((m) => {
+      const textPart = Array.isArray(m.parts)
+        ? m.parts.find((p) => p.type === "text")
+        : null
+      return textPart && "text" in textPart ? textPart.text : (m as unknown as { content?: string }).content
+    })
+    .filter((txt): txt is string => typeof txt === "string" && txt.trim().length > 0)
+    .map((txt) =>
+      txt
+        .trim()
+        .replace(/^(hey|hi|hello|yo|heyyy|bruv|bro|sup)(\s+(brother|bro|man|friend|fam|dude))?,?\s*/i, "")
+        .trim()
+    )
+    .join(" ")
+    .toLowerCase()
+
+  // Fuzzy domain matching — catches typos like "rveneu", "gamil", "strpi", etc.
+  const domainRules: [RegExp, string][] = [
+    [/\b(e?mail|inbox|gmail|gamil|mial|draft|thread|reply)\b/, "Email & Inbox Management"],
+    [/\b(stri?pe?|bill|mrr|churn|reven|subscri|invoice|payment)\b/, "Billing & Revenue"],
+    [/\b(posthog|analyt|usage|event|engage|metric|track)\b/, "Product Analytics"],
+    [/\b(notion|knowle|docs?|wiki|knowledge|page)\b/, "Knowledge Base"],
+    [/\b(linear|issue|bug|ticket|sprint|project)\b/, "Issue Tracking"],
+    [/\b(sentry|error|crash|exception|monitor)\b/, "Error Monitoring"],
+    [/\b(hubspot|crm|contact|deal|sales|lead|pipeline)\b/, "CRM & Sales"],
+    [/\b(discount|rescue|coupon|save|retain)\b/, "Rescue & Retention"],
+    [/\b(what can|capabilit|feature|integrat|connect)\b/, "Exploring Capabilities"],
+    [/\b(onboard|signup|activat|convert|funnel)\b/, "Onboarding & Activation"],
+    [/\b(compet|market|benchmark|research|trend)\b/, "Market Research"],
+    [/\b(team|hire|ops|process|workflow)\b/, "Operations & Team"],
+  ]
+
+  for (const [pattern, title] of domainRules) {
+    if (pattern.test(allUserText)) {
+      return title
+    }
+  }
+
+  return "General Discussion"
+}
+
+  // Auto-save active chat session whenever user messages update
+  React.useEffect(() => {
+    if (typeof window === "undefined" || messages.length === 0) return
+    const hasUserMsg = messages.some((m) => m.role === "user")
+    if (!hasUserMsg) return
+
+    const title = generateRefinedTitle(messages)
+
+    const sessionItem: SavedChatSession = {
+      id: currentSessionId,
+      title,
+      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      messageCount: messages.length,
+      messages,
+    }
+
+    setSavedSessions((prev) => {
+      const filtered = prev.filter((s) => s.id !== currentSessionId)
+      const updated = [sessionItem, ...filtered].slice(0, 30)
+      try {
+        window.localStorage.setItem("cofounder.chat-history.v1", JSON.stringify(updated))
+      } catch {
+        // Ignore
+      }
+      return updated
+    })
+  }, [messages, currentSessionId])
+
+  const startNewChat = React.useCallback(() => {
+    stop()
+    clearError()
+    const newSessionId = `session-${Date.now()}`
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("cofounder.current-session-id", newSessionId)
+      if (storageUserId && storageWorkspaceId) {
+        try {
+          window.sessionStorage.setItem(
+            `cofounder.chat-session.v2:${storageUserId}:${storageWorkspaceId}`,
+            newSessionId
+          )
+        } catch {
+          // Ignore storage write error
+        }
+      }
+    }
+    chatRef.current = null
+    setActiveSessionId(newSessionId)
+    setCurrentSessionId(newSessionId)
+    setMessages([])
+  }, [clearError, setMessages, stop, storageUserId, storageWorkspaceId])
+
+  const loadChatSession = React.useCallback((session: SavedChatSession) => {
+    stop()
+    clearError()
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("cofounder.current-session-id", session.id)
+      if (storageUserId && storageWorkspaceId) {
+        try {
+          window.sessionStorage.setItem(
+            `cofounder.chat-session.v2:${storageUserId}:${storageWorkspaceId}`,
+            session.id
+          )
+        } catch {
+          // Ignore storage write error
+        }
+      }
+    }
+    // Queue the messages to be applied after the new Chat object is created
+    pendingLoadRef.current = session.messages
+    skipHydrationRef.current = true
+    chatRef.current = null
+    setActiveSessionId(session.id)
+    setCurrentSessionId(session.id)
+    setMessages(session.messages)
+  }, [clearError, setMessages, stop, storageUserId, storageWorkspaceId])
+
+  const deleteChatSession = React.useCallback((id: string) => {
+    setSavedSessions((prev) => {
+      const updated = prev.filter((s) => s.id !== id)
+      try {
+        window.localStorage.setItem("cofounder.chat-history.v1", JSON.stringify(updated))
+      } catch {
+        // Ignore
+      }
+      return updated
+    })
+  }, [])
+
   const contextValue = React.useMemo<ChatContextType>(
     () => ({
       messages,
@@ -324,6 +540,10 @@ export function ChatProvider({
       resetActiveThread,
       threadStateByAgent: threadState,
       hydrationStatus,
+      savedSessions,
+      startNewChat,
+      loadChatSession,
+      deleteChatSession,
     }),
     [
       messages,
@@ -335,6 +555,10 @@ export function ChatProvider({
       resetActiveThread,
       threadState,
       hydrationStatus,
+      savedSessions,
+      startNewChat,
+      loadChatSession,
+      deleteChatSession,
     ]
   )
 

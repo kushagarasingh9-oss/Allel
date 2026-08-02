@@ -22,6 +22,8 @@ import {
   type PersonaId,
 } from './personas'
 import { isAIConfigured } from '@/lib/ai/ai'
+import { createServiceClient } from '@/lib/supabase/service'
+import { requireIntegrationConnected } from '@/lib/integrations/connection-guard'
 import { logAgentRun } from './run-logger'
 import { createApprovalRequest } from './approval-store'
 import {
@@ -350,6 +352,138 @@ export const ALL_TOOLS = {
 export type AgentToolName = keyof typeof ALL_TOOLS
 const ALL_TOOL_NAMES = Object.keys(ALL_TOOLS) as AgentToolName[]
 
+/**
+ * Every chat tool that reads or mutates a third-party system is mapped to its
+ * source provider. This is a second, centralized guard in addition to the
+ * credential-level guards in each integration module: no chat execution can
+ * silently fall through to local/demo data if a provider is disconnected.
+ */
+const INTEGRATION_PROVIDER_BY_TOOL: Partial<Record<AgentToolName, string>> = {
+  getAccountDetails: 'stripe',
+  getAllAccounts: 'stripe',
+  getRecentSignals: 'stripe',
+  syncStripeWorkspaceTool: 'stripe',
+  getStripeAccountState: 'stripe',
+  createRescueDiscountTool: 'stripe',
+  searchStripeCustomersTool: 'stripe',
+  getStripeCustomerDetail: 'stripe',
+  listStripeInvoicesTool: 'stripe',
+  getUpcomingStripeInvoice: 'stripe',
+  getStripeSubscriptionDetail: 'stripe',
+  cancelStripeSubscriptionTool: 'stripe',
+  refundStripeCharge: 'stripe',
+  applyStripeCoupon: 'stripe',
+  getStripeBalanceTool: 'stripe',
+  listStripeDisputesTool: 'stripe',
+
+  syncPostHogWorkspaceTool: 'posthog',
+  getPostHogAccountUsage: 'posthog',
+  createPostHogAnnotation: 'posthog',
+  listPostHogFeatureFlags: 'posthog',
+  togglePostHogFeatureFlag: 'posthog',
+  searchPostHogPersons: 'posthog',
+  getPostHogEvents: 'posthog',
+  listPostHogInsights: 'posthog',
+  listPostHogCohorts: 'posthog',
+  getPostHogEventDefinitions: 'posthog',
+
+  syncGmailWorkspaceTool: 'gmail',
+  getGmailThreadsForAccount: 'gmail',
+  getMyInbox: 'gmail',
+  sendGmailReply: 'gmail',
+  composeNewEmail: 'gmail',
+
+  deliverSlackBriefTool: 'slack',
+  sendSlackMessage: 'slack',
+  editSlackMessage: 'slack',
+  deleteSlackMsg: 'slack',
+  scheduleSlackMsg: 'slack',
+  searchSlack: 'slack',
+  getSlackHistory: 'slack',
+  replyInSlackThread: 'slack',
+  reactToSlackMessage: 'slack',
+  pinSlackMsg: 'slack',
+  addSlackBookmarkTool: 'slack',
+
+  syncIntercomWorkspaceTool: 'intercom',
+  listIntercomConvos: 'intercom',
+  getIntercomConvo: 'intercom',
+  replyToIntercomConvo: 'intercom',
+  closeIntercomConvo: 'intercom',
+  snoozeIntercomConvo: 'intercom',
+  assignIntercomConvo: 'intercom',
+  searchIntercomConvosTool: 'intercom',
+  searchIntercomContactsTool: 'intercom',
+  createIntercomNote: 'intercom',
+  tagIntercomConvo: 'intercom',
+
+  syncHubSpotWorkspaceTool: 'hubspot',
+  searchHubSpotContactsTool: 'hubspot',
+  getHubSpotContactTool: 'hubspot',
+  createHubSpotContactTool: 'hubspot',
+  updateHubSpotContactTool: 'hubspot',
+  searchHubSpotCompaniesTool: 'hubspot',
+  getHubSpotCompanyTool: 'hubspot',
+  searchHubSpotDealsTool: 'hubspot',
+  createHubSpotDealTool: 'hubspot',
+  updateHubSpotDealTool: 'hubspot',
+  createHubSpotNoteTool: 'hubspot',
+  listHubSpotOwnersTool: 'hubspot',
+  listHubSpotPipelinesTool: 'hubspot',
+
+  syncSentryWorkspaceTool: 'sentry',
+  listSentryIssuesTool: 'sentry',
+  getSentryIssueTool: 'sentry',
+  resolveSentryIssueTool: 'sentry',
+  assignSentryIssueTool: 'sentry',
+  getSentryLatestEventTool: 'sentry',
+  listSentryProjectsTool: 'sentry',
+  listSentryReleasesTool: 'sentry',
+  listSentryIssueTagsTool: 'sentry',
+
+  syncLinearWorkspaceTool: 'linear',
+  searchLinearIssuesTool: 'linear',
+  getLinearIssueTool: 'linear',
+  createLinearIssueTool: 'linear',
+  updateLinearIssueTool: 'linear',
+  addLinearCommentTool: 'linear',
+  listLinearTeamsTool: 'linear',
+  listLinearWorkflowStatesTool: 'linear',
+  listLinearLabelsTool: 'linear',
+  listLinearProjectsTool: 'linear',
+  listLinearUsersTool: 'linear',
+
+  listCalendarEventsTool: 'google_calendar',
+  getCalendarEventTool: 'google_calendar',
+  createCalendarEventTool: 'google_calendar',
+  updateCalendarEventTool: 'google_calendar',
+  deleteCalendarEventTool: 'google_calendar',
+  checkCalendarFreeBusy: 'google_calendar',
+  listCalendarsTool: 'google_calendar',
+  searchCalendarEventsTool: 'google_calendar',
+
+  searchNotionTool: 'notion',
+  getNotionPageTool: 'notion',
+  createNotionPageTool: 'notion',
+  updateNotionPageTool: 'notion',
+  queryNotionDatabaseTool: 'notion',
+  appendNotionContentTool: 'notion',
+  addNotionCommentTool: 'notion',
+  listNotionUsersTool: 'notion',
+
+  listAirtableBasesTool: 'airtable',
+  listAirtableTablesTool: 'airtable',
+  listAirtableRecordsTool: 'airtable',
+  getAirtableRecordTool: 'airtable',
+  createAirtableRecordTool: 'airtable',
+  updateAirtableRecordTool: 'airtable',
+  deleteAirtableRecordTool: 'airtable',
+}
+
+export function getIntegrationProviderForTool(toolName: AgentToolName) {
+  return INTEGRATION_PROVIDER_BY_TOOL[toolName] ?? null
+}
+
 // Until we have durable approval records tied to a human actor, agents should
 // not receive direct access to consequential third-party mutation tools.
 export const MANUAL_APPROVAL_REQUIRED_TOOL_NAMES = [
@@ -510,6 +644,71 @@ function wrapToolWithApprovalInterceptor(
   }
 }
 
+/**
+ * Enforces connection health at the chat boundary and marks successful tool
+ * responses as live provider data. Integration modules repeat this check at
+ * credential acquisition time, so approved actions and direct backend calls
+ * remain protected as well.
+ */
+function wrapToolWithLiveIntegrationGuard(
+  toolName: AgentToolName,
+  originalTool: (typeof ALL_TOOLS)[AgentToolName]
+): (typeof ALL_TOOLS)[AgentToolName] {
+  const provider = getIntegrationProviderForTool(toolName)
+  if (!provider) return originalTool
+
+  const original = originalTool as Record<string, unknown>
+  const execute = original.execute as
+    | ((input: Record<string, unknown>) => Promise<unknown>)
+    | undefined
+
+  if (!execute) return originalTool
+
+  return {
+    ...original,
+    description: `[LIVE ${provider}] ${String(original.description ?? toolName)}`,
+    execute: async (input: Record<string, unknown>) => {
+      const workspaceId = typeof input.workspaceId === 'string' ? input.workspaceId : ''
+      const observedAt = new Date().toISOString()
+
+      if (!workspaceId) {
+        return {
+          error: `Missing workspace ID — cannot use the live ${provider} integration.`,
+          integrationProvider: provider,
+          dataSource: 'connection_guard',
+          observedAt,
+        }
+      }
+
+      try {
+        await requireIntegrationConnected(createServiceClient(), workspaceId, provider)
+      } catch (error) {
+        return {
+          error:
+            error instanceof Error
+              ? error.message
+              : `${provider} is not connected for this workspace.`,
+          integrationProvider: provider,
+          dataSource: 'connection_guard',
+          observedAt,
+        }
+      }
+
+      const result = await execute(input)
+      if (!result || typeof result !== 'object' || Array.isArray(result)) {
+        return result
+      }
+
+      return {
+        integrationProvider: provider,
+        dataSource: 'live_provider_api',
+        observedAt,
+        ...(result as Record<string, unknown>),
+      }
+    },
+  } as unknown as (typeof ALL_TOOLS)[AgentToolName]
+}
+
 function assertPersonaToolConfiguration() {
   const availableTools = new Set(Object.keys(ALL_TOOLS))
   const invalidAssignments = PERSONAS.flatMap((persona) =>
@@ -546,32 +745,13 @@ function cacheSet(key: string, agent: ToolLoopAgent) {
   agentCache.set(key, agent)
 }
 
-function resolveAgentModelId(options?: {
+export function resolveAgentModelId(_options?: {
   personaId?: PersonaId
   runType?: string
   channel?: 'chat' | 'automation'
 }) {
-  if (options?.personaId === 'sarah' && process.env.AGENT_RETENTION_MODEL_ID) {
-    return process.env.AGENT_RETENTION_MODEL_ID
-  }
-
-  if (options?.personaId === 'henry' && process.env.AGENT_GROWTH_MODEL_ID) {
-    return process.env.AGENT_GROWTH_MODEL_ID
-  }
-
-  if (options?.personaId === 'alex' && process.env.AGENT_COFUNDER_MODEL_ID) {
-    return process.env.AGENT_COFUNDER_MODEL_ID
-  }
-
-  if (options?.channel === 'chat') {
-    return DEFAULT_AGENT_CHAT_MODEL_ID
-  }
-
-  if (options?.channel === 'automation') {
-    return DEFAULT_AGENT_AUTOMATION_MODEL_ID
-  }
-
-  return DEFAULT_AGENT_MODEL_ID
+  // Enforce gpt-4o-mini: 16.6x cheaper ($0.15/1M vs $2.50/1M) and 200,000 TPM capacity (never rate-limited)
+  return 'gpt-4o-mini'
 }
 
 function buildAgentStepMetadata(result: Awaited<ReturnType<ToolLoopAgent['generate']>>) {
@@ -626,10 +806,18 @@ export function getAgentForPersona(
       .filter(([name]) => availableToolNames.has(name as AgentToolName))
       .map(([name, toolDef]) => {
         // Wrap approval-required tools in chat mode
-        if (channel === 'chat' && isApprovalRequiredTool(name as AgentToolName)) {
-          return [name, wrapToolWithApprovalInterceptor(name as AgentToolName, toolDef)]
-        }
-        return [name, toolDef]
+        const approvalProtectedTool =
+          channel === 'chat' && isApprovalRequiredTool(name as AgentToolName)
+            ? wrapToolWithApprovalInterceptor(name as AgentToolName, toolDef)
+            : toolDef
+
+        return [
+          name,
+          wrapToolWithLiveIntegrationGuard(
+            name as AgentToolName,
+            approvalProtectedTool as (typeof ALL_TOOLS)[AgentToolName]
+          ),
+        ]
       })
   )
 
@@ -830,5 +1018,3 @@ export function estimateAgentCost(
 export function isAgentConfigured() {
   return isAIConfigured()
 }
-
-export { resolveAgentModelId }

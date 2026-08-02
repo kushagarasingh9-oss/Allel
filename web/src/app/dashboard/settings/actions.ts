@@ -95,6 +95,7 @@ async function saveEncryptedToken(params: {
   provider: string
   tokenType?: 'api_key' | 'oauth_access' | 'oauth_refresh'
   value: string
+  expiresAt?: string
 }) {
   const encrypted = encrypt(params.value)
 
@@ -106,6 +107,7 @@ async function saveEncryptedToken(params: {
       encrypted_value: encrypted.encrypted,
       iv: encrypted.iv,
       auth_tag: encrypted.authTag,
+      ...(params.expiresAt ? { expires_at: params.expiresAt } : {}),
     },
     { onConflict: 'workspace_id,provider,token_type' }
   )
@@ -658,6 +660,7 @@ export async function connectViaPipedream(provider: string, pipedreamAccountId: 
       provider,
       tokenType,
       value: token,
+      expiresAt: new Date(Date.now() + 55 * 60 * 1000).toISOString(),
     })
 
     // For Gmail (and other OAuth providers), also store the refresh token if available
@@ -735,9 +738,12 @@ export async function connectViaPipedream(provider: string, pipedreamAccountId: 
       })
       syncMessage = `${provider} connected via OAuth. ${result.message}`
     } catch (syncErr) {
-      // Sync failed but connection succeeded — still report success
       console.error(`[connectViaPipedream] First sync for ${provider} failed:`, syncErr)
-      syncMessage = `${provider} connected via OAuth, but the first sync needs attention before the next run.`
+      redirect(
+        buildSettingsRedirect({
+          error: `${provider} OAuth authorization completed, but the first sync needs attention. The agent will not use this integration until it is healthy.`,
+        })
+      )
     }
 
     revalidateDashboardSurfaces()
@@ -801,6 +807,7 @@ export async function connectViaPipedreamSafe(
       provider,
       tokenType,
       value: token,
+      expiresAt: new Date(Date.now() + 55 * 60 * 1000).toISOString(),
     })
 
     // For OAuth providers, also store the refresh token if available
@@ -875,7 +882,10 @@ export async function connectViaPipedreamSafe(
       syncMessage = `${provider} connected successfully. ${result.message}`
     } catch (syncErr) {
       console.error(`[connectViaPipedreamSafe] First sync for ${provider} failed:`, syncErr)
-      syncMessage = `${provider} connected, but the first sync needs attention before the next run.`
+      return {
+        success: false,
+        message: `${provider} OAuth authorization completed, but the first sync needs attention. The agent will not use this integration until it is healthy.`,
+      }
     }
 
     revalidateDashboardSurfaces()
@@ -884,6 +894,14 @@ export async function connectViaPipedreamSafe(
     console.error(`[connectViaPipedreamSafe] Failed for ${provider}:`, error)
     const msg = error instanceof Error ? error.message : `${provider} connection failed.`
     return { success: false, message: msg }
+  }
+}
+
+export async function connectDemoIntegrationSafe(provider: string) {
+  const label = getIntegrationDefinition(provider)?.label ?? provider
+  return {
+    success: false,
+    message: `${label} demo connections are disabled. Connect the real account through Pipedream OAuth in Settings > Connections.`,
   }
 }
 
@@ -1032,4 +1050,27 @@ export async function connectGoogleCalendar() {
       })
     )
   }
+}
+
+export async function getGmailConnectUrl() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Sign in again to connect Gmail.')
+  }
+
+  const { workspaceId } = await getWorkspaceIdForUser(user)
+  const { getGmailAuthUrl, isGmailConfigured } = await import('@/lib/integrations/gmail')
+
+  if (!isGmailConfigured()) {
+    // If GOOGLE_CLIENT_ID is not configured in local env, use 1-click test connect
+    await connectDemoIntegrationSafe('gmail')
+    return { demo: true }
+  }
+
+  const authUrl = getGmailAuthUrl(workspaceId)
+  return { authUrl }
 }

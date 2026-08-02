@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   buildEmailSearchQuery,
+  classifyEmailThread,
   extractEmailAddress,
   threadNeedsReply,
   type GmailThread,
@@ -70,4 +71,82 @@ test('threadNeedsReply returns false when the thread is older than the latest fo
     threadNeedsReply(thread, 'founder@company.com', '2026-04-07T10:00:00.000Z'),
     false
   )
+})
+
+test('classifyEmailThread filters automated digests before support-like keywords', () => {
+  const ftmo = classifyEmailThread({
+    from: 'FTMO <newsletter@ftmo.com>',
+    subject: 'The massive Yen short squeeze | Weekly Market Recap',
+    snippet: 'You received this email because you subscribed. Unsubscribe anytime.',
+  })
+  const gitlab = classifyEmailThread({
+    from: 'GitLab <noreply@gitlab.com>',
+    subject: 'Your code is in. Here is what to try next',
+    snippet: 'Explore the latest product update.',
+  })
+  const wispr = classifyEmailThread({
+    from: 'Wispr Flow <hello@wisprflow.ai>',
+    subject: 'One quick question for you',
+    snippet: 'A product update from Wispr Flow.',
+  })
+  const unicoin = classifyEmailThread({
+    from: 'Alex Konanykhin <alex@unicoin.example>',
+    subject: "UNICOIN / Defining Crypto's Place in the U.S. Financial System",
+  })
+
+  for (const classification of [ftmo, gitlab, wispr, unicoin]) {
+    assert.deepEqual(classification, {
+      category: 'marketing_digest',
+      needsReply: false,
+      priority: 'low',
+    })
+  }
+})
+
+test('classifyEmailThread only escalates an explicit human customer problem', () => {
+  const customerProblem = classifyEmailThread({
+    from: 'Ava Customer <ava@acme.com>',
+    subject: "I can't access my account",
+    snippet: 'I am locked out after upgrading. Can you help me get back in?',
+  })
+  const vendorSupportUpdate = classifyEmailThread({
+    from: 'Support <support@vendor.example>',
+    subject: 'Your support ticket update',
+    snippet: 'We have updated your request.',
+  })
+
+  assert.deepEqual(customerProblem, {
+    category: 'customer_support_issue',
+    needsReply: true,
+    priority: 'critical',
+  })
+  assert.deepEqual(vendorSupportUpdate, {
+    category: 'direct_human_email',
+    needsReply: true,
+    priority: 'medium',
+  })
+})
+
+test('classifyEmailThread keeps transactional alerts and networking separate from replies', () => {
+  assert.deepEqual(
+    classifyEmailThread({
+      from: 'Billing <no-reply@payments.example>',
+      subject: 'Payment failed for your subscription',
+    }),
+    {
+      category: 'financial_revenue_event',
+      needsReply: false,
+      priority: 'high',
+    }
+  )
+
+  const invite = classifyEmailThread({
+    from: 'LinkedIn <messages-noreply@linkedin.com>',
+    subject: 'Navya Trivedi wants to connect with you',
+  })
+
+  assert.equal(invite.category, 'linkedin_invite')
+  assert.equal(invite.needsReply, false)
+  assert.equal(invite.priority, 'medium')
+  assert.equal(invite.personName, 'Navya Trivedi')
 })

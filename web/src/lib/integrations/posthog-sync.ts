@@ -3,6 +3,7 @@ import { logAgentRun } from '@/lib/agent/run-logger'
 import { buildSignalsFromAccount, scoreAccount } from '@/lib/engine/score-engine'
 import { getPostHogCredentials } from './posthog'
 import { generateWorkspaceBrief } from '@/lib/briefs/generate-workspace-brief'
+import { mergeIntegrationConnectionMetadata } from './connection-guard'
 
 type ExistingAccount = {
   id: string
@@ -241,7 +242,8 @@ async function fetchRecentEvents(
 }
 
 export async function syncPostHogWorkspace(
-  workspaceId: string
+  workspaceId: string,
+  options?: { refreshBrief?: boolean }
 ): Promise<PostHogWorkspaceSyncResult> {
   const supabase = createServiceClient()
   const { apiKey, projectId } = await getPostHogCredentials(workspaceId)
@@ -596,12 +598,12 @@ export async function syncPostHogWorkspace(
       provider: 'posthog',
       status: 'connected',
       last_synced_at: new Date().toISOString(),
-      metadata: {
+      metadata: await mergeIntegrationConnectionMetadata(supabase, workspaceId, 'posthog', {
         project_id: projectId,
         coverage: `${people.length} people synced across ${syncedAccounts} account(s)`,
         synced_people: people.length,
         synced_accounts: syncedAccounts,
-      },
+      }),
     },
     { onConflict: 'workspace_id,provider' }
   )
@@ -622,7 +624,7 @@ export async function syncPostHogWorkspace(
     },
   })
 
-  await generateWorkspaceBrief(workspaceId)
+  if (options?.refreshBrief ?? true) await generateWorkspaceBrief(workspaceId)
 
   return {
     syncedAccounts,

@@ -9,12 +9,12 @@ import {
   fetchThreads,
   getGmailProfile,
   getGmailScopeMode,
-  isGmailConfigured,
   isGmailReadSyncEnabled,
   threadNeedsReply,
   type GmailThread,
 } from './gmail'
 import { buildGmailBootstrapCandidates, buildGmailBootstrapQuery } from './gmail-bootstrap'
+import { mergeIntegrationConnectionMetadata } from './connection-guard'
 
 type ExistingAccount = {
   id: string
@@ -36,6 +36,7 @@ type ExistingContact = {
   name: string | null
   is_primary: boolean
   customer_account_id: string
+  external_ids: Record<string, unknown> | null
 }
 
 export type GmailWorkspaceSyncResult = {
@@ -231,7 +232,10 @@ async function bootstrapAccountsFromInbox(params: {
         name: contact.name,
         role: 'email_contact',
         is_primary: existingContact ? existingContact.customer_account_id === account.id : contact.isPrimary,
-        external_ids: {},
+        external_ids: {
+          ...(existingContact?.external_ids ?? {}),
+          gmail_email: contact.email,
+        },
       }
 
       const { error: upsertContactError } = await supabase
@@ -246,6 +250,7 @@ async function bootstrapAccountsFromInbox(params: {
           name: contact.name,
           is_primary: contactPayload.is_primary,
           customer_account_id: account.id,
+          external_ids: contactPayload.external_ids,
         }
         contacts.push(insertedContact)
         contactsByEmail.set(contact.email, insertedContact)
@@ -303,14 +308,9 @@ async function createCommunicationDraftIfMissing(params: {
 }
 
 export async function syncGmailWorkspace(
-  workspaceId: string
+  workspaceId: string,
+  options?: { refreshBrief?: boolean }
 ): Promise<GmailWorkspaceSyncResult> {
-  if (!isGmailConfigured()) {
-    throw new Error(
-      'Gmail sync is not configured yet. Add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI.'
-    )
-  }
-
   const supabase = createServiceClient()
 
   if (!isGmailReadSyncEnabled()) {
@@ -321,11 +321,11 @@ export async function syncGmailWorkspace(
         provider: 'gmail',
         status: 'connected',
         last_synced_at: syncedAt,
-        metadata: {
+        metadata: await mergeIntegrationConnectionMetadata(supabase, workspaceId, 'gmail', {
           coverage: 'Send-only OAuth connected for local testing. Inbox sync is disabled.',
           mode: getGmailScopeMode(),
           pending_replies: 0,
-        },
+        }),
       },
       { onConflict: 'workspace_id,provider' }
     )
@@ -343,7 +343,7 @@ export async function syncGmailWorkspace(
       },
     })
 
-    await generateWorkspaceBrief(workspaceId)
+    if (options?.refreshBrief ?? true) await generateWorkspaceBrief(workspaceId)
 
     return {
       syncedAccounts: 0,
@@ -369,7 +369,7 @@ export async function syncGmailWorkspace(
       .order('mrr_cents', { ascending: false }),
     supabase
       .from('account_contacts')
-      .select('email, name, is_primary, customer_account_id')
+      .select('email, name, is_primary, customer_account_id, external_ids')
       .eq('workspace_id', workspaceId)
       .order('is_primary', { ascending: false }),
     supabase
@@ -568,7 +568,7 @@ export async function syncGmailWorkspace(
       provider: 'gmail',
       status: 'connected',
       last_synced_at: syncedAt,
-      metadata: {
+      metadata: await mergeIntegrationConnectionMetadata(supabase, workspaceId, 'gmail', {
         coverage:
           syncedThreads > 0
             ? `${syncedThreads} Gmail thread${syncedThreads === 1 ? '' : 's'} across ${syncedAccounts} account${
@@ -583,7 +583,7 @@ export async function syncGmailWorkspace(
         pending_replies: pendingReplies,
         bootstrapped_accounts: bootstrapped.bootstrappedAccounts,
         bootstrapped_contacts: bootstrapped.bootstrappedContacts,
-      },
+      }),
     },
     { onConflict: 'workspace_id,provider' }
   )
@@ -605,7 +605,7 @@ export async function syncGmailWorkspace(
     },
   })
 
-  await generateWorkspaceBrief(workspaceId)
+  if (options?.refreshBrief ?? true) await generateWorkspaceBrief(workspaceId)
 
   return {
     syncedAccounts,

@@ -7,8 +7,13 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/service'
-import { decrypt } from './encryption'
-import { refreshGmailToken } from './gmail'
+import { getGmailAccessToken } from './gmail'
+import { getIntegrationToken } from './provider-tokens'
+import {
+  IntegrationConnectionError,
+  getIntegrationConnection,
+  isIntegrationConnected,
+} from './connection-guard'
 
 // ============================================================
 //  Types
@@ -60,47 +65,35 @@ export type CalendarListEntry = {
 async function getCalendarAccessToken(workspaceId: string): Promise<string> {
   const supabase = createServiceClient()
 
-  // Try google_calendar's own token first (standalone Pipedream OAuth)
-  const { data: calendarAccessRow } = await supabase
-    .from('integration_tokens')
-    .select('encrypted_value, iv, auth_tag')
-    .eq('workspace_id', workspaceId)
-    .eq('provider', 'google_calendar')
-    .eq('token_type', 'oauth_access')
-    .maybeSingle()
+  // Google Calendar can be connected directly or through Gmail's Google OAuth
+  // grant. Both are live credentials, but neither may bypass connection state.
+  const [calendarConnection, gmailConnection, hasCalendarConnection, hasGmailConnection] = await Promise.all([
+    getIntegrationConnection(supabase, workspaceId, 'google_calendar'),
+    getIntegrationConnection(supabase, workspaceId, 'gmail'),
+    isIntegrationConnected(supabase, workspaceId, 'google_calendar'),
+    isIntegrationConnected(supabase, workspaceId, 'gmail'),
+  ])
 
-  if (calendarAccessRow) {
-    return decrypt(calendarAccessRow.encrypted_value, calendarAccessRow.iv, calendarAccessRow.auth_tag)
+  if (!hasCalendarConnection && !hasGmailConnection) {
+    throw new IntegrationConnectionError(
+      'google_calendar',
+      calendarConnection?.status ?? gmailConnection?.status ?? 'missing'
+    )
   }
 
-  // Fall back to Gmail's OAuth token (shared Google OAuth)
-  const { data: gmailAccessRow } = await supabase
-    .from('integration_tokens')
-    .select('encrypted_value, iv, auth_tag')
-    .eq('workspace_id', workspaceId)
-    .eq('provider', 'gmail')
-    .eq('token_type', 'oauth_access')
-    .maybeSingle()
-
-  if (gmailAccessRow) {
-    return decrypt(gmailAccessRow.encrypted_value, gmailAccessRow.iv, gmailAccessRow.auth_tag)
-  }
-
-  // Try refresh tokens: google_calendar first, then gmail
-  for (const provider of ['google_calendar', 'gmail'] as const) {
-    const { data: refreshRow } = await supabase
-      .from('integration_tokens')
-      .select('encrypted_value, iv, auth_tag')
-      .eq('workspace_id', workspaceId)
-      .eq('provider', provider)
-      .eq('token_type', 'oauth_refresh')
-      .maybeSingle()
-
-    if (refreshRow) {
-      const refreshToken = decrypt(refreshRow.encrypted_value, refreshRow.iv, refreshRow.auth_tag)
-      const { accessToken } = await refreshGmailToken(refreshToken)
-      return accessToken
+  // Both branches retrieve a live OAuth token through a guarded credential
+  // path. Calendar never reads a cached row directly or falls back to demo
+  // workspace data.
+  if (hasCalendarConnection) {
+    try {
+      return await getIntegrationToken(workspaceId, 'google_calendar', 'oauth_access')
+    } catch (error) {
+      if (!hasGmailConnection) throw error
     }
+  }
+
+  if (hasGmailConnection) {
+    return getGmailAccessToken(workspaceId)
   }
 
   throw new Error('Google Calendar not connected — connect Google Calendar or Gmail with calendar scopes')

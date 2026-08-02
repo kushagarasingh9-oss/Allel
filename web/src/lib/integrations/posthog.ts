@@ -6,8 +6,7 @@
  * Uses PostHog's REST API with Personal API key.
  */
 
-import { createServiceClient } from '@/lib/supabase/service'
-import { decrypt } from './encryption'
+import { getIntegrationMetadata, getIntegrationToken } from './provider-tokens'
 
 type PostHogCredentials = {
   apiKey: string
@@ -25,30 +24,11 @@ type PostHogApiResponse<T = Record<string, unknown>> = T & {
 // ============================================================
 
 export async function getPostHogCredentials(workspaceId: string): Promise<PostHogCredentials> {
-  const supabase = createServiceClient()
-
-  const { data, error } = await supabase
-    .from('integration_tokens')
-    .select('encrypted_value, iv, auth_tag, token_type')
-    .eq('workspace_id', workspaceId)
-    .eq('provider', 'posthog')
-
-  if (error) throw error
-  if (!data || data.length === 0) throw new Error('PostHog not connected for this workspace')
-
-  const keyRow = data.find((d) => d.token_type === 'api_key')
-  if (!keyRow) throw new Error('PostHog API key not found')
-
-  const apiKey = decrypt(keyRow.encrypted_value, keyRow.iv, keyRow.auth_tag)
-
-  const { data: connData } = await supabase
-    .from('integration_connections')
-    .select('metadata')
-    .eq('workspace_id', workspaceId)
-    .eq('provider', 'posthog')
-    .maybeSingle()
-
-  const projectId = (connData?.metadata as Record<string, unknown>)?.project_id as string ?? ''
+  const [apiKey, metadata] = await Promise.all([
+    getIntegrationToken(workspaceId, 'posthog'),
+    getIntegrationMetadata<{ project_id?: unknown }>(workspaceId, 'posthog'),
+  ])
+  const projectId = typeof metadata.project_id === 'string' ? metadata.project_id : ''
 
   return { apiKey, projectId }
 }

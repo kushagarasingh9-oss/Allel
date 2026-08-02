@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   estimateAgentCost,
   getAvailableToolNamesForPersona,
+  getIntegrationProviderForTool,
   MANUAL_APPROVAL_REQUIRED_TOOL_NAMES,
 } from './agent'
 
@@ -27,4 +28,32 @@ test('getAvailableToolNamesForPersona excludes manual-approval tools from agent 
 
   assert.equal(alexTools.has('getAccountDetails'), true)
   assert.equal(alexTools.has('generateFollowUpDraft'), true)
+})
+
+test('cofounder chat exposes every live integration surface behind a provider guard', () => {
+  const chatTools = new Set(
+    getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+  )
+  const representativeTools = {
+    stripe: 'getStripeBalanceTool',
+    posthog: 'listPostHogInsights',
+    gmail: 'getMyInbox',
+    slack: 'getSlackHistory',
+    intercom: 'listIntercomConvos',
+    hubspot: 'searchHubSpotContactsTool',
+    sentry: 'listSentryIssuesTool',
+    linear: 'searchLinearIssuesTool',
+    google_calendar: 'listCalendarEventsTool',
+    notion: 'searchNotionTool',
+    airtable: 'listAirtableBasesTool',
+  } as const
+
+  for (const [provider, toolName] of Object.entries(representativeTools)) {
+    assert.equal(chatTools.has(toolName), true, `${toolName} should be available to Cofounder chat`)
+    assert.equal(
+      getIntegrationProviderForTool(toolName),
+      provider,
+      `${toolName} should enforce the ${provider} connection state`
+    )
+  }
 })

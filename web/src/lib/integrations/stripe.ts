@@ -7,8 +7,6 @@
  */
 
 import Stripe from 'stripe'
-import { createServiceClient } from '@/lib/supabase/service'
-import { decrypt } from './encryption'
 import { getIntegrationToken } from './provider-tokens'
 
 const STRIPE_API_VERSION = '2025-03-31.basil' as const
@@ -72,14 +70,30 @@ export async function syncSubscriptions(workspaceId: string): Promise<SyncedSubs
 
     for (const sub of subscriptions.data) {
       const customer = sub.customer as Stripe.Customer
-      const item = sub.items.data[0]
-      const unitAmount = item?.price?.unit_amount ?? 0
-      const interval = item?.price?.recurring?.interval ?? 'month'
+      const items = sub.items.data
+      const mrrCents = items.reduce((total, item) => {
+        const amount = (item.price?.unit_amount ?? 0) * (item.quantity ?? 1)
+        const interval = item.price?.recurring?.interval ?? 'month'
 
-      const mrrCents =
-        interval === 'year' ? Math.round(unitAmount / 12) :
-        interval === 'week' ? unitAmount * 4 :
-        unitAmount
+        const monthlyAmount =
+          interval === 'year' ? Math.round(amount / 12) :
+          interval === 'week' ? amount * 4 :
+          interval === 'day' ? amount * 30 :
+          amount
+
+        return total + monthlyAmount
+      }, 0)
+      const planName = Array.from(
+        new Set(
+          items
+            .map((item) => item.price?.nickname ?? item.price?.product?.toString() ?? null)
+            .filter((name): name is string => Boolean(name))
+        )
+      ).join(', ') || null
+      const currentPeriodEnd = items
+        .map((item) => (item as unknown as { current_period_end?: number }).current_period_end)
+        .filter((value): value is number => typeof value === 'number')
+        .sort((left, right) => right - left)[0] ?? Math.floor(Date.now() / 1000)
 
       results.push({
         stripeCustomerId: customer.id,
@@ -87,9 +101,9 @@ export async function syncSubscriptions(workspaceId: string): Promise<SyncedSubs
         customerName: customer.name ?? null,
         subscriptionId: sub.id,
         status: sub.status,
-        planName: item?.price?.nickname ?? item?.price?.product?.toString() ?? null,
+        planName,
         mrrCents,
-        currentPeriodEnd: new Date(((item as unknown as { current_period_end?: number })?.current_period_end ?? Math.floor(Date.now() / 1000)) * 1000),
+        currentPeriodEnd: new Date(currentPeriodEnd * 1000),
         cancelAtPeriodEnd: sub.cancel_at_period_end,
       })
     }
@@ -403,4 +417,3 @@ export async function listStripeCoupons(
   const result = await stripe.coupons.list({ limit })
   return result.data
 }
-

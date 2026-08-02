@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { decrypt, encrypt } from './encryption'
+import { requireIntegrationConnected } from './connection-guard'
 
 export type GmailScopeMode = 'send_only' | 'full'
 
@@ -61,7 +62,9 @@ type GmailThreadResponse = {
 const EMAIL_REGEX = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
 
 export function getGmailScopeMode(): GmailScopeMode {
-  return process.env.GOOGLE_GMAIL_SCOPE_MODE === 'full' ? 'full' : 'send_only'
+  // Inbox access is the product's normal operating mode. Deployments that
+  // intentionally grant send-only access must opt out explicitly.
+  return process.env.GOOGLE_GMAIL_SCOPE_MODE === 'send_only' ? 'send_only' : 'full'
 }
 
 export function isGmailReadSyncEnabled() {
@@ -159,15 +162,182 @@ export function buildEmailSearchQuery(email: string, lookbackDays: number = 120)
   return `newer_than:${lookbackDays}d (from:${email} OR to:${email})`
 }
 
+export type GmailThreadCategory =
+  | 'marketing_digest'
+  | 'customer_support_issue'
+  | 'financial_revenue_event'
+  | 'security_alert'
+  | 'linkedin_invite'
+  | 'direct_human_email'
+
+export type GmailThreadPriority = 'critical' | 'high' | 'medium' | 'low'
+
+export type GmailThreadClassification = {
+  category: GmailThreadCategory
+  needsReply: boolean
+  priority: GmailThreadPriority
+  personName?: string
+}
+
+const AUTOMATED_SENDER_MARKERS = [
+  'no-reply',
+  'noreply',
+  'newsletter',
+  'digest',
+  'marketing',
+  'mailer-daemon',
+]
+
+const AUTOMATED_BRAND_MARKERS = [
+  'ftmo',
+  'gitlab',
+  'medium',
+  'substack',
+  'bankless',
+  'w3schools',
+  'pinterest',
+  'facebook',
+  'wispr',
+  'notion',
+]
+
+const MARKETING_CONTENT_MARKERS = [
+  'unsubscribe',
+  'weekly market recap',
+  'market recap',
+  'short squeeze',
+  'what\'s new',
+  'your code is in',
+  'missed this week',
+  'webinar',
+  'course',
+  'posts/day',
+  'posts per day',
+  'unicoin',
+  "defining crypto's place",
+]
+
+function includesAny(value: string, markers: readonly string[]) {
+  return markers.some((marker) => value.includes(marker))
+}
+
+function extractLinkedInInvitePerson(subject: string, snippet: string) {
+  const text = `${subject} ${snippet}`
+  const match = text.match(
+    /(?:^|\b)([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,2})\s+(?:wants to connect|sent you a connection request)/
+  )
+  return match?.[1]?.trim()
+}
+
+/**
+ * Returns machine-readable triage only. The agent, not this parser, is
+ * responsible for the founder-facing summary and recommendation.
+ */
+export function classifyEmailThread(
+  thread: { subject?: string; from?: string; snippet?: string }
+): GmailThreadClassification {
+  const from = (thread.from ?? '').toLowerCase()
+  const subject = (thread.subject ?? '').toLowerCase()
+  const snippet = (thread.snippet ?? '').toLowerCase()
+  const content = `${subject}\n${snippet}`
+
+  const isLinkedInInvite =
+    from.includes('linkedin') &&
+    (content.includes('connect') || content.includes('connection request'))
+  const isSecurityAlert = includesAny(content, [
+    'security alert',
+    'unrecognised device',
+    'unrecognized device',
+    'suspicious sign-in',
+    'new sign-in',
+    'verify your identity',
+  ])
+  const isFinancialEvent = includesAny(content, [
+    'payment failed',
+    'card declined',
+    'invoice overdue',
+    'subscription expiring',
+    'subscription cancelled',
+    'payout failed',
+    'payout on hold',
+  ])
+  const isAutomatedOrMarketing =
+    includesAny(from, AUTOMATED_SENDER_MARKERS) ||
+    includesAny(from, AUTOMATED_BRAND_MARKERS) ||
+    includesAny(content, MARKETING_CONTENT_MARKERS)
+
+  // A LinkedIn invite is an actionable networking signal, not a human email
+  // that deserves a reply. Keep it separate before the broad automated filter.
+  if (isLinkedInInvite) {
+    return {
+      category: 'linkedin_invite',
+      needsReply: false,
+      priority: 'medium',
+      personName: extractLinkedInInvitePerson(thread.subject ?? '', thread.snippet ?? ''),
+    }
+  }
+
+  // Transactional security and billing notices are not newsletters. They do
+  // not need an email reply, but the founder should see them above digests.
+  if (isSecurityAlert) {
+    return { category: 'security_alert', needsReply: false, priority: 'high' }
+  }
+
+  if (isFinancialEvent) {
+    return { category: 'financial_revenue_event', needsReply: false, priority: 'high' }
+  }
+
+  // First-pass digest filter: this must happen before support keyword checks.
+  // It stops a GitLab update or market recap containing words such as "issue"
+  // or "support" from becoming a fake customer escalation.
+  if (isAutomatedOrMarketing) {
+    return { category: 'marketing_digest', needsReply: false, priority: 'low' }
+  }
+
+  const reportsProductProblem = includesAny(content, [
+    'bug',
+    'broken',
+    'not working',
+    'doesn\'t work',
+    'cannot access',
+    'can\'t access',
+    'account locked',
+    'locked out',
+    'cannot log in',
+    'can\'t log in',
+    'billing issue',
+    'payment issue',
+    'invoice problem',
+    'refund request',
+    'charged twice',
+  ])
+  const soundsLikeCustomerReport = /\b(i|we|my|our)\b|can you|could you|please help/.test(
+    content
+  )
+
+  // Do not elevate mail merely because it is from "support@". A critical
+  // support case requires an explicit, human customer report about the SaaS.
+  if (reportsProductProblem && soundsLikeCustomerReport) {
+    return { category: 'customer_support_issue', needsReply: true, priority: 'critical' }
+  }
+
+  return { category: 'direct_human_email', needsReply: true, priority: 'medium' }
+}
+
 export function threadNeedsReply(
-  thread: Pick<GmailThread, 'isUnread' | 'lastMessageAt' | 'lastSenderEmail'>,
+  thread: Pick<GmailThread, 'isUnread' | 'lastMessageAt' | 'lastSenderEmail' | 'subject' | 'from' | 'snippet'>,
   ownerEmail: string,
   lastTouchAt?: string | null
 ) {
   const owner = ownerEmail.toLowerCase()
-  const lastSender = thread.lastSenderEmail?.toLowerCase()
+  const lastSender = thread.lastSenderEmail?.toLowerCase() ?? (thread.from ?? '').toLowerCase()
 
   if (!lastSender || lastSender === owner) {
+    return false
+  }
+
+  const classification = classifyEmailThread(thread)
+  if (!classification.needsReply) {
     return false
   }
 
@@ -290,8 +460,10 @@ export async function refreshGmailToken(refreshToken: string): Promise<{
   }
 }
 
-async function getAccessToken(workspaceId: string): Promise<string> {
+export async function getGmailAccessToken(workspaceId: string): Promise<string> {
   const supabase = createServiceClient()
+
+  await requireIntegrationConnected(supabase, workspaceId, 'gmail')
 
   const { data: accessRow, error: accessError } = await supabase
     .from('integration_tokens')
@@ -308,6 +480,65 @@ async function getAccessToken(workspaceId: string): Promise<string> {
 
   if (accessRow.expires_at && new Date(accessRow.expires_at) > new Date()) {
     return decrypt(accessRow.encrypted_value, accessRow.iv, accessRow.auth_tag)
+  }
+
+  // Pipedream owns refresh handling for accounts connected through Pipedream
+  // Connect. Re-read the account instead of requiring this app to also own the
+  // Google OAuth client secret.
+  const { data: connection, error: connectionError } = await supabase
+    .from('integration_connections')
+    .select('metadata')
+    .eq('workspace_id', workspaceId)
+    .eq('provider', 'gmail')
+    .maybeSingle()
+
+  if (connectionError) throw connectionError
+
+  const pipedreamAccountId =
+    typeof connection?.metadata?.pipedream_account_id === 'string'
+      ? connection.metadata.pipedream_account_id
+      : null
+
+  if (pipedreamAccountId) {
+    const { getAccountCredentials } = await import('./pipedream')
+    const { token, refreshToken } = await getAccountCredentials(pipedreamAccountId)
+    const encrypted = encrypt(token)
+    const expiresAt = new Date(Date.now() + 55 * 60 * 1000).toISOString()
+
+    const { error: updateError } = await supabase
+      .from('integration_tokens')
+      .update({
+        encrypted_value: encrypted.encrypted,
+        iv: encrypted.iv,
+        auth_tag: encrypted.authTag,
+        expires_at: expiresAt,
+      })
+      .eq('workspace_id', workspaceId)
+      .eq('provider', 'gmail')
+      .eq('token_type', 'oauth_access')
+
+    if (updateError) throw updateError
+
+    if (refreshToken) {
+      const encryptedRefreshToken = encrypt(refreshToken)
+      const { error: refreshUpdateError } = await supabase
+        .from('integration_tokens')
+        .upsert(
+          {
+            workspace_id: workspaceId,
+            provider: 'gmail',
+            token_type: 'oauth_refresh',
+            encrypted_value: encryptedRefreshToken.encrypted,
+            iv: encryptedRefreshToken.iv,
+            auth_tag: encryptedRefreshToken.authTag,
+          },
+          { onConflict: 'workspace_id,provider,token_type' }
+        )
+
+      if (refreshUpdateError) throw refreshUpdateError
+    }
+
+    return token
   }
 
   const { data: refreshTokenRow, error: refreshTokenError } = await supabase
@@ -374,7 +605,7 @@ async function fetchThreadDetailByAccessToken(
 }
 
 export async function getGmailProfile(workspaceId: string): Promise<GmailProfile> {
-  const accessToken = await getAccessToken(workspaceId)
+  const accessToken = await getGmailAccessToken(workspaceId)
 
   const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
     headers: {
@@ -404,7 +635,7 @@ export async function sendEmail(
   workspaceId: string,
   params: SendEmailParams
 ): Promise<SendEmailResult> {
-  const accessToken = await getAccessToken(workspaceId)
+  const accessToken = await getGmailAccessToken(workspaceId)
 
   let rawMessage: string
 
@@ -477,7 +708,7 @@ export async function fetchThreads(
     return []
   }
 
-  const accessToken = await getAccessToken(workspaceId)
+  const accessToken = await getGmailAccessToken(workspaceId)
 
   const params = new URLSearchParams({
     q: query,

@@ -1,62 +1,26 @@
-import { createClient } from '@/lib/supabase/server'
-import { getDashboardStateForUser } from '@/lib/dashboard/data'
-import { ensureWorkspaceForUser } from '@/lib/workspaces/ensure-workspace'
-import { WorkspaceLayout } from "@/components/dashboard/workspace-layout"
-import { AgentPane } from "@/components/agent-feed/agent-pane"
-import { DashboardLeftPane } from "@/components/dashboard/left-pane"
+import { createClient } from '@/lib/supabase/server';
+import { ensureWorkspaceForUser } from '@/lib/workspaces/ensure-workspace';
+import { ChatProvider } from "@/components/agent-feed/chat-provider";
+import { HomeAgentPanel } from "@/components/dashboard/home-agent-panel";
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
+  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
 
-  const state = await getDashboardStateForUser(user)
-  const workspace = user ? await ensureWorkspaceForUser(user) : null
+  const workspace = user ? await ensureWorkspaceForUser(user) : null;
 
-  // Dynamic date formatting
-  const now = new Date()
-  const dateStr = now.toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    month: 'short', 
-    day: 'numeric' 
-  })
-
-  // Dynamic greeting
-  const hour = now.getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-  const userName = user?.email?.split('@')[0] ?? 'there'
-
-  // Map action items to task format
-  const tasks = state.actionItems.map(item => ({
-    id: item.id,
-    headline: item.headline,
-    status: item.status,
-    kind: item.kind,
-    requiresApproval: item.requiresApproval,
-  }))
+  const chatStorageScope = user && workspace ? {
+    userId: user.id,
+    workspaceId: workspace.id,
+  } : null;
 
   return (
-    <WorkspaceLayout 
-      chatStorageScope={
-        user && workspace
-          ? {
-              userId: user.id,
-              workspaceId: workspace.id,
-            }
-          : null
-      }
-      leftPane={
-        <DashboardLeftPane 
-          dateStr={dateStr}
-          greeting={greeting}
-          userName={userName}
-          briefSummary={state.briefSummary}
-          tasks={tasks}
-          mode={state.mode}
-        />
-      }
-      rightPane={<AgentPane />}
-    />
-  )
+    <ChatProvider storageScope={chatStorageScope}>
+      <div className="w-full h-full flex justify-end p-2 overflow-hidden">
+        <HomeAgentPanel />
+      </div>
+    </ChatProvider>
+  );
 }

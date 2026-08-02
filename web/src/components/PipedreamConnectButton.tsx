@@ -9,7 +9,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { connectViaPipedreamSafe } from '@/app/dashboard/settings/actions'
+import { connectViaPipedreamSafe, connectDemoIntegrationSafe } from '@/app/dashboard/settings/actions'
 
 type PipedreamConnectButtonProps = {
   /** Our internal provider name (e.g. 'stripe', 'slack') */
@@ -58,7 +58,7 @@ export default function PipedreamConnectButton({
   }, [userId])
 
   const handleConnect = useCallback(async () => {
-    // Check if OAuth app is configured for this provider
+    // Check if custom OAuth app ID is configured for this provider
     const customAppIds: Record<string, string | undefined> = {
       intercom: process.env.NEXT_PUBLIC_PIPEDREAM_OAUTH_APP_INTERCOM,
       slack: process.env.NEXT_PUBLIC_PIPEDREAM_OAUTH_APP_SLACK,
@@ -73,13 +73,7 @@ export default function PipedreamConnectButton({
       google_calendar: process.env.NEXT_PUBLIC_PIPEDREAM_OAUTH_APP_GOOGLE_CALENDAR,
     }
 
-    const oauthAppId = customAppIds[provider]
-
-    if (!oauthAppId) {
-      setStatus('error')
-      setErrorMessage(`OAuth app not configured for ${provider}. Set NEXT_PUBLIC_PIPEDREAM_OAUTH_APP_${provider.toUpperCase()} in .env.local.`)
-      return
-    }
+    const oauthAppId = customAppIds[provider] || undefined
 
     setStatus('connecting')
     setErrorMessage(null)
@@ -96,22 +90,26 @@ export default function PipedreamConnectButton({
       } | null
 
       if (!client) {
-        throw new Error('Pipedream client not initialized. Please try again.')
+        throw new Error('Pipedream OAuth client initializing… Click Connect again.')
       }
 
       await new Promise<void>((resolve, reject) => {
-        client.connectAccount({
+        const opts: {
+          app: string
+          oauthAppId?: string
+          onSuccess?: (res: { id: string }) => void
+          onError?: (err: Error) => void
+          onClose?: (status: { successful: boolean; completed: boolean }) => void
+        } = {
           app: appSlug,
-          oauthAppId,
           onSuccess: async (res) => {
             setStatus('syncing')
 
-            // Call the NON-REDIRECTING server action
+            // Call server action to securely fetch & store Pipedream credentials
             const result = await connectViaPipedreamSafe(provider, res.id)
 
             if (result.success) {
               setStatus('done')
-              // Reload to pick up the updated connection status from DB
               window.location.href =
                 '/dashboard/settings?success=' + encodeURIComponent(result.message)
             } else {
@@ -129,7 +127,13 @@ export default function PipedreamConnectButton({
               reject(new Error('Connection cancelled'))
             }
           },
-        })
+        }
+
+        if (oauthAppId) {
+          opts.oauthAppId = oauthAppId
+        }
+
+        client.connectAccount(opts)
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Connection failed'
@@ -140,7 +144,7 @@ export default function PipedreamConnectButton({
       setStatus('error')
       setErrorMessage(msg)
     }
-  }, [appSlug, provider])
+  }, [appSlug, provider, label])
 
   const isLoading = status === 'connecting' || status === 'syncing'
 
@@ -158,7 +162,7 @@ export default function PipedreamConnectButton({
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">
               <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              {status === 'connecting' ? 'Authorizing…' : 'Syncing…'}
+              {status === 'connecting' ? 'Opening OAuth…' : 'Syncing…'}
             </span>
           ) : isConnected ? (
             'Reconnect'
@@ -168,10 +172,17 @@ export default function PipedreamConnectButton({
         </span>
       </button>
 
+      {/* Floating Error Toast (Never distorting card layout) */}
       {status === 'error' && errorMessage && (
-        <p className="mt-2 rounded-sm border border-[#3b2025] bg-[#190d10] px-3 py-2 text-[12px] text-[#ffb0b9]">
-          {errorMessage}
-        </p>
+        <div className="fixed top-6 right-6 z-50 px-4 py-3 rounded-lg bg-[#190d10] border border-[#f87171]/30 text-[#ffb0b9] text-[13px] font-medium shadow-xl flex items-center gap-3 max-w-md animate-in fade-in slide-in-from-top-2">
+          <span>{errorMessage}</span>
+          <button
+            onClick={() => setErrorMessage(null)}
+            className="text-neutral-400 hover:text-white transition-colors"
+          >
+            ✕
+          </button>
+        </div>
       )}
     </div>
   )

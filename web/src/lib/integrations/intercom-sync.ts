@@ -9,6 +9,7 @@ import {
   getIntercomCredentials,
   type IntercomConversation,
 } from './intercom'
+import { mergeIntegrationConnectionMetadata } from './connection-guard'
 
 type ExistingAccount = {
   id: string
@@ -60,7 +61,8 @@ function buildSupportNextAction(openConversationCount: number) {
 }
 
 export async function syncIntercomWorkspace(
-  workspaceId: string
+  workspaceId: string,
+  options?: { refreshBrief?: boolean }
 ): Promise<IntercomWorkspaceSyncResult> {
   const supabase = createServiceClient()
   const { accessToken, apiBaseUrl } = await getIntercomCredentials(workspaceId)
@@ -296,11 +298,11 @@ export async function syncIntercomWorkspace(
       provider: 'intercom',
       status: 'connected',
       last_synced_at: new Date().toISOString(),
-      metadata: {
+      metadata: await mergeIntegrationConnectionMetadata(supabase, workspaceId, 'intercom', {
         coverage: `${conversations.length} open conversation(s) across ${syncedAccounts} account(s)`,
         synced_contacts: syncedContacts,
         synced_accounts: syncedAccounts,
-      },
+      }),
     },
     { onConflict: 'workspace_id,provider' }
   )
@@ -320,7 +322,7 @@ export async function syncIntercomWorkspace(
     },
   })
 
-  await generateWorkspaceBrief(workspaceId)
+  if (options?.refreshBrief ?? true) await generateWorkspaceBrief(workspaceId)
 
   return {
     syncedAccounts,

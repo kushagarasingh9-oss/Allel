@@ -69,7 +69,7 @@ export function Animated3DButton({
   const isSmall = size === "sm";
 
   // Exact styles from user provided HeroCta component
-  const customStyles: React.CSSProperties = isCyan
+  const customStyles: Record<string, unknown> = isCyan
     ? {
         backgroundImage: "linear-gradient(to right, #59c8ff, #4e7ff3, #3390ff)",
         backgroundSize: "280%",

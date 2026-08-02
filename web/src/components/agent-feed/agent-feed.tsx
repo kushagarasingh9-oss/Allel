@@ -14,6 +14,7 @@
 
 import * as React from "react"
 import { useChatContext } from "./chat-provider"
+import { createClient } from "@/lib/supabase/client"
 import type { UIMessage } from "ai"
 import {
   TimelineNode,
@@ -22,8 +23,11 @@ import {
   InlineQueryBlock,
   MiniResultCard,
   AgentReasoningBatch,
+  AgentApprovalBlock,
 } from "./timeline-nodes"
-import { Search, Loader2, Zap, Database, Mail, CreditCard, MessageSquare, Calendar } from "lucide-react"
+import { DotmSquare12 } from "@/components/ui/dotm-square-12"
+import { USER_EMOJI_PALETTE } from "@/lib/emoji-palette"
+import { Search, Loader2, Zap, Database, Mail, CreditCard, MessageSquare, Calendar, User, Globe, AlertCircle, ChevronRight } from "lucide-react"
 import {
   SiIntercom,
   SiLinear,
@@ -34,61 +38,121 @@ import {
   SiGmail
 } from '@icons-pack/react-simple-icons'
 
-// ─── Tool → Icon mapping ────────────────────────────────────────────
+// ─── Tool → Icon mapping (Only official SVG logos for connected integrations) ────────────────────────────────────────────
 const TOOL_ICONS: Record<string, React.ReactNode> = {
-  getAccountDetails: <Database className="w-3.5 h-3.5" />,
-  getAllAccounts: <Database className="w-3.5 h-3.5" />,
-  getRecentSignals: <Zap className="w-3.5 h-3.5" />,
-  getExistingDrafts: <SiGmail className="w-3.5 h-3.5 text-[#EA4335]" />,
-  getStripeAccountState: <SiStripe className="w-3.5 h-3.5 text-[#635BFF]" />,
-  getPostHogAccountUsage: <SiPosthog className="w-3.5 h-3.5" />,
-  getGmailThreadsForAccount: <SiGmail className="w-3.5 h-3.5 text-[#EA4335]" />,
-  getMyInbox: <SiGmail className="w-3.5 h-3.5 text-[#EA4335]" />,
-  generateFollowUpDraft: <SiGmail className="w-3.5 h-3.5 text-[#EA4335]" />,
-  createSignal: <Zap className="w-3.5 h-3.5" />,
-  updateAccountRisk: <Zap className="w-3.5 h-3.5" />,
-  syncStripeWorkspaceTool: <SiStripe className="w-3.5 h-3.5 text-[#635BFF]" />,
-  syncPostHogWorkspaceTool: <SiPosthog className="w-3.5 h-3.5" />,
-  syncGmailWorkspaceTool: <SiGmail className="w-3.5 h-3.5 text-[#EA4335]" />,
-  syncIntercomWorkspaceTool: <SiIntercom className="w-3.5 h-3.5 text-[#286EFA]" />,
-  syncSentryWorkspaceTool: <SiSentry className="w-3.5 h-3.5 text-[#362D59]" />,
-  syncLinearWorkspaceTool: <SiLinear className="w-3.5 h-3.5 text-[#5E6AD2]" />,
-  syncHubSpotWorkspaceTool: <SiHubspot className="w-3.5 h-3.5 text-[#FF7A59]" />,
-  deliverSlackBriefTool: <MessageSquare className="w-3.5 h-3.5" />,
-  buildDailyBriefFromLiveState: <Calendar className="w-3.5 h-3.5" />,
-  createRescueDiscountTool: <CreditCard className="w-3.5 h-3.5" />,
+  getExistingDrafts: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  getStripeAccountState: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  getPostHogAccountUsage: <img src="/logos/posthog.svg" alt="PostHog" className="w-4 h-4 object-contain shrink-0" />,
+  getGmailThreadsForAccount: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  getMyInbox: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  generateFollowUpDraft: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  deliverSlackBriefTool: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
+  buildDailyBriefFromLiveState: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  createRescueDiscountTool: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  searchLinearIssuesTool: <img src="/logos/linear.svg" alt="Linear" className="w-4 h-4 object-contain shrink-0" />,
+  listSentryIssuesTool: <img src="/logos/sentry-light.svg" alt="Sentry" className="w-4 h-4 object-contain shrink-0" />,
+  searchHubSpotContactsTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
+  searchNotionTool: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
+  listAirtableBasesTool: <img src="/logos/airtable.svg" alt="Airtable" className="w-4 h-4 object-contain shrink-0" />,
+  searchIntercomConvosTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
 }
 
 // ─── Human-readable names for tools ──────────────────────────────────
 const TOOL_LABELS: Record<string, string> = {
-  getAccountDetails: "Looking up account details",
-  getAllAccounts: "Fetching all accounts",
-  getRecentSignals: "Checking recent signals",
-  getExistingDrafts: "Checking existing drafts",
+  getAccountDetails: "Reading account profile",
+  getAllAccounts: "Scanning customer accounts",
+  getRecentSignals: "Analyzing workspace signals & activity",
+  getExistingDrafts: "Checking draft responses",
   getStripeAccountState: "Querying Stripe billing state",
-  getPostHogAccountUsage: "Querying PostHog usage data",
-  getGmailThreadsForAccount: "Searching Gmail threads",
+  getPostHogAccountUsage: "Analyzing product engagement",
+  getGmailThreadsForAccount: "Searching Gmail communications",
   getMyInbox: "Reading your inbox",
-  generateFollowUpDraft: "Generating email draft",
-  createSignal: "Recording signal",
+  generateFollowUpDraft: "Drafting follow-up response",
+  createSignal: "Recording workspace signal",
   updateAccountRisk: "Updating risk assessment",
   addTimelineEvent: "Logging timeline event",
   createBriefItem: "Adding brief item",
   updateBriefSummary: "Updating brief summary",
   resolveAccountByContact: "Resolving account from contact",
-  syncStripeWorkspaceTool: "Syncing Stripe data",
-  syncPostHogWorkspaceTool: "Syncing PostHog data",
-  syncGmailWorkspaceTool: "Syncing Gmail data",
-  syncIntercomWorkspaceTool: "Syncing Intercom data",
-  syncHubSpotWorkspaceTool: "Syncing HubSpot data",
-  syncSentryWorkspaceTool: "Syncing Sentry data",
-  syncLinearWorkspaceTool: "Syncing Linear data",
+  syncStripeWorkspaceTool: "Syncing Stripe billing data",
+  syncPostHogWorkspaceTool: "Syncing PostHog analytics",
+  syncGmailWorkspaceTool: "Syncing Gmail messages",
+  syncIntercomWorkspaceTool: "Syncing Intercom support",
+  syncHubSpotWorkspaceTool: "Syncing HubSpot CRM",
+  syncSentryWorkspaceTool: "Syncing Sentry errors",
+  syncLinearWorkspaceTool: "Syncing Linear issues",
   deliverSlackBriefTool: "Delivering brief to Slack",
-  buildDailyBriefFromLiveState: "Building daily brief",
+  buildDailyBriefFromLiveState: "Building executive brief",
   createRescueDiscountTool: "Creating rescue discount",
+  webSearchTool: "Searching web intelligence",
+  webExtractTool: "Extracting webpage data",
+  webCrawlTool: "Crawling website domain",
+  webMapTool: "Indexing sitemap",
 }
 
-// ─── Render a tool-call result as a summary card ─────────────────────
+const PROVIDER_LOGOS: Record<string, string> = {
+  gmail: '/logos/gmail.svg',
+  slack: '/logos/slack.svg',
+  stripe: '/logos/stripe.svg',
+  posthog: '/logos/posthog.svg',
+  linear: '/logos/linear.svg',
+  sentry: '/logos/sentry-light.svg',
+  hubspot: '/logos/hubspot.svg',
+  notion: '/logos/notion.svg',
+  google_calendar: '/logos/google-calendar.svg',
+  airtable: '/logos/airtable.svg',
+}
+
+function getProviderFromTool(toolName: string, errorMsg: string): { name: string; slug: string; logoUrl?: string } | null {
+  const lowName = toolName.toLowerCase()
+  const lowMsg = errorMsg.toLowerCase()
+  let slug: string | null = null
+  let name = ''
+
+  if (lowName.includes('gmail') || toolName === 'getMyInbox' || lowMsg.includes('gmail')) { slug = 'gmail'; name = 'Gmail' }
+  else if (lowName.includes('slack') || lowMsg.includes('slack')) { slug = 'slack'; name = 'Slack' }
+  else if (lowName.includes('stripe') || lowMsg.includes('stripe')) { slug = 'stripe'; name = 'Stripe' }
+  else if (lowName.includes('posthog') || lowMsg.includes('posthog')) { slug = 'posthog'; name = 'PostHog' }
+  else if (lowName.includes('linear') || lowMsg.includes('linear')) { slug = 'linear'; name = 'Linear' }
+  else if (lowName.includes('sentry') || lowMsg.includes('sentry')) { slug = 'sentry'; name = 'Sentry' }
+  else if (lowName.includes('hubspot') || lowMsg.includes('hubspot')) { slug = 'hubspot'; name = 'HubSpot' }
+  else if (lowName.includes('notion') || lowMsg.includes('notion')) { slug = 'notion'; name = 'Notion' }
+  else if (lowName.includes('calendar') || lowMsg.includes('calendar')) { slug = 'google_calendar'; name = 'Google Calendar' }
+
+  if (!slug) return null
+  return { name, slug, logoUrl: PROVIDER_LOGOS[slug] }
+}
+
+export function UnconnectedIntegrationBadge({
+  toolName,
+  errorText,
+}: {
+  toolName: string
+  errorText: string
+}) {
+  const provider = getProviderFromTool(toolName, errorText)
+  const cleanMsg = formatCleanErrorMessage(errorText)
+
+  return (
+    <div className="flex items-center gap-2.5 text-[12px] text-neutral-400 font-normal py-0.5 mt-0.5">
+      <span>{cleanMsg}</span>
+
+      {provider && (
+        <a
+          href="/dashboard/settings"
+          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-medium text-neutral-300 hover:text-white bg-neutral-900 hover:bg-neutral-800 border border-neutral-700/70 hover:border-neutral-500 rounded-full transition-all duration-150 shrink-0"
+        >
+          {provider.logoUrl && (
+            <img src={provider.logoUrl} alt={provider.name} className="w-3.5 h-3.5 object-contain shrink-0" />
+          )}
+          <span>Connect</span>
+          <ChevronRight className="w-3 h-3 text-neutral-400" />
+        </a>
+      )}
+    </div>
+  )
+}
+
 function ToolResultSummary({ toolName, result }: { toolName: string; result: unknown }) {
   if (!result || typeof result !== 'object') return null
   const data = result as Record<string, unknown>
@@ -96,9 +160,7 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
   // Error state
   if (data.error) {
     return (
-      <div className="text-[12px] text-red-400/80 bg-red-500/5 border border-red-500/10 rounded-sm px-3 py-2 mb-2 max-w-[480px]">
-        ⚠ {String(data.error)}
-      </div>
+      <UnconnectedIntegrationBadge toolName={toolName} errorText={String(data.error)} />
     )
   }
 
@@ -121,7 +183,7 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
         {accounts.slice(0, 5).map((acc, i) => (
           <MiniResultCard
             key={i}
-            icon={<Database className="w-4 h-4 text-neutral-400" />}
+            icon={<img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain" />}
             title={<span className="text-white">{String(acc.name)}</span>}
             subtitle={`${acc.mrr ?? ''} · ${String(acc.riskLevel ?? 'unknown')} risk`}
           />
@@ -139,23 +201,21 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
     if (threads.length === 0) {
       return (
         <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 mb-2">
-          <SiGmail className="w-3.5 h-3.5 text-[#EA4335]/60" /> No threads found
+          <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain opacity-60" /> No threads found
         </div>
       )
     }
     return (
       <div className="flex flex-col gap-1">
-        {threads.slice(0, 5).map((thread, i) => (
+        {threads.map((thread, i) => (
           <MiniResultCard
             key={i}
-            icon={<SiGmail className="w-4 h-4 text-[#EA4335]" />}
+            index={i}
+            icon={<img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain" />}
             title={<span className="text-white">{String(thread.subject ?? 'No subject')}</span>}
-            subtitle={`From: ${String(thread.from ?? 'unknown')}${thread.needsReply ? ' · ⚡ Needs reply' : ''}`}
+            subtitle={`From: ${String(thread.from ?? 'unknown')}${thread.needsReply ? ' · Needs reply' : ''}`}
           />
         ))}
-        {threads.length > 5 && (
-          <div className="text-[12px] text-neutral-500 pl-7">+ {threads.length - 5} more threads</div>
-        )}
       </div>
     )
   }
@@ -168,7 +228,7 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
         {subs.map((sub, i) => (
           <MiniResultCard
             key={i}
-            icon={<CreditCard className="w-4 h-4 text-neutral-400" />}
+            icon={<img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain" />}
             title={<span className="text-white">{String(sub.plan ?? 'Subscription')}</span>}
             subtitle={`Status: ${String(sub.status)} ${sub.cancelAtPeriodEnd ? '· Cancelling' : ''}`}
           />
@@ -181,7 +241,7 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
   if (toolName === 'generateFollowUpDraft' && data.success) {
     return (
       <MiniResultCard
-        icon={<Mail className="w-4 h-4 text-emerald-400" />}
+        icon={<img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain" />}
         title={<span className="text-white">Draft created: {String(data.subject ?? '')}</span>}
         subtitle={`For ${String(data.accountName ?? 'account')} · ${String(data.draftType ?? '')}`}
       />
@@ -215,6 +275,23 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
     )
   }
 
+  // Web Search results
+  if (toolName === 'webSearchTool' && data.results && Array.isArray(data.results)) {
+    const results = data.results as Array<Record<string, unknown>>
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        {results.slice(0, 3).map((item, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<Globe className="w-4 h-4 text-sky-400" />}
+            title={<span className="text-white">{String(item.title ?? 'Web result')}</span>}
+            subtitle={String(item.snippet || item.url || '')}
+          />
+        ))}
+      </div>
+    )
+  }
+
   // Generic success
   if (data.success) {
     return (
@@ -240,7 +317,7 @@ function extractToolName(part: Record<string, unknown>): string {
 
 // ─── Single Message Renderer ─────────────────────────────────────────
 
-function AgentMessageBubble({ message }: { message: UIMessage }) {
+function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatarUrl: string | null }) {
   if (message.role === "user") {
     // User prompt bubble (right-aligned like the mock)
     const textContent = message.parts
@@ -250,10 +327,20 @@ function AgentMessageBubble({ message }: { message: UIMessage }) {
 
     if (!textContent) return null
 
+    const displayAvatar = avatarUrl || "/user-avatar.svg"
+
     return (
-      <div className="w-full flex justify-end relative z-10 mb-6">
-        <div className="bg-[#151515] border border-[#262626] rounded-2xl rounded-tr-sm px-4 py-3 text-[13.5px] text-neutral-200 shadow-sm max-w-[85%] leading-relaxed">
+      <div className="w-full flex justify-end items-start gap-3 relative z-10 mt-6 mb-4 pl-8">
+        <div className="text-[13.5px] font-semibold text-white tracking-tight leading-relaxed break-words text-right max-w-[88%] pt-0.5">
           {textContent}
+        </div>
+        <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center shrink-0 shadow-sm overflow-hidden p-0.5 mt-0.5" title="You">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/user-avatar.svg"
+            alt="User Avatar"
+            className="w-full h-full object-contain rounded-full"
+          />
         </div>
       </div>
     )
@@ -325,6 +412,7 @@ function AgentMessageBubble({ message }: { message: UIMessage }) {
         toolBatchCount++
       } else if (state === "output-available") {
         // Tool finished — show completed node with result
+        const isApproval = rawPart.output && typeof rawPart.output === 'object' && Boolean((rawPart.output as Record<string, unknown>).approvalRequired)
         toolBatch.push(
           <TimelineNode
             key={`tool-${i}`}
@@ -334,23 +422,27 @@ function AgentMessageBubble({ message }: { message: UIMessage }) {
             isCollapsible={true}
           >
             <InlineQueryBlock query={`${toolName}()`} />
-            <ToolResultSummary toolName={toolName} result={rawPart.output} />
+            {isApproval ? (
+              <AgentApprovalBlock 
+                title={`Requires Founder Approval: ${toolName}`} 
+                description="This action requires founder review before executing." 
+              />
+            ) : (
+              <ToolResultSummary toolName={toolName} result={rawPart.output} />
+            )}
           </TimelineNode>
         )
         toolBatchCount++
       } else if (state === "output-error") {
-        // Tool failed
+        // Tool failed — show clean error alert badge with Connect [Provider] button
         toolBatch.push(
           <TimelineNode
             key={`tool-${i}`}
-            title={`${label} (failed)`}
+            title={label}
             icon={icon}
             isCompleted={true}
-            isCollapsible={true}
           >
-            <div className="text-[12px] text-red-400/80 mb-2">
-              ⚠ {String(rawPart.errorText ?? 'Tool execution failed')}
-            </div>
+            <UnconnectedIntegrationBadge toolName={toolName} errorText={String(rawPart.errorText ?? 'Integration not connected for this workspace')} />
           </TimelineNode>
         )
         toolBatchCount++
@@ -374,25 +466,303 @@ function AgentMessageBubble({ message }: { message: UIMessage }) {
 // ─── Loading Indicator ───────────────────────────────────────────────
 function AgentThinking() {
   return (
-    <div className="w-full flex items-center gap-3 py-4 mb-6">
-      <Loader2 className="w-4 h-4 text-neutral-500 animate-spin" />
-      <span className="text-[13px] text-neutral-500">Agent is thinking...</span>
+    <div className="w-full flex items-center gap-2.5 mt-2 mb-3 py-1">
+      <DotmSquare12 size={16} dotSize={2.5} speed={1.2} bloom />
+      <span className="text-[13px] font-medium text-neutral-400 tracking-tight">Thinking...</span>
     </div>
   )
 }
 
+// ─── Error Message Formatter ──────────────────────────────────────────
+function formatCleanErrorMessage(rawMsg: string): string {
+  if (!rawMsg) return "An unexpected error occurred."
+
+  let msg = rawMsg
+  try {
+    if (msg.includes('{') && msg.includes('}')) {
+      const jsonStart = msg.indexOf('{')
+      const jsonEnd = msg.lastIndexOf('}')
+      const jsonStr = msg.substring(jsonStart, jsonEnd + 1)
+      const parsed = JSON.parse(jsonStr)
+      if (parsed.error?.message) {
+        msg = parsed.error.message
+      } else if (parsed.message) {
+        msg = parsed.message
+      }
+    }
+  } catch {
+    // Keep original
+  }
+
+  if (msg.includes("rate_limit_exceeded") || msg.includes("429") || msg.includes("TPM") || msg.includes("RPM")) {
+    return "OpenAI API rate limit reached. Please wait a few moments before trying again or check your OpenAI plan quota."
+  }
+
+  return msg
+}
+
 // ─── Main Feed Component ─────────────────────────────────────────────
+
+const DEMO_SEED_MESSAGES: UIMessage[] = [
+  // Turn 1: Web Research & Internet Search
+  {
+    id: "demo-user-1",
+    role: "user",
+    parts: [
+      {
+        type: "text",
+        text: "Search the web for Acme Corp's latest product press release and API roadmap.",
+      },
+    ],
+  },
+  {
+    id: "demo-assistant-1",
+    role: "assistant",
+    parts: [
+      {
+        type: "reasoning",
+        text: "Executing live Tavily web search for Acme Corp product news and extracting press release content.",
+      },
+      {
+        type: "tool-webSearchTool",
+        toolCallId: "call_demo_1",
+        state: "output-available",
+        toolName: "webSearchTool",
+        input: { query: "Acme Corp AI Operations Suite 3.0 press release" },
+        output: {
+          results: [
+            {
+              title: "Acme Corp Announces AI Operations Suite 3.0",
+              snippet: "Acme Corp unveils next-gen AI automation tools for enterprise workflows with 99.9% uptime SLA.",
+              url: "https://techcrunch.com/acme-corp-ai-suite",
+            },
+            {
+              title: "Acme Corp Q3 Product Roadmap & API Expansion",
+              snippet: "Acme Corp expands native integrations for Stripe, PostHog, Gmail, and Linear.",
+              url: "https://news.acme.com/roadmap",
+            },
+          ],
+        },
+      } as any,
+      {
+        type: "text",
+        text: "Found 2 press releases for Acme Corp. They recently launched **AI Operations Suite 3.0** with native integrations across Stripe, PostHog, and Linear.",
+      },
+    ],
+  },
+
+  // Turn 2: CRM Database & Stripe Billing Audit
+  {
+    id: "demo-user-2",
+    role: "user",
+    parts: [
+      {
+        type: "text",
+        text: "Check Acme Corp's internal CRM record and live Stripe subscription state.",
+      },
+    ],
+  },
+  {
+    id: "demo-assistant-2",
+    role: "assistant",
+    parts: [
+      {
+        type: "reasoning",
+        text: "Querying account health metrics from Postgres DB and checking Stripe API subscription status.",
+      },
+      {
+        type: "tool-getAccountDetails",
+        toolCallId: "call_demo_2",
+        state: "output-available",
+        toolName: "getAccountDetails",
+        input: { name: "Acme Corp" },
+        output: {
+          name: "Acme Corp",
+          mrr: "$14,500/mo",
+          riskLevel: "Low Risk",
+          usageDelta: "+18% usage",
+        },
+      } as any,
+      {
+        type: "tool-getStripeAccountState",
+        toolCallId: "call_demo_3",
+        state: "output-available",
+        toolName: "getStripeAccountState",
+        input: { customerId: "cus_acme99" },
+        output: {
+          subscriptions: [
+            { plan: "Enterprise Annual Stack", status: "active", cancelAtPeriodEnd: false },
+          ],
+        },
+      } as any,
+      {
+        type: "text",
+        text: "Acme Corp is **Healthy** (`$14,500/mo` MRR) on an **Enterprise Annual Stack** with active status and zero payment disputes.",
+      },
+    ],
+  },
+
+  // Turn 3: Gmail Communications & Email Draft Generation
+  {
+    id: "demo-user-3",
+    role: "user",
+    parts: [
+      {
+        type: "text",
+        text: "Scan recent Gmail threads with Acme Corp and generate a follow-up draft.",
+      },
+    ],
+  },
+  {
+    id: "demo-assistant-3",
+    role: "assistant",
+    parts: [
+      {
+        type: "reasoning",
+        text: "Fetching Gmail threads via Google API and generating personalized follow-up draft.",
+      },
+      {
+        type: "tool-getGmailThreadsForAccount",
+        toolCallId: "call_demo_4",
+        state: "output-available",
+        toolName: "getGmailThreadsForAccount",
+        input: { accountName: "Acme Corp" },
+        output: {
+          threads: [
+            {
+              subject: "Q3 Enterprise Renewal & Expansion Terms",
+              from: "sarah@acmecorp.com",
+              needsReply: true,
+            },
+          ],
+        },
+      } as any,
+      {
+        type: "tool-generateFollowUpDraft",
+        toolCallId: "call_demo_5",
+        state: "output-available",
+        toolName: "generateFollowUpDraft",
+        input: { accountName: "Acme Corp", draftType: "Renewal Follow-up" },
+        output: {
+          success: true,
+          subject: "Re: Q3 Enterprise Renewal & Expansion Terms",
+          accountName: "Acme Corp",
+          draftType: "Renewal Check-in",
+        },
+      } as any,
+      {
+        text: "Found 1 thread requiring reply from `sarah@acmecorp.com`. Draft created for your review.",
+        type: "text",
+      },
+    ],
+  },
+
+  // Turn 4: Interactive Founder Action Approval Card
+  {
+    id: "demo-user-4",
+    role: "user",
+    parts: [
+      {
+        type: "text",
+        text: "Queue a 15% rescue discount for founder authorization.",
+      },
+    ],
+  },
+  {
+    id: "demo-assistant-4",
+    role: "assistant",
+    parts: [
+      {
+        type: "reasoning",
+        text: "Creating approval request card for 15% rescue discount.",
+      },
+      {
+        type: "tool-createRescueDiscountTool",
+        toolCallId: "call_demo_6",
+        state: "output-available",
+        toolName: "createRescueDiscountTool",
+        input: { accountName: "Acme Corp", percentage: 15 },
+        output: {
+          approvalRequired: true,
+          actionSummary: "Apply 15% Rescue Discount for Acme Corp",
+        },
+      } as any,
+      {
+        type: "text",
+        text: "> **Action Queued**: Interactive approval card rendered above. Click **Approve** to authorize.",
+      },
+    ],
+  },
+]
 
 export function AgentFeed() {
   const { messages, isLoading, status, hydrationStatus, error } = useChatContext()
   const feedRef = React.useRef<HTMLDivElement>(null)
+  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
+
+  // Filter out temporary garbage test artifacts while preserving all live user & assistant messages
+  const displayMessages = React.useMemo(() => {
+    const liveMessages = messages.filter((m) => {
+      if (m.role === "assistant") return true
+      const text = m.parts
+        ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join("")
+        .trim() ?? ""
+      return !text.startsWith("c=") && text !== "jd" && text !== "f"
+    })
+
+    if (liveMessages.length > 0) {
+      return liveMessages
+    }
+    return DEMO_SEED_MESSAGES
+  }, [messages])
+
+  // Fetch Google account avatar
+  React.useEffect(() => {
+    const supabase = createClient()
+
+    async function loadAvatar() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const meta = user.user_metadata ?? {}
+          const identityPic = user.identities?.[0]?.identity_data?.avatar_url || user.identities?.[0]?.identity_data?.picture
+          const pic = meta.avatar_url || meta.picture || meta.avatar_path || identityPic || null
+          if (pic) setAvatarUrl(pic)
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    loadAvatar()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const u = session?.user
+      if (u) {
+        const meta = u.user_metadata ?? {}
+        const identityPic = u.identities?.[0]?.identity_data?.avatar_url || u.identities?.[0]?.identity_data?.picture
+        const pic = meta.avatar_url || meta.picture || meta.avatar_path || identityPic || null
+        if (pic) setAvatarUrl(pic)
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
 
   // Auto-scroll on new messages
   React.useEffect(() => {
     if (feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight
+      if (displayMessages === DEMO_SEED_MESSAGES) {
+        feedRef.current.scrollTop = 0
+      } else {
+        feedRef.current.scrollTop = feedRef.current.scrollHeight
+      }
     }
-  }, [messages, status])
+  }, [displayMessages, status])
 
   // Show loading state during server hydration
   if (hydrationStatus === "loading") {
@@ -407,52 +777,35 @@ export function AgentFeed() {
   }
 
   if (messages.length === 0 && !isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <p className="text-[15px] text-neutral-300 mb-2">What can I do for you?</p>
-          <p className="text-[13px] text-neutral-500 leading-relaxed">
-            Ask me to check your email, review account health, draft follow-ups, or prepare for meetings. I&apos;ll show you my work step-by-step.
-          </p>
-        </div>
-      </div>
-    )
+    return <div className="flex-1" />
   }
 
   return (
-    <div ref={feedRef} className="flex-1 overflow-y-auto px-8 py-8 flex flex-col">
-      <div className="w-full max-w-[900px] mx-auto flex flex-col">
-        {hydrationStatus === "restored" && (
-          <div className="flex items-center justify-center mb-8 mt-2">
-            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-white/[0.02] border border-white/10 backdrop-blur-md shadow-[0_0_15px_rgba(16,185,129,0.05)] hover:border-emerald-500/30 transition-all duration-300 group">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-xs text-neutral-400 font-medium tracking-wide group-hover:text-neutral-300 transition-colors">
-                Restored prior context from server session
-              </span>
-            </div>
-          </div>
-        )}
-        {messages.map((message) => (
-          <AgentMessageBubble key={message.id} message={message} />
+    <div ref={feedRef} className="flex-1 overflow-y-auto px-6 py-6 flex flex-col custom-scrollbar">
+      <div className="w-full flex flex-col gap-4">
+        {displayMessages.map((message) => (
+          <AgentMessageBubble key={message.id} message={message} avatarUrl={avatarUrl} />
         ))}
 
-        {isLoading && messages[messages.length - 1]?.role === "user" && !error && (
-          <AgentThinking />
-        )}
+        {(() => {
+          const lastMsg = messages[messages.length - 1]
+          const hasTextOutput = lastMsg?.parts?.some(
+            (p) => p.type === "text" && Boolean((p as { text?: string }).text?.trim())
+          )
+          const isThinkingActive = isLoading && (!lastMsg || lastMsg.role === "user" || !hasTextOutput) && !error
+          return isThinkingActive ? <AgentThinking /> : null
+        })()}
 
         {error && (
-          <div className="w-full flex justify-center mt-2 mb-6">
-            <div className="w-full max-w-2xl bg-red-500/5 border border-red-500/20 rounded-xl p-4 flex gap-3 shadow-sm">
-              <div className="w-6 h-6 rounded-full bg-red-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-red-400 text-sm">⚠</span>
+          <div className="w-full flex justify-center mt-2 mb-4">
+            <div className="w-full bg-red-500/10 border border-red-500/20 rounded-xl p-3.5 flex gap-2.5 shadow-md">
+              <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                <AlertCircle className="w-3.5 h-3.5 text-red-400" />
               </div>
               <div className="flex flex-col min-w-0">
-                <h4 className="text-[13px] font-medium text-red-400 mb-1">Connection Interrupted</h4>
-                <p className="text-[13px] text-red-200/80 leading-relaxed font-mono whitespace-pre-wrap">
-                  {error.message || "The agent encountered an unexpected error and could not complete the response."}
+                <h4 className="text-[12px] font-semibold text-red-400 mb-0.5">API Rate Limit Exceeded</h4>
+                <p className="text-[12px] text-red-200/90 leading-relaxed font-sans break-words whitespace-pre-wrap">
+                  {formatCleanErrorMessage(error.message || "The agent encountered an error.")}
                 </p>
               </div>
             </div>

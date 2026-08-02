@@ -2,6 +2,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { logAgentRun } from '@/lib/agent/run-logger'
 import { generateWorkspaceBrief } from '@/lib/briefs/generate-workspace-brief'
 import { getSlackCredentials, postSlackMessage } from './slack'
+import { mergeIntegrationConnectionMetadata } from './connection-guard'
 
 export type SlackWorkspaceSyncResult = {
   delivered: boolean
@@ -68,11 +69,11 @@ export async function syncSlackWorkspace(
       provider: 'slack',
       status: 'connected',
       last_synced_at: syncedAt,
-      metadata: {
+      metadata: await mergeIntegrationConnectionMetadata(supabase, workspaceId, 'slack', {
         channel_id: channelId,
         coverage: `Daily brief delivered to Slack with ${brief.itemCount} item${brief.itemCount === 1 ? '' : 's'}`,
         last_brief_id: brief.briefId,
-      },
+      }),
     },
     { onConflict: 'workspace_id,provider' }
   )

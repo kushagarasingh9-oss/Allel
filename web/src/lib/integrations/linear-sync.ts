@@ -3,6 +3,7 @@ import { logAgentRun } from '@/lib/agent/run-logger'
 import { generateWorkspaceBrief } from '@/lib/briefs/generate-workspace-brief'
 import { buildAccountsByName, matchAccountIdFromText } from './account-match'
 import { fetchLinearIssues, getLinearCredentials } from './linear'
+import { mergeIntegrationConnectionMetadata } from './connection-guard'
 
 type ExistingAccount = {
   id: string
@@ -21,7 +22,8 @@ export type LinearWorkspaceSyncResult = {
 }
 
 export async function syncLinearWorkspace(
-  workspaceId: string
+  workspaceId: string,
+  options?: { refreshBrief?: boolean }
 ): Promise<LinearWorkspaceSyncResult> {
   const supabase = createServiceClient()
   const { apiKey, teamKey } = await getLinearCredentials(workspaceId)
@@ -133,12 +135,12 @@ export async function syncLinearWorkspace(
       provider: 'linear',
       status: 'connected',
       last_synced_at: new Date().toISOString(),
-      metadata: {
+      metadata: await mergeIntegrationConnectionMetadata(supabase, workspaceId, 'linear', {
         team_key: teamKey,
         coverage: `${issues.length} open issue(s), ${matchedAccounts} matched account signal(s)`,
         open_issues: issues.length,
         matched_accounts: matchedAccounts,
-      },
+      }),
     },
     { onConflict: 'workspace_id,provider' }
   )
@@ -157,7 +159,7 @@ export async function syncLinearWorkspace(
     },
   })
 
-  await generateWorkspaceBrief(workspaceId)
+  if (options?.refreshBrief ?? true) await generateWorkspaceBrief(workspaceId)
 
   return {
     matchedAccounts,

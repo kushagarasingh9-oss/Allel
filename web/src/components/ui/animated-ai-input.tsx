@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowUp, Paperclip, Sparkles, Image as ImageIcon, ChevronDown, SlidersHorizontal, Layers, Trash2 } from "lucide-react";
+import { ArrowUp, Paperclip, Sparkles, Image as ImageIcon, ChevronDown, SlidersHorizontal, Layers, Trash2, Smile } from "lucide-react";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { PersonaId } from "@/lib/agent/personas";
+import { EMOJI_LIST } from "@/lib/emoji-palette";
 
 // ── Auto-resize hook ──────────────────────────────────────────
 
@@ -89,6 +90,7 @@ export function AI_Prompt({
     const [selectedModel, setSelectedModel] = useState("Kling o3");
     const [autoMode, setAutoMode] = useState(true);
     const [showWorkflowPanel, setShowWorkflowPanel] = useState(true);
+    const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
     const { textareaRef, adjustHeight } = useAutoResizeTextarea({
         minHeight: 64,
         maxHeight: 280,
@@ -112,7 +114,7 @@ export function AI_Prompt({
         <div className="w-full max-w-[580px] relative flex flex-col items-center mx-auto">
             {/* ── Main Attached Floating Chat Prompt Card ── */}
             <div className="w-full bg-white/70 dark:bg-[#9699a1]/50 backdrop-blur-[80px] border border-black/10 dark:border-white/40 rounded-[28px] p-4 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.15)] relative z-10 transition-all duration-500">
-                
+
                 {/* Main Textarea */}
                 <div className="relative mb-3">
                     <textarea
@@ -136,7 +138,7 @@ export function AI_Prompt({
                 <div className="flex items-center gap-1.5 mb-3.5 flex-wrap px-1">
                     {/* Auto Mode Dropdown */}
                     <div className="relative flex items-center bg-transparent">
-                        <select 
+                        <select
                             value={autoMode ? "agent" : "manual"}
                             onChange={(e) => setAutoMode(e.target.value === "agent")}
                             className="appearance-none pl-1 pr-6 py-1 bg-transparent border-none text-[13px] font-medium text-neutral-800 dark:text-white/90 transition-colors cursor-pointer outline-none focus:ring-0"
@@ -151,7 +153,7 @@ export function AI_Prompt({
 
                     {/* Model Selection Dropdown */}
                     <div className="relative flex items-center bg-transparent">
-                        <select 
+                        <select
                             value={selectedModel}
                             onChange={(e) => setSelectedModel(e.target.value)}
                             className="appearance-none pl-6 pr-6 py-1 bg-transparent border-none text-[13px] font-medium text-neutral-800 dark:text-white/90 transition-colors cursor-pointer outline-none focus:ring-0"
@@ -179,6 +181,35 @@ export function AI_Prompt({
                             <span>Attach</span>
                         </label>
 
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
+                                className="p-1.5 rounded-[10px] text-neutral-400 hover:text-neutral-800 dark:text-white/60 dark:hover:text-white/90 transition-colors ml-1"
+                                title="Insert custom saved emoji"
+                            >
+                                <Smile className="w-[15px] h-[15px]" />
+                            </button>
+
+                            {isEmojiPickerOpen && (
+                                <div className="absolute bottom-9 left-0 z-50 bg-[#1C1C24] border border-white/20 rounded-xl p-2 shadow-2xl backdrop-blur-xl w-[260px] grid grid-cols-7 gap-1">
+                                    {EMOJI_LIST.map((emoji, idx) => (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={() => {
+                                                setValue((prev) => prev + emoji);
+                                                setIsEmojiPickerOpen(false);
+                                            }}
+                                            className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-[16px] transition-transform hover:scale-110"
+                                        >
+                                            {emoji}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
                         {onResetThread && (
                             <button
                                 type="button"
@@ -200,14 +231,14 @@ export function AI_Prompt({
                             title="Enhance prompt"
                         >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-current">
-                                <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/>
-                                <path d="m14 7 3 3"/>
-                                <path d="M5 6v4"/>
-                                <path d="M19 14v4"/>
-                                <path d="M10 2v2"/>
-                                <path d="M7 8H3"/>
-                                <path d="M21 16h-4"/>
-                                <path d="M11 3H9"/>
+                                <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" />
+                                <path d="m14 7 3 3" />
+                                <path d="M5 6v4" />
+                                <path d="M19 14v4" />
+                                <path d="M10 2v2" />
+                                <path d="M7 8H3" />
+                                <path d="M21 16h-4" />
+                                <path d="M11 3H9" />
                             </svg>
                         </button>
 
@@ -218,8 +249,8 @@ export function AI_Prompt({
                             title="Visual Canvas"
                         >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-current">
-                                <rect width="18" height="14" x="3" y="5" rx="2" ry="2"/>
-                                <path d="m10 15 5-3-5-3v6Z"/>
+                                <rect width="18" height="14" x="3" y="5" rx="2" ry="2" />
+                                <path d="m10 15 5-3-5-3v6Z" />
                             </svg>
                         </button>
 

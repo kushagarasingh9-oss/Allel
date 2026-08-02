@@ -12,7 +12,6 @@ export type IntegrationProvider =
   | 'google_calendar'
   | 'jira'
   | 'github'
-  | 'figma'
   | 'zendesk'
   | 'salesforce'
   | 'supabase'
@@ -192,18 +191,6 @@ export const INTEGRATION_DEFINITIONS: readonly IntegrationDefinition[] = [
     comingSoonValue: 'Planned integration',
     connectMethod: 'coming_soon',
     unlockDescription: 'Will surface repository activity, issues, and PRs in your agent context.',
-  },
-  {
-    provider: 'figma',
-    label: 'Figma',
-    capability: 'planned',
-    core: false,
-    appSlug: 'figma',
-    description: 'Design files and prototype context',
-    disconnectedValue: 'Coming soon',
-    comingSoonValue: 'Planned integration',
-    connectMethod: 'coming_soon',
-    unlockDescription: 'Will allow your agent to reference design files and prototypes during product discussions.',
   },
   {
     provider: 'zendesk',

@@ -31,11 +31,38 @@ type IntegrationRow = {
 }
 
 type TimelineRow = {
+  customer_account_id: string | null
   headline: string
   detail: string | null
   event_type: string
   source: string | null
   event_at: string
+}
+
+type ContactIdentityRow = {
+  customer_account_id: string
+  external_ids: Record<string, unknown> | null
+}
+
+const LIVE_CONTACT_IDENTITY_KEYS = new Set([
+  'stripe_customer_id',
+  'stripe_subscription_id',
+  'gmail_email',
+  'posthog_person_id',
+  'posthog_distinct_ids',
+  'hubspot_contact_id',
+  'hubspot_company_id',
+  'intercom_contact_id',
+])
+
+function hasVerifiedLiveContactIdentity(externalIds: Record<string, unknown> | null) {
+  if (!externalIds) return false
+
+  return Object.entries(externalIds).some(([key, value]) => {
+    if (!LIVE_CONTACT_IDENTITY_KEYS.has(key)) return false
+    if (Array.isArray(value)) return value.length > 0
+    return typeof value === 'string' ? value.trim().length > 0 : Boolean(value)
+  })
 }
 
 type DraftRow = {
@@ -95,13 +122,20 @@ function timeAgo(dateStr: string | null): string {
   return `${days}d ago`
 }
 
+function isUsableLiveIntegration(integration: IntegrationRow) {
+  return (
+    integration.status === 'connected' &&
+    integration.metadata?.connected_via !== 'workspace_connect'
+  )
+}
+
 // ─── Platform-centric brief generation ─────────────────────────────
 
 function buildPlatformInsight(integration: IntegrationRow): string | null {
   const label = PROVIDER_LABELS[integration.provider] ?? integration.provider
   const meta = integration.metadata ?? {}
 
-  if (integration.status !== 'connected') return null
+  if (!isUsableLiveIntegration(integration)) return null
 
   switch (integration.provider) {
     case 'gmail': {
@@ -165,7 +199,7 @@ function buildHeadline(
   pendingDrafts: DraftRow[],
   accounts: AccountRow[]
 ) {
-  const connected = integrations.filter(i => i.status === 'connected')
+  const connected = integrations.filter(isUsableLiveIntegration)
 
   if (connected.length === 0) {
     return 'Connect your tools to get started'
@@ -214,7 +248,7 @@ function buildSummary(
   pendingDrafts: DraftRow[],
   accounts: AccountRow[]
 ) {
-  const connected = integrations.filter(i => i.status === 'connected')
+  const connected = integrations.filter(isUsableLiveIntegration)
 
   if (connected.length === 0) {
     return 'Connect your first integration to start building your daily brief. Head to Settings → Integrations to connect Stripe, PostHog, Gmail, or Intercom.'
@@ -324,6 +358,7 @@ export async function generateWorkspaceBrief(
     { data: drafts, error: draftsError },
     { data: integrations, error: integrationsError },
     { data: timeline, error: timelineError },
+    { data: contactIdentities, error: contactIdentitiesError },
   ] = await Promise.all([
     supabase
       .from('customer_accounts')
@@ -350,10 +385,15 @@ export async function generateWorkspaceBrief(
       .eq('workspace_id', workspaceId),
     supabase
       .from('account_timeline')
-      .select('headline, detail, event_type, source, event_at')
+      .select('customer_account_id, headline, detail, event_type, source, event_at')
       .eq('workspace_id', workspaceId)
       .order('event_at', { ascending: false })
       .limit(20),
+    supabase
+      .from('account_contacts')
+      .select('customer_account_id, external_ids')
+      .eq('workspace_id', workspaceId)
+      .not('external_ids', 'is', null),
   ])
 
   if (accountsError) throw accountsError
@@ -361,13 +401,33 @@ export async function generateWorkspaceBrief(
   if (draftsError) throw draftsError
   if (integrationsError) throw integrationsError
   if (timelineError) throw timelineError
+  if (contactIdentitiesError) throw contactIdentitiesError
 
-  const typedAccounts = ((accounts as AccountRow[] | null) ?? []).slice(0, 5)
-  const allAccounts = (accounts as AccountRow[] | null) ?? []
-  const typedSignals = (signals as SignalRow[] | null) ?? []
-  const typedDrafts = (drafts as DraftRow[] | null) ?? []
+  // A customer row by itself is not evidence of a live integration: old seed
+  // rows and stale cache entries look exactly the same. Briefs include an
+  // account only when a sync has attached a real provider identity to it.
+  const verifiedAccountIds = new Set(
+    ((contactIdentities as ContactIdentityRow[] | null) ?? [])
+      .filter((contact) => hasVerifiedLiveContactIdentity(contact.external_ids))
+      .map((contact) => contact.customer_account_id)
+  )
+  const allAccounts = ((accounts as AccountRow[] | null) ?? []).filter((account) =>
+    verifiedAccountIds.has(account.id)
+  )
+  const typedAccounts = allAccounts.slice(0, 5)
+  const typedSignals = ((signals as SignalRow[] | null) ?? []).filter(
+    (signal) =>
+      signal.customer_account_id !== null && verifiedAccountIds.has(signal.customer_account_id)
+  )
+  const typedDrafts = ((drafts as DraftRow[] | null) ?? []).filter(
+    (draft) =>
+      draft.customer_account_id !== null && verifiedAccountIds.has(draft.customer_account_id)
+  )
   const typedIntegrations = (integrations as IntegrationRow[] | null) ?? []
-  const typedTimeline = (timeline as TimelineRow[] | null) ?? []
+  const typedTimeline = ((timeline as TimelineRow[] | null) ?? []).filter(
+    (event) =>
+      event.customer_account_id === null || verifiedAccountIds.has(event.customer_account_id)
+  )
 
   const headline = buildHeadline(typedIntegrations, typedTimeline, typedDrafts, allAccounts)
   const summary = buildSummary(typedIntegrations, typedTimeline, typedDrafts, allAccounts)

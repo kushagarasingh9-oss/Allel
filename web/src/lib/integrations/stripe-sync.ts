@@ -3,6 +3,7 @@ import { logAgentRun } from '@/lib/agent/run-logger'
 import { buildSignalsFromAccount, scoreAccount } from '@/lib/engine/score-engine'
 import { syncSubscriptions } from './stripe'
 import { generateWorkspaceBrief } from '@/lib/briefs/generate-workspace-brief'
+import { mergeIntegrationConnectionMetadata } from './connection-guard'
 
 type ExistingAccount = {
   id: string
@@ -69,7 +70,8 @@ function buildNextAction(accountStatus: string, riskLevel: 'high' | 'medium' | '
 }
 
 export async function syncStripeWorkspace(
-  workspaceId: string
+  workspaceId: string,
+  options?: { refreshBrief?: boolean }
 ): Promise<StripeWorkspaceSyncResult> {
   const supabase = createServiceClient()
   const subscriptions = await syncSubscriptions(workspaceId)
@@ -349,14 +351,14 @@ export async function syncStripeWorkspace(
       provider: 'stripe',
       status: 'connected',
       last_synced_at: syncedAt,
-      metadata: {
+      metadata: await mergeIntegrationConnectionMetadata(supabase, workspaceId, 'stripe', {
         coverage:
           syncedAccounts > 0
             ? `${syncedAccounts} Stripe subscriptions synced`
             : 'Connected, but no subscriptions were found',
         synced_accounts: syncedAccounts,
         high_risk_accounts: highRiskAccounts,
-      },
+      }),
     },
     { onConflict: 'workspace_id,provider' }
   )
@@ -376,7 +378,7 @@ export async function syncStripeWorkspace(
     },
   })
 
-  await generateWorkspaceBrief(workspaceId)
+  if (options?.refreshBrief ?? true) await generateWorkspaceBrief(workspaceId)
 
   return {
     syncedAccounts,

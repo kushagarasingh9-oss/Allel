@@ -3,6 +3,7 @@ import { logAgentRun } from '@/lib/agent/run-logger'
 import { generateWorkspaceBrief } from '@/lib/briefs/generate-workspace-brief'
 import { buildAccountsByName, matchAccountIdFromText } from './account-match'
 import { fetchSentryIssues, getSentryCredentials } from './sentry'
+import { mergeIntegrationConnectionMetadata } from './connection-guard'
 
 type ExistingAccount = {
   id: string
@@ -21,7 +22,8 @@ export type SentryWorkspaceSyncResult = {
 }
 
 export async function syncSentryWorkspace(
-  workspaceId: string
+  workspaceId: string,
+  options?: { refreshBrief?: boolean }
 ): Promise<SentryWorkspaceSyncResult> {
   const supabase = createServiceClient()
   const { authToken, organizationSlug, projectSlug } = await getSentryCredentials(workspaceId)
@@ -131,13 +133,13 @@ export async function syncSentryWorkspace(
       provider: 'sentry',
       status: 'connected',
       last_synced_at: new Date().toISOString(),
-      metadata: {
+      metadata: await mergeIntegrationConnectionMetadata(supabase, workspaceId, 'sentry', {
         organization_slug: organizationSlug,
         project_slug: projectSlug,
         coverage: `${issues.length} unresolved issue(s), ${matchedAccounts} matched account signal(s)`,
         open_issues: issues.length,
         matched_accounts: matchedAccounts,
-      },
+      }),
     },
     { onConflict: 'workspace_id,provider' }
   )
@@ -156,7 +158,7 @@ export async function syncSentryWorkspace(
     },
   })
 
-  await generateWorkspaceBrief(workspaceId)
+  if (options?.refreshBrief ?? true) await generateWorkspaceBrief(workspaceId)
 
   return {
     matchedAccounts,

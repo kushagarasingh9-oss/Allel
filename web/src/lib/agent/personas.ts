@@ -53,8 +53,9 @@ export const PERSONAS: AgentPersona[] = [
     role: 'AI Co-founder',
     placeholder: 'Ask about accounts, churn risk, growth, drafts, or anything...',
     systemInstructionSuffix: COFOUNDER_INSTRUCTIONS,
-    // No filter — Cofounder gets every tool
-    activeTools: undefined,
+    // Undefined means every registered backend tool is available. Individual
+    // external writes remain founder-approved by agent.ts; do not reintroduce
+    // a curated list here or connected providers silently disappear from chat.
   },
 
   // ──────────────────────────────────────────────────────────

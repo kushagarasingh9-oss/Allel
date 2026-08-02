@@ -1,5 +1,57 @@
 import { createServiceClient } from '@/lib/supabase/service'
-import { decrypt } from './encryption'
+import { decrypt, encrypt } from './encryption'
+import { requireIntegrationConnected } from './connection-guard'
+
+type StoredIntegrationToken = {
+  encrypted_value: string
+  iv: string
+  auth_tag: string
+  expires_at: string | null
+}
+
+async function readLiveToken(input: {
+  supabase: ReturnType<typeof createServiceClient>
+  workspaceId: string
+  provider: string
+  tokenType: 'api_key' | 'oauth_access' | 'oauth_refresh'
+  token: StoredIntegrationToken
+  pipedreamAccountId: string | null
+}) {
+  const { token, tokenType, pipedreamAccountId } = input
+
+  // Pipedream, rather than our app, owns OAuth renewal for Connect accounts.
+  // A missing expiry is treated as stale so existing connections self-heal on
+  // their first live use rather than failing with a silent expired token.
+  const shouldRefreshFromPipedream =
+    tokenType !== 'oauth_refresh' &&
+    pipedreamAccountId &&
+    (!token.expires_at || new Date(token.expires_at).getTime() <= Date.now() + 60_000)
+
+  if (!shouldRefreshFromPipedream) {
+    return decrypt(token.encrypted_value, token.iv, token.auth_tag)
+  }
+
+  const { getAccountCredentials } = await import('./pipedream')
+  const { token: freshToken } = await getAccountCredentials(pipedreamAccountId)
+  const encrypted = encrypt(freshToken)
+  const expiresAt = new Date(Date.now() + 55 * 60 * 1000).toISOString()
+
+  const { error } = await input.supabase
+    .from('integration_tokens')
+    .update({
+      encrypted_value: encrypted.encrypted,
+      iv: encrypted.iv,
+      auth_tag: encrypted.authTag,
+      expires_at: expiresAt,
+    })
+    .eq('workspace_id', input.workspaceId)
+    .eq('provider', input.provider)
+    .eq('token_type', tokenType)
+
+  if (error) throw error
+
+  return freshToken
+}
 
 export async function getIntegrationToken(
   workspaceId: string,
@@ -8,10 +60,19 @@ export async function getIntegrationToken(
 ) {
   const supabase = createServiceClient()
 
+  // This guard is deliberately before every token lookup. A retained token is
+  // not permission to use a disconnected or unhealthy integration, and chat
+  // must never substitute stored workspace rows for the provider's live API.
+  const connection = await requireIntegrationConnected(supabase, workspaceId, provider)
+  const pipedreamAccountId =
+    typeof connection.metadata.pipedream_account_id === 'string'
+      ? connection.metadata.pipedream_account_id
+      : null
+
   // Try the requested token type first
   const { data, error } = await supabase
     .from('integration_tokens')
-    .select('encrypted_value, iv, auth_tag')
+    .select('encrypted_value, iv, auth_tag, expires_at')
     .eq('workspace_id', workspaceId)
     .eq('provider', provider)
     .eq('token_type', tokenType)
@@ -25,7 +86,7 @@ export async function getIntegrationToken(
     const fallbackType = tokenType === 'api_key' ? 'oauth_access' : 'api_key'
     const fallback = await supabase
       .from('integration_tokens')
-      .select('encrypted_value, iv, auth_tag')
+      .select('encrypted_value, iv, auth_tag, expires_at')
       .eq('workspace_id', workspaceId)
       .eq('provider', provider)
       .eq('token_type', fallbackType)
@@ -33,7 +94,14 @@ export async function getIntegrationToken(
 
     if (fallback.error) throw fallback.error
     if (fallback.data) {
-      return decrypt(fallback.data.encrypted_value, fallback.data.iv, fallback.data.auth_tag)
+      return readLiveToken({
+        supabase,
+        workspaceId,
+        provider,
+        tokenType: fallbackType,
+        token: fallback.data as StoredIntegrationToken,
+        pipedreamAccountId,
+      })
     }
   }
 
@@ -41,7 +109,14 @@ export async function getIntegrationToken(
     throw new Error(`${provider} is not connected for this workspace`)
   }
 
-  return decrypt(data.encrypted_value, data.iv, data.auth_tag)
+  return readLiveToken({
+    supabase,
+    workspaceId,
+    provider,
+    tokenType,
+    token: data as StoredIntegrationToken,
+    pipedreamAccountId,
+  })
 }
 
 export async function getIntegrationMetadata<T extends Record<string, unknown>>(
@@ -49,13 +124,6 @@ export async function getIntegrationMetadata<T extends Record<string, unknown>>(
   provider: string
 ) {
   const supabase = createServiceClient()
-  const { data, error } = await supabase
-    .from('integration_connections')
-    .select('metadata')
-    .eq('workspace_id', workspaceId)
-    .eq('provider', provider)
-    .maybeSingle()
-
-  if (error) throw error
-  return ((data?.metadata as T | null) ?? {}) as T
+  const connection = await requireIntegrationConnected(supabase, workspaceId, provider)
+  return connection.metadata as T
 }

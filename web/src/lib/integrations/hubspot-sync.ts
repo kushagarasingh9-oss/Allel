@@ -3,6 +3,7 @@ import { logAgentRun } from '@/lib/agent/run-logger'
 import { generateWorkspaceBrief } from '@/lib/briefs/generate-workspace-brief'
 import { fetchAllHubSpotCompanies, fetchAllHubSpotContacts, getHubSpotCredentials } from './hubspot'
 import { findAccountIdByEmail, getEmailDomain, isPersonalEmailDomain, normalizeMatchText } from './account-match'
+import { mergeIntegrationConnectionMetadata } from './connection-guard'
 
 type ExistingAccount = {
   id: string
@@ -43,7 +44,8 @@ function pickContactName(properties: Record<string, string | null | undefined> |
 }
 
 export async function syncHubSpotWorkspace(
-  workspaceId: string
+  workspaceId: string,
+  options?: { refreshBrief?: boolean }
 ): Promise<HubSpotWorkspaceSyncResult> {
   const supabase = createServiceClient()
   const { accessToken } = await getHubSpotCredentials(workspaceId)
@@ -186,11 +188,11 @@ export async function syncHubSpotWorkspace(
       provider: 'hubspot',
       status: 'connected',
       last_synced_at: syncedAt,
-      metadata: {
+      metadata: await mergeIntegrationConnectionMetadata(supabase, workspaceId, 'hubspot', {
         coverage: `${syncedAccounts} companies and ${syncedContacts} contacts synced`,
         synced_accounts: syncedAccounts,
         synced_contacts: syncedContacts,
-      },
+      }),
     },
     { onConflict: 'workspace_id,provider' }
   )
@@ -209,7 +211,7 @@ export async function syncHubSpotWorkspace(
     },
   })
 
-  await generateWorkspaceBrief(workspaceId)
+  if (options?.refreshBrief ?? true) await generateWorkspaceBrief(workspaceId)
 
   return {
     syncedAccounts,
