@@ -55,6 +55,13 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   searchNotionTool: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
   listAirtableBasesTool: <img src="/logos/airtable.svg" alt="Airtable" className="w-4 h-4 object-contain shrink-0" />,
   searchIntercomConvosTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  listCalendarEventsTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  getCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  createCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  updateCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  deleteCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  queryFreeBusyTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  listCalendarsTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
 }
 
 // ─── Human-readable names for tools ──────────────────────────────────
@@ -88,6 +95,13 @@ const TOOL_LABELS: Record<string, string> = {
   webExtractTool: "Extracting webpage data",
   webCrawlTool: "Crawling website domain",
   webMapTool: "Indexing sitemap",
+  listCalendarEventsTool: "Checking Google Calendar",
+  getCalendarEventTool: "Fetching Calendar event",
+  createCalendarEventTool: "Creating Calendar event",
+  updateCalendarEventTool: "Updating Calendar event",
+  deleteCalendarEventTool: "Deleting Calendar event",
+  queryFreeBusyTool: "Checking Calendar availability",
+  listCalendarsTool: "Listing Google Calendars",
 }
 
 const PROVIDER_LOGOS: Record<string, string> = {
@@ -109,7 +123,8 @@ function getProviderFromTool(toolName: string, errorMsg: string): { name: string
   let slug: string | null = null
   let name = ''
 
-  if (lowName.includes('gmail') || toolName === 'getMyInbox' || lowMsg.includes('gmail')) { slug = 'gmail'; name = 'Gmail' }
+  if (lowName.includes('calendar') || lowMsg.includes('calendar')) { slug = 'google_calendar'; name = 'Google Calendar' }
+  else if (lowName.includes('gmail') || toolName === 'getMyInbox' || lowMsg.includes('gmail')) { slug = 'gmail'; name = 'Gmail' }
   else if (lowName.includes('slack') || lowMsg.includes('slack')) { slug = 'slack'; name = 'Slack' }
   else if (lowName.includes('stripe') || lowMsg.includes('stripe')) { slug = 'stripe'; name = 'Stripe' }
   else if (lowName.includes('posthog') || lowMsg.includes('posthog')) { slug = 'posthog'; name = 'PostHog' }
