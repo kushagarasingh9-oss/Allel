@@ -1,8 +1,10 @@
 /**
- * Gmail OAuth Callback
+ * Google OAuth Callback
  *
  * GET /api/integrations/gmail/callback
  * Exchanges authorization code for tokens, stores encrypted.
+ * Handles both Gmail and Google Calendar OAuth flows — the provider
+ * is encoded in the state parameter.
  *
  * Security: Verifies the authenticated user is a member of the workspace
  * passed in the OAuth state parameter to prevent CSRF token injection.
@@ -11,17 +13,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { exchangeGmailCode } from '@/lib/integrations/gmail'
+import { exchangeGmailCode, getGoogleRedirectUri } from '@/lib/integrations/gmail'
 import { runProviderSyncWithHealth } from '@/lib/integrations/connection-state'
+import { isSyncableProvider } from '@/lib/integrations/catalog'
 import { encrypt } from '@/lib/integrations/encryption'
+import { verifyGoogleCalendarAccess } from '@/lib/integrations/google-calendar'
+import { mergeIntegrationConnectionMetadata } from '@/lib/integrations/connection-guard'
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code')
-  const state = request.nextUrl.searchParams.get('state') // workspaceId:nonce
+  const state = request.nextUrl.searchParams.get('state') // workspaceId:nonce:provider
   const error = request.nextUrl.searchParams.get('error')
 
   if (error) {
-    return NextResponse.redirect(new URL('/dashboard/settings?error=gmail_denied', request.url))
+    return NextResponse.redirect(new URL('/dashboard/settings?error=google_denied', request.url))
   }
 
   if (!code || !state) {
@@ -38,8 +43,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth/login?error=session_expired', request.url))
   }
 
-  // Parse state: "workspaceId:nonce" — extract workspace ID (ignore nonce, it's for CSRF)
-  const workspaceId = state.includes(':') ? state.split(':')[0] : state
+  // Parse state: "workspaceId:nonce:provider"
+  const stateParts = state.split(':')
+  const workspaceId = stateParts[0]
+  // stateParts[1] is the nonce (CSRF protection, not validated server-side yet)
+  const provider = (stateParts[2] as 'gmail' | 'google_calendar') || 'gmail'
 
   // Verify user is a member of the workspace in the state param
   const { data: membership } = await userSupabase
@@ -50,21 +58,28 @@ export async function GET(request: NextRequest) {
     .maybeSingle()
 
   if (!membership) {
-    console.error(`[gmail-callback] User ${user.id} tried to connect Gmail for workspace ${workspaceId} they don't belong to`)
+    console.error(`[google-callback] User ${user.id} tried to connect ${provider} for workspace ${workspaceId} they don't belong to`)
     return NextResponse.redirect(new URL('/dashboard/settings?error=unauthorized', request.url))
   }
 
   // ── Token exchange & storage (uses service client for RLS-bypassed writes) ──
   try {
-    const { accessToken, refreshToken, expiresAt } = await exchangeGmailCode(code)
+    const callbackRedirectUri = getGoogleRedirectUri(request.nextUrl.origin)
+    const { accessToken, refreshToken, expiresAt } = await exchangeGmailCode(code, callbackRedirectUri)
     const supabase = createServiceClient()
 
-    // Store access token (encrypted)
+    // An exchanged OAuth code is not enough evidence to unlock Calendar in
+    // chat. Verify the exact Google Calendar API access first.
+    if (provider === 'google_calendar') {
+      await verifyGoogleCalendarAccess(accessToken)
+    }
+
+    // Store access token (encrypted) under the correct provider
     const encryptedAccess = encrypt(accessToken)
     const { error: accessTokenError } = await supabase.from('integration_tokens').upsert(
       {
         workspace_id: workspaceId,
-        provider: 'gmail',
+        provider,
         token_type: 'oauth_access',
         encrypted_value: encryptedAccess.encrypted,
         iv: encryptedAccess.iv,
@@ -80,7 +95,7 @@ export async function GET(request: NextRequest) {
       const { error: refreshTokenError } = await supabase.from('integration_tokens').upsert(
         {
           workspace_id: workspaceId,
-          provider: 'gmail',
+          provider,
           token_type: 'oauth_refresh',
           encrypted_value: encryptedRefresh.encrypted,
           iv: encryptedRefresh.iv,
@@ -92,28 +107,40 @@ export async function GET(request: NextRequest) {
     }
 
     // Update integration status
+    const providerLabel = provider === 'google_calendar' ? 'Google Calendar' : 'Gmail'
     const { error: connectionError } = await supabase.from('integration_connections').upsert(
       {
         workspace_id: workspaceId,
-        provider: 'gmail',
+        provider,
         status: 'connected',
         last_synced_at: new Date().toISOString(),
-        metadata: { coverage: 'OAuth connected' },
+        metadata: await mergeIntegrationConnectionMetadata(supabase, workspaceId, provider, {
+          coverage: `${providerLabel} OAuth connected and verified`,
+          connected_via: 'google_oauth',
+          oauth_verified_at: new Date().toISOString(),
+        }),
       },
       { onConflict: 'workspace_id,provider' }
     )
     if (connectionError) throw connectionError
 
-    await runProviderSyncWithHealth({
-      supabase,
-      workspaceId,
-      provider: 'gmail',
-      trigger: 'gmail_oauth_callback',
-    })
+    // Only run sync for syncable providers (Gmail has sync, Calendar does not)
+    if (isSyncableProvider(provider)) {
+      await runProviderSyncWithHealth({
+        supabase,
+        workspaceId,
+        provider,
+        trigger: 'gmail_oauth_callback',
+      })
+    }
 
-    return NextResponse.redirect(new URL('/dashboard/settings?success=gmail', request.url))
+    return NextResponse.redirect(
+      new URL(`/dashboard/settings?success=${encodeURIComponent(providerLabel)}+connected`, request.url)
+    )
   } catch (err) {
-    console.error('Gmail OAuth callback error:', err)
-    return NextResponse.redirect(new URL('/dashboard/settings?error=gmail_failed', request.url))
+    console.error(`Google OAuth callback error (${provider}):`, err)
+    return NextResponse.redirect(
+      new URL(`/dashboard/settings?error=${provider}_failed`, request.url)
+    )
   }
 }

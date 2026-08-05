@@ -7,12 +7,9 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/service'
-import { getGmailAccessToken } from './gmail'
-import { getIntegrationToken } from './provider-tokens'
+import { decrypt, encrypt } from './encryption'
 import {
-  IntegrationConnectionError,
-  getIntegrationConnection,
-  isIntegrationConnected,
+  requireIntegrationConnected,
 } from './connection-guard'
 
 // ============================================================
@@ -59,44 +56,102 @@ export type CalendarListEntry = {
 }
 
 // ============================================================
-//  Access Token — Reuse Gmail's Google OAuth
+//  Access Token — Independent Google Calendar OAuth
 // ============================================================
 
 async function getCalendarAccessToken(workspaceId: string): Promise<string> {
   const supabase = createServiceClient()
 
-  // Google Calendar can be connected directly or through Gmail's Google OAuth
-  // grant. Both are live credentials, but neither may bypass connection state.
-  const [calendarConnection, gmailConnection, hasCalendarConnection, hasGmailConnection] = await Promise.all([
-    getIntegrationConnection(supabase, workspaceId, 'google_calendar'),
-    getIntegrationConnection(supabase, workspaceId, 'gmail'),
-    isIntegrationConnected(supabase, workspaceId, 'google_calendar'),
-    isIntegrationConnected(supabase, workspaceId, 'gmail'),
-  ])
+  await requireIntegrationConnected(supabase, workspaceId, 'google_calendar')
 
-  if (!hasCalendarConnection && !hasGmailConnection) {
-    throw new IntegrationConnectionError(
-      'google_calendar',
-      calendarConnection?.status ?? gmailConnection?.status ?? 'missing'
-    )
-  }
+  // Look for google_calendar's own OAuth access token
+  const { data: accessRow, error: accessError } = await supabase
+    .from('integration_tokens')
+    .select('encrypted_value, iv, auth_tag, expires_at')
+    .eq('workspace_id', workspaceId)
+    .eq('provider', 'google_calendar')
+    .eq('token_type', 'oauth_access')
+    .maybeSingle()
 
-  // Both branches retrieve a live OAuth token through a guarded credential
-  // path. Calendar never reads a cached row directly or falls back to demo
-  // workspace data.
-  if (hasCalendarConnection) {
-    try {
-      return await getIntegrationToken(workspaceId, 'google_calendar', 'oauth_access')
-    } catch (error) {
-      if (!hasGmailConnection) throw error
+  if (accessError) throw accessError
+  if (!accessRow) {
+    const { data: apiKeyRow } = await supabase
+      .from('integration_tokens')
+      .select('encrypted_value, iv, auth_tag')
+      .eq('workspace_id', workspaceId)
+      .eq('provider', 'google_calendar')
+      .eq('token_type', 'api_key')
+      .maybeSingle()
+
+    if (apiKeyRow) {
+      return decrypt(apiKeyRow.encrypted_value, apiKeyRow.iv, apiKeyRow.auth_tag)
     }
+
+    throw new Error('Google Calendar not connected — connect it in Settings > Connections.')
   }
 
-  if (hasGmailConnection) {
-    return getGmailAccessToken(workspaceId)
+  // Return cached token if still valid
+  if (accessRow.expires_at && new Date(accessRow.expires_at) > new Date()) {
+    return decrypt(accessRow.encrypted_value, accessRow.iv, accessRow.auth_tag)
   }
 
-  throw new Error('Google Calendar not connected — connect Google Calendar or Gmail with calendar scopes')
+  // Token expired — refresh it using google_calendar's own refresh token
+  const { data: refreshRow, error: refreshError } = await supabase
+    .from('integration_tokens')
+    .select('encrypted_value, iv, auth_tag')
+    .eq('workspace_id', workspaceId)
+    .eq('provider', 'google_calendar')
+    .eq('token_type', 'oauth_refresh')
+    .maybeSingle()
+
+  if (refreshError) throw refreshError
+  if (!refreshRow) {
+    throw new Error('Google Calendar refresh token not found — reconnect in Settings > Connections.')
+  }
+
+  const refreshToken = decrypt(refreshRow.encrypted_value, refreshRow.iv, refreshRow.auth_tag)
+  const { accessToken, expiresAt } = await refreshGoogleToken(refreshToken)
+
+  // Save the new access token
+  const encrypted = encrypt(accessToken)
+  await supabase
+    .from('integration_tokens')
+    .update({
+      encrypted_value: encrypted.encrypted,
+      iv: encrypted.iv,
+      auth_tag: encrypted.authTag,
+      expires_at: expiresAt.toISOString(),
+    })
+    .eq('workspace_id', workspaceId)
+    .eq('provider', 'google_calendar')
+    .eq('token_type', 'oauth_access')
+
+  return accessToken
+}
+
+/** Refresh a Google OAuth token (works for any Google provider) */
+async function refreshGoogleToken(refreshToken: string): Promise<{ accessToken: string; expiresAt: Date }> {
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID!,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  })
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`Failed to refresh Google Calendar token: ${response.status} ${body}`)
+  }
+
+  const data = (await response.json()) as { access_token: string; expires_in?: number }
+  return {
+    accessToken: data.access_token,
+    expiresAt: new Date(Date.now() + (data.expires_in ?? 3600) * 1000),
+  }
 }
 
 // ============================================================
@@ -105,6 +160,32 @@ async function getCalendarAccessToken(workspaceId: string): Promise<string> {
 
 const CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3'
 
+/**
+ * Verify that the token issued during OAuth can make a real Calendar request.
+ * The OAuth callback invokes this before publishing a connected state, so chat
+ * is never unlocked by a token exchange alone.
+ */
+export async function verifyGoogleCalendarAccess(accessToken: string): Promise<void> {
+  let response: Response
+
+  try {
+    response = await fetch(`${CALENDAR_BASE}/users/me/calendarList?maxResults=1&fields=items(id)`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(5_000),
+    })
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'request failed'
+    throw new Error(`Google Calendar authorization could not be verified: ${detail}`)
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(
+      `Google Calendar authorization could not be verified: ${response.status} ${response.statusText}${body ? ` — ${body}` : ''}`
+    )
+  }
+}
+
 async function calendarGet<T>(accessToken: string, path: string, params?: Record<string, string>): Promise<T> {
   const qs = params ? '?' + new URLSearchParams(params).toString() : ''
   const response = await fetch(`${CALENDAR_BASE}${path}${qs}`, {
@@ -112,7 +193,9 @@ async function calendarGet<T>(accessToken: string, path: string, params?: Record
   })
 
   if (!response.ok) {
-    throw new Error(`Calendar API error: ${response.status} ${response.statusText}`)
+    const body = await response.text().catch(() => '')
+    console.error(`[calendar] GET ${path} failed: ${response.status}`, body)
+    throw new Error(`Calendar API error: ${response.status} ${response.statusText}${body ? ` — ${body}` : ''}`)
   }
 
   return (await response.json()) as T

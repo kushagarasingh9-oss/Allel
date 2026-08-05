@@ -355,50 +355,97 @@ export function threadNeedsReply(
   return thread.isUnread || threadTime > touchTime
 }
 
-export function getGmailAuthUrl(workspaceId: string): string {
-  const clientId = process.env.GOOGLE_CLIENT_ID
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI
-
-  if (!clientId || !redirectUri) {
-    throw new Error('Gmail OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_REDIRECT_URI.')
+export function getGoogleOAuthScopes(provider: 'gmail' | 'google_calendar' = 'gmail'): string[] {
+  if (provider === 'google_calendar') {
+    // The full Calendar scope covers events, free/busy, and the calendar list.
+    // Requesting calendar.events as well is redundant and creates a second,
+    // confusing consent row without granting anything additional.
+    return ['https://www.googleapis.com/auth/calendar']
   }
 
-  // Include a random nonce in the state to prevent CSRF attacks.
-  // Format: "workspaceId:nonce" — the callback should validate the nonce.
-  const nonce = crypto.randomUUID()
-  const statePayload = `${workspaceId}:${nonce}`
+  return isGmailReadSyncEnabled()
+    ? [
+        'https://www.googleapis.com/auth/gmail.send',
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.compose',
+      ]
+    : ['https://www.googleapis.com/auth/gmail.send']
+}
 
-  const scopes = (
-    isGmailReadSyncEnabled()
-      ? [
-          'https://www.googleapis.com/auth/gmail.send',
-          'https://www.googleapis.com/auth/gmail.readonly',
-          'https://www.googleapis.com/auth/gmail.compose',
-        ]
-      : ['https://www.googleapis.com/auth/gmail.send']
-  ).join(' ')
+export function getGoogleRedirectUri(origin?: string): string {
+  const envUri = process.env.GOOGLE_REDIRECT_URI
+  const callbackPath = '/api/integrations/gmail/callback'
+
+  // When we have a live request origin, always prefer it so the redirect
+  // matches the actual host/port the browser is on (fixes port-mismatch
+  // issues like app running on :3001 but env says :3000).
+  if (origin) {
+    let path = callbackPath
+    if (envUri) {
+      try {
+        path = new URL(envUri).pathname
+      } catch {
+        if (envUri.startsWith('/')) path = envUri
+      }
+    }
+    return `${origin.replace(/\/+$/, '')}${path}`
+  }
+
+  // No origin available (e.g. background job) — fall back to env var or defaults
+  if (envUri) return envUri
+
+  const base = process.env.NEXT_PUBLIC_APP_URL
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+  return `${base.replace(/\/+$/, '')}${callbackPath}`
+}
+
+export function getGoogleAuthUrl(
+  workspaceId: string,
+  provider: 'gmail' | 'google_calendar' = 'gmail',
+  options: { forceConsent?: boolean; redirectUri?: string; origin?: string } = {}
+): string {
+  const clientId = process.env.GOOGLE_CLIENT_ID
+  const redirectUri = options.redirectUri || getGoogleRedirectUri(options.origin)
+
+  if (!clientId || !redirectUri) {
+    throw new Error('Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.')
+  }
+
+  // State format: "workspaceId:nonce:provider"
+  const nonce = crypto.randomUUID()
+  const statePayload = `${workspaceId}:${nonce}:${provider}`
+
+  const scopes = getGoogleOAuthScopes(provider)
 
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: scopes,
+    scope: scopes.join(' '),
     state: statePayload,
   })
 
-  if (isGmailReadSyncEnabled()) {
-    params.set('access_type', 'offline')
-    params.set('prompt', 'consent')
-  }
+  params.set('access_type', 'offline')
+  // Consent is required only when this workspace has no durable refresh token.
+  // For an established connection, account selection avoids repeatedly
+  // returning the founder to Google's consent summary page.
+  params.set('prompt', options.forceConsent ? 'consent' : 'select_account')
 
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
 }
 
-export async function exchangeGmailCode(code: string): Promise<{
+/** @deprecated Use getGoogleAuthUrl instead */
+export const getGmailAuthUrl = getGoogleAuthUrl
+
+export async function exchangeGmailCode(
+  code: string,
+  redirectUriOverride?: string
+): Promise<{
   accessToken: string
   refreshToken?: string
   expiresAt: Date
 }> {
+  const redirectUri = redirectUriOverride || getGoogleRedirectUri()
   const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -406,7 +453,7 @@ export async function exchangeGmailCode(code: string): Promise<{
       code,
       client_id: process.env.GOOGLE_CLIENT_ID ?? '',
       client_secret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-      redirect_uri: process.env.GOOGLE_REDIRECT_URI ?? '',
+      redirect_uri: redirectUri,
       grant_type: 'authorization_code',
     }),
   })
@@ -475,6 +522,18 @@ export async function getGmailAccessToken(workspaceId: string): Promise<string> 
 
   if (accessError) throw accessError
   if (!accessRow) {
+    const { data: apiKeyRow } = await supabase
+      .from('integration_tokens')
+      .select('encrypted_value, iv, auth_tag')
+      .eq('workspace_id', workspaceId)
+      .eq('provider', 'gmail')
+      .eq('token_type', 'api_key')
+      .maybeSingle()
+
+    if (apiKeyRow) {
+      return decrypt(apiKeyRow.encrypted_value, apiKeyRow.iv, apiKeyRow.auth_tag)
+    }
+
     throw new Error('Gmail not connected for this workspace')
   }
 

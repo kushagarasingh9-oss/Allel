@@ -47,20 +47,28 @@ function providerLabel(provider: string) {
 }
 
 function isLegacyDemoConnection(connection: IntegrationConnection | null) {
-  return connection?.metadata.connected_via === 'workspace_connect'
+  if (!connection) return false
+
+  const coverage = connection.metadata.coverage
+  return (
+    connection.metadata.connected_via === 'workspace_connect' ||
+    (typeof coverage === 'string' && coverage.includes('connected via Direct API Connection'))
+  )
 }
 
 export class IntegrationConnectionError extends Error {
   readonly provider: string
-  readonly status: IntegrationConnectionStatus | 'missing'
+  readonly status: IntegrationConnectionStatus | 'missing' | 'demo'
 
-  constructor(provider: string, status: IntegrationConnectionStatus | 'missing') {
+  constructor(provider: string, status: IntegrationConnectionStatus | 'missing' | 'demo') {
     const label = providerLabel(provider)
     const detail =
       status === 'needs_attention'
         ? 'needs attention before live data can be used'
         : status === 'coming_soon'
           ? 'is not available yet'
+          : status === 'demo'
+            ? 'has only a demo connection, not a live provider connection'
           : 'is not connected'
 
     super(
@@ -95,17 +103,17 @@ export async function getIntegrationConnection(
   }
 }
 
-/** Returns true for active connected or syncable integration rows. */
+/**
+ * Returns true only for a verified live connection. Unhealthy and legacy demo
+ * rows must never unlock a provider call in chat.
+ */
 export async function isIntegrationConnected(
   supabase: SupabaseClient,
   workspaceId: string,
   provider: string
 ) {
   const connection = await getIntegrationConnection(supabase, workspaceId, provider)
-  return (
-    connection !== null &&
-    (connection.status === 'connected' || connection.status === 'needs_attention')
-  )
+  return connection?.status === 'connected' && !isLegacyDemoConnection(connection)
 }
 
 /**
@@ -118,8 +126,16 @@ export async function requireIntegrationConnected(
 ): Promise<IntegrationConnection> {
   const connection = await getIntegrationConnection(supabase, workspaceId, provider)
 
-  if (!connection || connection.status === 'disconnected') {
-    throw new IntegrationConnectionError(provider, connection?.status ?? 'missing')
+  if (!connection) {
+    throw new IntegrationConnectionError(provider, 'missing')
+  }
+
+  if (connection.status !== 'connected') {
+    throw new IntegrationConnectionError(provider, connection.status)
+  }
+
+  if (isLegacyDemoConnection(connection)) {
+    throw new IntegrationConnectionError(provider, 'demo')
   }
 
   return connection

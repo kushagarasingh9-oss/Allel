@@ -738,7 +738,7 @@ export function AgentFeed() {
 
     loadAvatar()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: unknown, session: any) => {
       const u = session?.user
       if (u) {
         const meta = u.user_metadata ?? {}

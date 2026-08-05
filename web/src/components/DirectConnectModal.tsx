@@ -11,6 +11,9 @@ import {
   connectHubSpot,
   connectSlack,
   connectIntercom,
+  connectAirtable,
+  connectGmailDirect,
+  connectGoogleCalendarDirect,
   connectDemoIntegrationSafe,
   getGmailConnectUrl,
 } from '@/app/dashboard/settings/actions'
@@ -52,6 +55,11 @@ const HINTS: Partial<Record<IntegrationProvider, { placeholder: string; docUrl: 
     placeholder: 'sntrys_...',
     docUrl: 'https://sentry.io/settings/account/api/auth-tokens/',
   },
+  intercom: {
+    label: 'Intercom Access Token',
+    placeholder: 'dG9rO...',
+    docUrl: 'https://app.intercom.com/a/developer-signup',
+  },
   hubspot: {
     label: 'HubSpot Private App Access Token',
     placeholder: 'pat-na1-...',
@@ -65,6 +73,16 @@ const HINTS: Partial<Record<IntegrationProvider, { placeholder: string; docUrl: 
   gmail: {
     label: 'Gmail App Password or OAuth Key',
     placeholder: 'xxxx xxxx xxxx xxxx',
+    docUrl: 'https://myaccount.google.com/apppasswords',
+  },
+  airtable: {
+    label: 'Airtable Personal Access Token',
+    placeholder: 'pat...',
+    docUrl: 'https://airtable.com/create/tokens',
+  },
+  google_calendar: {
+    label: 'Google Calendar (uses Gmail OAuth)',
+    placeholder: 'Connect Gmail first',
     docUrl: 'https://myaccount.google.com/apppasswords',
   },
 }
@@ -111,6 +129,13 @@ export default function DirectConnectModal({
         }
       } catch (err: unknown) {
         if (typeof err === 'object' && err !== null && 'digest' in err && typeof err.digest === 'string' && err.digest.startsWith('NEXT_REDIRECT')) {
+          // Check if this redirect was to a success or error URL
+          const digest = (err as { digest: string }).digest
+          if (digest.includes('error=')) {
+            const errorMatch = digest.match(/error=([^&]*)/)
+            setError(errorMatch ? decodeURIComponent(errorMatch[1]) : 'Connection failed.')
+            return
+          }
           onSuccess(provider, `${providerLabel} connected!`)
           onClose()
           return
@@ -129,6 +154,12 @@ export default function DirectConnectModal({
         onClose()
       } catch (err: unknown) {
         if (typeof err === 'object' && err !== null && 'digest' in err && typeof err.digest === 'string' && err.digest.startsWith('NEXT_REDIRECT')) {
+          const digest = (err as { digest: string }).digest
+          if (digest.includes('error=')) {
+            const errorMatch = digest.match(/error=([^&]*)/)
+            setError(errorMatch ? decodeURIComponent(errorMatch[1]) : 'Quick connect failed.')
+            return
+          }
           onSuccess(provider, `${providerLabel} connected!`)
           onClose()
           return
@@ -177,6 +208,15 @@ export default function DirectConnectModal({
           case 'intercom':
             await connectIntercom(apiKey.trim())
             break
+          case 'airtable':
+            await connectAirtable(apiKey.trim())
+            break
+          case 'gmail':
+            await connectGmailDirect(apiKey.trim())
+            break
+          case 'google_calendar':
+            await connectGoogleCalendarDirect(apiKey.trim())
+            break
           default:
             await connectDemoIntegrationSafe(provider)
             break
@@ -186,6 +226,13 @@ export default function DirectConnectModal({
         onClose()
       } catch (err: unknown) {
         if (typeof err === 'object' && err !== null && 'digest' in err && typeof err.digest === 'string' && err.digest.startsWith('NEXT_REDIRECT')) {
+          // Check if this redirect was to a success or error URL
+          const digest = (err as { digest: string }).digest
+          if (digest.includes('error=')) {
+            const errorMatch = digest.match(/error=([^&]*)/)
+            setError(errorMatch ? decodeURIComponent(errorMatch[1]) : 'Connection failed.')
+            return
+          }
           onSuccess(provider, `${providerLabel} connected!`)
           onClose()
           return

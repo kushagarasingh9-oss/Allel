@@ -26,6 +26,7 @@ import {
 } from '@/lib/integrations/catalog'
 import { revalidatePath } from 'next/cache'
 import { redirect, unstable_rethrow } from 'next/navigation'
+import { headers } from 'next/headers'
 import { ensureWorkspaceForUser } from '@/lib/workspaces/ensure-workspace'
 
 type PostgrestLikeError = {
@@ -516,7 +517,7 @@ export async function connectLinear(apiKey: string, teamKey?: string) {
 
 export async function disconnectIntegration(provider: string) {
   if (!MANAGEABLE_INTEGRATION_PROVIDERS.has(provider as never)) {
-    redirect(buildSettingsRedirect({ error: 'Unknown integration provider.' }))
+    return { success: false, error: 'Unknown integration provider.' }
   }
 
   try {
@@ -525,7 +526,7 @@ export async function disconnectIntegration(provider: string) {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) {
-      redirect(buildSettingsRedirect({ error: 'Sign in again to disconnect this integration.' }))
+      return { success: false, error: 'Sign in again to disconnect this integration.' }
     }
 
     const { workspaceId } = await getWorkspaceIdForUser(user)
@@ -549,14 +550,12 @@ export async function disconnectIntegration(provider: string) {
     if (connectionError) throw connectionError
 
     revalidateDashboardSurfaces()
-    redirect(buildSettingsRedirect({ success: `${provider} disconnected.` }))
+    return { success: true, message: `${provider} disconnected.` }
   } catch (error) {
-    unstable_rethrow(error)
-    redirect(
-      buildSettingsRedirect({
-        error: formatSettingsError(error, 'Disconnect failed.'),
-      })
-    )
+    return {
+      success: false,
+      error: formatSettingsError(error, 'Disconnect failed.'),
+    }
   }
 }
 
@@ -633,11 +632,14 @@ export async function getConnectedProvidersAction() {
 
     const { data: connections } = await supabase
       .from('integration_connections')
-      .select('provider, status')
+      .select('provider, status, metadata')
       .eq('workspace_id', workspaceId)
 
     return (connections ?? [])
-      .filter((c: { status: string }) => c.status === 'connected')
+      .filter((c: { status: string; provider: string; metadata?: Record<string, unknown> | null }) => {
+        const isDemo = c.metadata?.connected_via === 'demo_mock'
+        return c.status === 'connected' && !isDemo && !isPlannedProvider(c.provider)
+      })
       .map((c: { provider: string }) => c.provider)
   } catch {
     return []
@@ -645,54 +647,10 @@ export async function getConnectedProvidersAction() {
 }
 
 export async function connectDemoIntegrationSafe(provider: string) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  let workspaceId: string | null = null
-  if (user) {
-    const ws = await ensureWorkspaceForUser(user)
-    workspaceId = ws.id
-  } else {
-    const { data: firstWs } = await supabase
-      .from('workspaces')
-      .select('id')
-      .limit(1)
-      .maybeSingle()
-    workspaceId = firstWs?.id ?? null
-  }
-
-  if (!workspaceId) {
-    throw new Error('Workspace initialization required.')
-  }
-
   const label = getIntegrationDefinition(provider)?.label ?? provider
-
-  // 1. Save token entry
-  await saveEncryptedToken({
-    supabase,
-    workspaceId,
-    provider,
-    value: `direct_token_${provider}_${Date.now()}`,
-  })
-
-  // 2. Save active connection in integration_connections table
-  await upsertConnection({
-    supabase,
-    workspaceId,
-    provider,
-    metadata: {
-      connectedAt: new Date().toISOString(),
-      coverage: `${label} connected via Direct API Connection. Agent can access workspace data.`,
-    },
-  })
-
-  revalidateDashboardSurfaces()
-  return {
-    success: true,
-    message: `${label} connected successfully!`,
-  }
+  throw new Error(
+    `${label} needs a real credential or OAuth authorization. Demo connections are disabled and cannot be used in chat.`
+  )
 }
 
 // ============================================================
@@ -790,7 +748,49 @@ export async function connectAirtable(apiKey: string) {
   }
 }
 
-export async function connectGoogleCalendar() {
+export async function connectGmailDirect(tokenOrKey: string) {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      redirect(buildSettingsRedirect({ error: 'Sign in again to connect Gmail.' }))
+    }
+
+    const { workspaceId } = await getWorkspaceIdForUser(user)
+
+    await saveEncryptedToken({
+      supabase,
+      workspaceId,
+      provider: 'gmail',
+      tokenType: 'api_key',
+      value: tokenOrKey,
+    })
+    await upsertConnection({
+      supabase,
+      workspaceId,
+      provider: 'gmail',
+      metadata: { coverage: 'Gmail connected via Direct API credential' },
+    })
+
+    revalidateDashboardSurfaces()
+    redirect(
+      buildSettingsRedirect({
+        success: 'Gmail connected via Direct API credential.',
+      })
+    )
+  } catch (error) {
+    unstable_rethrow(error)
+    redirect(
+      buildSettingsRedirect({
+        error: formatSettingsError(error, 'Gmail connection failed.'),
+      })
+    )
+  }
+}
+
+export async function connectGoogleCalendarDirect(tokenOrKey: string) {
   try {
     const supabase = await createClient()
     const {
@@ -802,34 +802,24 @@ export async function connectGoogleCalendar() {
 
     const { workspaceId } = await getWorkspaceIdForUser(user)
 
-    // Google Calendar reuses Gmail OAuth — verify Gmail is connected
-    const { data: gmailConnection } = await supabase
-      .from('integration_connections')
-      .select('status')
-      .eq('workspace_id', workspaceId)
-      .eq('provider', 'gmail')
-      .eq('status', 'connected')
-      .maybeSingle()
-
-    if (!gmailConnection) {
-      redirect(
-        buildSettingsRedirect({
-          error: 'Connect Gmail first — Google Calendar reuses the same Google OAuth credentials.',
-        })
-      )
-    }
-
+    await saveEncryptedToken({
+      supabase,
+      workspaceId,
+      provider: 'google_calendar',
+      tokenType: 'api_key',
+      value: tokenOrKey,
+    })
     await upsertConnection({
       supabase,
       workspaceId,
       provider: 'google_calendar',
-      metadata: { coverage: 'Google Calendar connected via Gmail OAuth — agent can manage events and check availability' },
+      metadata: { coverage: 'Google Calendar connected via Direct API credential' },
     })
 
     revalidateDashboardSurfaces()
     redirect(
       buildSettingsRedirect({
-        success: 'Google Calendar connected. The agent can now manage your calendar.',
+        success: 'Google Calendar connected via Direct API credential.',
       })
     )
   } catch (error) {
@@ -842,6 +832,8 @@ export async function connectGoogleCalendar() {
   }
 }
 
+
+
 export async function getGmailConnectUrl(provider: string = 'gmail') {
   const supabase = await createClient()
   const {
@@ -853,14 +845,35 @@ export async function getGmailConnectUrl(provider: string = 'gmail') {
   }
 
   const { workspaceId } = await getWorkspaceIdForUser(user)
-  const { getGmailAuthUrl, isGmailConfigured } = await import('@/lib/integrations/gmail')
+  const { getGoogleAuthUrl, isGmailConfigured } = await import('@/lib/integrations/gmail')
 
   if (!isGmailConfigured()) {
-    // If GOOGLE_CLIENT_ID is not configured in local env, seamlessly connect using direct connection
-    await connectDemoIntegrationSafe(provider)
-    return { demo: true }
+    throw new Error(
+      'Google OAuth is not configured on this deployment. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET first.'
+    )
   }
 
-  const authUrl = getGmailAuthUrl(workspaceId)
+  const headerList = await headers()
+  const host = headerList.get('x-forwarded-host') || headerList.get('host')
+  const rawProto = headerList.get('x-forwarded-proto')
+  const proto = rawProto || (host?.includes('localhost') || host?.includes('127.0.0.1') ? 'http' : 'https')
+  const origin = host ? `${proto}://${host}` : undefined
+
+  const googleProvider = provider === 'google_calendar' ? 'google_calendar' : 'gmail'
+  const { data: refreshToken, error: refreshTokenError } = await supabase
+    .from('integration_tokens')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .eq('provider', googleProvider)
+    .eq('token_type', 'oauth_refresh')
+    .maybeSingle()
+
+  if (refreshTokenError) throw refreshTokenError
+
+  const authUrl = getGoogleAuthUrl(
+    workspaceId,
+    googleProvider as 'gmail' | 'google_calendar',
+    { forceConsent: !refreshToken, origin }
+  )
   return { authUrl }
 }

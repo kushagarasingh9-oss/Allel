@@ -4,6 +4,7 @@ import {
   buildEmailSearchQuery,
   classifyEmailThread,
   extractEmailAddress,
+  getGoogleOAuthScopes,
   threadNeedsReply,
   type GmailThread,
 } from './gmail'
@@ -38,6 +39,12 @@ test('buildEmailSearchQuery scopes to sender or recipient within a lookback wind
     buildEmailSearchQuery('customer@acme.com', 90),
     'newer_than:90d (from:customer@acme.com OR to:customer@acme.com)'
   )
+})
+
+test('Google Calendar OAuth requests one complete Calendar scope', () => {
+  assert.deepEqual(getGoogleOAuthScopes('google_calendar'), [
+    'https://www.googleapis.com/auth/calendar',
+  ])
 })
 
 test('threadNeedsReply returns true when the latest inbound message is newer than founder touch', () => {

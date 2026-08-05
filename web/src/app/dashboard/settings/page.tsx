@@ -68,15 +68,15 @@ const INTEGRATION_ICONS: Partial<Record<IntegrationProvider, React.ReactNode>> =
   supabase: <img src="/logos/supabase.svg" alt="Supabase" className="w-5 h-5 object-contain" />,
   jira: (
     <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-      <path fill="#0052CC" d="M11.53 2c0 2.4 1.97 4.35 4.35 4.35h3.58v3.58c0 2.4 1.97 4.35 4.35 4.35V2h-12.28z"/>
-      <path fill="#2684FF" d="M6.88 6.64c0 2.4 1.97 4.35 4.35 4.35h3.58v3.58c0 2.4 1.97 4.35 4.35 4.35V6.64H6.88z"/>
-      <path fill="#0052CC" d="M2.23 11.28c0 2.4 1.97 4.35 4.35 4.35h3.58v3.58c0 2.4 1.97 4.35 4.35 4.35v-12.28H2.23z"/>
+      <path fill="#0052CC" d="M11.53 2c0 2.4 1.97 4.35 4.35 4.35h3.58v3.58c0 2.4 1.97 4.35 4.35 4.35V2h-12.28z" />
+      <path fill="#2684FF" d="M6.88 6.64c0 2.4 1.97 4.35 4.35 4.35h3.58v3.58c0 2.4 1.97 4.35 4.35 4.35V6.64H6.88z" />
+      <path fill="#0052CC" d="M2.23 11.28c0 2.4 1.97 4.35 4.35 4.35h3.58v3.58c0 2.4 1.97 4.35 4.35 4.35v-12.28H2.23z" />
     </svg>
   ),
   zendesk: <SiZendesk className="w-5 h-5 text-[#03363D]" />,
   salesforce: (
     <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-      <path fill="#00A1E0" d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+      <path fill="#00A1E0" d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
     </svg>
   ),
   google_docs: <SiGoogledocs className="w-5 h-5 text-[#4285F4]" />,
@@ -147,13 +147,17 @@ export default function SettingsPage() {
     setDisconnectingProvider(provider)
     startTransition(async () => {
       try {
-        await disconnectIntegration(provider)
-        setConnectedProviders((prev) => {
-          const next = new Set(prev)
-          next.delete(provider)
-          return next
-        })
-        setToastMessage({ type: 'success', text: `${provider} disconnected.` })
+        const result = await disconnectIntegration(provider)
+        if (result.success) {
+          setConnectedProviders((prev) => {
+            const next = new Set(prev)
+            next.delete(provider)
+            return next
+          })
+          setToastMessage({ type: 'success', text: result.message ?? `${provider} disconnected.` })
+        } else {
+          setToastMessage({ type: 'error', text: result.error ?? `Failed to disconnect ${provider}.` })
+        }
       } catch {
         setToastMessage({ type: 'error', text: `Failed to disconnect ${provider}.` })
       } finally {
@@ -169,10 +173,10 @@ export default function SettingsPage() {
 
   const filtered = searchQuery.trim()
     ? INTEGRATIONS.filter(
-        (app) =>
-          app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          app.description.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      (app) =>
+        app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.description.toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : INTEGRATIONS
 
   return (
@@ -181,11 +185,10 @@ export default function SettingsPage() {
         {/* Toast */}
         {toastMessage && (
           <div
-            className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-lg text-[13px] font-medium shadow-lg border transition-all duration-300 ${
-              toastMessage.type === 'success'
+            className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-lg text-[13px] font-medium shadow-lg border transition-all duration-300 ${toastMessage.type === 'success'
                 ? 'bg-[#101b13] border-[#10b981]/30 text-[#8dd6a7]'
                 : 'bg-[#190d10] border-[#f87171]/30 text-[#ffb0b9]'
-            }`}
+              }`}
           >
             {toastMessage.text}
             <button

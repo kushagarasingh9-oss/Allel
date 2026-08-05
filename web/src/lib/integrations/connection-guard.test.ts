@@ -74,7 +74,7 @@ test('isIntegrationConnected only accepts an explicitly connected provider row',
       provider: 'notion',
       status: 'connected',
       last_synced_at: null,
-      metadata: { connected_via: 'workspace_connect' },
+      metadata: { coverage: 'Notion connected via Direct API Connection. Agent can access workspace data.' },
     },
   ])
 
