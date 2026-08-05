@@ -259,20 +259,9 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
     )
   }
 
-  // Sync results
+  // Sync results — keep timeline clean, don't show technical data counters
   if (data.success && (data.syncedAccounts !== undefined || data.delivered !== undefined)) {
-    const parts: string[] = []
-    if (data.syncedAccounts !== undefined) parts.push(`${data.syncedAccounts} accounts synced`)
-    if (data.syncedThreads !== undefined) parts.push(`${data.syncedThreads} threads`)
-    if (data.openIssues !== undefined) parts.push(`${data.openIssues} issues`)
-    if (data.delivered) parts.push('Brief delivered')
-    return (
-      <MiniResultCard
-        icon={TOOL_ICONS[toolName] ?? <Zap className="w-4 h-4 text-neutral-400" />}
-        title={<span className="text-white">Sync complete</span>}
-        subtitle={parts.join(' · ') || 'Done'}
-      />
-    )
+    return null
   }
 
   // Web Search results

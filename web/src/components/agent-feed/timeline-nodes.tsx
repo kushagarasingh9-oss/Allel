@@ -175,7 +175,22 @@ const PROVIDER_LOGOS: Record<string, string> = {
 export function AgentSpeechBlock({ text }: { text: string }) {
   const detectMissingIntegrations = React.useMemo(() => {
     const low = text.toLowerCase()
-    if (!low.includes('connect') && !low.includes('access') && !low.includes('integration') && !low.includes("isn't") && !low.includes("aren't")) {
+    
+    // Only detect if text explicitly indicates an integration is disconnected or failing authentication
+    const indicatesMissing =
+      (low.includes('not connected') ||
+        low.includes('unconnected') ||
+        low.includes('need to connect') ||
+        low.includes('please connect') ||
+        low.includes("isn't connected") ||
+        low.includes("aren't connected") ||
+        low.includes('not authenticated') ||
+        low.includes('invalid authentication credentials') ||
+        low.includes('requires authentication')) &&
+      !low.includes('successfully synced') &&
+      !low.includes('successfully connected')
+
+    if (!indicatesMissing) {
       return []
     }
 
