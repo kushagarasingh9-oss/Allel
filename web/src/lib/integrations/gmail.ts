@@ -402,7 +402,12 @@ export function getGoogleRedirectUri(origin?: string): string {
 export function getGoogleAuthUrl(
   workspaceId: string,
   provider: 'gmail' | 'google_calendar' = 'gmail',
-  options: { forceConsent?: boolean; redirectUri?: string; origin?: string } = {}
+  options: {
+    forceConsent?: boolean
+    redirectUri?: string
+    origin?: string
+    state?: string
+  } = {}
 ): string {
   const clientId = process.env.GOOGLE_CLIENT_ID
   const redirectUri = options.redirectUri || getGoogleRedirectUri(options.origin)
@@ -411,9 +416,9 @@ export function getGoogleAuthUrl(
     throw new Error('Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.')
   }
 
-  // State format: "workspaceId:nonce:provider"
-  const nonce = crypto.randomUUID()
-  const statePayload = `${workspaceId}:${nonce}:${provider}`
+  // Callers that initiate OAuth in a browser should supply a state value
+  // persisted in an HttpOnly cookie. The fallback preserves non-browser use.
+  const statePayload = options.state ?? `${workspaceId}:${crypto.randomUUID()}:${provider}`
 
   const scopes = getGoogleOAuthScopes(provider)
 

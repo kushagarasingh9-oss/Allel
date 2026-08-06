@@ -13,7 +13,6 @@ import {
   connectIntercom,
   connectAirtable,
   connectGmailDirect,
-  connectGoogleCalendarDirect,
   connectDemoIntegrationSafe,
   getGmailConnectUrl,
 } from '@/app/dashboard/settings/actions'
@@ -79,11 +78,6 @@ const HINTS: Partial<Record<IntegrationProvider, { placeholder: string; docUrl: 
     label: 'Airtable Personal Access Token',
     placeholder: 'pat...',
     docUrl: 'https://airtable.com/create/tokens',
-  },
-  google_calendar: {
-    label: 'Google Calendar (uses Gmail OAuth)',
-    placeholder: 'Connect Gmail first',
-    docUrl: 'https://myaccount.google.com/apppasswords',
   },
 }
 
@@ -214,9 +208,6 @@ export default function DirectConnectModal({
           case 'gmail':
             await connectGmailDirect(apiKey.trim())
             break
-          case 'google_calendar':
-            await connectGoogleCalendarDirect(apiKey.trim())
-            break
           default:
             await connectDemoIntegrationSafe(provider)
             break
@@ -275,7 +266,7 @@ export default function DirectConnectModal({
 
         {/* Prominent 1-Click OAuth Button for Google Apps */}
         {isGoogleProvider && (
-          <div className="mb-5 pb-5 border-b border-white/10">
+          <div className={provider === 'google_calendar' ? 'mb-2' : 'mb-5 pb-5 border-b border-white/10'}>
             <button
               type="button"
               onClick={handleGoogleOAuthConnect}
@@ -295,12 +286,22 @@ export default function DirectConnectModal({
               )}
             </button>
             <p className="text-[11px] text-neutral-500 text-center mt-2">
-              Authenticates directly using official Google Cloud OAuth. No manual API key required.
+              {provider === 'google_calendar'
+                ? 'Google OAuth is required for private Calendar data. App passwords and API keys are not supported.'
+                : 'Authenticates directly using official Google Cloud OAuth. No manual API key required.'}
             </p>
           </div>
         )}
 
-        {/* Form for Direct API Key Input */}
+        {provider === 'google_calendar' && error && (
+          <div className="flex items-center gap-2 p-2.5 mt-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Form for providers that support direct credentials */}
+        {provider !== 'google_calendar' && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -405,6 +406,7 @@ export default function DirectConnectModal({
             </div>
           </div>
         </form>
+        )}
       </div>
     </div>
   )

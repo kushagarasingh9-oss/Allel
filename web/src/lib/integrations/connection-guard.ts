@@ -46,14 +46,19 @@ function providerLabel(provider: string) {
   return PROVIDER_LABELS[provider] ?? provider
 }
 
-function isLegacyDemoConnection(connection: IntegrationConnection | null) {
+function isUnverifiedConnection(connection: IntegrationConnection | null) {
   if (!connection) return false
 
   const coverage = connection.metadata.coverage
-  return (
+  const isLegacyDemo =
     connection.metadata.connected_via === 'workspace_connect' ||
     (typeof coverage === 'string' && coverage.includes('connected via Direct API Connection'))
-  )
+  const isUnverifiedCalendar =
+    connection.provider === 'google_calendar' &&
+    (connection.metadata.connected_via !== 'google_oauth' ||
+      typeof connection.metadata.oauth_verified_at !== 'string')
+
+  return isLegacyDemo || isUnverifiedCalendar
 }
 
 export class IntegrationConnectionError extends Error {
@@ -113,7 +118,7 @@ export async function isIntegrationConnected(
   provider: string
 ) {
   const connection = await getIntegrationConnection(supabase, workspaceId, provider)
-  return connection?.status === 'connected' && !isLegacyDemoConnection(connection)
+  return connection?.status === 'connected' && !isUnverifiedConnection(connection)
 }
 
 /**
@@ -134,7 +139,7 @@ export async function requireIntegrationConnected(
     throw new IntegrationConnectionError(provider, connection.status)
   }
 
-  if (isLegacyDemoConnection(connection)) {
+  if (isUnverifiedConnection(connection)) {
     throw new IntegrationConnectionError(provider, 'demo')
   }
 

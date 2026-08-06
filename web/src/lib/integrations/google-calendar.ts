@@ -75,23 +75,16 @@ async function getCalendarAccessToken(workspaceId: string): Promise<string> {
 
   if (accessError) throw accessError
   if (!accessRow) {
-    const { data: apiKeyRow } = await supabase
-      .from('integration_tokens')
-      .select('encrypted_value, iv, auth_tag')
-      .eq('workspace_id', workspaceId)
-      .eq('provider', 'google_calendar')
-      .eq('token_type', 'api_key')
-      .maybeSingle()
-
-    if (apiKeyRow) {
-      return decrypt(apiKeyRow.encrypted_value, apiKeyRow.iv, apiKeyRow.auth_tag)
-    }
-
-    throw new Error('Google Calendar not connected — connect it in Settings > Connections.')
+    throw new Error(
+      'Google Calendar OAuth credentials are missing — reconnect in Settings > Connections.'
+    )
   }
 
-  // Return cached token if still valid
-  if (accessRow.expires_at && new Date(accessRow.expires_at) > new Date()) {
+  // Keep a safety margin so the token cannot expire during an API request.
+  const expiresAtMs = accessRow.expires_at
+    ? new Date(accessRow.expires_at).getTime()
+    : Number.NaN
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs > Date.now() + 60_000) {
     return decrypt(accessRow.encrypted_value, accessRow.iv, accessRow.auth_tag)
   }
 
@@ -112,9 +105,9 @@ async function getCalendarAccessToken(workspaceId: string): Promise<string> {
   const refreshToken = decrypt(refreshRow.encrypted_value, refreshRow.iv, refreshRow.auth_tag)
   const { accessToken, expiresAt } = await refreshGoogleToken(refreshToken)
 
-  // Save the new access token
+  // Save the new access token before using it.
   const encrypted = encrypt(accessToken)
-  await supabase
+  const { error: updateError } = await supabase
     .from('integration_tokens')
     .update({
       encrypted_value: encrypted.encrypted,
@@ -126,17 +119,25 @@ async function getCalendarAccessToken(workspaceId: string): Promise<string> {
     .eq('provider', 'google_calendar')
     .eq('token_type', 'oauth_access')
 
+  if (updateError) throw updateError
+
   return accessToken
 }
 
 /** Refresh a Google OAuth token (works for any Google provider) */
 async function refreshGoogleToken(refreshToken: string): Promise<{ accessToken: string; expiresAt: Date }> {
+  const clientId = process.env.GOOGLE_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+  if (!clientId || !clientSecret) {
+    throw new Error('Google OAuth is not configured on this deployment.')
+  }
+
   const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      client_id: clientId,
+      client_secret: clientSecret,
       refresh_token: refreshToken,
       grant_type: 'refresh_token',
     }),
@@ -147,7 +148,11 @@ async function refreshGoogleToken(refreshToken: string): Promise<{ accessToken: 
     throw new Error(`Failed to refresh Google Calendar token: ${response.status} ${body}`)
   }
 
-  const data = (await response.json()) as { access_token: string; expires_in?: number }
+  const data = (await response.json()) as { access_token?: string; expires_in?: number }
+  if (!data.access_token) {
+    throw new Error('Google Calendar token refresh returned no access token.')
+  }
+
   return {
     accessToken: data.access_token,
     expiresAt: new Date(Date.now() + (data.expires_in ?? 3600) * 1000),
@@ -159,6 +164,14 @@ async function refreshGoogleToken(refreshToken: string): Promise<{ accessToken: 
 // ============================================================
 
 const CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3'
+const CALENDAR_REQUEST_TIMEOUT_MS = 10_000
+
+async function calendarApiError(response: Response) {
+  const body = await response.text().catch(() => '')
+  return new Error(
+    `Calendar API error: ${response.status} ${response.statusText}${body ? ` — ${body.slice(0, 1_000)}` : ''}`
+  )
+}
 
 /**
  * Verify that the token issued during OAuth can make a real Calendar request.
@@ -171,7 +184,7 @@ export async function verifyGoogleCalendarAccess(accessToken: string): Promise<v
   try {
     response = await fetch(`${CALENDAR_BASE}/users/me/calendarList?maxResults=1&fields=items(id)`, {
       headers: { Authorization: `Bearer ${accessToken}` },
-      signal: AbortSignal.timeout(5_000),
+      signal: AbortSignal.timeout(CALENDAR_REQUEST_TIMEOUT_MS),
     })
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'request failed'
@@ -190,13 +203,10 @@ async function calendarGet<T>(accessToken: string, path: string, params?: Record
   const qs = params ? '?' + new URLSearchParams(params).toString() : ''
   const response = await fetch(`${CALENDAR_BASE}${path}${qs}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(CALENDAR_REQUEST_TIMEOUT_MS),
   })
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    console.error(`[calendar] GET ${path} failed: ${response.status}`, body)
-    throw new Error(`Calendar API error: ${response.status} ${response.statusText}${body ? ` — ${body}` : ''}`)
-  }
+  if (!response.ok) throw await calendarApiError(response)
 
   return (await response.json()) as T
 }
@@ -209,11 +219,10 @@ async function calendarPost<T>(accessToken: string, path: string, body: Record<s
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(CALENDAR_REQUEST_TIMEOUT_MS),
   })
 
-  if (!response.ok) {
-    throw new Error(`Calendar API error: ${response.status} ${response.statusText}`)
-  }
+  if (!response.ok) throw await calendarApiError(response)
 
   return (await response.json()) as T
 }
@@ -226,11 +235,10 @@ async function calendarPatch<T>(accessToken: string, path: string, body: Record<
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(CALENDAR_REQUEST_TIMEOUT_MS),
   })
 
-  if (!response.ok) {
-    throw new Error(`Calendar API error: ${response.status} ${response.statusText}`)
-  }
+  if (!response.ok) throw await calendarApiError(response)
 
   return (await response.json()) as T
 }
@@ -239,11 +247,10 @@ async function calendarDelete(accessToken: string, path: string): Promise<void> 
   const response = await fetch(`${CALENDAR_BASE}${path}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(CALENDAR_REQUEST_TIMEOUT_MS),
   })
 
-  if (!response.ok && response.status !== 204) {
-    throw new Error(`Calendar API error: ${response.status} ${response.statusText}`)
-  }
+  if (!response.ok && response.status !== 204) throw await calendarApiError(response)
 }
 
 // ============================================================
@@ -285,7 +292,7 @@ export async function getCalendarEvent(
   eventId: string
 ): Promise<CalendarEvent> {
   return calendarGet<CalendarEvent>(
-    accessToken, `/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`
+    accessToken, `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`
   )
 }
 
@@ -319,11 +326,10 @@ export async function createCalendarEvent(
       end: event.end,
       attendees: event.attendees,
     }),
+    signal: AbortSignal.timeout(CALENDAR_REQUEST_TIMEOUT_MS),
   })
 
-  if (!response.ok) {
-    throw new Error(`Calendar API error: ${response.status} ${response.statusText}`)
-  }
+  if (!response.ok) throw await calendarApiError(response)
 
   return (await response.json()) as CalendarEvent
 }
@@ -343,7 +349,7 @@ export async function updateCalendarEvent(
   }
 ): Promise<CalendarEvent> {
   return calendarPatch<CalendarEvent>(
-    accessToken, `/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
+    accessToken, `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
     updates as Record<string, unknown>
   )
 }
@@ -354,7 +360,7 @@ export async function deleteCalendarEvent(
   calendarId: string,
   eventId: string
 ): Promise<void> {
-  await calendarDelete(accessToken, `/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`)
+  await calendarDelete(accessToken, `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`)
 }
 
 // ============================================================

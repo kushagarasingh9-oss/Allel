@@ -16,6 +16,7 @@ import * as React from "react"
 import { useChatContext } from "./chat-provider"
 import { createClient } from "@/lib/supabase/client"
 import type { UIMessage } from "ai"
+import type { Session } from "@supabase/supabase-js"
 import {
   TimelineNode,
   AgentSpeechBlock,
@@ -341,7 +342,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
         <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center shrink-0 shadow-sm overflow-hidden p-0.5 mt-0.5" title="You">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/user-avatar.svg"
+            src={displayAvatar}
             alt="User Avatar"
             className="w-full h-full object-contain rounded-full"
           />
@@ -547,7 +548,7 @@ const DEMO_SEED_MESSAGES: UIMessage[] = [
             },
           ],
         },
-      } as any,
+      } as unknown as UIMessage["parts"][number],
       {
         type: "text",
         text: "Found 2 press releases for Acme Corp. They recently launched **AI Operations Suite 3.0** with native integrations across Stripe, PostHog, and Linear.",
@@ -586,7 +587,7 @@ const DEMO_SEED_MESSAGES: UIMessage[] = [
           riskLevel: "Low Risk",
           usageDelta: "+18% usage",
         },
-      } as any,
+      } as unknown as UIMessage["parts"][number],
       {
         type: "tool-getStripeAccountState",
         toolCallId: "call_demo_3",
@@ -598,7 +599,7 @@ const DEMO_SEED_MESSAGES: UIMessage[] = [
             { plan: "Enterprise Annual Stack", status: "active", cancelAtPeriodEnd: false },
           ],
         },
-      } as any,
+      } as unknown as UIMessage["parts"][number],
       {
         type: "text",
         text: "Acme Corp is **Healthy** (`$14,500/mo` MRR) on an **Enterprise Annual Stack** with active status and zero payment disputes.",
@@ -640,7 +641,7 @@ const DEMO_SEED_MESSAGES: UIMessage[] = [
             },
           ],
         },
-      } as any,
+      } as unknown as UIMessage["parts"][number],
       {
         type: "tool-generateFollowUpDraft",
         toolCallId: "call_demo_5",
@@ -653,7 +654,7 @@ const DEMO_SEED_MESSAGES: UIMessage[] = [
           accountName: "Acme Corp",
           draftType: "Renewal Check-in",
         },
-      } as any,
+      } as unknown as UIMessage["parts"][number],
       {
         text: "Found 1 thread requiring reply from `sarah@acmecorp.com`. Draft created for your review.",
         type: "text",
@@ -690,7 +691,7 @@ const DEMO_SEED_MESSAGES: UIMessage[] = [
           approvalRequired: true,
           actionSummary: "Apply 15% Rescue Discount for Acme Corp",
         },
-      } as any,
+      } as unknown as UIMessage["parts"][number],
       {
         type: "text",
         text: "> **Action Queued**: Interactive approval card rendered above. Click **Approve** to authorize.",
@@ -742,7 +743,7 @@ export function AgentFeed() {
 
     loadAvatar()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: unknown, session: any) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: unknown, session: Session | null) => {
       const u = session?.user
       if (u) {
         const meta = u.user_metadata ?? {}

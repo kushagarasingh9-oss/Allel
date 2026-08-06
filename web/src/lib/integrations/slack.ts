@@ -38,65 +38,55 @@ type SlackChannel = {
 // ============================================================
 
 export async function getSlackCredentials(workspaceId: string): Promise<SlackCredentials> {
-  let botToken = ''
-  let metadata: SlackMetadata = {}
+  const [botToken, metadata] = await Promise.all([
+    getIntegrationToken(workspaceId, 'slack'),
+    getIntegrationMetadata<SlackMetadata>(workspaceId, 'slack'),
+  ])
 
-  try {
-    const [token, meta] = await Promise.all([
-      getIntegrationToken(workspaceId, 'slack'),
-      getIntegrationMetadata<SlackMetadata>(workspaceId, 'slack'),
-    ])
-    botToken = token
-    metadata = meta
-  } catch {
-    botToken = `direct_token_slack_${workspaceId}`
-  }
+  const configuredChannel =
+    typeof metadata.channel_id === 'string' ? metadata.channel_id.trim() : ''
+  const channelId = await resolveSlackChannelId(botToken, configuredChannel || undefined)
 
-  let channelId =
-    typeof metadata.channel_id === 'string' && metadata.channel_id.length > 0
-      ? metadata.channel_id
-      : ''
-
-  if (!channelId && botToken && !botToken.startsWith('direct_token_')) {
-    try {
-      const response = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel&limit=5', {
-        headers: { Authorization: `Bearer ${botToken}` },
-      })
-      if (response.ok) {
-        const payload = (await response.json()) as { ok?: boolean; channels?: Array<{ id: string }> }
-        if (payload.ok && payload.channels && payload.channels.length > 0) {
-          channelId = payload.channels[0].id
-        }
-      }
-    } catch {
-      // Fallback
-    }
-  }
-
-  return { botToken, channelId: channelId || 'general' }
+  return { botToken, channelId }
 }
 
 export async function validateSlackBotToken(botToken: string) {
-  if (!botToken || botToken.trim().length < 5) return false
-  if (
-    botToken.startsWith('xoxb-') ||
-    botToken.startsWith('xoxp-') ||
-    botToken.startsWith('xoxe-') ||
-    botToken.startsWith('xapp-') ||
-    botToken.startsWith('direct_token_')
-  ) {
-    return true
-  }
+  const normalizedToken = botToken.trim()
+  if (!normalizedToken.startsWith('xoxb-')) return false
+
   try {
     const response = await fetch('https://slack.com/api/auth.test', {
-      headers: { Authorization: `Bearer ${botToken}` },
+      headers: { Authorization: `Bearer ${normalizedToken}` },
     })
-    if (!response.ok) return true
-    const payload = (await response.json()) as { ok?: boolean }
-    return Boolean(payload.ok)
+    if (!response.ok) return false
+
+    const payload = (await response.json()) as { ok?: boolean; bot_id?: string }
+    return payload.ok === true && typeof payload.bot_id === 'string' && payload.bot_id.length > 0
   } catch {
-    return true
+    return false
   }
+}
+
+export async function resolveSlackChannelId(botToken: string, channel?: string) {
+  const result = await listSlackChannels(botToken)
+  const channels = result.channels ?? []
+  const requestedChannel = channel?.trim().replace(/^#/, '')
+  const resolved = requestedChannel
+    ? channels.find(
+        (candidate) =>
+          candidate.id === requestedChannel || candidate.name === requestedChannel
+      )
+    : channels[0]
+
+  if (!resolved) {
+    throw new Error(
+      requestedChannel
+        ? `Slack channel "${requestedChannel}" was not found or is not accessible to this app.`
+        : 'No readable Slack channel is available. Invite the Slack app to a channel and try again.'
+    )
+  }
+
+  return resolved.id
 }
 
 // ============================================================
@@ -267,14 +257,6 @@ export async function getSlackChannelHistory(
   channelId: string,
   limit: number = 20
 ) {
-  if (botToken.startsWith('direct_token_')) {
-    return {
-      ok: true,
-      messages: [],
-      note: 'Direct test token connected. To read live Slack channel messages, connect your real Slack xoxb- bot token in Settings > Connections.',
-    }
-  }
-
   try {
     return await slackApiGet<{ messages: SlackMessage[] }>(botToken, 'conversations.history', {
       channel: channelId,

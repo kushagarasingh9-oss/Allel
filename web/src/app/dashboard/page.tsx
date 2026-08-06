@@ -4,12 +4,19 @@ import { ChatProvider } from "@/components/agent-feed/chat-provider";
 import { HomeAgentPanel } from "@/components/dashboard/home-agent-panel";
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  let workspace = null;
 
-  const workspace = user ? await ensureWorkspaceForUser(user) : null;
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getUser();
+    user = data?.user ?? null;
+    if (user) {
+      workspace = await ensureWorkspaceForUser(user);
+    }
+  } catch (error) {
+    console.error('[DashboardPage] Error resolving session or workspace:', error);
+  }
 
   const chatStorageScope = user && workspace ? {
     userId: user.id,

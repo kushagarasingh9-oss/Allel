@@ -76,6 +76,13 @@ test('isIntegrationConnected only accepts an explicitly connected provider row',
       last_synced_at: null,
       metadata: { coverage: 'Notion connected via Direct API Connection. Agent can access workspace data.' },
     },
+    {
+      workspace_id: 'workspace-1',
+      provider: 'google_calendar',
+      status: 'connected',
+      last_synced_at: null,
+      metadata: { coverage: 'Google Calendar connected via Direct API credential' },
+    },
   ])
 
   assert.equal(
@@ -89,6 +96,30 @@ test('isIntegrationConnected only accepts an explicitly connected provider row',
   assert.equal(
     await isIntegrationConnected(supabase as never, 'workspace-1', 'notion'),
     false
+  )
+  assert.equal(
+    await isIntegrationConnected(supabase as never, 'workspace-1', 'google_calendar'),
+    false
+  )
+})
+
+test('verified Google Calendar OAuth is accepted', async () => {
+  const supabase = createFakeSupabase([
+    {
+      workspace_id: 'workspace-1',
+      provider: 'google_calendar',
+      status: 'connected',
+      last_synced_at: '2026-08-06T00:00:00.000Z',
+      metadata: {
+        connected_via: 'google_oauth',
+        oauth_verified_at: '2026-08-06T00:00:00.000Z',
+      },
+    },
+  ])
+
+  assert.equal(
+    await isIntegrationConnected(supabase as never, 'workspace-1', 'google_calendar'),
+    true
   )
 })
 

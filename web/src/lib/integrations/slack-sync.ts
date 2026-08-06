@@ -60,11 +60,7 @@ export async function syncSlackWorkspace(
     )
   }
 
-  try {
-    await postSlackMessage(botToken, channelId, lines.join('\n'))
-  } catch (msgErr) {
-    console.error('[syncSlackWorkspace] Brief message post warning:', msgErr)
-  }
+  await postSlackMessage(botToken, channelId, lines.join('\n'))
 
   const syncedAt = new Date().toISOString()
   const { error: connectionError } = await supabase.from('integration_connections').upsert(

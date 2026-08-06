@@ -6,8 +6,8 @@
  * Handles both Gmail and Google Calendar OAuth flows — the provider
  * is encoded in the state parameter.
  *
- * Security: Verifies the authenticated user is a member of the workspace
- * passed in the OAuth state parameter to prevent CSRF token injection.
+ * Security: validates a short-lived, HttpOnly state cookie and verifies the
+ * authenticated user belongs to the workspace encoded in that state.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -33,6 +33,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard/settings?error=missing_params', request.url))
   }
 
+  const expectedState = request.cookies.get('google_oauth_state')?.value
+  if (!expectedState || expectedState !== state) {
+    return NextResponse.redirect(new URL('/dashboard/settings?error=invalid_oauth_state', request.url))
+  }
+
   // ── Security: Verify the authenticated user owns this workspace ──
   const userSupabase = await createClient()
   const {
@@ -43,11 +48,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth/login?error=session_expired', request.url))
   }
 
-  // Parse state: "workspaceId:nonce:provider"
+  // Parse the already-validated state: "workspaceId:nonce:provider"
   const stateParts = state.split(':')
-  const workspaceId = stateParts[0]
-  // stateParts[1] is the nonce (CSRF protection, not validated server-side yet)
-  const provider = (stateParts[2] as 'gmail' | 'google_calendar') || 'gmail'
+  if (stateParts.length !== 3) {
+    return NextResponse.redirect(new URL('/dashboard/settings?error=invalid_oauth_state', request.url))
+  }
+
+  const [workspaceId, nonce, rawProvider] = stateParts
+  if (!workspaceId || !nonce || !['gmail', 'google_calendar'].includes(rawProvider)) {
+    return NextResponse.redirect(new URL('/dashboard/settings?error=invalid_oauth_state', request.url))
+  }
+  const provider = rawProvider as 'gmail' | 'google_calendar'
 
   // Verify user is a member of the workspace in the state param
   const { data: membership } = await userSupabase
@@ -106,6 +117,17 @@ export async function GET(request: NextRequest) {
       if (refreshTokenError) throw refreshTokenError
     }
 
+    // Remove credentials created by the retired manual Calendar path.
+    if (provider === 'google_calendar') {
+      const { error: legacyTokenError } = await supabase
+        .from('integration_tokens')
+        .delete()
+        .eq('workspace_id', workspaceId)
+        .eq('provider', provider)
+        .eq('token_type', 'api_key')
+      if (legacyTokenError) throw legacyTokenError
+    }
+
     // Update integration status
     const providerLabel = provider === 'google_calendar' ? 'Google Calendar' : 'Gmail'
     const { error: connectionError } = await supabase.from('integration_connections').upsert(
@@ -134,9 +156,11 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    return NextResponse.redirect(
+    const response = NextResponse.redirect(
       new URL(`/dashboard/settings?success=${encodeURIComponent(providerLabel)}+connected`, request.url)
     )
+    response.cookies.delete('google_oauth_state')
+    return response
   } catch (err) {
     console.error(`Google OAuth callback error (${provider}):`, err)
     return NextResponse.redirect(

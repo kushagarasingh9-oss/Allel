@@ -26,7 +26,7 @@ import {
 } from '@/lib/integrations/catalog'
 import { revalidatePath } from 'next/cache'
 import { redirect, unstable_rethrow } from 'next/navigation'
-import { headers } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { ensureWorkspaceForUser } from '@/lib/workspaces/ensure-workspace'
 
 type PostgrestLikeError = {
@@ -654,7 +654,7 @@ export async function connectDemoIntegrationSafe(provider: string) {
 }
 
 // ============================================================
-//  Manual connect actions for Notion, Airtable, Google Calendar
+//  Manual connect actions for non-Google providers
 // ============================================================
 
 export async function connectNotion(apiKey: string) {
@@ -790,50 +790,6 @@ export async function connectGmailDirect(tokenOrKey: string) {
   }
 }
 
-export async function connectGoogleCalendarDirect(tokenOrKey: string) {
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      redirect(buildSettingsRedirect({ error: 'Sign in again to connect Google Calendar.' }))
-    }
-
-    const { workspaceId } = await getWorkspaceIdForUser(user)
-
-    await saveEncryptedToken({
-      supabase,
-      workspaceId,
-      provider: 'google_calendar',
-      tokenType: 'api_key',
-      value: tokenOrKey,
-    })
-    await upsertConnection({
-      supabase,
-      workspaceId,
-      provider: 'google_calendar',
-      metadata: { coverage: 'Google Calendar connected via Direct API credential' },
-    })
-
-    revalidateDashboardSurfaces()
-    redirect(
-      buildSettingsRedirect({
-        success: 'Google Calendar connected via Direct API credential.',
-      })
-    )
-  } catch (error) {
-    unstable_rethrow(error)
-    redirect(
-      buildSettingsRedirect({
-        error: formatSettingsError(error, 'Google Calendar connection failed.'),
-      })
-    )
-  }
-}
-
-
-
 export async function getGmailConnectUrl(provider: string = 'gmail') {
   const supabase = await createClient()
   const {
@@ -870,10 +826,20 @@ export async function getGmailConnectUrl(provider: string = 'gmail') {
 
   if (refreshTokenError) throw refreshTokenError
 
+  const state = `${workspaceId}:${crypto.randomUUID()}:${googleProvider}`
+  const cookieStore = await cookies()
+  cookieStore.set('google_oauth_state', state, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: proto === 'https',
+    path: '/api/integrations/gmail/callback',
+    maxAge: 10 * 60,
+  })
+
   const authUrl = getGoogleAuthUrl(
     workspaceId,
     googleProvider as 'gmail' | 'google_calendar',
-    { forceConsent: !refreshToken, origin }
+    { forceConsent: !refreshToken, origin, state }
   )
   return { authUrl }
 }

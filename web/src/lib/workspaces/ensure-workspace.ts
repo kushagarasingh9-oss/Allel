@@ -64,103 +64,97 @@ export function pickPreferredOwnedWorkspace(workspaces: OwnedWorkspaceRow[]) {
 }
 
 export async function ensureWorkspaceForUser(user: MinimalUser): Promise<WorkspaceRecord> {
-  const supabase = createServiceClient()
-
-  const membershipRes = await supabase
-    .from('workspace_members')
-    .select('workspace_id, role, created_at')
-    .eq('user_id', user.id)
-
-  if (membershipRes.error) {
-    throw membershipRes.error
+  const emailLocalPart = user.email?.split('@')[0] || 'workspace'
+  const fallbackWorkspace: WorkspaceRecord = {
+    id: user.id || 'default-workspace',
+    name: `${emailLocalPart}'s Workspace`,
+    slug: slugify(emailLocalPart || 'workspace') || 'workspace',
   }
 
-  const preferredMembership = pickPreferredWorkspaceMembership(
-    (membershipRes.data ?? []) as WorkspaceMembershipRecord[]
-  )
+  try {
+    const supabase = createServiceClient()
 
-  if (preferredMembership?.workspace_id) {
-    const workspaceRes = await supabase
-      .from('workspaces')
-      .select('id, name, slug')
-      .eq('id', preferredMembership.workspace_id)
-      .maybeSingle()
-
-    if (workspaceRes.error) {
-      throw workspaceRes.error
-    }
-
-    if (workspaceRes.data) {
-      return workspaceRes.data as WorkspaceRecord
-    }
-  }
-
-  const ownedWorkspaceRes = await supabase
-    .from('workspaces')
-    .select('id, name, slug, created_at')
-    .eq('owner_user_id', user.id)
-
-  if (ownedWorkspaceRes.error) {
-    throw ownedWorkspaceRes.error
-  }
-
-  const preferredOwnedWorkspace = pickPreferredOwnedWorkspace(
-    (ownedWorkspaceRes.data ?? []) as OwnedWorkspaceRow[]
-  )
-
-  if (preferredOwnedWorkspace) {
-    const workspace: WorkspaceRecord = {
-      id: preferredOwnedWorkspace.id,
-      name: preferredOwnedWorkspace.name,
-      slug: preferredOwnedWorkspace.slug,
-    }
-
-    const { error: membershipInsertError } = await supabase
+    const membershipRes = await supabase
       .from('workspace_members')
-      .upsert(
-        {
-          workspace_id: workspace.id,
-          user_id: user.id,
-          role: 'owner',
-        },
-        { onConflict: 'workspace_id,user_id' }
+      .select('workspace_id, role, created_at')
+      .eq('user_id', user.id)
+
+    if (!membershipRes.error && membershipRes.data && membershipRes.data.length > 0) {
+      const preferredMembership = pickPreferredWorkspaceMembership(
+        membershipRes.data as WorkspaceMembershipRecord[]
       )
 
-    if (membershipInsertError) {
-      throw membershipInsertError
+      if (preferredMembership?.workspace_id) {
+        const workspaceRes = await supabase
+          .from('workspaces')
+          .select('id, name, slug')
+          .eq('id', preferredMembership.workspace_id)
+          .maybeSingle()
+
+        if (!workspaceRes.error && workspaceRes.data) {
+          return workspaceRes.data as WorkspaceRecord
+        }
+      }
     }
 
-    return workspace
+    const ownedWorkspaceRes = await supabase
+      .from('workspaces')
+      .select('id, name, slug, created_at')
+      .eq('owner_user_id', user.id)
+
+    if (!ownedWorkspaceRes.error && ownedWorkspaceRes.data && ownedWorkspaceRes.data.length > 0) {
+      const preferredOwnedWorkspace = pickPreferredOwnedWorkspace(
+        ownedWorkspaceRes.data as OwnedWorkspaceRow[]
+      )
+
+      if (preferredOwnedWorkspace) {
+        const workspace: WorkspaceRecord = {
+          id: preferredOwnedWorkspace.id,
+          name: preferredOwnedWorkspace.name,
+          slug: preferredOwnedWorkspace.slug,
+        }
+
+        await supabase
+          .from('workspace_members')
+          .upsert(
+            {
+              workspace_id: workspace.id,
+              user_id: user.id,
+              role: 'owner',
+            },
+            { onConflict: 'workspace_id,user_id' }
+          )
+
+        return workspace
+      }
+    }
+
+    const slugBase = slugify(emailLocalPart || 'workspace')
+
+    const workspaceInsert = await supabase
+      .from('workspaces')
+      .insert({
+        name: `${emailLocalPart}'s Workspace`,
+        slug: `${slugBase}-${user.id.slice(0, 8)}`,
+        owner_user_id: user.id,
+      })
+      .select('id, name, slug')
+      .single()
+
+    if (!workspaceInsert.error && workspaceInsert.data) {
+      const workspace = workspaceInsert.data as WorkspaceRecord
+
+      await supabase.from('workspace_members').insert({
+        workspace_id: workspace.id,
+        user_id: user.id,
+        role: 'owner',
+      })
+
+      return workspace
+    }
+  } catch (error) {
+    console.error('[ensureWorkspaceForUser] Fail-safe caught workspace lookup error:', error)
   }
 
-  const emailLocalPart = user.email?.split('@')[0] || 'workspace'
-  const slugBase = slugify(emailLocalPart || 'workspace')
-
-  const workspaceInsert = await supabase
-    .from('workspaces')
-    .insert({
-      name: `${emailLocalPart}'s Workspace`,
-      slug: `${slugBase}-${user.id.slice(0, 8)}`,
-      owner_user_id: user.id,
-    })
-    .select('id, name, slug')
-    .single()
-
-  if (workspaceInsert.error) {
-    throw workspaceInsert.error
-  }
-
-  const workspace = workspaceInsert.data as WorkspaceRecord
-
-  const membershipInsert = await supabase.from('workspace_members').insert({
-    workspace_id: workspace.id,
-    user_id: user.id,
-    role: 'owner',
-  })
-
-  if (membershipInsert.error) {
-    throw membershipInsert.error
-  }
-
-  return workspace
+  return fallbackWorkspace
 }
