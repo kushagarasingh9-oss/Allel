@@ -117,7 +117,8 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: true,
-        message: "You're on the waitlist! Check your inbox for confirmation.",
+        status: 'success',
+        message: "You're in! 🎉 Check your inbox for confirmation.",
       },
       { status: 200, headers }
     );
