@@ -1,202 +1,46 @@
 'use client';
 
-import React from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect } from 'react';
+
+const RAW_PRICING_HTML = `
+	<script async src="https://events.framer.com/script?v=2" data-fid="e2d429589fef6ec672ffed63739c7a272fc12e2045d42572e4f4b974cd935180" data-no-nt></script>
+	<div id="main" data-framer-hydrate-v2="{&quot;routeId&quot;:&quot;drKg44XRL&quot;,&quot;localeId&quot;:&quot;default&quot;,&quot;breakpoints&quot;:[{&quot;hash&quot;:&quot;1i5tnes&quot;},{&quot;hash&quot;:&quot;1y8ilu8&quot;}]}" data-framer-ssr-released-at="2026-08-06T12:57:44.116Z" data-framer-page-optimized-at="2026-08-08T20:23:51.801Z" data-framer-generated-page><style data-framer-html-style>:root body { background: rgb(11, 11, 10); } :root { font-size: 100%; }</style><div class="framer-EWCJ0 framer-xxVvw framer-5RUiA framer-peJNi framer-1y8ilu8" data-layout-template="true" style="min-height:100vh;width:auto"><nav class="framer-18q8gw8" data-border="true" data-framer-name="Navigation"><div class="framer-8nv6z" data-framer-name="Logo, Links"><a class="framer-1copcxj framer-10gzi24" data-framer-name="Logo" href="/" data-framer-page-link-current="true"><div class="framer-j9tvgv" data-border="true" data-framer-name="Mark"><div class="framer-1a81oly" data-framer-component-type="RichTextContainer" style="transform:none"><p dir="auto" class="framer-text"><br class="framer-text trailing-break"></p></div></div><div class="framer-gdhgkz" data-framer-component-type="RichTextContainer" style="transform:none"><p dir="auto" style="--font-selector:RlM7Q2FiaW5ldCBHcm90ZXNrLWJvbGQ=;--framer-font-family:&quot;Cabinet Grotesk&quot;, &quot;Cabinet Grotesk Placeholder&quot;, sans-serif;--framer-font-size:18px;--framer-font-weight:700;--framer-letter-spacing:-0.02em;--framer-line-height:1em;--framer-text-color:var(--token-4b5c2631-4675-4701-82c8-51d44ba443f5)" class="framer-text">Allel</p></div></a><div class="framer-mz184g" data-framer-name="Links"><div class="framer-5e0b9c" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-color:var(--token-a858697d-e879-4ab9-8f8f-ff96d21fdb35)"><a class="framer-text framer-styles-preset-1iu12xx" data-styles-preset="xlbHrByZf" href="/">Home</a></p></div><div class="framer-164r8t5" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto"><a class="framer-text framer-styles-preset-1iu12xx" data-styles-preset="xlbHrByZf" href="/pricing" data-framer-page-link-current="true">Pricing</a></p></div><div class="framer-vv10o6" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto"><a class="framer-text framer-styles-preset-1iu12xx" data-styles-preset="xlbHrByZf" href="/docs">Docs</a></p></div><div class="framer-z28np0" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto"><a class="framer-text framer-styles-preset-1iu12xx" data-styles-preset="xlbHrByZf" href="/about">About</a></p></div></div></div><div class="framer-exl63j" data-framer-name="Actions"><div class="framer-1k966j4-container"><a class="framer-cze3Z framer-tomrni framer-v-tomrni framer-1ajje4b" data-framer-name="Primary" data-reset="button" href="/dashboard" style="--border-bottom-width:0px;--border-color:rgba(0, 0, 0, 0);--border-left-width:0px;--border-right-width:0px;--border-style:solid;--border-top-width:0px;background-color:var(--token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0);border-bottom-left-radius:2px;border-bottom-right-radius:2px;border-top-left-radius:2px;border-top-right-radius:2px;opacity:1"><div class="framer-i80ji1" data-framer-component-type="RichTextContainer" style="--extracted-r6o4lv:var(--token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7);transform:none"><p dir="auto" class="framer-text" style="--font-selector:RlM7Q2FiaW5ldCBHcm90ZXNrLW1lZGl1bQ==;--framer-font-family:&quot;Cabinet Grotesk&quot;, &quot;Cabinet Grotesk Placeholder&quot;, sans-serif;--framer-font-size:14px;--framer-font-weight:500;--framer-line-height:1em;--framer-text-color:var(--extracted-r6o4lv, var(--token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7))">Get started</p></div></a></div></div></nav><style data-framer-html-style>html body { background: none; }</style><div data-framer-root class="framer-173g0 framer-peJNi framer-wVy1P framer-xxVvw framer-4x0Yj framer-1i5tnes" style="min-height:100vh;width:auto;display:contents"><div class="framer-f1ggfl" data-border="true" data-framer-name="Pricing Frame"><div class="framer-1qh1v57" data-border="true" data-framer-name="Intro"><div class="framer-1t82zkt" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-qeu7lu" data-styles-preset="m8tRaA30T" dir="auto" style="--framer-text-color:var(--token-a858697d-e879-4ab9-8f8f-ff96d21fdb35)">Pricing</p></div><div class="framer-lc5osr" data-framer-component-type="RichTextContainer" style="transform:none"><h1 class="framer-text framer-styles-preset-14u5l3n" data-styles-preset="Zy1DBr_3g" dir="auto" style="--framer-text-alignment:center">Priced per seat, not per agent.</h1></div><div class="framer-9e2g0d" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:center">Connect unlimited tools on every plan. Deploy AI agents across your stack.</p></div></div><div class="framer-1amzxry" data-border="true" data-framer-name="Plans" style="opacity:1"><div class="framer-1y8dytg" data-border="true" data-framer-name="Plan"><div class="framer-d5bcqj" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-qeu7lu" data-styles-preset="m8tRaA30T" dir="auto" style="--framer-text-alignment:start">Starter</p></div><div class="framer-16320vx"><div class="framer-1d6qtl8" data-framer-component-type="RichTextContainer" style="transform:none"><h2 class="framer-text framer-styles-preset-3bj6q0" data-styles-preset="Z8E18yekC" dir="auto" style="--framer-text-alignment:start">$25</h2></div><div class="framer-jpxuo7" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">/month</p></div></div><div class="framer-1n9jkyq" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">For solo founders &amp; indie builders wiring up core tool automations.</p></div><div class="framer-e3fk3h"></div><div class="framer-10dyr7x" data-framer-name="Features"><div class="framer-ercjxt"><div class="framer-7x8i6b" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Unlimited app integrations</p></div></div><div class="framer-uz337h"><div class="framer-1k8a6i5" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">1,000 credits / month</p></div></div><div class="framer-1bwj68k"><div class="framer-rdv0y3" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Human-in-the-loop approval queue</p></div></div><div class="framer-10hidh8"><div class="framer-x9qtdr" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Daily founder briefs &amp; audit logs</p></div></div></div><div class="framer-1cuyyvl-container"><a class="framer-cze3Z framer-tomrni framer-v-o6lalm framer-1ajje4b" data-framer-name="Secondary" data-reset="button" data-border="true" href="/dashboard" style="--border-bottom-width:1px;--border-color:var(--token-fc3e2144-81ca-48e6-9365-4417af9831c9);--border-left-width:1px;--border-right-width:1px;--border-style:solid;--border-top-width:1px;background-color:var(--token-10e74244-94d1-431e-87d0-281bc16f26b9);border-bottom-left-radius:2px;border-bottom-right-radius:2px;border-top-left-radius:2px;border-top-right-radius:2px;opacity:1"><div class="framer-i80ji1" data-framer-component-type="RichTextContainer" style="--extracted-r6o4lv:var(--token-4b5c2631-4675-4701-82c8-51d44ba443f5);transform:none"><p dir="auto" class="framer-text" style="--font-selector:RlM7Q2FiaW5ldCBHcm90ZXNrLW1lZGl1bQ==;--framer-font-family:&quot;Cabinet Grotesk&quot;, &quot;Cabinet Grotesk Placeholder&quot;, sans-serif;--framer-font-size:14px;--framer-font-weight:500;--framer-line-height:1em;--framer-text-color:var(--extracted-r6o4lv, var(--token-4b5c2631-4675-4701-82c8-51d44ba443f5))">Start with Starter</p></div></a></div></div><div class="framer-pdkmxf" data-border="true" data-framer-name="Plan"><div class="framer-110977t" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-qeu7lu" data-styles-preset="m8tRaA30T" dir="auto" style="--framer-text-alignment:start">Growth</p></div><div class="framer-o8bpnk"><div class="framer-1eh0kox" data-framer-component-type="RichTextContainer" style="transform:none"><h2 class="framer-text framer-styles-preset-3bj6q0" data-styles-preset="Z8E18yekC" dir="auto" style="--framer-text-alignment:start">$49</h2></div><div class="framer-gw5egu" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">/month</p></div></div><div class="framer-epq2mi" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">For growing teams running continuous background agents across their stack.</p></div><div class="framer-1yv9ae4"></div><div class="framer-ivjm4i" data-framer-name="Features"><div class="framer-8rgdzy"><div class="framer-4qzs3z" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Unlimited app integrations</p></div></div><div class="framer-1p6kapg"><div class="framer-16cdtey" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">2,500 credits / month</p></div></div><div class="framer-t7i4il"><div class="framer-150d2oa" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Real-time webhook &amp; event triggers</p></div></div><div class="framer-geosqk"><div class="framer-m4evpu" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Custom agent policies &amp; safety controls</p></div></div></div><div class="framer-1vkksv7-container"><a class="framer-cze3Z framer-tomrni framer-v-tomrni framer-1ajje4b" data-framer-name="Primary" data-reset="button" href="/dashboard" style="--border-bottom-width:0px;--border-color:rgba(0, 0, 0, 0);--border-left-width:0px;--border-right-width:0px;--border-style:solid;--border-top-width:0px;background-color:var(--token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0);border-bottom-left-radius:2px;border-bottom-right-radius:2px;border-top-left-radius:2px;border-top-right-radius:2px;opacity:1"><div class="framer-i80ji1" data-framer-component-type="RichTextContainer" style="--extracted-r6o4lv:var(--token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7);transform:none"><p dir="auto" class="framer-text" style="--font-selector:RlM7Q2FiaW5ldCBHcm90ZXNrLW1lZGl1bQ==;--framer-font-family:&quot;Cabinet Grotesk&quot;, &quot;Cabinet Grotesk Placeholder&quot;, sans-serif;--framer-font-size:14px;--framer-font-weight:500;--framer-line-height:1em;--framer-text-color:var(--extracted-r6o4lv, var(--token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7))">Get started</p></div></a></div></div><div class="framer-1xnzrcc" data-border="true" data-framer-name="Plan"><div class="framer-1f3kjqk" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-qeu7lu" data-styles-preset="m8tRaA30T" dir="auto" style="--framer-text-alignment:start">Pro</p></div><div class="framer-u4c3pn"><div class="framer-1e2wqcb" data-framer-component-type="RichTextContainer" style="transform:none"><h2 class="framer-text framer-styles-preset-3bj6q0" data-styles-preset="Z8E18yekC" dir="auto" style="--framer-text-alignment:start">$99</h2></div></div><div class="framer-1hkn59h" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">For fast-scaling startups requiring high-volume multi-agent orchestration.</p></div><div class="framer-1u19uc5"></div><div class="framer-tkefd5" data-framer-name="Features"><div class="framer-7ydoks"><div class="framer-hmdz82" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Unlimited app integrations</p></div></div><div class="framer-lpnkx0"><div class="framer-n582q3" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Unlimited agent credits</p></div></div><div class="framer-1gdbrn8"><div class="framer-mz7euj" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Multi-agent collaboration &amp; delegation</p></div></div><div class="framer-84sqzk"><div class="framer-j3umrg" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Dedicated 1-on-1 support &amp; priority SLA</p></div></div></div><div class="framer-18om1li-container"><a class="framer-cze3Z framer-tomrni framer-v-bg647z framer-1ajje4b" data-framer-name="Ghost" data-reset="button" data-border="true" href="/dashboard" style="--border-bottom-width:1px;--border-color:var(--token-ead5ee04-8072-43a8-8b63-6c52f5667fd6);--border-left-width:1px;--border-right-width:1px;--border-style:solid;--border-top-width:1px;background-color:rgba(0, 0, 0, 0);border-bottom-left-radius:2px;border-bottom-right-radius:2px;border-top-left-radius:2px;border-top-right-radius:2px;opacity:1"><div class="framer-i80ji1" data-framer-component-type="RichTextContainer" style="--extracted-r6o4lv:var(--token-a858697d-e879-4ab9-8f8f-ff96d21fdb35);transform:none"><p dir="auto" class="framer-text" style="--font-selector:RlM7Q2FiaW5ldCBHcm90ZXNrLW1lZGl1bQ==;--framer-font-family:&quot;Cabinet Grotesk&quot;, &quot;Cabinet Grotesk Placeholder&quot;, sans-serif;--framer-font-size:14px;--framer-font-weight:500;--framer-line-height:1em;--framer-text-color:var(--extracted-r6o4lv, var(--token-a858697d-e879-4ab9-8f8f-ff96d21fdb35))">Talk to us</p></div></a></div></div></div></div>`;
+
+const APPEAR_CSS = \`
+  [data-framer-appear-id] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+\`;
 
 export default function PricingPage() {
-  const tiers = [
-    {
-      name: 'Starter',
-      price: '$25',
-      period: '/month',
-      description: 'For solo founders & indie builders wiring up core tool automations.',
-      features: [
-        'Unlimited app integrations',
-        '1,000 credits / month',
-        'Human-in-the-loop approval queue',
-        'Daily founder briefs & audit logs'
-      ],
-      buttonText: 'Start with Starter',
-      buttonLink: '/dashboard',
-      popular: false
-    },
-    {
-      name: 'Growth',
-      price: '$49',
-      period: '/month',
-      description: 'For growing teams running continuous background agents across their stack.',
-      features: [
-        'Unlimited app integrations',
-        '2,500 credits / month',
-        'Real-time webhook & event triggers',
-        'Custom agent policies & safety controls'
-      ],
-      buttonText: 'Join the waitlist',
-      buttonLink: '/dashboard',
-      popular: true
-    },
-    {
-      name: 'Pro',
-      price: '$99',
-      period: '/month',
-      description: 'For fast-scaling startups requiring high-volume multi-agent orchestration.',
-      features: [
-        'Unlimited app integrations',
-        'Unlimited agent credits',
-        'Multi-agent collaboration & delegation',
-        'Dedicated 1-on-1 support & priority SLA'
-      ],
-      buttonText: 'Talk to us',
-      buttonLink: '/dashboard',
-      popular: false
-    }
-  ];
+  const [mounted, setMounted] = useState(false);
 
-  const faqs = [
-    {
-      q: 'How do seat-based pricing and unlimited agents work?',
-      a: 'You pay per team member (seat) on Allel. Every team member can deploy as many AI agents across Stripe, Slack, Gmail, GitHub, and PostHog as needed without extra agent fees.'
-    },
-    {
-      q: 'What counts as an agent credit?',
-      a: 'An agent credit is consumed when an AI agent runs a multi-step background tool execution, checks live database/API signals, or generates a structured action proposal.'
-    },
-    {
-      q: 'Can I change plans or upgrade credits at any time?',
-      a: 'Yes, you can upgrade, downgrade, or adjust your seat count instantly from your account settings with pro-rated billing.'
-    },
-    {
-      q: 'Are custom API webhooks supported on all plans?',
-      a: 'All plans include unlimited app integrations. Real-time custom webhooks and advanced event triggers are included in Growth and Pro plans.'
+  useEffect(() => {
+    setMounted(true);
+    // Load Framer script dynamically if not present
+    if (!document.querySelector('script[src*="framer.com/script"]')) {
+      const script = document.createElement('script');
+      script.src = 'https://events.framer.com/script?v=2';
+      script.async = true;
+      document.body.appendChild(script);
     }
-  ];
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div style={{ background: '#070708', minHeight: '100vh' }} />
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#070709] text-[#e0e0e6] font-sans">
-      {/* Navigation Header */}
-      <header className="sticky top-0 z-50 flex items-center justify-between border-b border-[#ffffff15] bg-[#070709]/80 px-6 py-4 backdrop-blur-md max-w-7xl mx-auto w-full">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="text-xl font-bold text-white tracking-tight hover:opacity-80 transition-opacity">
-            Allel
-          </Link>
-          <nav className="hidden md:flex items-center gap-6 text-sm text-[#a0a0b0]">
-            <Link href="/" className="hover:text-white transition-colors">Home</Link>
-            <Link href="/pricing" className="text-white font-medium">Pricing</Link>
-            <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
-            <Link href="/about" className="hover:text-white transition-colors">About</Link>
-          </nav>
-        </div>
-        <Link
-          href="/dashboard"
-          className="rounded-sm bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 transition-all shadow-sm"
-        >
-          Get started
-        </Link>
-      </header>
-
-      {/* Main Pricing Section */}
-      <main className="max-w-7xl mx-auto px-6 py-20">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-block text-[11px] font-mono tracking-widest text-[#858599] uppercase mb-3">
-            PRICING
-          </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-4 leading-tight">
-            Priced per seat, <br className="hidden sm:inline" />
-            not per agent.
-          </h1>
-          <p className="text-[#9595a6] text-base md:text-lg max-w-xl mx-auto">
-            Connect unlimited tools on every plan. Deploy AI agents across your stack.
-          </p>
-        </div>
-
-        {/* Pricing Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-24">
-          {tiers.map((tier, idx) => (
-            <div
-              key={idx}
-              className={`relative flex flex-col justify-between rounded-xl border p-8 transition-all ${
-                tier.popular
-                  ? 'border-white/40 bg-white/[0.05] shadow-2xl shadow-white/5'
-                  : 'border-white/10 bg-white/[0.02] hover:border-white/20'
-              }`}
-            >
-              {tier.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white backdrop-blur-md">
-                  Most Popular
-                </div>
-              )}
-
-              <div>
-                <div className="text-xs font-mono uppercase tracking-wider text-[#a5a5b8] mb-4">
-                  {tier.name}
-                </div>
-                <div className="flex items-baseline gap-1 mb-4">
-                  <span className="text-4xl font-extrabold text-white tracking-tight">
-                    {tier.price}
-                  </span>
-                  <span className="text-sm text-[#7a7a8c]">{tier.period}</span>
-                </div>
-                <p className="text-xs text-[#8e8e9e] leading-relaxed mb-8 min-h-[40px]">
-                  {tier.description}
-                </p>
-
-                <div className="border-t border-white/10 pt-6 mb-8">
-                  <ul className="space-y-3">
-                    {tier.features.map((feature, fIdx) => (
-                      <li key={fIdx} className="flex items-start gap-3 text-xs text-[#cccccc]">
-                        <svg
-                          className="w-4 h-4 text-white/80 shrink-0 mt-0.5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
-              <Link
-                href={tier.buttonLink}
-                className={`w-full py-3 px-4 rounded-md text-xs font-semibold text-center transition-all ${
-                  tier.popular
-                    ? 'bg-white text-black hover:bg-white/90 shadow-md'
-                    : 'border border-white/20 bg-white/5 text-white hover:bg-white/10'
-                }`}
-              >
-                {tier.buttonText}
-              </Link>
-            </div>
-          ))}
-        </div>
-
-        {/* FAQ Section */}
-        <div className="max-w-3xl mx-auto border-t border-white/10 pt-16">
-          <div className="text-center mb-12">
-            <div className="text-xs font-mono uppercase tracking-wider text-[#7a7a8c] mb-2">
-              QUESTIONS
-            </div>
-            <h2 className="text-2xl font-bold text-white">Everything founders ask first.</h2>
-          </div>
-
-          <div className="space-y-8">
-            {faqs.map((faq, idx) => (
-              <div key={idx} className="border-b border-white/5 pb-6">
-                <h3 className="text-sm font-semibold text-white mb-2">{faq.q}</h3>
-                <p className="text-xs text-[#8e8e9e] leading-relaxed">{faq.a}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </main>
-    </div>
+    <>
+      <style dangerouslySetInnerHTML={{ __html: APPEAR_CSS }} />
+      <div
+        className="landing-page-container"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: RAW_PRICING_HTML }}
+      />
+    </>
   );
 }
