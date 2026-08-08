@@ -63,6 +63,11 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   deleteCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   queryFreeBusyTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   listCalendarsTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  getSlackHistory: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
+  sendSlackMessage: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
+  searchSlack: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
+  replyInSlackThread: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
+  getSlackChannels: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
 }
 
 // ─── Human-readable names for tools ──────────────────────────────────
@@ -103,6 +108,11 @@ const TOOL_LABELS: Record<string, string> = {
   deleteCalendarEventTool: "Deleting Calendar event",
   queryFreeBusyTool: "Checking Calendar availability",
   listCalendarsTool: "Listing Google Calendars",
+  getSlackHistory: "Scanning Slack channels",
+  sendSlackMessage: "Sending Slack message",
+  searchSlack: "Searching Slack messages",
+  replyInSlackThread: "Replying in Slack thread",
+  getSlackChannels: "Listing Slack channels",
 }
 
 const PROVIDER_LOGOS: Record<string, string> = {
