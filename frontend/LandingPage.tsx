@@ -13,13 +13,29 @@ export default function LandingPage() {
 
   useEffect(() => {
     setMounted(true);
-    // Load Framer runtime script dynamically for interactive components
+
+    // Override button text and links on local mount
+    const updateLocalCta = () => {
+      const links = document.querySelectorAll('a');
+      links.forEach((link) => {
+        if (link.textContent?.trim().includes('Get early access')) {
+          link.textContent = 'Get started';
+          link.setAttribute('href', '/dashboard');
+        }
+      });
+    };
+
+    updateLocalCta();
+    const interval = setInterval(updateLocalCta, 500);
+
+    // Load Framer runtime script for animations
     const script = document.createElement('script');
     script.type = 'module';
     script.src = 'https://framerusercontent.com/sites/6Be8XUFFMocrXrTlNdktXK/script_main.BAtDVUVK.mjs';
     document.body.appendChild(script);
 
     return () => {
+      clearInterval(interval);
       if (document.body.contains(script)) {
         document.body.removeChild(script);
       }
