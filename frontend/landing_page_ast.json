@@ -16082,7 +16082,7 @@
             "type": "TextRun",
             "id": "v:VeZVFx5rL:0:0",
             "attributes": {
-              "text": "Daily founder brief — 07:00"
+              "text": "Human-in-the-loop approval queue — 07:00"
             }
           }
         ]
@@ -18076,7 +18076,7 @@
             "type": "TextRun",
             "id": "v:zXYdsnBjY:0:0",
             "attributes": {
-              "text": "Priced per agent, not per seat."
+              "text": "Priced per seat, not per agent."
             }
           }
         ]
@@ -18115,7 +18115,7 @@
             "type": "TextRun",
             "id": "v:BM9P14PLF:0:0",
             "attributes": {
-              "text": "Connect unlimited tools on every plan. Start with one agent, add the rest as the work grows."
+              "text": "Connect unlimited tools on every plan. Deploy AI agents across your stack."
             }
           }
         ]
@@ -18153,7 +18153,7 @@
             "type": "TextRun",
             "id": "v:yd3JXrchM:0:0",
             "attributes": {
-              "text": "Scale"
+              "text": "Pro"
             }
           }
         ]
@@ -18191,7 +18191,7 @@
             "type": "TextRun",
             "id": "v:W9MFKTQvY:0:0",
             "attributes": {
-              "text": "Custom"
+              "text": "$99"
             }
           }
         ]
@@ -18268,7 +18268,7 @@
             "type": "TextRun",
             "id": "v:X__6LVz0m:0:0",
             "attributes": {
-              "text": "For teams running heavy volume across many tools, with tailored agent policies."
+              "text": "For fast-scaling startups requiring high-volume multi-agent orchestration."
             }
           }
         ]
@@ -18306,7 +18306,7 @@
             "type": "TextRun",
             "id": "v:NR_5gMMDl:0:0",
             "attributes": {
-              "text": "Everything in Team"
+              "text": "Unlimited app integrations"
             }
           }
         ]
@@ -18344,7 +18344,7 @@
             "type": "TextRun",
             "id": "v:SBwyipvTS:0:0",
             "attributes": {
-              "text": "Custom agent instructions"
+              "text": "Unlimited agent credits"
             }
           }
         ]
@@ -18382,7 +18382,7 @@
             "type": "TextRun",
             "id": "v:A7hSh1OrF:0:0",
             "attributes": {
-              "text": "Founder-gated outbound policies"
+              "text": "Multi-agent collaboration & delegation"
             }
           }
         ]
@@ -18420,7 +18420,7 @@
             "type": "TextRun",
             "id": "v:wkY1gnLJ3:0:0",
             "attributes": {
-              "text": "Direct line to our team"
+              "text": "Dedicated 1-on-1 support & priority SLA"
             }
           }
         ]
@@ -18458,7 +18458,7 @@
             "type": "TextRun",
             "id": "v:BzCM4PNMu:0:0",
             "attributes": {
-              "text": "Team"
+              "text": "Growth"
             }
           }
         ]
@@ -18496,7 +18496,7 @@
             "type": "TextRun",
             "id": "v:PpAZl7Rdc:0:0",
             "attributes": {
-              "text": "$249"
+              "text": "$49"
             }
           }
         ]
@@ -18572,7 +18572,7 @@
             "type": "TextRun",
             "id": "v:mf5XK06CG:0:0",
             "attributes": {
-              "text": "All three agents operating across your stack, with real-time webhook automation."
+              "text": "For growing teams running continuous background agents across their stack."
             }
           }
         ]
@@ -18610,7 +18610,7 @@
             "type": "TextRun",
             "id": "v:HLcLuN14N:0:0",
             "attributes": {
-              "text": "All three agents: Alex, Henry, Sarah"
+              "text": "Unlimited app integrations"
             }
           }
         ]
@@ -18648,7 +18648,7 @@
             "type": "TextRun",
             "id": "v:Lgm5YdhCS:0:0",
             "attributes": {
-              "text": "Webhook-triggered automation"
+              "text": "2,500 credits / month"
             }
           }
         ]
@@ -18686,7 +18686,7 @@
             "type": "TextRun",
             "id": "v:o1938RQ5G:0:0",
             "attributes": {
-              "text": "Full audit trail and flow history"
+              "text": "Real-time webhook & event triggers"
             }
           }
         ]
@@ -18724,7 +18724,7 @@
             "type": "TextRun",
             "id": "v:yPQSGvaOK:0:0",
             "attributes": {
-              "text": "Priority onboarding"
+              "text": "Custom agent policies & safety controls"
             }
           }
         ]
@@ -18762,7 +18762,7 @@
             "type": "TextRun",
             "id": "v:dnElHyizy:0:0",
             "attributes": {
-              "text": "Solo"
+              "text": "Starter"
             }
           }
         ]
@@ -18800,7 +18800,7 @@
             "type": "TextRun",
             "id": "v:scdT0wQmF:0:0",
             "attributes": {
-              "text": "$79"
+              "text": "$25"
             }
           }
         ]
@@ -18876,7 +18876,7 @@
             "type": "TextRun",
             "id": "v:zYuZhi6DJ:0:0",
             "attributes": {
-              "text": "One agent, unlimited integrations, daily brief. For founders wiring up their first automations."
+              "text": "For solo founders & indie builders wiring up core tool automations."
             }
           }
         ]
@@ -18914,7 +18914,7 @@
             "type": "TextRun",
             "id": "v:r4VVlhkVA:0:0",
             "attributes": {
-              "text": "One AI agent of your choice"
+              "text": "Unlimited app integrations"
             }
           }
         ]
@@ -18952,7 +18952,7 @@
             "type": "TextRun",
             "id": "v:lCMcyvtWi:0:0",
             "attributes": {
-              "text": "Unlimited integrations"
+              "text": "1,000 credits / month"
             }
           }
         ]
@@ -18990,7 +18990,7 @@
             "type": "TextRun",
             "id": "v:k31ogevFo:0:0",
             "attributes": {
-              "text": "Daily founder brief"
+              "text": "Human-in-the-loop approval queue"
             }
           }
         ]
@@ -19028,7 +19028,7 @@
             "type": "TextRun",
             "id": "v:mWc_ptFxt:0:0",
             "attributes": {
-              "text": "Draft queue with approvals"
+              "text": "Daily founder briefs & audit logs"
             }
           }
         ]
