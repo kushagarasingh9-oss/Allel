@@ -23,6 +23,14 @@ export default function LandingPage() {
           pTag.textContent = 'Get started';
           pTag.style.color = '#111111';
         }
+        if (!button.getAttribute('data-dashboard-attached')) {
+          button.setAttribute('data-dashboard-attached', 'true');
+          button.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.location.href = '/dashboard';
+          }, true);
+        }
       });
     };
 
