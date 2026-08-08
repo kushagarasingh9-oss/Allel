@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * AgentChat — Founder's conversational interface with the Cofounder agent.
+ * AgentChat — Founder's conversational interface with the Allel agent.
  *
  * Uses AI SDK v6 useChat() with HttpChatTransport for streaming.
  */
@@ -82,7 +82,7 @@ export default function AgentChat() {
         id="agent-chat-trigger"
         onClick={() => setIsOpen(!isOpen)}
         className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] shadow-lg shadow-[#6366f130] transition-all hover:scale-105 hover:shadow-xl hover:shadow-[#6366f140]"
-        title="Talk to Cofounder Agent"
+        title="Talk to Allel Agent"
       >
         {isOpen ? (
           <svg
@@ -139,7 +139,7 @@ export default function AgentChat() {
                   className="text-[15px] font-medium text-white"
                   style={{ fontFamily: 'var(--font-display)' }}
                 >
-                  Cofounder Agent
+                  Allel Agent
                 </p>
                 <p className="text-[11px] text-[#666]">
                   {status === 'streaming' ? (

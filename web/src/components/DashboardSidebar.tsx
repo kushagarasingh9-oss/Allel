@@ -74,7 +74,7 @@ export default function DashboardSidebar({ user }: { user: User }) {
           className="text-[21px] tracking-tight text-white"
           style={{ fontFamily: 'var(--font-display)' }}
         >
-          Cofounder
+          Allel
         </Link>
         <div className="mt-4 rounded-[18px] border border-[#ffffff12] bg-[#0f0f10] px-3 py-3">
           <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#666]">Founder view</p>

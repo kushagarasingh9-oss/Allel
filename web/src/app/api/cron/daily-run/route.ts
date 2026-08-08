@@ -2,7 +2,7 @@
  * Daily Agent Run (Cron)
  *
  * GET /api/cron/daily-run
- * Triggers the Cofounder agent to review all accounts, analyze risk,
+ * Triggers the Allel agent to review all accounts, analyze risk,
  * generate drafts for at-risk accounts, and assemble the daily brief.
  *
  * Schedule: Daily at 4:00 AM via Vercel Cron or external scheduler.

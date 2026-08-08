@@ -63,7 +63,7 @@ function hasScopedTrustedHistory(
 }
 
 function buildChatSessionStorageKey(scope: ChatStorageScope) {
-  return `cofounder.chat-session.${AGENT_CHAT_STORAGE_VERSION}:${scope.userId}:${scope.workspaceId}`
+  return `allel.chat-session.${AGENT_CHAT_STORAGE_VERSION}:${scope.userId}:${scope.workspaceId}`
 }
 
 function getFallbackSessionId() {
@@ -107,11 +107,11 @@ export function resolveChatStorageScope(
 }
 
 export function buildPersonaThreadStorageKey(scope: ResolvedChatStorageScope) {
-  return `cofounder.persona-threads.${AGENT_CHAT_STORAGE_VERSION}:${scope.userId}:${scope.workspaceId}:${scope.sessionId}`
+  return `allel.persona-threads.${AGENT_CHAT_STORAGE_VERSION}:${scope.userId}:${scope.workspaceId}:${scope.sessionId}`
 }
 
 export function buildLastPersonaStorageKey(scope: ResolvedChatStorageScope) {
-  return `cofounder.last-persona.${AGENT_CHAT_STORAGE_VERSION}:${scope.userId}:${scope.workspaceId}:${scope.sessionId}`
+  return `allel.last-persona.${AGENT_CHAT_STORAGE_VERSION}:${scope.userId}:${scope.workspaceId}:${scope.sessionId}`
 }
 
 export function buildPersonaThreadChatId(

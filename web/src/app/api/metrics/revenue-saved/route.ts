@@ -2,7 +2,7 @@
  * Revenue Saved API
  *
  * GET /api/metrics/revenue-saved
- * Returns the total revenue saved by Cofounder's follow-up emails.
+ * Returns the total revenue saved by Allel's follow-up emails.
  */
 
 import { NextRequest, NextResponse } from 'next/server'

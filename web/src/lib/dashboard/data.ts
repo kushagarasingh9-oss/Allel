@@ -607,7 +607,7 @@ const buildDashboardState = cache(
 
     if (!userId) {
       return buildBaseState(
-        'Cofounder',
+        'Allel',
         'degraded',
         emptyIntegrations,
         {
@@ -926,7 +926,7 @@ const buildDashboardState = cache(
       const formattedError = formatWorkspaceLoadError(error)
 
       return buildBaseState(
-        email ? `${email.split('@')[0]}'s Workspace` : 'Cofounder',
+        email ? `${email.split('@')[0]}'s Workspace` : 'Allel',
         'degraded',
         emptyIntegrations,
         {

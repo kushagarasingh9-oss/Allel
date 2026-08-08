@@ -1,4 +1,4 @@
-# Cofounder Product Definition
+# Allel Product Definition
 
 > Product definition aligned to the codebase as of 2026-04-24.
 
@@ -195,7 +195,7 @@ Avoid leading with:
 
 If we describe the product precisely today:
 
-**Cofounder is a founder-facing retention operations product with persona-based agents layered on top of normalized customer data. It is strongest at spotting churn risk, drafting save actions, and giving founders a high-signal operating console.**
+**Allel is a founder-facing retention operations product with persona-based agents layered on top of normalized customer data. It is strongest at spotting churn risk, drafting save actions, and giving founders a high-signal operating console.**
 
 ---
 
@@ -270,7 +270,7 @@ Product effect:
 
 ## Honest Product Summary
 
-Cofounder is now a credible v1 product, not only a promising backend.
+Allel is now a credible v1 product, not only a promising backend.
 
 The clearest honest positioning today is:
 

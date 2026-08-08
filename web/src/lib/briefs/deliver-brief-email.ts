@@ -106,7 +106,7 @@ function buildBriefEmailHtml(input: {
           <tr>
             <td style="padding-bottom:24px;">
               <div style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;">
-                Cofounder · Daily Brief · ${date}
+                Allel · Daily Brief · ${date}
               </div>
             </td>
           </tr>
@@ -151,7 +151,7 @@ function buildBriefEmailHtml(input: {
           <tr>
             <td style="padding-top:32px;border-top:1px solid #1f2937;">
               <p style="margin:0;font-size:12px;color:#4b5563;">
-                Sent by Cofounder · Your AI retention agent
+                Sent by Allel · Your AI retention agent
               </p>
               <p style="margin:8px 0 0 0;font-size:11px;color:#6b7280;">
                 <a href="${dashboardUrl}/settings" style="color:#6b7280;text-decoration:underline;">Manage notification preferences</a>
@@ -178,7 +178,7 @@ function buildBriefEmailPlainText(input: {
   const { headline, summary, items, dashboardUrl, date } = input
 
   const lines = [
-    `COFOUNDER · DAILY BRIEF · ${date}`,
+    `ALLEL · DAILY BRIEF · ${date}`,
     '',
     headline,
     '',

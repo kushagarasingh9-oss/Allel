@@ -1,5 +1,5 @@
 /**
- * Cofounder Agent
+ * Allel Agent
  *
  * The central ToolLoopAgent that powers all agentic behavior.
  * It receives triggers (webhook, cron, founder chat) and autonomously

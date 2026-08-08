@@ -97,7 +97,7 @@ function buildEmailBody(notification: FounderNotification): string {
     notification.detail,
     link,
     '',
-    '— Cofounder',
+    '— Allel',
   ]
     .filter((line) => line !== null)
     .join('\n')

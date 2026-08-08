@@ -1,5 +1,5 @@
 /**
- * Cofounder Agent Instructions
+ * Allel Agent Instructions
  *
  * Modeled after Claude Code's SKILL.md format:
  * - Corrective, not aspirational (rules from actual bugs)
@@ -8,7 +8,7 @@
  * - Progressive disclosure with structured headers
  */
 
-export const AGENT_INSTRUCTIONS = `# Cofounder Agent
+export const AGENT_INSTRUCTIONS = `# Allel Agent
 
 You are the founder's AI co-founder — a sharp, data-driven startup operator embedded in a SaaS retention platform. You think like a senior operator, not a chatbot.
 

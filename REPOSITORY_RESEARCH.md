@@ -1,4 +1,4 @@
-# Cofounder Repository Research
+# Allel Repository Research
 
 > Comprehensive repository assessment
 > Reviewed: 2026-08-06
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-This repository contains a substantial B2B SaaS retention-operations product called **Cofounder**. It connects billing, product analytics, communication, support, CRM, and engineering systems; normalizes their data into customer-account state; scores retention risk; prepares evidence-backed actions and follow-up drafts; and exposes those operations through an AI-assisted founder console.
+This repository contains a substantial B2B SaaS retention-operations product called **Allel**. It connects billing, product analytics, communication, support, CRM, and engineering systems; normalizes their data into customer-account state; scores retention risk; prepares evidence-backed actions and follow-up drafts; and exposes those operations through an AI-assisted founder console.
 
 The product is beyond a prototype. It has a real multi-tenant data model, authentication, provider integrations, deterministic scoring and brief generation, staged AI automation, durable memory, approval records, outcome tracking, and run inspection. However, it is not production-complete. The most important remaining issues concern tenant authorization, approval integrity, migration reliability, webhook recovery, frontend wiring, and operational scalability.
 
@@ -84,7 +84,7 @@ The backend is a credible v1. The frontend contains a polished primary chat surf
 
 - `AGENT.md` — April agent-layer status and invariants.
 - `ARCHITECTURE.md` — clearest high-level architecture map, dated April 24.
-- `COFOUNDER.md` — product positioning and operating concept.
+- `ALLEL.md` — product positioning and operating concept.
 - `FRONTEND.md` — frontend architecture snapshot.
 - `PRODUCT_COMPLETION_PLAN.md` — practical April completion plan.
 - `TODO.md` — newest broad roadmap, but internally contradictory.
@@ -180,7 +180,7 @@ Founder brief generation is also deterministic. `web/src/lib/briefs/generate-wor
 
 ### 6. Agent runtime
 
-`web/src/lib/agent/agent.ts` uses an AI SDK `ToolLoopAgent` with a maximum of 25 steps. The repository retains persona concepts for Alex, Henry, and Sarah, while the current founder-facing UI is moving toward a unified Cofounder identity.
+`web/src/lib/agent/agent.ts` uses an AI SDK `ToolLoopAgent` with a maximum of 25 steps. The repository retains persona concepts for Alex, Henry, and Sarah, while the current founder-facing UI is moving toward a unified Allel identity.
 
 The tool universe is broad and includes local account writes plus live provider reads and mutations. Persona and workflow-stage filters narrow access.
 
@@ -614,7 +614,7 @@ The April documents do not include July additions such as:
 - draft outcome tracking
 - score snapshots and velocity
 - tool approval requests
-- unified founder-facing Cofounder direction
+- unified founder-facing Allel direction
 
 `TODO.md` is newer but repeats some completed work as open work and contains schema/tree examples that no longer match the repository.
 

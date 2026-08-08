@@ -25,8 +25,8 @@ export function AgentPane() {
         sendMessage({ text: detail.text })
       }
     }
-    window.addEventListener('cofounder:proceed-tasks', handleProceed)
-    return () => window.removeEventListener('cofounder:proceed-tasks', handleProceed)
+    window.addEventListener('allel:proceed-tasks', handleProceed)
+    return () => window.removeEventListener('allel:proceed-tasks', handleProceed)
   }, [sendMessage])
 
   return (
@@ -39,7 +39,7 @@ export function AgentPane() {
       {/* Scrollable Agent Feed (real messages, not mock) */}
       <AgentFeed />
 
-      {/* Pinned AI Prompt — unified Cofounder agent */}
+      {/* Pinned AI Prompt — unified Allel agent */}
       <div className="w-full max-w-2xl px-8 pb-8 mx-auto mt-auto shrink-0 flex justify-center">
         <AI_Prompt
           onSubmit={(text) => sendMessage({ text })}

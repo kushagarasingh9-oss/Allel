@@ -1,5 +1,5 @@
 /**
- * Cofounder Agent Tools
+ * Allel Agent Tools
  *
  * Every capability the agent can invoke. Each tool:
  * 1. Has a description the agent reads to decide when to use it

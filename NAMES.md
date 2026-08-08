@@ -1,21 +1,21 @@
-# 🏛️ NAMES.md — Master Vault for AI Cofounder & Agentic Automation Brand Names
+# 🏛️ NAMES.md — Master Vault for AI Allel & Agentic Automation Brand Names
 
-> **Specialized brand vault for an AI Cofounder & Agentic Automation Platform.**
+> **Specialized brand vault for an AI Allel & Agentic Automation Platform.**
 > Featuring 100+ high-tier startup names built on the **"Craft ➔ Raft" Truncation Formula** (deriving short, ultra-cool 4–6 letter power brands from scientific, technical, and action roots).
 
 ---
 
-## 🎯 THE TOP 10 SIGNATURE BRAND ARCHETYPES FOR AN AI COFOUNDER PLATFORM
+## 🎯 THE TOP 10 SIGNATURE BRAND ARCHETYPES FOR AN AI ALLEL PLATFORM
 
 | # | Brand Name | Root Word & Etymology | The Truncation / Morpheme Formula | Why It Sounds Like a $10B+ AI Company | Rating |
 |---|---|---|---|---|---|
 | 1 | **RAFT** | *Craft* (Skill, structural building) | **Craft ➔ RAFT** (Removed *C-*) | Sounds nimble, structural, and resilient. Navigates complex workflows. | **9.9** |
-| 2 | **FOUNDR** | *Founder* (Originator, builder) | **Founder ➔ FOUNDR** (Modern tech trim) | The definitive AI cofounder brand. Direct, authoritative, clean. | **9.8** |
+| 2 | **FOUNDR** | *Founder* (Originator, builder) | **Founder ➔ FOUNDR** (Modern tech trim) | The definitive AI allel brand. Direct, authoritative, clean. | **9.8** |
 | 3 | **FORJ** | *Forge* (To shape under heat) | **Forge ➔ FORJ** (Phonetic truncation) | Implies forging code, workflows, and business logic autonomously. | **9.7** |
 | 4 | **GENT** | *Agentic* (Autonomous actor) | **Agent ➔ GENT** (Clipping prefix) | Short for Agent; sounds like a polished, intelligent digital partner. | **9.6** |
 | 5 | **TECT** | *Architect* (Master builder) | **Architect ➔ TECT** (Root extraction) | Architecting multi-agent workflows and autonomous systems. | **9.5** |
 | 6 | **VEXT** | *Vector* (Direction + Magnitude) | **Vector ➔ VEXT** (Truncated punch) | High-speed direction & execution for autonomous agent networks. | **9.7** |
-| 7 | **SYNDIC** | *Syndicate* (Council/Alliance) | **Syndicate ➔ SYNDIC** (Clipped suffix) | A syndicate of specialized AI agents acting as your cofounder team. | **9.8** |
+| 7 | **SYNDIC** | *Syndicate* (Council/Alliance) | **Syndicate ➔ SYNDIC** (Clipped suffix) | A syndicate of specialized AI agents acting as your allel team. | **9.8** |
 | 8 | **NETIC** | *Kinetic* (In motion, energy) | **Kinetic ➔ NETIC** (Removed *Ki-*) | Continuous, self-reinforcing automated workflow execution. | **9.6** |
 | 9 | **CESTRA** | *Orchestrate* (To conduct) | **Orchestrate ➔ CESTRA** (Core extraction) | Master conductor of multi-agent workflows and business operations. | **9.9** |
 | 10 | **AUTON** | *Autonomy* (Self-governing) | **Autonomy ➔ AUTON** (Truncated root) | Pure agentic independence; agents that execute end-to-end without supervision. | **9.7** |
@@ -37,10 +37,10 @@ Just like **RAFT** is born by truncating **CRAFT**, elite brand names are create
 8. **CHANIC** (from *Mechanic*) — Underlying engine mechanics and operational flow.
 9. **MECH** (from *Mechanism*) — Precision mechanical agent workflow execution.
 10. **TIFACT** (from *Artifact*) — Generating tangible, verified work output artifacts.
-11. **COF** (from *Cofounder*) — Ultra-compact 3-letter AI cofounder identity.
-12. **FOUNDR** (from *Founder*) — The ultimate AI cofounder identity.
+11. **COF** (from *Allel*) — Ultra-compact 3-letter AI allel identity.
+12. **FOUNDR** (from *Founder*) — The ultimate AI allel identity.
 13. **PACT** (from *Compact*) — Binding agreement between human intent and agent execution.
-14. **BOND** (from *Covalent*) — Atomic cohesion between AI cofounder agents.
+14. **BOND** (from *Covalent*) — Atomic cohesion between AI allel agents.
 15. **FORK** (from *Code Fork*) — Branching parallel agent executions.
 16. **STACK** (from *Tech Stack*) — Full-stack agentic execution layer.
 17. **CORE** (from *Engine Core*) — The central intelligence processing unit.
@@ -87,7 +87,7 @@ Just like **RAFT** is born by truncating **CRAFT**, elite brand names are create
 54. **TONOM** (from *Autonomy*) — Self-governing agentic platform.
 55. **SYNE** (from *Synergy*) — Human + AI agent synergy.
 56. **NOMY** (from *Autonomy*) — The rule of autonomous execution.
-57. **G NIX** (from *Cognition*) — Deep reasoning cofounder.
+57. **G NIX** (from *Cognition*) — Deep reasoning allel.
 58. **THESIS** (from *Synthesis*) — Combining multiple agent outputs.
 59. **TOCOL** (from *Protocol*) — Standardized agent interaction rules.
 60. **METRY** (from *Telemetry*) — Deep visibility into agent decisions.
@@ -110,11 +110,11 @@ Just like **RAFT** is born by truncating **CRAFT**, elite brand names are create
 ### 💎 D. SHORT 4-LETTER ULTRA-BRANDS (TERMS 76–100)
 76. **RAFT** — *The Agentic Craft.*
 77. **FORJ** — *The Agentic Forge.*
-78. **GENT** — *Your AI Cofounder Agent.*
+78. **GENT** — *Your AI Allel Agent.*
 79. **TECT** — *Architecting Autonomous Workflows.*
 80. **VEXT** — *Vectorized Execution Engine.*
-81. **COF** — *The AI Cofounder.*
-82. **FOUNDR** — *AI Cofounder Platform.*
+81. **COF** — *The AI Allel.*
+82. **FOUNDR** — *AI Allel Platform.*
 83. **NETIC** — *Kinetic Automation.*
 84. **CESTRA** — *Orchestrating Agent Swarms.*
 85. **AUTON** — *Autonomous Agent Platform.*
@@ -138,10 +138,10 @@ Just like **RAFT** is born by truncating **CRAFT**, elite brand names are create
 
 ## 🏆 TOP 5 FINAL BRAND RECOMMENDATIONS FOR YOUR STARTUP
 
-Since your platform is an **AI Cofounder & Agentic Automation Platform**:
+Since your platform is an **AI Allel & Agentic Automation Platform**:
 
 1. **RAFT** (from *Craft*) — Directly follows your truncation principle (*Craft ➔ Raft*). Sounds nimble, strong, structural, and resilient.
-2. **FOUNDR** (from *Founder*) — 100% clear intent; tells anyone immediately that this is their AI cofounder.
+2. **FOUNDR** (from *Founder*) — 100% clear intent; tells anyone immediately that this is their AI allel.
 3. **CESTRA** (from *Orchestrate*) — Beautiful to hear, conveys multi-agent orchestration.
 4. **FORJ** (from *Forge*) — Short, punchy, implies forging code & workflows.
 5. **GENT** (from *Agent*) — Short 4-letter brand for your agentic workforce.

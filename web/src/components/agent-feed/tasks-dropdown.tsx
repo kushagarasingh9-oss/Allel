@@ -102,7 +102,7 @@ function ProceedButton({ pendingTasks }: { pendingTasks: TaskItem[] }) {
   const handleProceed = () => {
     const taskList = pendingTasks.map((t, i) => `${i + 1}. ${t.headline}`).join('\n')
     // Dispatch a custom event the AgentPane can listen for
-    window.dispatchEvent(new CustomEvent('cofounder:proceed-tasks', {
+    window.dispatchEvent(new CustomEvent('allel:proceed-tasks', {
       detail: { text: `Here are my tasks for today. Please help me work through them:\n\n${taskList}` }
     }))
   }

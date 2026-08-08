@@ -1,4 +1,4 @@
--- Backend engine tables for Cofounder
+-- Backend engine tables for Allel
 -- Adds: webhook_events, churn_scores, churn_score_factors, agent_runs,
 --        integration_tokens, account_contacts, account_timeline
 

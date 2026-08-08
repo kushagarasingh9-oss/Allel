@@ -1,5 +1,5 @@
 /**
- * Cofounder Churn Scoring Engine
+ * Allel Churn Scoring Engine
  *
  * 6-factor weighted deterministic scoring.
  * Runs daily for every customer account in a workspace.

@@ -88,10 +88,10 @@ export function MainWorkspaceCanvas() {
           Finance
         </div>
 
-        {/* Center Node (Cofounder) */}
+        {/* Center Node (Allel) */}
         <div className="z-10 bg-[#1F1F24] border border-amber-500/40 p-4 rounded-2xl shadow-2xl flex flex-col items-center gap-1 cursor-pointer hover:border-amber-400 transition-all">
           <span className="text-2xl animate-bounce">🌻</span>
-          <span className="text-xs font-semibold text-white">Cofounder</span>
+          <span className="text-xs font-semibold text-white">Allel</span>
         </div>
       </div>
 

@@ -15,8 +15,8 @@
  * 3. Write a focused system instruction extension
  */
 
-// Cofounder unified system instructions — separated for maintainability
-import { COFOUNDER_INSTRUCTIONS } from './cofounder-instructions'
+// Allel unified system instructions — separated for maintainability
+import { COFOUNDER_INSTRUCTIONS } from './allel-instructions'
 import { HENRY_INSTRUCTIONS } from './henry-instructions'
 import { SARAH_INSTRUCTIONS } from './sarah-instructions'
 
@@ -44,12 +44,12 @@ export const VALID_PERSONA_IDS: ReadonlySet<string> = new Set(['alex', 'henry', 
 
 export const PERSONAS: AgentPersona[] = [
   // ─────────────────────────────────────────────
-  // Cofounder — Unified agent (all tools, all expertise)
+  // Allel — Unified agent (all tools, all expertise)
   // Internal ID remains 'alex' for backward compatibility
   // ─────────────────────────────────────────────
   {
     id: 'alex',
-    name: 'Cofounder',
+    name: 'Allel',
     role: 'AI Co-founder',
     placeholder: 'Ask about accounts, churn risk, growth, drafts, or anything...',
     systemInstructionSuffix: COFOUNDER_INSTRUCTIONS,

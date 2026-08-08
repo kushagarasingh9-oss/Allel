@@ -1,4 +1,4 @@
-# Cofounder Web
+# Allel Web
 
 Founder-facing retention operations app built with Next.js, Supabase, and the AI SDK.
 
@@ -74,7 +74,7 @@ npm test
 
 - `/Users/kushagrasingh/dev/agenticworkflow/AGENT.md`
 - `/Users/kushagrasingh/dev/agenticworkflow/ARCHITECTURE.md`
-- `/Users/kushagrasingh/dev/agenticworkflow/COFOUNDER.md`
+- `/Users/kushagrasingh/dev/agenticworkflow/ALLEL.md`
 - `/Users/kushagrasingh/dev/agenticworkflow/chat.md`
 - `/Users/kushagrasingh/dev/agenticworkflow/FRONTEND.md`
 - `/Users/kushagrasingh/dev/agenticworkflow/PRODUCT_COMPLETION_PLAN.md`

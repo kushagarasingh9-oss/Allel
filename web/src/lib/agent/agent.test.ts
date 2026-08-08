@@ -30,7 +30,7 @@ test('getAvailableToolNamesForPersona excludes manual-approval tools from agent 
   assert.equal(alexTools.has('generateFollowUpDraft'), true)
 })
 
-test('cofounder chat exposes every live integration surface behind a provider guard', () => {
+test('allel chat exposes every live integration surface behind a provider guard', () => {
   const chatTools = new Set(
     getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
   )
@@ -49,7 +49,7 @@ test('cofounder chat exposes every live integration surface behind a provider gu
   } as const
 
   for (const [provider, toolName] of Object.entries(representativeTools)) {
-    assert.equal(chatTools.has(toolName), true, `${toolName} should be available to Cofounder chat`)
+    assert.equal(chatTools.has(toolName), true, `${toolName} should be available to Allel chat`)
     assert.equal(
       getIntegrationProviderForTool(toolName),
       provider,

@@ -7,7 +7,7 @@
  * - AI_Prompt can submit messages
  * - AgentFeed can render streaming responses with tool-call rendering
  *
- * Uses a single unified Cofounder agent (internal ID: 'alex').
+ * Uses a single unified Allel agent (internal ID: 'alex').
  */
 
 import * as React from "react"
@@ -353,12 +353,12 @@ export function ChatProvider({
   const [currentSessionId, setCurrentSessionId] = React.useState<string>(() => {
     // Restore session ID from sessionStorage to prevent duplicate history entries on re-mount
     if (typeof window !== "undefined") {
-      const stored = window.sessionStorage.getItem("cofounder.current-session-id")
+      const stored = window.sessionStorage.getItem("allel.current-session-id")
       if (stored) return stored
     }
     const fresh = `session-${Date.now()}`
     if (typeof window !== "undefined") {
-      window.sessionStorage.setItem("cofounder.current-session-id", fresh)
+      window.sessionStorage.setItem("allel.current-session-id", fresh)
     }
     return fresh
   })
@@ -367,7 +367,7 @@ export function ChatProvider({
   React.useEffect(() => {
     if (typeof window === "undefined") return
     try {
-      const raw = window.localStorage.getItem("cofounder.chat-history.v1")
+      const raw = window.localStorage.getItem("allel.chat-history.v1")
       if (raw) {
         const parsed = JSON.parse(raw) as SavedChatSession[]
         // Re-generate titles for all stored sessions using the latest logic
@@ -386,7 +386,7 @@ export function ChatProvider({
         })
         setSavedSessions(deduped)
         // Persist the cleaned list back
-        window.localStorage.setItem("cofounder.chat-history.v1", JSON.stringify(deduped))
+        window.localStorage.setItem("allel.chat-history.v1", JSON.stringify(deduped))
       }
     } catch {
       // Ignore storage read error
@@ -460,7 +460,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
       const filtered = prev.filter((s) => s.id !== currentSessionId)
       const updated = [sessionItem, ...filtered].slice(0, 30)
       try {
-        window.localStorage.setItem("cofounder.chat-history.v1", JSON.stringify(updated))
+        window.localStorage.setItem("allel.chat-history.v1", JSON.stringify(updated))
       } catch {
         // Ignore
       }
@@ -473,11 +473,11 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     clearError()
     const newSessionId = `session-${Date.now()}`
     if (typeof window !== "undefined") {
-      window.sessionStorage.setItem("cofounder.current-session-id", newSessionId)
+      window.sessionStorage.setItem("allel.current-session-id", newSessionId)
       if (storageUserId && storageWorkspaceId) {
         try {
           window.sessionStorage.setItem(
-            `cofounder.chat-session.v2:${storageUserId}:${storageWorkspaceId}`,
+            `allel.chat-session.v2:${storageUserId}:${storageWorkspaceId}`,
             newSessionId
           )
         } catch {
@@ -495,11 +495,11 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     stop()
     clearError()
     if (typeof window !== "undefined") {
-      window.sessionStorage.setItem("cofounder.current-session-id", session.id)
+      window.sessionStorage.setItem("allel.current-session-id", session.id)
       if (storageUserId && storageWorkspaceId) {
         try {
           window.sessionStorage.setItem(
-            `cofounder.chat-session.v2:${storageUserId}:${storageWorkspaceId}`,
+            `allel.chat-session.v2:${storageUserId}:${storageWorkspaceId}`,
             session.id
           )
         } catch {
@@ -520,7 +520,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     setSavedSessions((prev) => {
       const updated = prev.filter((s) => s.id !== id)
       try {
-        window.localStorage.setItem("cofounder.chat-history.v1", JSON.stringify(updated))
+        window.localStorage.setItem("allel.chat-history.v1", JSON.stringify(updated))
       } catch {
         // Ignore
       }
