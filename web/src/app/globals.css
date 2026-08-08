@@ -349,3 +349,61 @@ html body { background: var(--token-42377e4c-6aff-45af-80cf-861971d3bff6); }
   line-height: 28px !important;
   letter-spacing: -0.02em !important;
 }
+
+
+
+/* Video overlay on Media Band — specificity must beat .framer-TAjec .framer-vvecms */
+.framer-TAjec .framer-vvecms,
+.framer-njVJT .framer-vvecms,
+.framer-vvecms {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  min-height: 540px !important;
+  height: auto !important;
+  padding: 56px 24px !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+
+.glass-video-container {
+  position: relative !important;
+  z-index: 50 !important;
+  width: 100% !important;
+  max-width: 920px !important;
+  margin: 0 auto !important;
+  padding: 6px !important;
+  border-radius: 4px !important; /* Thin edgy sharp border */
+  background: rgba(10, 10, 16, 0.35) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important; /* Thin glassy border */
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.35) !important;
+  box-sizing: border-box !important;
+}
+
+.media-band-video {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 480px !important;
+  object-fit: contain !important;
+  border-radius: 2px !important; /* Sharp edgy video border, no round curves */
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  display: block !important;
+  background: #000000 !important;
+}
+
+@media (max-width: 768px) {
+  .framer-TAjec .framer-vvecms,
+  .framer-njVJT .framer-vvecms,
+  .framer-vvecms {
+    padding: 32px 16px !important;
+    min-height: 380px !important;
+  }
+  .glass-video-container {
+    padding: 4px !important;
+    border-radius: 4px !important;
+  }
+}
+

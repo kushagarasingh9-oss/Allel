@@ -76,3 +76,98 @@ html body { background: var(--token-42377e4c-6aff-45af-80cf-861971d3bff6); }
   line-height: 28px !important;
   letter-spacing: -0.02em !important;
 }
+
+
+/* Media Band Video Layer styling */
+.framer-vvecms {
+  height: auto !important;
+  min-height: 520px !important;
+  padding: 48px 64px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+}
+
+.media-band-video-wrapper {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.media-band-video {
+  width: 100%;
+  max-width: 960px;
+  height: auto;
+  max-height: 440px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75);
+  object-fit: cover;
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .framer-vvecms {
+    padding: 32px 20px !important;
+    min-height: 360px !important;
+  }
+}
+
+
+/* Glassmorphism Video Layer for Media Band */
+.framer-njVJT .framer-vvecms,
+.framer-vvecms {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  min-height: 540px !important;
+  height: auto !important;
+  padding: 56px 24px !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+
+.glass-video-container {
+  position: relative !important;
+  z-index: 50 !important;
+  width: 100% !important;
+  max-width: 900px !important;
+  margin: 0 auto !important;
+  padding: 16px !important;
+  border-radius: 20px !important;
+  background: rgba(15, 15, 22, 0.7) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.85), inset 0 1px 1px rgba(255, 255, 255, 0.3) !important;
+  box-sizing: border-box !important;
+}
+
+.media-band-video {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 480px !important;
+  object-fit: contain !important;
+  border-radius: 12px !important;
+  display: block !important;
+  background: #000000 !important;
+}
+
+@media (max-width: 768px) {
+  .framer-njVJT .framer-vvecms,
+  .framer-vvecms {
+    padding: 32px 16px !important;
+    min-height: 380px !important;
+  }
+  .glass-video-container {
+    padding: 10px !important;
+    border-radius: 16px !important;
+  }
+}
