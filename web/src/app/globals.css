@@ -1,3 +1,35 @@
+
+/* Force all Framer component & section color tokens to dark mode */
+:root, html, body, #main, [data-framer-generated-page], div, section, main, nav, footer {
+  color-scheme: dark !important;
+  --token-42377e4c-6aff-45af-80cf-861971d3bff6: #0b0b0a !important;
+  --token-10e74244-94d1-431e-87d0-281bc16f26b9: #141413 !important;
+  --token-fc3e2144-81ca-48e6-9365-4417af9831c9: #282825 !important;
+  --token-ead5ee04-8072-43a8-8b63-6c52f5667fd6: #2c2c28 !important;
+  --token-4b5c2631-4675-4701-82c8-51d44ba443f5: #edede8 !important;
+  --token-a858697d-e879-4ab9-8f8f-ff96d21fdb35: #8b8b83 !important;
+  --token-4e477fa6-3a4a-4dca-ae8d-06a59b9bf0d6: #7ba0ff !important;
+  --token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0: #edede8 !important;
+  --token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7: #121211 !important;
+  --token-839f404f-2485-4df4-989d-84c9778f6e7d: #333330 !important;
+}
+
+/* Force Dark Theme everywhere regardless of device system light/dark preference */
+:root, html, body {
+  color-scheme: dark !important;
+  --token-42377e4c-6aff-45af-80cf-861971d3bff6: #0b0b0a !important;
+  --token-10e74244-94d1-431e-87d0-281bc16f26b9: #141413 !important;
+  --token-fc3e2144-81ca-48e6-9365-4417af9831c9: #282825 !important;
+  --token-ead5ee04-8072-43a8-8b63-6c52f5667fd6: #2c2c28 !important;
+  --token-4b5c2631-4675-4701-82c8-51d44ba443f5: #edede8 !important;
+  --token-a858697d-e879-4ab9-8f8f-ff96d21fdb35: #8b8b83 !important;
+  --token-4e477fa6-3a4a-4dca-ae8d-06a59b9bf0d6: #7ba0ff !important;
+  --token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0: #edede8 !important;
+  --token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7: #121211 !important;
+  --token-839f404f-2485-4df4-989d-84c9778f6e7d: #333330 !important;
+  background-color: #0b0b0a !important;
+  color: #edede8 !important;
+}
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -294,3 +326,26 @@ html,body,#main{box-sizing:border-box;margin:0;padding:0}:root{-webkit-font-smoo
 
 html body { background: var(--token-42377e4c-6aff-45af-80cf-861971d3bff6); }
 
+
+
+/* Hide Mark (A logo box) */
+[data-framer-name="Mark"], .framer-j9tvgv {
+  display: none !important;
+}
+
+/* Logo alignment and spacing before Allel (line removed) */
+.framer-1copcxj {
+  height: 28px !important;
+  min-height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  padding-left: 14px !important;
+  border-left: none !important;
+}
+
+.framer-gdhgkz .framer-text {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  line-height: 28px !important;
+  letter-spacing: -0.02em !important;
+}
