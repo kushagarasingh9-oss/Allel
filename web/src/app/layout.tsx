@@ -12,7 +12,7 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Cofounder | The Agent for Customer Operations",
+  title: "Allel — Connect your tools. AI agents automate the work.",
   description:
     "Connects to your stack, stays on top of every account, and automates the follow-ups and customer work founders usually end up doing by hand.",
 };

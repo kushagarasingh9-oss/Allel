@@ -47,10 +47,10 @@ export default function LoginPage() {
           <span
             className="text-[28px] font-semibold text-white tracking-tight"
           >
-            Cofounder
+            Allel
           </span>
           <p className="mt-2 text-[14px] text-[#555]">
-            The AI Agent for Customer Operations
+            Connect your tools. AI agents automate the work.
           </p>
         </div>
 
