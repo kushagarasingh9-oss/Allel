@@ -495,8 +495,6 @@ export function getIntegrationProviderForTool(toolName: AgentToolName) {
 // not receive direct access to consequential third-party mutation tools.
 export const MANUAL_APPROVAL_REQUIRED_TOOL_NAMES = [
   'createRescueDiscountTool',
-  'sendGmailReply',
-  'composeNewEmail',
   'sendSlackMessage',
   'editSlackMessage',
   'deleteSlackMsg',
@@ -516,7 +514,6 @@ export const MANUAL_APPROVAL_REQUIRED_TOOL_NAMES = [
   'cancelStripeSubscriptionTool',
   'refundStripeCharge',
   'applyStripeCoupon',
-  'createCalendarEventTool',
   'updateCalendarEventTool',
   'deleteCalendarEventTool',
   'createNotionPageTool',
