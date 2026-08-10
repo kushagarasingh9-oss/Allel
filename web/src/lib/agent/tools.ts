@@ -2054,7 +2054,7 @@ export const sendGmailReply = tool({
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
     threadId: z.string().describe('The Gmail thread ID to reply to (from getMyInbox or getGmailThreadsForAccount)'),
-    to: z.string().email().describe('The recipient email address (the person to reply to)'),
+    to: z.string().describe('The recipient email address (the person to reply to)'),
     subject: z.string().describe('The subject line (prepend "Re: " to the original subject)'),
     body: z.string().max(2000).describe('The reply body (plain text, max 2000 chars)'),
     confirmSend: z.boolean().describe('Must be true to actually send. Set to false to preview only.'),
@@ -2103,7 +2103,7 @@ export const composeNewEmail = tool({
     'Compose and send a brand new email (not a reply) on behalf of the founder. Use this when the founder asks to email someone directly. The email is sent from the founder\'s connected Gmail. Use preview mode first unless the founder explicitly says to send immediately.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    to: z.string().email().describe('The recipient email address'),
+    to: z.string().describe('The recipient email address'),
     subject: z.string().describe('The email subject line'),
     body: z.string().max(3000).describe('The email body (plain text, max 3000 chars)'),
     confirmSend: z.boolean().describe('Must be true to actually send. Set to false to preview only.'),
@@ -2183,7 +2183,7 @@ export const addAccountContact = tool({
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
     accountId: z.string().uuid().describe('The customer account UUID'),
-    email: z.string().email().describe('The contact\'s email address'),
+    email: z.string().describe('The contact\'s email address'),
     name: z.string().optional().describe('The contact\'s full name'),
     role: z.string().optional().describe('Their role (e.g., "CTO", "Product Manager", "Billing Admin")'),
     isPrimary: z.boolean().optional().describe('Whether this is the primary contact for the account. Default: false'),
@@ -2272,7 +2272,7 @@ export const updateAccountContact = tool({
     'Update an existing contact\'s details (name, role, primary status). Use this when the founder provides updated info about a person at a customer company.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    contactEmail: z.string().email().describe('The contact\'s email address to update'),
+    contactEmail: z.string().describe('The contact\'s email address to update'),
     updates: z.object({
       name: z.string().optional().describe('Updated name'),
       role: z.string().optional().describe('Updated role'),
