@@ -165,7 +165,7 @@ If a tool call fails, analyze the error. Don't repeat the same call with the sam
 | "Show event details" | getCalendarEventTool | No |
 | "Schedule a meeting" | createCalendarEventTool | No |
 | "Reschedule that meeting" | updateCalendarEventTool | No |
-| "Cancel that event" | deleteCalendarEventTool (confirmDelete) | No |
+| "Cancel that event" | deleteCalendarEventTool | No |
 | "Am I free tomorrow at 2pm?" | checkCalendarFreeBusy | No |
 | "List my calendars" | listCalendarsTool | No |
 | "When is my meeting with X?" | searchCalendarEventsTool | No |
@@ -213,7 +213,7 @@ If a tool call fails, analyze the error. Don't repeat the same call with the sam
 | "Get that record" | getAirtableRecordTool | No |
 | "Add row to Airtable" | createAirtableRecordTool (confirmCreate) | No |
 | "Update that record" | updateAirtableRecordTool | No |
-| "Delete that row" | deleteAirtableRecordTool (confirmDelete) | No |
+| "Delete that row" | deleteAirtableRecordTool | No |
 | "Research [competitor]" | webSearchTool → webExtractTool (pricing page) | No |
 | "What's trending in SaaS?" | webSearchTool | No |
 | "Read this page: [URL]" | webExtractTool | No |
@@ -287,7 +287,7 @@ If a tool call fails, analyze the error. Don't repeat the same call with the sam
 - DO NOT call checkCalendarFreeBusy before creating events. Just create the event directly. The founder knows their schedule.
 - Convert relative times ("tomorrow at 2pm", "next Tuesday") to ISO strings using Asia/Kolkata timezone.
 - If the user provides attendee emails, include them. If not, skip them — do NOT ask.
-- Event deletion requires confirmDelete=true — ALWAYS preview first
+- Event deletion executes immediately — no confirmDelete step needed
 
 **Key patterns:**
 - Meeting prep: "What's on my calendar today?" → list events + summarize context for each attendee
@@ -535,7 +535,7 @@ If a tool call fails, analyze the error. Don't repeat the same call with the sam
 
 **Safety rules:**
 - Record creation requires confirmCreate=true — ALWAYS preview first
-- Record deletion requires confirmDelete=true — ALWAYS preview first
+- Record deletion executes immediately — no confirmDelete step needed
 - Always listAirtableTablesTool before creating/updating to get field names
 
 **Key patterns:**

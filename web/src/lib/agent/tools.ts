@@ -3810,27 +3810,20 @@ export const updateCalendarEventTool = tool({
 
 export const deleteCalendarEventTool = tool({
   description:
-    'Delete an event from Google Calendar. CAUTION: This is permanent. Always confirm with the founder first.',
+    'Delete an event from Google Calendar permanently. Executes immediately — no preview step.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
     eventId: z.string().describe('The event ID to delete'),
-    confirmDelete: z.boolean().describe('Must be true to actually delete. Set false to preview.'),
   }),
-  execute: async ({ workspaceId, eventId, confirmDelete }) => {
+  execute: async ({ workspaceId, eventId }) => {
     try {
-      if (!confirmDelete) {
-        return {
-          preview: true,
-          eventId,
-          message: `Would delete event ${eventId}. Set confirmDelete=true to proceed.`,
-        }
-      }
-
       const accessToken = await getCalendarAccessToken(workspaceId)
       await deleteCalendarEventFn(accessToken, 'primary', eventId)
-      return { success: true, eventId, message: 'Event deleted' }
+      return { success: true, eventId, message: `Event ${eventId} deleted successfully.` }
     } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Failed to delete event' }
+      const msg = err instanceof Error ? err.message : 'Failed to delete event'
+      console.error('[deleteCalendarEventTool] FAILED:', msg, err)
+      return { success: false, error: `FAILED to delete event: ${msg}` }
     }
   },
 })
@@ -3900,17 +3893,22 @@ export const searchCalendarEventsTool = tool({
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
     query: z.string().describe('Search query (matches event title, description, location, attendees)'),
-    timeMin: z.string().optional().describe('Start of search range. Default: now'),
-    timeMax: z.string().optional().describe('End of search range. Default: 30 days from now'),
+    timeMin: z.string().optional().describe('ISO 8601 start of search range. Default: now'),
+    timeMax: z.string().optional().describe('ISO 8601 end of search range. Default: 30 days from now'),
   }),
   execute: async ({ workspaceId, query, timeMin, timeMax }) => {
     try {
       const accessToken = await getCalendarAccessToken(workspaceId)
-      const defaultMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      const now = new Date()
+      const resolvedTimeMin = timeMin ?? now.toISOString()
+      const resolvedTimeMax = timeMax ?? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+
+      console.log('[searchCalendarEventsTool] Searching:', { query, timeMin: resolvedTimeMin, timeMax: resolvedTimeMax })
+
       const events = await listCalendarEventsFn(accessToken, 'primary', {
         q: query,
-        timeMin: timeMin ?? new Date().toISOString(),
-        timeMax: timeMax ?? defaultMax,
+        timeMin: resolvedTimeMin,
+        timeMax: resolvedTimeMax,
         maxResults: 20,
       })
       return {
@@ -3925,7 +3923,10 @@ export const searchCalendarEventsTool = tool({
         query,
       }
     } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Failed to search events' }
+      const msg = err instanceof Error ? err.message : 'Failed to search events'
+      console.error('[searchCalendarEventsTool] Error:', msg, err)
+      // Return the error but don't show "Connect" badge — this is an API error, not a connection issue
+      return { error: `Calendar search failed: ${msg}` }
     }
   },
 })
@@ -5321,25 +5322,20 @@ export const updateAirtableRecordTool = tool({
 
 export const deleteAirtableRecordTool = tool({
   description:
-    'Delete a record from an Airtable table.',
+    'Delete a record from an Airtable table. Executes immediately.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
     baseId: z.string().describe('The Airtable base ID'),
     tableIdOrName: z.string().describe('Table ID or name'),
     recordId: z.string().describe('The record ID'),
-    confirmDelete: z.boolean().describe('Must be true to delete. Set false to preview.'),
   }),
-  execute: async ({ workspaceId, baseId, tableIdOrName, recordId, confirmDelete }) => {
+  execute: async ({ workspaceId, baseId, tableIdOrName, recordId }) => {
     try {
-      if (!confirmDelete) {
-        return { preview: true, recordId, message: 'Would delete record. Set confirmDelete=true to proceed.' }
-      }
-
       const token = await getAirtableToken(workspaceId)
       await deleteAirtableRecordFn(token, baseId, tableIdOrName, recordId)
       return { success: true, recordId, message: 'Record deleted' }
     } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Failed to delete record' }
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to delete record' }
     }
   },
 })
