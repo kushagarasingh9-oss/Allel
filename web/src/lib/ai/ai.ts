@@ -9,7 +9,7 @@ import { generateText as aiGenerateText, generateObject as aiGenerateObject } fr
 import { openai } from '@ai-sdk/openai'
 import type { ZodSchema } from 'zod'
 
-const MODEL_ID = process.env.OPENAI_MODEL_ID || 'gpt-5.5'
+const MODEL_ID = process.env.OPENAI_MODEL_ID || 'gpt-5.6'
 
 export function isAIConfigured() {
   return Boolean(process.env.OPENAI_API_KEY)

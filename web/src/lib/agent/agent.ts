@@ -179,11 +179,11 @@ import {
   webMapTool,
 } from '@/lib/integrations/web-research'
 
-const DEFAULT_AGENT_MODEL_ID = process.env.OPENAI_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.5'
+const DEFAULT_AGENT_MODEL_ID = process.env.OPENAI_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.6'
 const DEFAULT_AGENT_CHAT_MODEL_ID =
-  process.env.OPENAI_MODEL_ID ?? process.env.AGENT_CHAT_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.5'
+  process.env.OPENAI_MODEL_ID ?? process.env.AGENT_CHAT_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.6'
 const DEFAULT_AGENT_AUTOMATION_MODEL_ID =
-  process.env.OPENAI_MODEL_ID ?? process.env.AGENT_AUTOMATION_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.5'
+  process.env.OPENAI_MODEL_ID ?? process.env.AGENT_AUTOMATION_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.6'
 const MODEL_PRICING_CENTS_PER_MILLION = [
   { prefixes: ['gpt-5.6'], input: 600, output: 3500 },
   { prefixes: ['gpt-5.5'], input: 500, output: 3000 },
@@ -757,7 +757,7 @@ export function resolveAgentModelId(_options?: {
   runType?: string
   channel?: 'chat' | 'automation'
 }) {
-  return process.env.OPENAI_MODEL_ID || 'gpt-5.5'
+  return process.env.OPENAI_MODEL_ID || 'gpt-5.6'
 }
 
 function buildAgentStepMetadata(result: Awaited<ReturnType<ToolLoopAgent['generate']>>) {
