@@ -78,7 +78,7 @@ export async function POST(req: Request) {
       }
 
       // 2. Send Confirmation Email to Subscriber
-      if (isValidEmail(email)) {
+      if (email && email.includes('@')) {
         try {
           await resend.emails.send({
             from: fromEmail,
