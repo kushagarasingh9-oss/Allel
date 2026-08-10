@@ -3719,7 +3719,18 @@ export const createCalendarEventTool = tool({
         resolvedEnd = new Date(startMs + 60 * 60 * 1000).toISOString()
       }
 
+      console.log('[createCalendarEventTool] Executing with:', {
+        workspaceId,
+        summary,
+        startDateTime,
+        resolvedEnd,
+        tz,
+        attendeeEmails,
+      })
+
       const accessToken = await getCalendarAccessToken(workspaceId)
+      console.log('[createCalendarEventTool] Got access token, calling Google Calendar API...')
+
       const event = await createCalendarEventFn(accessToken, 'primary', {
         summary,
         description,
@@ -3728,6 +3739,15 @@ export const createCalendarEventTool = tool({
         end: { dateTime: resolvedEnd, timeZone: tz },
         attendees: attendeeEmails?.map((email) => ({ email })),
       })
+
+      console.log('[createCalendarEventTool] SUCCESS! Event created:', {
+        eventId: event.id,
+        summary: event.summary,
+        htmlLink: event.htmlLink,
+        start: event.start,
+        end: event.end,
+      })
+
       return {
         success: true,
         created: true,
@@ -3735,10 +3755,11 @@ export const createCalendarEventTool = tool({
         summary: event.summary,
         start: event.start.dateTime ?? event.start.date,
         htmlLink: event.htmlLink,
-        message: `DONE! Event "${summary}" has been created on Google Calendar.`,
+        message: `DONE! Event "${summary}" has been created on Google Calendar. View it: ${event.htmlLink}`,
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
+      console.error('[createCalendarEventTool] FAILED:', msg, err)
       return {
         success: false,
         created: false,
