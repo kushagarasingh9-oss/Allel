@@ -185,6 +185,7 @@ const DEFAULT_AGENT_CHAT_MODEL_ID =
 const DEFAULT_AGENT_AUTOMATION_MODEL_ID =
   process.env.OPENAI_MODEL_ID ?? process.env.AGENT_AUTOMATION_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.6'
 const MODEL_PRICING_CENTS_PER_MILLION = [
+  { prefixes: ['Kimi-K2'], input: 95, output: 400 },
   { prefixes: ['gpt-5.6'], input: 600, output: 3500 },
   { prefixes: ['gpt-5.5'], input: 500, output: 3000 },
   { prefixes: ['gpt-5.4-mini'], input: 75, output: 450 },
@@ -197,6 +198,7 @@ const MODEL_PRICING_CENTS_PER_MILLION = [
   { prefixes: ['o4-mini'], input: 110, output: 440 },
   { prefixes: ['gpt-4o-mini'], input: 15, output: 60 },
   { prefixes: ['gpt-4o'], input: 250, output: 1000 },
+  { prefixes: ['gpt-chat-latest'], input: 250, output: 1000 },
 ] as const
 
 export const ALL_TOOLS = {
