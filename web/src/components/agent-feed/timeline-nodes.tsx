@@ -146,10 +146,23 @@ export function TimelineNode({
 }
 
 export function MonologueBlock({ text }: { text: string }) {
+  const [expanded, setExpanded] = React.useState(false)
+  const PREVIEW_LENGTH = 80
+  const needsTruncation = text.length > PREVIEW_LENGTH
+  const preview = needsTruncation ? text.slice(0, PREVIEW_LENGTH).trimEnd() + '…' : text
+
   return (
-    <div className="flex items-start gap-2.5 text-[13px] text-neutral-400 font-normal leading-relaxed py-0.5">
-      <Clock className="w-3.5 h-3.5 mt-0.5 shrink-0 text-neutral-500" />
-      <span>{text}</span>
+    <div className="group text-[13px] text-neutral-400 font-normal leading-relaxed py-0.5">
+      <button
+        type="button"
+        onClick={() => needsTruncation && setExpanded((v) => !v)}
+        className={`flex items-start gap-2.5 text-left w-full ${needsTruncation ? 'cursor-pointer hover:text-neutral-300 transition-colors' : 'cursor-default'}`}
+      >
+        <ChevronRight
+          className={`w-3.5 h-3.5 mt-0.5 shrink-0 text-neutral-500 transition-transform duration-200 ${expanded ? 'rotate-90' : ''} ${!needsTruncation ? 'opacity-0' : ''}`}
+        />
+        <span className="min-w-0">{expanded ? text : preview}</span>
+      </button>
     </div>
   )
 }
