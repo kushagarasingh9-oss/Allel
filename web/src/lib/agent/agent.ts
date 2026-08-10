@@ -21,7 +21,7 @@ import {
   VALID_PERSONA_IDS,
   type PersonaId,
 } from './personas'
-import { isAIConfigured } from '@/lib/ai/ai'
+import { isAIConfigured, getLanguageModel } from '@/lib/ai/ai'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requireIntegrationConnected } from '@/lib/integrations/connection-guard'
 import { logAgentRun } from './run-logger'
@@ -843,7 +843,7 @@ export function getAgentForPersona(
 
   const agent = new ToolLoopAgent({
     id: `agent-${persona.id}`,
-    model: openai(modelId),
+    model: getLanguageModel(modelId) as any,
     instructions,
     tools: filteredTools,
     maxOutputTokens: 4096,

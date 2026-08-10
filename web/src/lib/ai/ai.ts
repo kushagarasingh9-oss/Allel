@@ -6,13 +6,31 @@
  */
 
 import { generateText as aiGenerateText, generateObject as aiGenerateObject } from 'ai'
-import { openai } from '@ai-sdk/openai'
+import { openai, createOpenAI } from '@ai-sdk/openai'
+import { createAzure } from '@ai-sdk/azure'
 import type { ZodSchema } from 'zod'
 
-const MODEL_ID = process.env.OPENAI_MODEL_ID || 'gpt-5.6'
+const MODEL_ID = process.env.OPENAI_MODEL_ID || 'gpt-4o'
+
+export function getLanguageModel(modelIdOverride?: string) {
+  const modelId = modelIdOverride || process.env.OPENAI_MODEL_ID || 'gpt-4o'
+  const apiKey = process.env.AZURE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || ''
+  const azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT || process.env.AZURE_OPENAI_BASE_URL || process.env.AZURE_OPENAI_RESOURCE_NAME
+
+  if (azureEndpoint || process.env.AZURE_OPENAI_API_KEY || (apiKey && apiKey.startsWith('1ss'))) {
+    const azure = createAzure({
+      apiKey: apiKey,
+      baseURL: azureEndpoint && azureEndpoint.startsWith('http') ? azureEndpoint : undefined,
+      resourceName: process.env.AZURE_OPENAI_RESOURCE_NAME || (azureEndpoint && !azureEndpoint.startsWith('http') ? azureEndpoint : undefined),
+    })
+    return azure(modelId)
+  }
+
+  return openai(modelId)
+}
 
 export function isAIConfigured() {
-  return Boolean(process.env.OPENAI_API_KEY)
+  return Boolean(process.env.OPENAI_API_KEY || process.env.AZURE_OPENAI_API_KEY)
 }
 
 export type AIResult = {
