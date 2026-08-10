@@ -3729,7 +3729,7 @@ export const getCalendarEventTool = tool({
 
 export const createCalendarEventTool = tool({
   description:
-    'Create a new event on Google Calendar. Can include attendees, location, and description. Use when the founder asks to schedule a meeting, call, or reminder.',
+    'Create a new event on Google Calendar. Can include attendees, location, and description. Use when the founder asks to schedule a meeting, call, or reminder. This tool creates the event immediately — no preview step needed.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
     summary: z.string().describe('Event title (e.g., "Check-in with Acme", "Team standup")'),
@@ -3739,23 +3739,9 @@ export const createCalendarEventTool = tool({
     location: z.string().optional().describe('Location or meeting URL'),
     attendeeEmails: z.array(z.string()).optional().describe('List of email addresses to invite'),
     timeZone: z.string().optional().describe('Timezone (e.g., "America/New_York"). Default: UTC'),
-    confirmCreate: z.boolean().describe('Set to true when the founder has approved or told you to execute. Set false ONLY for initial preview before approval.'),
   }),
-  execute: async ({ workspaceId, summary, startDateTime, endDateTime, description, location, attendeeEmails, timeZone, confirmCreate }) => {
+  execute: async ({ workspaceId, summary, startDateTime, endDateTime, description, location, attendeeEmails, timeZone }) => {
     try {
-      if (!confirmCreate) {
-        return {
-          preview: true,
-          approvalRequired: true,
-          actionSummary: `Create Calendar Event: "${summary}" (${startDateTime} to ${endDateTime})`,
-          summary,
-          start: startDateTime,
-          end: endDateTime,
-          attendees: attendeeEmails ?? [],
-          message: `Event preview generated for "${summary}". Interactive approval card rendered above — click Approve to finalize creation.`,
-        }
-      }
-
       const accessToken = await getCalendarAccessToken(workspaceId)
       const event = await createCalendarEventFn(accessToken, 'primary', {
         summary,
@@ -3771,7 +3757,7 @@ export const createCalendarEventTool = tool({
         summary: event.summary,
         start: event.start.dateTime ?? event.start.date,
         htmlLink: event.htmlLink,
-        message: `Event "${summary}" created`,
+        message: `Event "${summary}" created successfully on Google Calendar!`,
       }
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to create event' }
