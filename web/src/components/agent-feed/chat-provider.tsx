@@ -440,9 +440,9 @@ function generateRefinedTitle(messages: UIMessage[]): string {
   return "General Discussion"
 }
 
-  // Auto-save active chat session whenever user messages update
+  // Auto-save active chat session when messages update and status is ready (not while streaming)
   React.useEffect(() => {
-    if (typeof window === "undefined" || messages.length === 0) return
+    if (typeof window === "undefined" || messages.length === 0 || status !== "ready") return
     const hasUserMsg = messages.some((m) => m.role === "user")
     if (!hasUserMsg) return
 
@@ -457,6 +457,11 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     }
 
     setSavedSessions((prev) => {
+      const existing = prev.find((s) => s.id === currentSessionId)
+      if (existing && existing.messageCount === messages.length && existing.title === title) {
+        return prev
+      }
+
       const filtered = prev.filter((s) => s.id !== currentSessionId)
       const updated = [sessionItem, ...filtered].slice(0, 30)
       try {
@@ -466,7 +471,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
       }
       return updated
     })
-  }, [messages, currentSessionId])
+  }, [messages, currentSessionId, status])
 
   const startNewChat = React.useCallback(() => {
     stop()
