@@ -445,7 +445,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
                 toolName={toolName}
                 onApproved={() => {
                   sendMessage({
-                    text: `Approved! Execute ${toolName} with confirmCreate=true now and finalize.`,
+                    text: `[APPROVED] Founder explicitly approved execution of ${toolName}. Execute with confirmCreate=true now and finalize immediately.`,
                   })
                 }}
               />
