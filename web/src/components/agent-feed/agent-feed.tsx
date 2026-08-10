@@ -818,7 +818,11 @@ export function AgentFeed() {
                 <AlertCircle className="w-3.5 h-3.5 text-red-400" />
               </div>
               <div className="flex flex-col min-w-0">
-                <h4 className="text-[12px] font-semibold text-red-400 mb-0.5">API Rate Limit Exceeded</h4>
+                <h4 className="text-[12px] font-semibold text-red-400 mb-0.5">
+                  {error.message?.toLowerCase().includes('rate limit') || error.message?.includes('429')
+                    ? 'API Rate Limit Exceeded'
+                    : 'Execution Notice'}
+                </h4>
                 <p className="text-[12px] text-red-200/90 leading-relaxed font-sans break-words whitespace-pre-wrap">
                   {formatCleanErrorMessage(error.message || "The agent encountered an error.")}
                 </p>

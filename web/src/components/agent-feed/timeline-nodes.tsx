@@ -30,8 +30,8 @@ export function AgentReasoningBatch({
   const [isOpen, setIsOpen] = React.useState(isExecuting)
 
   React.useEffect(() => {
-    if (isExecuting) setIsOpen(true)
-  }, [isExecuting])
+    if (isExecuting && !isOpen) setIsOpen(true)
+  }, [isExecuting, isOpen])
 
   return (
     <div className="mb-4 mt-2 ml-0">
