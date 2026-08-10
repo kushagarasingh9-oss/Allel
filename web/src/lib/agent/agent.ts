@@ -529,6 +529,211 @@ export function getAvailableToolNamesForPersona(
 }
 
 /**
+ * Dynamically filter available tool names based on keywords in the prompt.
+ * Reduces the system prompt payload from ~34k tokens down to ~8k-10k tokens,
+ * preventing Tokens-Per-Minute (TPM) rate limit errors on quota-capped deployments (e.g. Kimi 100k TPM).
+ */
+export function selectRelevantToolsForPrompt(
+  promptText: string,
+  availableToolNames: readonly AgentToolName[]
+): AgentToolName[] {
+  if (!promptText || typeof promptText !== 'string') return [...availableToolNames]
+  const low = promptText.toLowerCase()
+
+  // Always include core retention/account tools
+  const coreTools: AgentToolName[] = [
+    'getAccountDetails',
+    'getAccountMemory',
+    'getAllAccounts',
+    'getAccountTimeline',
+    'getExistingDrafts',
+  ]
+
+  const matched = new Set<AgentToolName>(coreTools.filter((t) => availableToolNames.includes(t)))
+
+  // 1. Calendar
+  if (
+    low.includes('calendar') ||
+    low.includes('meeting') ||
+    low.includes('schedule') ||
+    low.includes('event') ||
+    low.includes('cancel') ||
+    low.includes('delete') ||
+    low.includes('am') ||
+    low.includes('pm') ||
+    low.includes('tomorrow') ||
+    low.includes('today') ||
+    low.includes('free') ||
+    low.includes('busy') ||
+    low.includes('book')
+  ) {
+    const calendarTools: AgentToolName[] = [
+      'listCalendarEventsTool',
+      'getCalendarEventTool',
+      'createCalendarEventTool',
+      'updateCalendarEventTool',
+      'deleteCalendarEventTool',
+      'checkCalendarFreeBusy',
+      'listCalendarsTool',
+      'searchCalendarEventsTool',
+    ]
+    calendarTools.forEach((t) => { if (availableToolNames.includes(t)) matched.add(t) })
+  }
+
+  // 2. Email / Gmail
+  if (
+    low.includes('email') ||
+    low.includes('mail') ||
+    low.includes('gmail') ||
+    low.includes('inbox') ||
+    low.includes('reply') ||
+    low.includes('send') ||
+    low.includes('draft')
+  ) {
+    const gmailTools: AgentToolName[] = [
+      'getMyInbox',
+      'getGmailThreadsForAccount',
+      'sendGmailReply',
+      'composeNewEmail',
+      'generateFollowUpDraft',
+      'updateDraftContent',
+      'rejectDraft',
+    ]
+    gmailTools.forEach((t) => { if (availableToolNames.includes(t)) matched.add(t) })
+  }
+
+  // 3. Slack
+  if (
+    low.includes('slack') ||
+    low.includes('channel') ||
+    low.includes('team') ||
+    low.includes('message')
+  ) {
+    const slackTools: AgentToolName[] = [
+      'getSlackHistory',
+      'sendSlackMessage',
+      'searchSlack',
+      'replyInSlackThread',
+      'reactToSlackMessage',
+    ]
+    slackTools.forEach((t) => { if (availableToolNames.includes(t)) matched.add(t) })
+  }
+
+  // 4. Stripe / Billing
+  if (
+    low.includes('stripe') ||
+    low.includes('billing') ||
+    low.includes('mrr') ||
+    low.includes('revenue') ||
+    low.includes('churn') ||
+    low.includes('invoice') ||
+    low.includes('subscription')
+  ) {
+    const stripeTools: AgentToolName[] = [
+      'searchStripeCustomersTool',
+      'getStripeCustomerDetail',
+      'listStripeInvoicesTool',
+      'getUpcomingStripeInvoice',
+      'getStripeSubscriptionDetail',
+      'cancelStripeSubscriptionTool',
+      'refundStripeCharge',
+      'applyStripeCoupon',
+      'getStripeBalanceTool',
+      'listStripeDisputesTool',
+      'getStripeAccountState',
+    ]
+    stripeTools.forEach((t) => { if (availableToolNames.includes(t)) matched.add(t) })
+  }
+
+  // 5. Notion / Docs
+  if (
+    low.includes('notion') ||
+    low.includes('doc') ||
+    low.includes('knowledge') ||
+    low.includes('page') ||
+    low.includes('wiki')
+  ) {
+    const notionTools: AgentToolName[] = [
+      'searchNotionTool',
+      'getNotionPageTool',
+      'createNotionPageTool',
+      'updateNotionPageTool',
+      'queryNotionDatabaseTool',
+      'appendNotionContentTool',
+      'addNotionCommentTool',
+      'listNotionUsersTool',
+      'searchGoogleDocsTool',
+      'readGoogleDocTool',
+      'createGoogleDocTool',
+    ]
+    notionTools.forEach((t) => { if (availableToolNames.includes(t)) matched.add(t) })
+  }
+
+  // 6. PostHog / Analytics
+  if (
+    low.includes('posthog') ||
+    low.includes('analytics') ||
+    low.includes('usage') ||
+    low.includes('insight') ||
+    low.includes('event')
+  ) {
+    const posthogTools: AgentToolName[] = [
+      'searchPostHogPersons',
+      'getPostHogEvents',
+      'listPostHogInsights',
+      'listPostHogCohorts',
+      'getPostHogAccountUsage',
+    ]
+    posthogTools.forEach((t) => { if (availableToolNames.includes(t)) matched.add(t) })
+  }
+
+  // 7. Linear / Issues
+  if (
+    low.includes('linear') ||
+    low.includes('issue') ||
+    low.includes('bug') ||
+    low.includes('ticket') ||
+    low.includes('task')
+  ) {
+    const linearTools: AgentToolName[] = [
+      'searchLinearIssuesTool',
+      'getLinearIssueTool',
+      'createLinearIssueTool',
+      'updateLinearIssueTool',
+      'addLinearCommentTool',
+      'listLinearTeamsTool',
+    ]
+    linearTools.forEach((t) => { if (availableToolNames.includes(t)) matched.add(t) })
+  }
+
+  // 8. Web Research
+  if (
+    low.includes('search') ||
+    low.includes('web') ||
+    low.includes('google') ||
+    low.includes('pricing') ||
+    low.includes('competitor') ||
+    low.includes('url') ||
+    low.includes('http')
+  ) {
+    const webTools: AgentToolName[] = [
+      'webSearchTool',
+      'webExtractTool',
+      'webCrawlTool',
+      'webMapTool',
+    ]
+    webTools.forEach((t) => { if (availableToolNames.includes(t)) matched.add(t) })
+  }
+
+  // Fallback: If 5 or fewer domain tools matched, return all available tools
+  if (matched.size <= 5) {
+    return [...availableToolNames]
+  }
+
+  return [...matched]
+}
+
+/**
  * Check whether a tool name requires manual approval.
  */
 export function isApprovalRequiredTool(toolName: AgentToolName): boolean {
@@ -747,6 +952,7 @@ export function getAgentForPersona(
     allowedToolNames?: readonly AgentToolName[]
     channel?: 'chat' | 'automation'
     runType?: string
+    prompt?: string
   }
 ): ToolLoopAgent {
   // Validate and normalize to prevent cache pollution
@@ -754,20 +960,23 @@ export function getAgentForPersona(
     ? (personaId as PersonaId)
     : 'alex'
   const modelId = options?.modelId ?? resolveAgentModelId({ personaId: safeId })
+  const promptKey = options?.prompt ? `:prompt:${options.prompt.slice(0, 40).replace(/[^a-z0-9]/gi, '_')}` : ''
   const allowedToolNamesKey = options?.allowedToolNames
     ? [...new Set(options.allowedToolNames)].sort().join(',')
     : 'all'
   const channel = options?.channel ?? 'chat'
   const runType = options?.runType ?? (channel === 'chat' ? 'chat_message' : 'agent_run')
-  const cacheKey = `${safeId}:${modelId}:${channel}:${runType}:${allowedToolNamesKey}`
+  const cacheKey = `${safeId}:${modelId}:${channel}:${runType}:${allowedToolNamesKey}${promptKey}`
 
   const cached = agentCache.get(cacheKey)
   if (cached) return cached
 
   const persona = getPersona(safeId)
-  const availableToolNames = new Set(
-    getAvailableToolNamesForPersona(safeId, options?.allowedToolNames, { channel })
-  )
+  let rawToolNames = getAvailableToolNamesForPersona(safeId, options?.allowedToolNames, { channel })
+  if (options?.prompt) {
+    rawToolNames = selectRelevantToolsForPrompt(options.prompt, rawToolNames)
+  }
+  const availableToolNames = new Set(rawToolNames)
   const filteredTools = Object.fromEntries(
     Object.entries(ALL_TOOLS)
       .filter(([name]) => availableToolNames.has(name as AgentToolName))
@@ -876,6 +1085,7 @@ export async function runAgent(
       allowedToolNames: options?.allowedToolNames,
       channel: 'automation',
       runType,
+      prompt,
     }).generate({
       messages: [
         {

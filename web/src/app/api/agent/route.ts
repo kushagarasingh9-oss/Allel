@@ -232,6 +232,10 @@ Incorporate these emojis naturally into your status summaries and action recomme
     ...recentMessages.filter((m) => Array.isArray(m.parts) && m.parts.length > 0),
   ]
 
+  const latestPromptText = latestUserMessage
+    ? latestUserMessage.parts?.filter((p) => p.type === 'text').map((p) => (p as { text: string }).text).join(' ') ?? ''
+    : ''
+
   const modelId = resolveAgentModelId({
     personaId: persona.id,
     runType: 'chat_message',
@@ -241,6 +245,7 @@ Incorporate these emojis naturally into your status summaries and action recomme
     modelId,
     channel: 'chat',
     runType: 'chat_message',
+    prompt: latestPromptText,
   })
 
   const stream = createUIMessageStream<AgentChatMessage>({
