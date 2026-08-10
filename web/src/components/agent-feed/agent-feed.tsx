@@ -181,8 +181,7 @@ export function UnconnectedIntegrationBadge({
 
 /** Human-readable summary of what the tool is doing based on its input */
 function ToolThinkingSummary({ toolName, input }: { toolName: string; input: unknown }) {
-  if (!input || typeof input !== 'object') return null
-  const data = input as Record<string, unknown>
+  const data = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
 
   let summary = ''
 
@@ -203,23 +202,32 @@ function ToolThinkingSummary({ toolName, input }: { toolName: string; input: unk
   } else if (toolName === 'createCalendarEventTool') {
     const title = data.summary as string ?? ''
     const start = data.startDateTime as string ?? ''
-    try {
-      const d = new Date(start)
-      summary = `Creating "${title}" on ${d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
-    } catch { summary = `Creating "${title}"` }
+    if (title && start) {
+      try {
+        const d = new Date(start)
+        summary = `Creating "${title}" on ${d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
+      } catch { summary = `Creating "${title}"` }
+    } else {
+      summary = title ? `Creating "${title}"` : 'Creating calendar event'
+    }
   } else if (toolName === 'deleteCalendarEventTool') {
-    summary = `Removing event ${String(data.eventId ?? '').slice(0, 12)}…`
+    const eid = data.eventId ? String(data.eventId).slice(0, 12) + '…' : ''
+    summary = eid ? `Removing event ${eid}` : 'Removing calendar event'
   } else if (toolName === 'updateCalendarEventTool') {
-    summary = `Updating event ${String(data.eventId ?? '').slice(0, 12)}…`
+    summary = 'Updating calendar event'
   } else if (toolName === 'checkCalendarFreeBusy' || toolName === 'queryFreeBusyTool') {
     summary = 'Checking availability'
+  } else if (toolName === 'listCalendarsTool') {
+    summary = 'Listing available calendars'
   }
   // Gmail tools
   else if (toolName === 'getMyInbox') {
     summary = 'Scanning inbox for recent messages'
   } else if (toolName === 'sendGmailReply' || toolName === 'composeNewEmail') {
-    const to = data.to as string ?? data.recipientEmail as string ?? ''
+    const to = (data.to ?? data.recipientEmail ?? '') as string
     summary = to ? `Composing email to ${to}` : 'Composing email'
+  } else if (toolName === 'getGmailThreadsForAccount') {
+    summary = 'Pulling email threads for account'
   }
   // Slack tools
   else if (toolName === 'getSlackHistory') {
@@ -227,7 +235,12 @@ function ToolThinkingSummary({ toolName, input }: { toolName: string; input: unk
   } else if (toolName === 'sendSlackMessage') {
     summary = 'Sending Slack message'
   } else if (toolName === 'searchSlack') {
-    summary = `Searching Slack for "${data.query ?? ''}"`
+    const q = data.query as string
+    summary = q ? `Searching Slack for "${q}"` : 'Searching Slack'
+  } else if (toolName === 'replyInSlackThread') {
+    summary = 'Replying in Slack thread'
+  } else if (toolName === 'getSlackChannels') {
+    summary = 'Listing Slack channels'
   }
   // Notion tools
   else if (toolName.includes('Notion') || toolName.includes('notion')) {
@@ -242,18 +255,30 @@ function ToolThinkingSummary({ toolName, input }: { toolName: string; input: unk
   else if (toolName.includes('PostHog') || toolName.includes('posthog')) {
     summary = 'Checking PostHog analytics'
   }
+  // Intercom tools
+  else if (toolName.includes('Intercom') || toolName.includes('intercom')) {
+    summary = 'Checking Intercom conversations'
+  }
   // Web tools
   else if (toolName === 'webSearchTool') {
-    summary = `Searching: "${data.query ?? ''}"`
+    const q = data.query as string
+    summary = q ? `Searching: "${q}"` : 'Searching the web'
   } else if (toolName === 'webExtractTool') {
-    summary = `Reading ${String(data.url ?? '').slice(0, 40)}…`
+    const url = data.url as string
+    summary = url ? `Reading ${url.slice(0, 40)}…` : 'Extracting webpage'
   }
-  // Generic fallback
+  // Account tools
+  else if (toolName === 'getAccountDetails') {
+    summary = 'Pulling account details'
+  } else if (toolName === 'getAllAccounts') {
+    summary = 'Listing all accounts'
+  } else if (toolName === 'getAccountTimeline') {
+    summary = 'Checking account history'
+  }
+  // Generic — use the TOOL_LABELS display name
   else {
-    return null
+    summary = 'Processing…'
   }
-
-  if (!summary) return null
 
   return (
     <div className="text-[11px] text-neutral-500 italic py-0.5">
@@ -517,6 +542,8 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       const label = TOOL_LABELS[toolName] ?? toolName
       const icon = TOOL_ICONS[toolName] ?? <Search className="w-3.5 h-3.5 text-neutral-500" />
       const state = String(rawPart.state ?? '')
+      // AI SDK may store input as 'input', 'args', or nested — try all
+      const toolInput = rawPart.input ?? rawPart.args ?? rawPart.toolInput ?? null
 
       if (state === "input-streaming" || state === "input-available") {
         toolBatch.push(
@@ -526,7 +553,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
             icon={icon}
             isLoading={true}
           >
-            <ToolThinkingSummary toolName={toolName} input={rawPart.input} />
+            <ToolThinkingSummary toolName={toolName} input={toolInput} />
           </TimelineNode>
         )
         toolBatchCount++
@@ -539,7 +566,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
             isCompleted={true}
             isCollapsible={true}
           >
-            <ToolThinkingSummary toolName={toolName} input={rawPart.input} />
+            <ToolThinkingSummary toolName={toolName} input={toolInput} />
             <ToolResultSummary toolName={toolName} result={rawPart.output} />
           </TimelineNode>
         )
