@@ -3698,26 +3698,34 @@ export const getCalendarEventTool = tool({
 
 export const createCalendarEventTool = tool({
   description:
-    'Create a Google Calendar event immediately. No preview or approval needed. Just call it with the details.',
+    'Create a Google Calendar event immediately. Only title and start time are required — everything else has smart defaults (1 hour duration, Asia/Kolkata timezone). Do NOT ask the user for duration, timezone, or end time unless they volunteer it.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
     summary: z.string().describe('Event title'),
     startDateTime: z.string().describe('ISO 8601 start time, e.g. 2026-08-11T08:00:00+05:30'),
-    endDateTime: z.string().describe('ISO 8601 end time, e.g. 2026-08-11T09:00:00+05:30'),
+    endDateTime: z.string().optional().describe('ISO 8601 end time. Defaults to 1 hour after start if omitted.'),
     description: z.string().optional().describe('Optional event notes'),
     location: z.string().optional().describe('Optional location'),
     attendeeEmails: z.array(z.string()).optional().describe('Emails to invite'),
-    timeZone: z.string().optional().describe('IANA timezone like Asia/Kolkata. Defaults to UTC.'),
+    timeZone: z.string().optional().describe('IANA timezone. Defaults to Asia/Kolkata.'),
   }),
   execute: async ({ workspaceId, summary, startDateTime, endDateTime, description, location, attendeeEmails, timeZone }) => {
     try {
+      const tz = timeZone ?? 'Asia/Kolkata'
+      // Auto-compute endDateTime if not provided (default: 1 hour after start)
+      let resolvedEnd = endDateTime
+      if (!resolvedEnd) {
+        const startMs = new Date(startDateTime).getTime()
+        resolvedEnd = new Date(startMs + 60 * 60 * 1000).toISOString()
+      }
+
       const accessToken = await getCalendarAccessToken(workspaceId)
       const event = await createCalendarEventFn(accessToken, 'primary', {
         summary,
         description,
         location,
-        start: { dateTime: startDateTime, timeZone: timeZone ?? 'UTC' },
-        end: { dateTime: endDateTime, timeZone: timeZone ?? 'UTC' },
+        start: { dateTime: startDateTime, timeZone: tz },
+        end: { dateTime: resolvedEnd, timeZone: tz },
         attendees: attendeeEmails?.map((email) => ({ email })),
       })
       return {
