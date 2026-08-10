@@ -183,10 +183,32 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
   if (!result || typeof result !== 'object') return null
   const data = result as Record<string, unknown>
 
-  // Error state
+  // Error state — only show "Connect" badge for actual connection/auth errors
   if (data.error) {
+    const errorStr = String(data.error).toLowerCase()
+    const isConnectionError =
+      errorStr.includes('not connected') ||
+      errorStr.includes('not configured') ||
+      errorStr.includes('reconnect') ||
+      errorStr.includes('credentials are missing') ||
+      errorStr.includes('refresh token') ||
+      errorStr.includes('oauth') ||
+      errorStr.includes('authentication') ||
+      errorStr.includes('unauthorized') ||
+      errorStr.includes('integration') ||
+      data.dataSource === 'connection_guard'
+
+    if (isConnectionError) {
+      return (
+        <UnconnectedIntegrationBadge toolName={toolName} errorText={String(data.error)} />
+      )
+    }
+
+    // Generic error (Bad Request, etc.) — show as plain text, no misleading Connect button
     return (
-      <UnconnectedIntegrationBadge toolName={toolName} errorText={String(data.error)} />
+      <div className="text-[12px] text-red-400/80 font-normal py-0.5 mt-0.5">
+        {formatCleanErrorMessage(String(data.error))}
+      </div>
     )
   }
 
