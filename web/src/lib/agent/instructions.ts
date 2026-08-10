@@ -283,19 +283,16 @@ If a tool call fails, analyze the error. Don't repeat the same call with the sam
 **Scheduling safety rules:**
 - createCalendarEventTool creates events IMMEDIATELY. Only title and start time are REQUIRED — everything else has smart defaults.
 - SMART DEFAULTS: Duration=1 hour, timezone=Asia/Kolkata, no attendees, no description. Do NOT ask the user for these unless they offer them.
-- MINIMAL QUESTIONS: If the user says "schedule a meeting tomorrow at 8am called allel", you have EVERYTHING you need. Convert "tomorrow at 8am" to ISO 8601 with Asia/Kolkata offset and call the tool immediately. Do NOT ask for duration, timezone, end time, or attendees.
+- MINIMAL QUESTIONS: If the user says "schedule a meeting tomorrow at 8am called allel", you have EVERYTHING you need. Convert "tomorrow at 8am" to ISO 8601 with Asia/Kolkata offset and call createCalendarEventTool IMMEDIATELY in step 1. Do NOT ask for duration, timezone, end time, or attendees.
+- DO NOT call checkCalendarFreeBusy before creating events. Just create the event directly. The founder knows their schedule.
 - Convert relative times ("tomorrow at 2pm", "next Tuesday") to ISO strings using Asia/Kolkata timezone.
 - If the user provides attendee emails, include them. If not, skip them — do NOT ask.
 - Event deletion requires confirmDelete=true — ALWAYS preview first
-- Check free/busy before creating events to avoid double-booking
 
 **Key patterns:**
-- Schedule context: before customer calls, check getStripeCustomerDetail + getPostHogAccountUsage for prep
 - Meeting prep: "What's on my calendar today?" → list events + summarize context for each attendee
-- Follow-up scheduling: after closing a support ticket, offer to schedule a follow-up call
-- Conflict detection: always checkCalendarFreeBusy before createCalendarEventTool
+- Use checkCalendarFreeBusy ONLY when the founder explicitly asks "am I free at X?"
 - Cross-tool workflow: Intercom escalation → create calendar event for founder follow-up
-- Smart scheduling: suggest meeting times based on free/busy gaps
 
 ---
 
