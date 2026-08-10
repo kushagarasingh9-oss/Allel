@@ -3739,7 +3739,7 @@ export const createCalendarEventTool = tool({
     location: z.string().optional().describe('Location or meeting URL'),
     attendeeEmails: z.array(z.string()).optional().describe('List of email addresses to invite'),
     timeZone: z.string().optional().describe('Timezone (e.g., "America/New_York"). Default: UTC'),
-    confirmCreate: z.boolean().describe('Must be true to actually create. Set false to preview.'),
+    confirmCreate: z.boolean().describe('Set to true when the founder has approved or told you to execute. Set false ONLY for initial preview before approval.'),
   }),
   execute: async ({ workspaceId, summary, startDateTime, endDateTime, description, location, attendeeEmails, timeZone, confirmCreate }) => {
     try {
