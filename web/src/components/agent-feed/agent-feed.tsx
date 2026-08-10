@@ -179,6 +179,89 @@ export function UnconnectedIntegrationBadge({
   )
 }
 
+/** Human-readable summary of what the tool is doing based on its input */
+function ToolThinkingSummary({ toolName, input }: { toolName: string; input: unknown }) {
+  if (!input || typeof input !== 'object') return null
+  const data = input as Record<string, unknown>
+
+  let summary = ''
+
+  // Calendar tools
+  if (toolName === 'listCalendarEventsTool' || toolName === 'searchCalendarEventsTool') {
+    const q = data.query ?? data.q
+    const timeMin = data.timeMin as string | undefined
+    if (q) {
+      summary = `Searching for "${q}" events`
+    } else if (timeMin) {
+      try {
+        const d = new Date(timeMin)
+        summary = `Looking up events from ${d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}`
+      } catch { summary = 'Fetching calendar events' }
+    } else {
+      summary = 'Fetching upcoming events'
+    }
+  } else if (toolName === 'createCalendarEventTool') {
+    const title = data.summary as string ?? ''
+    const start = data.startDateTime as string ?? ''
+    try {
+      const d = new Date(start)
+      summary = `Creating "${title}" on ${d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
+    } catch { summary = `Creating "${title}"` }
+  } else if (toolName === 'deleteCalendarEventTool') {
+    summary = `Removing event ${String(data.eventId ?? '').slice(0, 12)}…`
+  } else if (toolName === 'updateCalendarEventTool') {
+    summary = `Updating event ${String(data.eventId ?? '').slice(0, 12)}…`
+  } else if (toolName === 'checkCalendarFreeBusy' || toolName === 'queryFreeBusyTool') {
+    summary = 'Checking availability'
+  }
+  // Gmail tools
+  else if (toolName === 'getMyInbox') {
+    summary = 'Scanning inbox for recent messages'
+  } else if (toolName === 'sendGmailReply' || toolName === 'composeNewEmail') {
+    const to = data.to as string ?? data.recipientEmail as string ?? ''
+    summary = to ? `Composing email to ${to}` : 'Composing email'
+  }
+  // Slack tools
+  else if (toolName === 'getSlackHistory') {
+    summary = 'Reading Slack channel history'
+  } else if (toolName === 'sendSlackMessage') {
+    summary = 'Sending Slack message'
+  } else if (toolName === 'searchSlack') {
+    summary = `Searching Slack for "${data.query ?? ''}"`
+  }
+  // Notion tools
+  else if (toolName.includes('Notion') || toolName.includes('notion')) {
+    const q = data.query as string
+    summary = q ? `Searching Notion for "${q}"` : 'Querying Notion'
+  }
+  // Stripe tools
+  else if (toolName.includes('Stripe') || toolName.includes('stripe')) {
+    summary = 'Pulling Stripe data'
+  }
+  // PostHog tools
+  else if (toolName.includes('PostHog') || toolName.includes('posthog')) {
+    summary = 'Checking PostHog analytics'
+  }
+  // Web tools
+  else if (toolName === 'webSearchTool') {
+    summary = `Searching: "${data.query ?? ''}"`
+  } else if (toolName === 'webExtractTool') {
+    summary = `Reading ${String(data.url ?? '').slice(0, 40)}…`
+  }
+  // Generic fallback
+  else {
+    return null
+  }
+
+  if (!summary) return null
+
+  return (
+    <div className="text-[11px] text-neutral-500 italic py-0.5">
+      {summary}
+    </div>
+  )
+}
+
 function ToolResultSummary({ toolName, result }: { toolName: string; result: unknown }) {
   if (!result || typeof result !== 'object') return null
   const data = result as Record<string, unknown>
@@ -436,7 +519,6 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       const state = String(rawPart.state ?? '')
 
       if (state === "input-streaming" || state === "input-available") {
-        // Tool input is being prepared or ready — show loading node
         toolBatch.push(
           <TimelineNode
             key={`tool-${i}`}
@@ -444,12 +526,11 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
             icon={icon}
             isLoading={true}
           >
-            <InlineQueryBlock query={`${toolName}(${JSON.stringify(rawPart.input ?? {}).slice(0, 80)}...)`} />
+            <ToolThinkingSummary toolName={toolName} input={rawPart.input} />
           </TimelineNode>
         )
         toolBatchCount++
       } else if (state === "output-available") {
-        // Tool finished — show completed node with result
         toolBatch.push(
           <TimelineNode
             key={`tool-${i}`}
@@ -458,6 +539,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
             isCompleted={true}
             isCollapsible={true}
           >
+            <ToolThinkingSummary toolName={toolName} input={rawPart.input} />
             <ToolResultSummary toolName={toolName} result={rawPart.output} />
           </TimelineNode>
         )
