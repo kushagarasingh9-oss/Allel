@@ -2050,50 +2050,34 @@ export const archiveAccount = tool({
 
 export const sendGmailReply = tool({
   description:
-    'Reply to an existing Gmail thread on behalf of the founder. Use this ONLY when the founder explicitly asks you to reply to a specific email. Requires the threadId and the subject from getMyInbox or getGmailThreadsForAccount. The reply is sent immediately — use the preview flag to show the founder the reply before sending.',
+    'Reply to a Gmail thread immediately. Sends the reply right away.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    threadId: z.string().describe('The Gmail thread ID to reply to (from getMyInbox or getGmailThreadsForAccount)'),
-    to: z.string().describe('The recipient email address (the person to reply to)'),
-    subject: z.string().describe('The subject line (prepend "Re: " to the original subject)'),
-    body: z.string().max(2000).describe('The reply body (plain text, max 2000 chars)'),
-    confirmSend: z.boolean().describe('Must be true to actually send. Set to false to preview only.'),
+    threadId: z.string().describe('Gmail thread ID from getMyInbox'),
+    to: z.string().describe('Recipient email'),
+    subject: z.string().describe('Subject line (prepend Re: to original)'),
+    body: z.string().max(2000).describe('Reply body, max 2000 chars'),
   }),
-  execute: async ({ workspaceId, threadId, to, subject, body, confirmSend }) => {
-    if (!confirmSend) {
-      return {
-        preview: true,
-        approvalRequired: true,
-        actionSummary: `Send Gmail Reply to ${to}: "${subject}"`,
-        to,
-        subject,
-        body,
-        threadId,
-        message: 'Reply preview generated. Interactive approval card rendered above — click Approve to send.',
-      }
-    }
-
+  execute: async ({ workspaceId, threadId, to, subject, body }) => {
     try {
       const { sendEmail } = await import('@/lib/integrations/gmail')
-
       const result = await sendEmail(workspaceId, {
         to,
         subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
         body,
         replyToThreadId: threadId,
       })
-
       return {
         success: true,
         messageId: result.messageId,
         threadId: result.threadId,
         to,
         subject,
-        bodyPreview: body.slice(0, 100) + (body.length > 100 ? '...' : ''),
-        message: `Reply sent to ${to}`,
+        message: `DONE! Reply sent to ${to}.`,
       }
     } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Failed to send Gmail reply' }
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      return { success: false, error: `FAILED to send reply: ${msg}. Tell the founder this exact error.` }
     }
   },
 })
@@ -2102,43 +2086,28 @@ export const sendGmailReply = tool({
 
 export const composeNewEmail = tool({
   description:
-    'Compose and send a brand new email (not a reply) on behalf of the founder. Use this when the founder asks to email someone directly. The email is sent from the founder\'s connected Gmail. Use preview mode first unless the founder explicitly says to send immediately.',
+    'Send a new email immediately via Gmail. Not a reply — a fresh email.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    to: z.string().describe('The recipient email address'),
-    subject: z.string().describe('The email subject line'),
-    body: z.string().max(3000).describe('The email body (plain text, max 3000 chars)'),
-    confirmSend: z.boolean().describe('Must be true to actually send. Set to false to preview only.'),
+    to: z.string().describe('Recipient email'),
+    subject: z.string().describe('Subject line'),
+    body: z.string().max(3000).describe('Email body, max 3000 chars'),
   }),
-  execute: async ({ workspaceId, to, subject, body, confirmSend }) => {
-    if (!confirmSend) {
-      return {
-        preview: true,
-        approvalRequired: true,
-        actionSummary: `Send Email to ${to}: "${subject}"`,
-        to,
-        subject,
-        body,
-        message: 'Email preview generated. Interactive approval card rendered above — click Approve to send.',
-      }
-    }
-
+  execute: async ({ workspaceId, to, subject, body }) => {
     try {
       const { sendEmail } = await import('@/lib/integrations/gmail')
-
       const result = await sendEmail(workspaceId, { to, subject, body })
-
       return {
         success: true,
         messageId: result.messageId,
         threadId: result.threadId,
         to,
         subject,
-        bodyPreview: body.slice(0, 100) + (body.length > 100 ? '...' : ''),
-        message: `Email sent to ${to}`,
+        message: `DONE! Email sent to ${to}.`,
       }
     } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Failed to send email' }
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      return { success: false, error: `FAILED to send email: ${msg}. Tell the founder this exact error.` }
     }
   },
 })
@@ -3729,16 +3698,16 @@ export const getCalendarEventTool = tool({
 
 export const createCalendarEventTool = tool({
   description:
-    'Create a new event on Google Calendar. Can include attendees, location, and description. Use when the founder asks to schedule a meeting, call, or reminder. This tool creates the event immediately — no preview step needed.',
+    'Create a Google Calendar event immediately. No preview or approval needed. Just call it with the details.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    summary: z.string().describe('Event title (e.g., "Check-in with Acme", "Team standup")'),
-    startDateTime: z.string().describe('Start time as ISO string (e.g., "2026-04-22T10:00:00Z")'),
-    endDateTime: z.string().describe('End time as ISO string (e.g., "2026-04-22T11:00:00Z")'),
-    description: z.string().optional().describe('Event description/notes'),
-    location: z.string().optional().describe('Location or meeting URL'),
-    attendeeEmails: z.array(z.string()).optional().describe('List of email addresses to invite'),
-    timeZone: z.string().optional().describe('Timezone (e.g., "America/New_York"). Default: UTC'),
+    summary: z.string().describe('Event title'),
+    startDateTime: z.string().describe('ISO 8601 start time, e.g. 2026-08-11T08:00:00+05:30'),
+    endDateTime: z.string().describe('ISO 8601 end time, e.g. 2026-08-11T09:00:00+05:30'),
+    description: z.string().optional().describe('Optional event notes'),
+    location: z.string().optional().describe('Optional location'),
+    attendeeEmails: z.array(z.string()).optional().describe('Emails to invite'),
+    timeZone: z.string().optional().describe('IANA timezone like Asia/Kolkata. Defaults to UTC.'),
   }),
   execute: async ({ workspaceId, summary, startDateTime, endDateTime, description, location, attendeeEmails, timeZone }) => {
     try {
@@ -3753,14 +3722,20 @@ export const createCalendarEventTool = tool({
       })
       return {
         success: true,
+        created: true,
         eventId: event.id,
         summary: event.summary,
         start: event.start.dateTime ?? event.start.date,
         htmlLink: event.htmlLink,
-        message: `Event "${summary}" created successfully on Google Calendar!`,
+        message: `DONE! Event "${summary}" has been created on Google Calendar.`,
       }
     } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Failed to create event' }
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      return {
+        success: false,
+        created: false,
+        error: `FAILED to create calendar event: ${msg}. Tell the founder exactly this error. Do NOT say the event is queued or pending — it FAILED.`,
+      }
     }
   },
 })
