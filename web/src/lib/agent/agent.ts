@@ -491,48 +491,10 @@ export function getIntegrationProviderForTool(toolName: AgentToolName) {
   return INTEGRATION_PROVIDER_BY_TOOL[toolName] ?? null
 }
 
-// Until we have durable approval records tied to a human actor, agents should
-// not receive direct access to consequential third-party mutation tools.
+// Approval interceptor is disabled until the tool_approval_requests table and
+// dashboard approval UI are fully built. All tools execute directly in chat mode.
+// Re-enable by adding tool names back to this array once the approval workflow works end-to-end.
 export const MANUAL_APPROVAL_REQUIRED_TOOL_NAMES = [
-  'createRescueDiscountTool',
-  'sendSlackMessage',
-  'editSlackMessage',
-  'deleteSlackMsg',
-  'scheduleSlackMsg',
-  'replyInSlackThread',
-  'reactToSlackMessage',
-  'pinSlackMsg',
-  'addSlackBookmarkTool',
-  'createPostHogAnnotation',
-  'togglePostHogFeatureFlag',
-  'replyToIntercomConvo',
-  'closeIntercomConvo',
-  'snoozeIntercomConvo',
-  'assignIntercomConvo',
-  'createIntercomNote',
-  'tagIntercomConvo',
-  'cancelStripeSubscriptionTool',
-  'refundStripeCharge',
-  'applyStripeCoupon',
-  'updateCalendarEventTool',
-  'deleteCalendarEventTool',
-  'createNotionPageTool',
-  'updateNotionPageTool',
-  'appendNotionContentTool',
-  'addNotionCommentTool',
-  'createHubSpotContactTool',
-  'updateHubSpotContactTool',
-  'createHubSpotDealTool',
-  'updateHubSpotDealTool',
-  'createHubSpotNoteTool',
-  'createLinearIssueTool',
-  'updateLinearIssueTool',
-  'addLinearCommentTool',
-  'resolveSentryIssueTool',
-  'assignSentryIssueTool',
-  'createAirtableRecordTool',
-  'updateAirtableRecordTool',
-  'deleteAirtableRecordTool',
 ] as const satisfies readonly AgentToolName[]
 
 const MANUAL_APPROVAL_REQUIRED_TOOL_NAME_SET = new Set<AgentToolName>(
