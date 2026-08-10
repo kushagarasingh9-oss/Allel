@@ -166,12 +166,16 @@ export function sanitizeClientUiMessages(
     if (!isRecord(message)) return false
     if (typeof message.id !== "string") return false
     if (!isAllowedRole(message.role)) return false
-    if (!Array.isArray(message.parts)) {
-      if (typeof message.content === 'string') {
+    if (!Array.isArray(message.parts) || message.parts.length === 0) {
+      if (typeof message.content === 'string' && message.content.trim().length > 0) {
         message.parts = [{ type: 'text', text: message.content }]
       } else {
         return false
       }
+    }
+
+    if (!Array.isArray(message.parts) || message.parts.length === 0) {
+      return false
     }
 
     const candidate = message as unknown as TrustedUIMessage

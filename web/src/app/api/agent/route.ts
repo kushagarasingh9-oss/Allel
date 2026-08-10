@@ -229,7 +229,7 @@ Incorporate these emojis naturally into your status summaries and action recomme
       role: 'system' as const,
       parts: [{ type: 'text' as const, text: emojiToneContent }],
     },
-    ...recentMessages,
+    ...recentMessages.filter((m) => Array.isArray(m.parts) && m.parts.length > 0),
   ]
 
   const modelId = resolveAgentModelId({
