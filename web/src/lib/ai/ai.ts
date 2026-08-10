@@ -15,15 +15,26 @@ const MODEL_ID = process.env.OPENAI_MODEL_ID || 'gpt-4o'
 export function getLanguageModel(modelIdOverride?: string) {
   const modelId = modelIdOverride || process.env.OPENAI_MODEL_ID || 'gpt-4o'
   const apiKey = process.env.AZURE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || ''
-  const azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT || process.env.AZURE_OPENAI_BASE_URL || process.env.AZURE_OPENAI_RESOURCE_NAME
+  const azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT || process.env.AZURE_OPENAI_BASE_URL
 
-  if (azureEndpoint || process.env.AZURE_OPENAI_API_KEY || (apiKey && apiKey.startsWith('1ss'))) {
-    const azure = createAzure({
-      apiKey: apiKey,
-      baseURL: azureEndpoint && azureEndpoint.startsWith('http') ? azureEndpoint : undefined,
-      resourceName: process.env.AZURE_OPENAI_RESOURCE_NAME || (azureEndpoint && !azureEndpoint.startsWith('http') ? azureEndpoint : undefined),
+  if (azureEndpoint) {
+    let baseURL = azureEndpoint.replace(/\/responses\/?$/, '').replace(/\/+$/, '')
+    if (!baseURL.endsWith('/v1')) {
+      baseURL = baseURL.replace(/\/openai\/?$/, '') + '/openai/v1'
+    }
+    const azureOpenAI = createOpenAI({
+      apiKey,
+      baseURL,
     })
-    return azure(modelId)
+    return azureOpenAI(modelId)
+  }
+
+  if (apiKey && apiKey.startsWith('1ss')) {
+    const githubModels = createOpenAI({
+      apiKey,
+      baseURL: 'https://models.inference.ai.azure.com',
+    })
+    return githubModels(modelId)
   }
 
   return openai(modelId)
