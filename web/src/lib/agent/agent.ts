@@ -179,12 +179,13 @@ import {
   webMapTool,
 } from '@/lib/integrations/web-research'
 
-const DEFAULT_AGENT_MODEL_ID = process.env.OPENAI_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-4o'
+const DEFAULT_AGENT_MODEL_ID = process.env.OPENAI_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.5'
 const DEFAULT_AGENT_CHAT_MODEL_ID =
-  process.env.OPENAI_MODEL_ID ?? process.env.AGENT_CHAT_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-4o'
+  process.env.OPENAI_MODEL_ID ?? process.env.AGENT_CHAT_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.5'
 const DEFAULT_AGENT_AUTOMATION_MODEL_ID =
-  process.env.OPENAI_MODEL_ID ?? process.env.AGENT_AUTOMATION_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-4o'
+  process.env.OPENAI_MODEL_ID ?? process.env.AGENT_AUTOMATION_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.5'
 const MODEL_PRICING_CENTS_PER_MILLION = [
+  { prefixes: ['gpt-5.6'], input: 600, output: 3500 },
   { prefixes: ['gpt-5.5'], input: 500, output: 3000 },
   { prefixes: ['gpt-5.4-mini'], input: 75, output: 450 },
   { prefixes: ['gpt-5.4'], input: 250, output: 1500 },
@@ -756,8 +757,7 @@ export function resolveAgentModelId(_options?: {
   runType?: string
   channel?: 'chat' | 'automation'
 }) {
-  // Enforce gpt-4o-mini: 16.6x cheaper ($0.15/1M vs $2.50/1M) and 200,000 TPM capacity (never rate-limited)
-  return 'gpt-4o-mini'
+  return process.env.OPENAI_MODEL_ID || 'gpt-5.5'
 }
 
 function buildAgentStepMetadata(result: Awaited<ReturnType<ToolLoopAgent['generate']>>) {
