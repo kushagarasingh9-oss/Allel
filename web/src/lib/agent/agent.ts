@@ -540,13 +540,14 @@ export function selectRelevantToolsForPrompt(
   if (!promptText || typeof promptText !== 'string') return [...availableToolNames]
   const low = promptText.toLowerCase()
 
-  // Always include core retention/account tools
+  // Always include core retention/account tools + cross-integration chaining
   const coreTools: AgentToolName[] = [
     'getAccountDetails',
     'getAccountMemory',
     'getAllAccounts',
     'getAccountTimeline',
     'getExistingDrafts',
+    'resolveAccountByContact',
   ]
 
   const matched = new Set<AgentToolName>(coreTools.filter((t) => availableToolNames.includes(t)))

@@ -144,8 +144,10 @@ export async function POST(request: Request) {
     incomingMessages: uiMessages,
   })
   const latestUserMessage = [...mergedMessages].reverse().find((m) => m.role === 'user') ?? null
-  // Keep active chat history focused to the last 6 messages to stay lightweight and save tokens
-  const recentMessages = mergedMessages.slice(-6)
+  // Keep enough conversation history for the agent to resolve referents from
+  // prior turns (thread IDs, event IDs, sender addresses). With prompt-level
+  // tool filtering the total payload stays under ~15K tokens. (Bug 1.2 fix)
+  const recentMessages = mergedMessages.slice(-20)
 
   // ── Security & Tool Integration Context ──
   const workspaceSystemContent = `Workspace context: workspace_id=${workspaceId}. Persona: ${persona.name} (${persona.role}).
@@ -218,6 +220,11 @@ DYNAMIC VIBE, NATURAL CONVERSATION & INTENT CORE:
   const emojiToneContent = `Saved Emoji Palette: 🥳 🥰 😊 🙂 🤩 😎 🙁 😩 🫡 👾 👍🏻 ✌🏻 🦁 💥 💫 ⚡️ 💸 📧 📈 📉 ❤️ 🩷 ♾️ 👌🏻 🧑‍💻 👩🏻‍💻 🤷🏻‍♂️ 🔨 💰 📤 📩 ❕ ❔ 🕑 🌱 🌙 🌞
 Incorporate these emojis naturally into your status summaries and action recommendations.`
 
+  // ── Inject persisted conversation memory (Bug 1.3 fix) ──
+  // The memory summary contains compacted earlier turns, user goals, and
+  // mentioned account IDs so the agent can resolve referents from prior sessions.
+  const memoryPrompt = buildConversationMemorySystemPrompt(persistedMemory)
+
   const enrichedMessages = [
     {
       id: `system-workspace-${workspaceId}`,
@@ -229,12 +236,24 @@ Incorporate these emojis naturally into your status summaries and action recomme
       role: 'system' as const,
       parts: [{ type: 'text' as const, text: emojiToneContent }],
     },
+    // Include persisted conversation memory as a system message
+    ...(memoryPrompt
+      ? [{
+          id: `system-conversation-memory-${persona.id}`,
+          role: 'system' as const,
+          parts: [{ type: 'text' as const, text: memoryPrompt }],
+        }]
+      : []),
     ...recentMessages.filter((m) => Array.isArray(m.parts) && m.parts.length > 0),
   ]
 
-  const latestPromptText = latestUserMessage
-    ? latestUserMessage.parts?.filter((p) => p.type === 'text').map((p) => (p as { text: string }).text).join(' ') ?? ''
-    : ''
+  // Build conversation context from ALL user messages in the window,
+  // not just the latest one. This ensures follow-ups like "yeah reply"
+  // retain Gmail tools from earlier turns. (Bug 1.6 fix)
+  const conversationText = recentMessages
+    .filter((m) => m.role === 'user')
+    .flatMap((m) => (m.parts ?? []).filter((p) => p.type === 'text').map((p) => (p as { text: string }).text))
+    .join(' ')
 
   const modelId = resolveAgentModelId({
     personaId: persona.id,
@@ -245,7 +264,7 @@ Incorporate these emojis naturally into your status summaries and action recomme
     modelId,
     channel: 'chat',
     runType: 'chat_message',
-    prompt: latestPromptText,
+    prompt: conversationText,
   })
 
   const stream = createUIMessageStream<AgentChatMessage>({
