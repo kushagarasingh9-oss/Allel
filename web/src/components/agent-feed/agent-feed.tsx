@@ -417,7 +417,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       rendered.push(<AgentSpeechBlock key={`text-${i}`} text={part.text} />)
     }
 
-    if (part.type === "reasoning") {
+    if (part.type === "reasoning" && typeof part.text === 'string' && part.text.trim()) {
       toolBatch.push(
         <MonologueBlock key={`reasoning-${i}`} text={part.text} />
       )
@@ -450,7 +450,6 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
         toolBatchCount++
       } else if (state === "output-available") {
         // Tool finished — show completed node with result
-        const isApproval = rawPart.output && typeof rawPart.output === 'object' && Boolean((rawPart.output as Record<string, unknown>).approvalRequired)
         toolBatch.push(
           <TimelineNode
             key={`tool-${i}`}
@@ -459,21 +458,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
             isCompleted={true}
             isCollapsible={true}
           >
-            <InlineQueryBlock query={`${toolName}()`} />
-            {isApproval ? (
-              <AgentApprovalBlock 
-                title={`Requires Founder Approval: ${toolName}`} 
-                description="This action requires founder review before executing."
-                toolName={toolName}
-                onApproved={() => {
-                  sendMessage({
-                    text: `[APPROVED] Founder explicitly approved execution of ${toolName}. Execute with confirmCreate=true now and finalize immediately.`,
-                  })
-                }}
-              />
-            ) : (
-              <ToolResultSummary toolName={toolName} result={rawPart.output} />
-            )}
+            <ToolResultSummary toolName={toolName} result={rawPart.output} />
           </TimelineNode>
         )
         toolBatchCount++
