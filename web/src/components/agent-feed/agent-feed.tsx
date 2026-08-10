@@ -333,6 +333,7 @@ function extractToolName(part: Record<string, unknown>): string {
 // ─── Single Message Renderer ─────────────────────────────────────────
 
 function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatarUrl: string | null }) {
+  const { sendMessage } = useChatContext()
   if (message.role === "user") {
     // User prompt bubble (right-aligned like the mock)
     const textContent = message.parts
@@ -440,7 +441,13 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
             {isApproval ? (
               <AgentApprovalBlock 
                 title={`Requires Founder Approval: ${toolName}`} 
-                description="This action requires founder review before executing." 
+                description="This action requires founder review before executing."
+                toolName={toolName}
+                onApproved={() => {
+                  sendMessage({
+                    text: `Approved! Execute ${toolName} with confirmCreate=true now and finalize.`,
+                  })
+                }}
               />
             ) : (
               <ToolResultSummary toolName={toolName} result={rawPart.output} />
@@ -711,7 +718,7 @@ const DEMO_SEED_MESSAGES: UIMessage[] = [
 ]
 
 export function AgentFeed() {
-  const { messages, isLoading, status, hydrationStatus, error } = useChatContext()
+  const { messages, sendMessage, isLoading, status, hydrationStatus, error } = useChatContext()
   const feedRef = React.useRef<HTMLDivElement>(null)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
 
