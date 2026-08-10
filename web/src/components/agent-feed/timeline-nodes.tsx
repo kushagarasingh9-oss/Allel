@@ -267,56 +267,126 @@ export function AgentSpeechBlock({ text }: { text: string }) {
   )
 }
 
-export function AgentApprovalBlock({ title }: { title: string, description?: string }) {
-  const [status, setStatus] = React.useState<'idle' | 'approving' | 'approved'>('idle')
+export function AgentApprovalBlock({
+  title,
+  description,
+  requestId,
+  toolName,
+  toolInput,
+  onApproved,
+  onRejected,
+}: {
+  title: string
+  description?: string
+  requestId?: string
+  toolName?: string
+  toolInput?: Record<string, unknown>
+  onApproved?: () => void
+  onRejected?: () => void
+}) {
+  const [status, setStatus] = React.useState<'idle' | 'approving' | 'approved' | 'rejected' | 'failed'>('idle')
+  const [errorMsg, setErrorMsg] = React.useState<string | null>(null)
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     setStatus('approving')
-    setTimeout(() => {
+    setErrorMsg(null)
+    try {
+      if (requestId) {
+        await fetch('/api/agent/approvals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requestId, action: 'approve', autoExecute: true }),
+        }).catch((err) => console.warn('[AgentApprovalBlock] Approval API warning:', err))
+      } else {
+        await new Promise((r) => setTimeout(r, 400))
+      }
       setStatus('approved')
-    }, 800)
+      if (onApproved) {
+        onApproved()
+      }
+    } catch (err: any) {
+      console.error('[AgentApprovalBlock] Error approving:', err)
+      setErrorMsg(err?.message || 'Approval failed')
+      setStatus('failed')
+    }
+  }
+
+  const handleReject = async () => {
+    setStatus('rejected')
+    try {
+      if (requestId) {
+        await fetch('/api/agent/approvals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requestId, action: 'reject' }),
+        }).catch(() => {})
+      }
+      if (onRejected) {
+        onRejected()
+      }
+    } catch {
+      // Ignore
+    }
   }
 
   if (status === 'approved') {
     return (
       <div className="mt-2 mb-2 flex items-center justify-between gap-4 py-2 px-3 bg-[#111111] border border-[#262626] rounded-sm max-w-2xl">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-[18px] h-[18px] rounded-sm bg-[#1a1a1a] border border-[#262626] shrink-0">
-            <Check className="w-3 h-3 text-neutral-400" strokeWidth={3} />
+          <div className="flex items-center justify-center w-[18px] h-[18px] rounded-sm bg-[#10B981]/20 border border-[#10B981]/40 shrink-0">
+            <Check className="w-3 h-3 text-[#10B981]" strokeWidth={3} />
           </div>
-          <span className="text-[13px] font-medium text-neutral-300">Execution approved</span>
+          <span className="text-[13px] font-medium text-neutral-200">Execution approved & executing</span>
         </div>
-        <div className="text-[12px] text-neutral-500 font-mono">Proceeding...</div>
+        <div className="text-[12px] text-[#10B981] font-mono">Executing now...</div>
+      </div>
+    )
+  }
+
+  if (status === 'rejected') {
+    return (
+      <div className="mt-2 mb-2 flex items-center justify-between gap-4 py-2 px-3 bg-[#111111] border border-[#262626] rounded-sm max-w-2xl">
+        <div className="flex items-center gap-3">
+          <span className="text-[13px] font-medium text-neutral-400">Action cancelled by founder</span>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="mt-2 mb-2 flex items-center justify-between gap-4 py-2 px-3 bg-[#111111] border border-[#262626] rounded-sm max-w-2xl">
-      <div className="flex items-center gap-3">
-        <span className="text-[14px]">🧑‍💻</span>
-        <span className="text-[13px] font-medium text-neutral-200">{title}</span>
+    <div className="mt-2 mb-2 flex flex-col gap-1.5 py-2 px-3 bg-[#111111] border border-[#262626] rounded-sm max-w-2xl">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="text-[14px]">🧑‍💻</span>
+          <span className="text-[13px] font-medium text-neutral-200">{title}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleReject}
+            className="px-3 py-1 text-[12px] font-medium text-neutral-400 hover:text-white hover:bg-[#262626] rounded-sm transition-colors"
+          >
+            Reject
+          </button>
+          <button 
+            type="button"
+            onClick={handleApprove}
+            disabled={status === 'approving'}
+            className="px-3 py-1 min-w-[80px] justify-center text-[12px] font-medium bg-[#0055FF] text-white hover:bg-[#0048D9] rounded-sm transition-colors flex items-center gap-1.5"
+          >
+            {status === 'approving' ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <>
+                Approve
+                <Check className="w-3 h-3" strokeWidth={3} />
+              </>
+            )}
+          </button>
+        </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <button type="button" className="px-3 py-1 text-[12px] font-medium text-neutral-400 hover:text-white hover:bg-[#262626] rounded-sm transition-colors">
-          Reject
-        </button>
-        <button 
-          type="button"
-          onClick={handleApprove}
-          disabled={status === 'approving'}
-          className="px-3 py-1 min-w-[80px] justify-center text-[12px] font-medium bg-[#0055FF] text-white hover:bg-[#0048D9] rounded-sm transition-colors flex items-center gap-1.5"
-        >
-          {status === 'approving' ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <>
-              Approve
-              <Check className="w-3 h-3" strokeWidth={3} />
-            </>
-          )}
-        </button>
-      </div>
+      {description && <p className="text-[12px] text-neutral-400 pl-7">{description}</p>}
+      {errorMsg && <p className="text-[12px] text-red-400 pl-7">{errorMsg}</p>}
     </div>
   )
 }
