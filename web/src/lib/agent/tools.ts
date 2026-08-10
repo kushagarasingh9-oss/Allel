@@ -2063,11 +2063,13 @@ export const sendGmailReply = tool({
     if (!confirmSend) {
       return {
         preview: true,
+        approvalRequired: true,
+        actionSummary: `Send Gmail Reply to ${to}: "${subject}"`,
         to,
         subject,
         body,
         threadId,
-        message: 'Preview mode — founder must confirm. Set confirmSend=true to send.',
+        message: 'Reply preview generated. Interactive approval card rendered above — click Approve to send.',
       }
     }
 
@@ -2112,10 +2114,12 @@ export const composeNewEmail = tool({
     if (!confirmSend) {
       return {
         preview: true,
+        approvalRequired: true,
+        actionSummary: `Send Email to ${to}: "${subject}"`,
         to,
         subject,
         body,
-        message: 'Preview mode — founder must confirm. Set confirmSend=true to send.',
+        message: 'Email preview generated. Interactive approval card rendered above — click Approve to send.',
       }
     }
 
@@ -3742,11 +3746,13 @@ export const createCalendarEventTool = tool({
       if (!confirmCreate) {
         return {
           preview: true,
+          approvalRequired: true,
+          actionSummary: `Create Calendar Event: "${summary}" (${startDateTime} to ${endDateTime})`,
           summary,
           start: startDateTime,
           end: endDateTime,
           attendees: attendeeEmails ?? [],
-          message: `Would create event "${summary}" from ${startDateTime} to ${endDateTime}. Set confirmCreate=true to proceed.`,
+          message: `Event preview generated for "${summary}". Interactive approval card rendered above — click Approve to finalize creation.`,
         }
       }
 
