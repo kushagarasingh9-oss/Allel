@@ -43,6 +43,7 @@ import {
 } from '@/lib/agent/ui-message-utils'
 import { ensureWorkspaceForUser } from '@/lib/workspaces/ensure-workspace'
 import { checkRateLimit, rateLimitResponse } from '@/lib/security/rate-limiter'
+import { classifyAndSanitizeServerError } from '@/lib/agent/error-classifier'
 
 type AgentChatMessage = UIMessage<TrustedMessageMetadata>
 
@@ -220,9 +221,14 @@ DYNAMIC VIBE, NATURAL CONVERSATION & INTENT CORE:
   const emojiToneContent = `Saved Emoji Palette: 🥳 🥰 😊 🙂 🤩 😎 🙁 😩 🫡 👾 👍🏻 ✌🏻 🦁 💥 💫 ⚡️ 💸 📧 📈 📉 ❤️ 🩷 ♾️ 👌🏻 🧑‍💻 👩🏻‍💻 🤷🏻‍♂️ 🔨 💰 📤 📩 ❕ ❔ 🕑 🌱 🌙 🌞
 Incorporate these emojis naturally into your status summaries and action recommendations.`
 
-  // ── Inject persisted conversation memory (Bug 1.3 fix) ──
-  // The memory summary contains compacted earlier turns, user goals, and
-  // mentioned account IDs so the agent can resolve referents from prior sessions.
+  // ── Inject turn context anchor and conversation memory ──
+  const latestUserText = latestUserMessage ? getMessageTextContent(latestUserMessage) : null
+  const turnContextPrompt = buildTurnContextSystemPrompt({
+    channel: 'chat',
+    runType: 'chat_message',
+    nowIso: new Date().toISOString(),
+    latestUserText,
+  })
   const memoryPrompt = buildConversationMemorySystemPrompt(persistedMemory)
 
   const enrichedMessages = [
@@ -235,6 +241,11 @@ Incorporate these emojis naturally into your status summaries and action recomme
       id: `system-emoji-palette-${persona.id}`,
       role: 'system' as const,
       parts: [{ type: 'text' as const, text: emojiToneContent }],
+    },
+    {
+      id: `system-turn-context-${persona.id}`,
+      role: 'system' as const,
+      parts: [{ type: 'text' as const, text: turnContextPrompt }],
     },
     // Include persisted conversation memory as a system message
     ...(memoryPrompt
@@ -253,7 +264,7 @@ Incorporate these emojis naturally into your status summaries and action recomme
   const conversationText = recentMessages
     .filter((m) => m.role === 'user')
     .flatMap((m) => (m.parts ?? []).filter((p) => p.type === 'text').map((p) => (p as { text: string }).text))
-    .join(' ')
+    .join('\n')
 
   const modelId = resolveAgentModelId({
     personaId: persona.id,
@@ -265,6 +276,7 @@ Incorporate these emojis naturally into your status summaries and action recomme
     channel: 'chat',
     runType: 'chat_message',
     prompt: conversationText,
+    historyMessages: enrichedMessages,
   })
 
   const stream = createUIMessageStream<AgentChatMessage>({
@@ -302,6 +314,16 @@ Incorporate these emojis naturally into your status summaries and action recomme
                 ...(responseMessage as AgentChatMessage),
                 metadata,
               }
+              const outputText = getMessageTextContent(assistantMessage)
+              const totalToolCalls = stepTrace.flatMap((step) => step.toolNames).length
+              const announcedActionRegex = /\b(let me check|checking your|let's see|fetching|reading your|pulling your|looking at your)\b/i
+              const announcedActionMismatch = totalToolCalls === 0 && announcedActionRegex.test(outputText)
+
+              if (announcedActionMismatch) {
+                console.warn(
+                  `[agent-route] Mismatch detected: text announced action but 0 tool calls were executed: "${outputText.slice(0, 120)}"`
+                )
+              }
 
               await Promise.allSettled([
                 saveConversationHistory({
@@ -318,7 +340,7 @@ Incorporate these emojis naturally into your status summaries and action recomme
                   inputSummary: latestUserMessage
                     ? getMessageTextContent(latestUserMessage).slice(0, 500)
                     : null,
-                  outputSummary: getMessageTextContent(assistantMessage).slice(0, 1000),
+                  outputSummary: outputText.slice(0, 1000),
                   modelUsed: modelId,
                   metadata: {
                     personaId: persona.id,
@@ -326,6 +348,7 @@ Incorporate these emojis naturally into your status summaries and action recomme
                     messageCount: mergedMessages.length + 1,
                     stepCount: stepTrace.length,
                     toolsUsed: [...new Set(stepTrace.flatMap((step) => step.toolNames))],
+                    announcedActionMismatch,
                     steps: stepTrace,
                   },
                 }),
@@ -343,9 +366,13 @@ Incorporate these emojis naturally into your status summaries and action recomme
         console.error('[agent-route] Agent stream creation failed', streamError)
         writer.write({
           type: 'error',
-          errorText: streamError instanceof Error ? streamError.message : 'Agent failed to generate a response',
+          errorText: classifyAndSanitizeServerError(streamError),
         })
       }
+    },
+    onError: (error) => {
+      console.error('[agent-route] Agent stream failed mid-stream:', error)
+      return classifyAndSanitizeServerError(error)
     },
   })
 
