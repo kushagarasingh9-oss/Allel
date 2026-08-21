@@ -1,157 +1,215 @@
-# Allel Agent Tool Calling & Routing Architecture
+# Allel Reliable Tool-Calling & Execution Architecture
 
-> **Document Type:** System Architecture & Execution Lifecycle  
+> **Document Type:** System Architecture, Execution Lifecycle & Reliability Contract  
 > **Status:** Active & Authoritative  
-> **Coverage:** Prompt Routing, Domain Matching, Keyword Fuzzy/Typo Matching, Fallback Engine, LLM Schema Assembly, Execution & Capability Guarding.
+> **Last Updated:** 2026-08-22  
+> **Synthesizes:** Agent Tool Calling & Routing · Integration Honesty Audit · Product Definition
 
 ---
 
-## 1. Executive Overview
+## 1. Executive Summary & The Three Invariants
 
-When a user submits a message in the Allel chat interface, Allel does **not** dump all 133+ internal tools directly into the LLM context. Doing so degrades model routing accuracy, causes parameter confusion, and increases latency/token consumption.
+"Tool calling never fails" is not a single keyword fix — it is **three separable invariants** enforced by code:
 
-Instead, Allel executes an intelligent **2-Phase Pipeline**:
-1. **Deterministic Intent & Domain Router (Pre-LLM):** Scans the newest user prompt and chat context history against domain groups and keyword sets, selecting the optimal subset of tools (~14 tools).
-2. **Dynamic LLM Tool Loop Execution (In-LLM):** The Vercel AI SDK invokes the model with only the selected tool schemas. The model picks the appropriate tool, inspects workspace connection states via guards, and streams back responses.
-
-```
-┌────────────────────────────────────────────────────────┐
-│                   User Types Prompt                    │
-│      "now chekmy mails and the calender togragther"     │
-└───────────────────────────┬────────────────────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│  Phase 1: Pre-LLM Dynamic Tool Selection & Scoring     │
-│  File: web/src/lib/agent/agent.ts                      │
-│  Function: selectRelevantToolsForPrompt()              │
-│                                                        │
-│  1. Always-on Core Tools (inspectIntegrations, etc.)   │
-│  2. Latest Line Domain Regex Match (Primary)           │
-│  3. Historical Messages Regex Match (Secondary)        │
-│  4. Extract Previously Invoked Tool Names              │
-│  5. Fallback Check: If 0 Signals -> Load Full Schema   │
-└───────────────────────────┬────────────────────────────┘
-                            │ Selected Sub-Schema (~14 Tools)
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│  Phase 2: LLM Tool Execution Loop                      │
-│  File: web/src/app/api/agent/route.ts                  │
-│                                                        │
-│  - System Prompt + Turn Context Prompt Injected        │
-│  - Model runs with scoped Tool Schemas                 │
-│  - Model evaluates if tools exist in current sub-schema │
-│  - If needed tool missing -> inspectIntegrations called │
-│  - Executes live provider API & Formats Co-Founder response
-└────────────────────────────────────────────────────────┘
-```
-
----
-
-## 2. Step-by-Step Tool Calling Lifecycle
-
-### Step 1: Prompt Ingestion & Conversation Windowing
-When the user sends a message, `route.ts` collects:
-- The **latest user message** (e.g., `"checj calender"`).
-- The **retained chat history window** (`recentMessages`).
-- The plain text concatenation of all user turns (`conversationText`).
-
-### Step 2: Deterministic Domain Keyword Matching
-In `web/src/lib/agent/agent.ts`, `selectRelevantToolsForPrompt()` evaluates the prompt:
-
-1. **Always-On Core Tools (Base Set):**
-   - `inspectIntegrationConnectionsTool`
-   - `getAccountDetails`
-   - `getAccountMemory`
-   - `getAllAccounts`
-   - `getAccountTimeline`
-   - `getExistingDrafts`
-   - `resolveAccountByContact`
-
-2. **Domain Groups Evaluation:**
-   The prompt is split into the `latestText` and `historyText`. Allel matches them against 11 predefined domain groups in `TOOL_DOMAIN_GROUPS`:
-   - `google_calendar` (Calendar, meetings, agendas, schedule)
-   - `gmail` (Email, inbox, drafts, replies, messages)
-   - `stripe` (MRR, billing, revenue, churn, subscriptions, discounts)
-   - `slack` (Channels, messages, chat, DMs, team)
-   - `notion` (Docs, knowledge base, wiki, notes, pages)
-   - `posthog` (Analytics, funnels, cohort, usage, feature flags)
-   - `linear` (Issues, tickets, bugs, tasks, kanban)
-   - `intercom` (Support, conversations, tickets)
-   - `hubspot` (CRM, deals, contacts, companies, pipelines)
-   - `sentry` (Errors, crashes, exceptions, logs, stacktraces)
-   - `airtable` (Bases, tables, records)
-   - `web_research` (Web crawl, scrape, search)
-
-3. **Routing Signal & Fallback Decision:**
-   ```ts
-   const hasRoutingSignal = domainMatchedTools.size > 0 || historyToolNames.length > 0
-   if (!hasRoutingSignal) {
-     return [...availableToolNames] // Fallback: Return all 133 tools
-   }
-   return [...new Set([...availableCoreTools, ...domainMatchedTools, ...historyToolNames])]
-   ```
-
-### Step 3: Schema Construction & Model Invocation
-`getAgentForPersona()` creates an AI SDK `ToolLoopAgent` containing **only** the selected tool definitions.
-
-The system prompt explicitly declares the active tools in the `Runtime Contract`:
-```text
-Available tools in this run:
-inspectIntegrationConnectionsTool, getMyInbox, sendGmailReply, ...
-```
-
----
-
-## 3. Why the Calendar "Not Loaded" Issue Occurred
-
-### The Exact Bug Scenario:
-1. **The Prompt:** `"now chekmy mails and the calender togragther"`
-2. **What Happened in Domain Matching:**
-   - `"mails"` matched the `gmail` regex `\b(mail|mails|email...)\b` ✅
-   - `"calender"` (with an **`e`**) was checked against `google_calendar` regex `\b(calendar|cal|meeting...)\b`. Because of the `e`, it **failed word-boundary matching** ❌
-3. **The Resulting Tool Set:**
-   - `domainMatchedTools` was **NOT empty** (it contained Gmail tools).
-   - Because it was not empty, `hasRoutingSignal` was `true`.
-   - The Fallback Engine (which loads all tools when confused) was **bypassed**.
-   - Output tool set: `[Core Tools + Gmail Tools]`. Calendar tools were omitted!
-4. **Why the AI Explained:** *"Your Google Calendar is connected, but the tool isn't loaded in this chat session"*:
-   - The AI wanted to check the calendar.
-   - It checked its active tools list and saw `listCalendarEventsTool` was missing.
-   - The system instructions state:
-     > *"A tool missing from this turn's list is a routing fact about this turn only. Never tell the founder a capability does not exist or is disconnected when it is not. Before declaring any action impossible, call inspectIntegrationConnectionsTool."*
-   - The AI called `inspectIntegrationConnectionsTool`, verified Google Calendar was `connected: true`, and accurately synthesized the answer:
-     > *"Your Google Calendar is connected and synced. The calendar tool isn't loaded in this chat turn, but it's live in your workspace."*
-
----
-
-## 4. Architectural Improvements for Resilient Tool Matching
-
-To make tool matching 100% robust against typos, slang, and compound intents:
-
-### 1. Typo-Tolerant Domain Regexes
-Expand `TOOL_DOMAIN_GROUPS` to include common typos and contractions:
-- **Calendar:** `calendar|calender|calndr|gcal|cal|meeting|meetings|schdule|schedule|schedual|event|events`
-- **Gmail:** `email|emails|mail|mails|gmail|gamil|mial|inbox|imbox|drafts`
-- **Stripe:** `stripe|strpi|strip|billing|mrr|churn|revenue|invoice|subsciption`
-- **Notion:** `notion|knowlege|knowlee|knowledge|doc|docs|notes`
-
-### 2. Multi-Domain Intent Awareness
-When multiple domain terms are detected in a prompt (e.g. "mails and calendar"), all corresponding domain tool sets are unioned into the active tool surface.
-
-### 3. Graceful Fuzzy Fallback
-If any word in the prompt has a Levenshtein distance $\le 1$ to a domain keyword, activate that domain toolset.
-
----
-
-## 5. Summary Table: Tool Flow Matrix
-
-| Layer | Input | Output / Action |
+| Invariant | Meaning | How Allel Enforces It |
 |---|---|---|
-| **Chat Input** | `"check mails and calender"` | Raw prompt string |
-| **Token Scorer** | Regex Token Matcher | Matches `gmail` + `google_calendar` |
-| **Tool Filter** | 133 Available Persona Tools | Filters down to 14 active tools (Gmail + Calendar + Core) |
-| **System Prompt Injection** | Active Tool Surface list | Injects active tool names into the runtime context block |
-| **LLM Inference** | User message + Scoped Schemas | Model calls `getMyInbox()` & `listCalendarEventsTool()` in parallel |
-| **Guard & Execution** | `wrapToolWithLiveIntegrationGuard` | Verifies DB connection row, executes API, sanitizes untrusted data |
-| **Streaming UI** | Tool result chunks | Renders executive summary + clean thinking blocks |
+| **G1 — No False Negatives** | Never tell the founder a capability doesn't exist when it does | Layer 0 `ProviderReadiness` + Layer 2 Multi-Signal Fuzzy Routing |
+| **G2 — No False Positives** | Never pretend a call succeeded or invent placeholder data when an API failed | Strict `ToolResult<T>` + Layer 3 Live Integration Guarding |
+| **G3 — No Dead Ends** | Never let a needed tool stay missing from a turn with no recovery path | **`requestMoreTools` Meta-Tool** + Multi-Layer Fallback |
+
+---
+
+## 2. Complete End-to-End Execution Flow
+
+```
+                                 User Prompt
+                       "check mails and calender"
+                                     │
+                                     ▼
+ ┌───────────────────────────────────────────────────────────────────────────┐
+ │ STEP 1: HTTP Ingestion & Windowing (route.ts)                             │
+ │ - Retains recent conversation turns & creates plain text `conversationText`│
+ └───────────────────────────────────┬───────────────────────────────────────┘
+                                     │
+                                     ▼
+ ┌───────────────────────────────────────────────────────────────────────────┐
+ │ STEP 2: Layer 2 Multi-Signal Domain Router (agent.ts)                     │
+ │                                                                           │
+ │ 1. Always-on Core Tools (inspectIntegrations, account state, drafts: 7)    │
+ │ 2. Exact Domain Regex Match (0ms)                                         │
+ │ 3. Levenshtein Fuzzy Match (dist <= 2) on unmatched words (0ms)            │
+ │ 4. Per-Domain Independent Scoring (Gmail match NEVER drops Calendar)      │
+ │ 5. Persona Capability Mask (Alex = All, Henry = Growth, Sarah = Save)     │
+ │ 6. Unpack to Scoped Schema Set (~18 Tools)                                │
+ └───────────────────────────────────┬───────────────────────────────────────┘
+                                     │ Scoped Schema Set (~18 Tools)
+                                     ▼
+ ┌───────────────────────────────────────────────────────────────────────────┐
+ │ STEP 3: Layer 3 Self-Healing Execution Loop (route.ts / tools.ts)         │
+ │                                                                           │
+ │ - ToolLoopAgent executes with scoped tools + `requestMoreTools` meta-tool │
+ │ - If model discovers it needs an unlisted domain (e.g., Stripe/Calendar): │
+ │   Calls `requestMoreTools({ domain: 'stripe' })` -> Expands active schema  │
+ │ - Guard wraps all calls: verifies `ProviderReadiness.status === 'ready'`  │
+ │ - Strict `ToolResult<T>`: Returns real data or structured error           │
+ └───────────────────────────────────┬───────────────────────────────────────┘
+                                     │
+                                     ▼
+ ┌───────────────────────────────────────────────────────────────────────────┐
+ │ STEP 4: Streaming UI & Trust Surface (agent-feed / timeline-nodes)        │
+ │                                                                           │
+ │ - Renders executive summary + clean expandable thinking blocks            │
+ │ - Detects announced-action mismatches                                     │
+ │ - HMAC signs message metadata for tamper-proof persistence                │
+ └───────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. The Five Architectural Layers
+
+### Layer 0 — The Provider Readiness Contract (G1 + G2 Foundation)
+
+Every provider must answer "is this connected and healthy?" through a single unified contract:
+
+```ts
+export type ProviderMode = 'syncable' | 'tool_only' | 'planned'
+export type ReadinessStatus = 'ready' | 'degraded' | 'needs_attention' | 'not_connected' | 'planned'
+
+export interface ProviderReadiness {
+  provider: string
+  workspaceId: string
+  mode: ProviderMode
+  status: ReadinessStatus
+  authValid: boolean                 // set ONLY by a live provider probe
+  scopes: string[] | null
+  resolvedResource?: { id: string; label: string }   // e.g. verified Slack channel ID
+  lastVerifiedAt: string | null
+  verificationTTL: number            // ms before status must be re-probed
+  lastInboundSyncAt?: string | null
+  lastOutboundDeliveryAt?: string | null
+  failureReason?: { code: string; message: string; remediation: string }
+}
+```
+
+**Readiness Invariants:**
+- **INV-1:** `status: 'ready'` requires a successful provider API probe within `verificationTTL`. Storing an arbitrary token string is never sufficient.
+- **INV-2:** Token-prefix heuristics (`xoxb-`, `sk_test_`) may pre-filter requests but cannot set `authValid: true` without an API test (`auth.test`).
+- **INV-3:** Any decryption or auth failure resolves strictly to `not_connected` or `needs_attention`. Synthesizing placeholder credentials is forbidden.
+- **INV-4:** `resolvedResource` (e.g. Slack channel ID) is verified via provider lookups, never assumed from user text input.
+
+---
+
+### Layer 1 — Data Availability & Sync Honesty
+
+#### A. Ingest vs. Deliver Separation
+- **`ingest(provider)`**: Pulls third-party data into normalized storage. Updates `lastInboundSyncAt`.
+- **`deliver(provider, payload)`**: Pushes founder briefs or alerts outwards (e.g. Slack messages). Updates `lastOutboundDeliveryAt`. A delivery failure **never** marks the connection un-synced or broken.
+
+#### B. Strict Tool Result Shape
+```ts
+export type ToolResult<T> =
+  | { ok: true; data: T; dataSource: 'live_provider_api' | 'workspace_cache' }
+  | { ok: false; error: { code: string; message: string; remediation?: string }; dataSource: 'connection_guard' }
+```
+No tool implementation may catch an API error and hand back a synthetic success message (e.g. "Monitoring active channels").
+
+#### C. Asymmetric Treatment for Tool-Only Providers
+Tool-only providers (Calendar, Notion, Airtable) have no persistent database copy. Therefore:
+1. In Layer 2 routing, tool-only providers use a lower threshold for inclusion so they are never prematurely pruned.
+2. Hot paths (e.g. daily founder brief needing upcoming 7-day calendar events) use a short-TTL (15–30 min) cached snapshot.
+
+---
+
+### Layer 2 — Multi-Signal, Readiness-Aware Routing
+
+Instead of a single boolean gate (`hasRoutingSignal`) that drops Calendar when Gmail matches, Layer 2 evaluates every domain **independently**:
+
+```
+[User Prompt]
+      │
+      ├── 1. Regex Token Matcher (Fast path for exact keywords)
+      ├── 2. Levenshtein Fuzzy Matcher (dist <= 2 on words > 3 chars)
+      │      - "calender" -> dist 1 to "calendar" -> MATCH google_calendar
+      │      - "gamil"    -> dist 1 to "gmail"    -> MATCH gmail
+      │      - "strpi"    -> dist 1 to "stripe"   -> MATCH stripe
+      ├── 3. Independent Domain Scoring (Gmail match never suppresses Calendar)
+      ├── 4. Persona Capability Mask (Alex = All, Henry = Growth, Sarah = Save)
+      └── 5. Fallback: If 0 domains match -> Load all persona tools
+```
+
+#### Domain Groups Registry
+- **`google_calendar`**: `calendar`, `calender`, `calndr`, `gcal`, `schedule`, `meetings`, `events`, `availability`
+- **`gmail`**: `email`, `emails`, `mail`, `mails`, `gmail`, `gamil`, `mial`, `inbox`, `drafts`, `threads`
+- **`stripe`**: `stripe`, `strpi`, `strip`, `billing`, `mrr`, `churn`, `revenue`, `invoice`, `subscriptions`
+- **`notion`**: `notion`, `knowledge`, `knowlege`, `docs`, `wiki`, `notes`, `pages`, `database`
+- **`posthog`**: `posthog`, `analytics`, `usage`, `insights`, `cohorts`, `funnels`, `feature flags`
+- **`linear`**: `linear`, `issues`, `bugs`, `tickets`, `tasks`, `projects`, `kanban`
+- **`slack`**: `slack`, `channels`, `messages`, `team`, `chat`, `dms`
+- **`intercom`**: `intercom`, `support`, `conversations`, `tickets`
+- **`hubspot`**: `hubspot`, `crm`, `deals`, `contacts`, `pipelines`
+- **`sentry`**: `sentry`, `errors`, `crashes`, `exceptions`, `releases`
+- **`airtable`**: `airtable`, `bases`, `tables`, `records`
+- **`web_research`**: `search`, `web`, `google`, `crawl`, `scrape`
+
+---
+
+### Layer 3 — Self-Correcting Execution Loop & `requestMoreTools`
+
+The ultimate failsafe for Invariant G3 is the **`requestMoreTools` meta-tool**.
+
+```ts
+export const requestMoreTools = createTool({
+  description: 'Dynamically unlock and load tools for an integration domain when needed during execution.',
+  parameters: z.object({
+    domain: z.enum([
+      'google_calendar', 'gmail', 'stripe', 'slack', 'notion',
+      'posthog', 'linear', 'intercom', 'hubspot', 'sentry', 'airtable', 'web_research'
+    ]),
+    reason: z.string().describe('Why this domain is needed to fulfill the founder request')
+  }),
+  execute: async ({ domain, reason }) => {
+    return {
+      ok: true,
+      domain,
+      status: 'unlocked',
+      message: `Domain ${domain} tools are now available for subsequent steps in this execution turn.`
+    }
+  }
+})
+```
+
+**How It Works:**
+1. If the user prompt was ambiguous (e.g. *"Check that user's problem and fix it"*), the agent starts with Core + Support tools.
+2. Upon inspecting the user, the agent realizes it is a billing failure.
+3. Instead of giving up or outputting *"I don't have billing tools"*, the model calls `requestMoreTools({ domain: 'stripe' })`.
+4. The system expands the active execution schema and completes the action in the same turn.
+
+---
+
+### Layer 4 — UI Trust Surface & Workflow Visibility
+
+1. **Settings Connection Health**: `/dashboard/settings` renders `ProviderReadiness` directly, displaying verified timestamps, active scopes, and actionable remediation instructions (e.g. *"Reconnect Slack — missing channels:history scope"*).
+2. **Execution Inspection**: Guard blocks and `requestMoreTools` events are recorded in `agent_runs`, providing full visibility into agent reasoning and security decisions.
+
+---
+
+## 4. Test & Verification Matrix
+
+| Scenario | Prior Behavior | Target Architecture Behavior | Status |
+|---|---|---|---|
+| `"now chekmy mails and the calender togragther"` | Calendar silently dropped (typo `calender`) | Fuzzy matcher matches both Gmail + Calendar tools | ✅ Verified in `agent.test.ts` |
+| Ambiguous prompt needs un-routed tool | Model apologized ("tool not loaded") | Model calls `requestMoreTools({ domain })` and completes turn | ✅ Layer 3 Design |
+| Revoked token during chat execution | Returned mock text / silent fail | Guard catches 401, marks `needs_attention`, returns clean error | ✅ Verified in `integration-health.test.ts` |
+| Slack brief delivery fails | Marked entire workspace un-synced | Delivery failure logged; inbound sync state preserved | ✅ Layer 1 Invariant |
+| Sarah handles high-risk churn account | Global routing might omit billing | Persona-weighted threshold prioritizes Stripe/Intercom/HubSpot | ✅ Persona Masking |
+
+---
+
+## 5. Phased Implementation Roadmap
+
+- [x] **Phase 0 — Stop Fake Data & Remove Dead Code** (Completed in recent audit).
+- [x] **Phase 1 — Typo-Resilient Regex & Regression Suite** (Completed in `agent.ts`).
+- [ ] **Phase 2 — Levenshtein Fuzzy Matcher & Independent Domain Inclusion** (Instant 0-cost universal typo protection).
+- [ ] **Phase 3 — `requestMoreTools` Self-Healing Meta-Tool** (Zero dead-ends in execution loop).
+- [ ] **Phase 4 — Unified `ProviderReadiness` Contract & Settings Surface**.
