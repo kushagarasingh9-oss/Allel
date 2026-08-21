@@ -8,7 +8,8 @@
  * Uses Vercel AI SDK v6 ToolLoopAgent with OpenAI GPT-4o mini.
  */
 
-import { ToolLoopAgent, stepCountIs } from 'ai'
+import { ToolLoopAgent, stepCountIs, tool } from 'ai'
+import { z } from 'zod'
 import { openai } from '@ai-sdk/openai'
 import { AGENT_INSTRUCTIONS } from './instructions'
 import {
@@ -570,28 +571,37 @@ export function extractToolNamesFromHistory(messages?: unknown): AgentToolName[]
   return [...toolNames]
 }
 
-/**
- * Domain keyword groups: the single source of truth for "which provider is this
- * text about".
- *
- * Two consumers depend on this being one list. `selectRelevantToolsForPrompt`
- * uses it to scope the turn's tool surface, and `resolveDomainProvidersFromText`
- * uses it to work out which provider an assistant reply *claimed* it was about,
- * so an announced action can be checked against the tools actually called.
- * Duplicating these keywords would let the two drift apart silently.
- *
- * Declared at module scope so the regexes are compiled once rather than on every
- * turn. `provider` is the integration this domain maps to, or null for domains
- * with no `integration_connections` row (web research).
- */
-const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
+export const TOOL_DOMAINS = [
+  'google_calendar',
+  'gmail',
+  'stripe',
+  'slack',
+  'notion',
+  'posthog',
+  'linear',
+  'intercom',
+  'hubspot',
+  'sentry',
+  'airtable',
+  'web_research',
+] as const
+
+export type ToolDomain = (typeof TOOL_DOMAINS)[number]
+
+export type ToolDomainGroup = {
+  domain: ToolDomain
   provider: string | null
   regex: RegExp
-  tools: AgentToolName[]
-}> = [
+  fuzzyKeywords: readonly string[]
+  tools: readonly AgentToolName[]
+}
+
+export const TOOL_DOMAIN_GROUPS: ReadonlyArray<ToolDomainGroup> = [
   {
+    domain: 'google_calendar',
     provider: 'google_calendar',
     regex: /\b(calendar|calender|calndr|gcal|cal|meeting|meetings|schedule|schedules|schdule|schedual|event|events|cancel|delete|freebusy|free|busy|book|appointment|appointments|am|pm|tomorrow|today|agenda|slot|slots|availability|invite|invites|meet)\b/i,
+    fuzzyKeywords: ['calendar', 'meeting', 'meetings', 'schedule', 'schedules', 'appointment', 'appointments', 'agenda', 'availability'],
     tools: [
       'listCalendarEventsTool',
       'getCalendarEventTool',
@@ -604,8 +614,10 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    domain: 'gmail',
     provider: 'gmail',
     regex: /\b(email|emails|mail|mails|gmail|gamil|mial|inbox|imbox|reply|send|draft|drafts|thread|threads|outbox)\b/i,
+    fuzzyKeywords: ['email', 'emails', 'mail', 'mails', 'gmail', 'inbox', 'draft', 'thread', 'outbox'],
     tools: [
       'getMyInbox',
       'getGmailThreadsForAccount',
@@ -618,8 +630,10 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    domain: 'slack',
     provider: 'slack',
     regex: /\b(slack|channel|channels|team|teams|message|messages|chat|chats|dm|dms|slackbot|discussion|discussions)\b/i,
+    fuzzyKeywords: ['slack', 'channel', 'channels', 'message', 'messages', 'slackbot', 'discussion'],
     tools: [
       'getSlackHistory',
       'sendSlackMessage',
@@ -634,8 +648,10 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    domain: 'stripe',
     provider: 'stripe',
     regex: /\b(stripe|strpi|strip|billing|mrr|revenue|churn|invoice|invoices|subscription|subscriptions|charge|charges|refund|refunds|coupon|coupons|dispute|disputes|discount|discounts|payment|payments|plan|plans|price|pricing|customer|customers|financial)\b/i,
+    fuzzyKeywords: ['stripe', 'billing', 'revenue', 'churn', 'invoice', 'invoices', 'subscription', 'subscriptions', 'payment', 'payments'],
     tools: [
       'searchStripeCustomersTool',
       'getStripeCustomerDetail',
@@ -652,8 +668,10 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    domain: 'notion',
     provider: 'notion',
     regex: /\b(notion|doc|docs|knowledge|knowlege|knowlee|page|pages|wiki|wikis|database|databases|note|notes|file|files|document|documents|spec|specs|readme)\b/i,
+    fuzzyKeywords: ['notion', 'knowledge', 'database', 'databases', 'document', 'documents', 'readme'],
     tools: [
       'searchNotionTool',
       'getNotionPageTool',
@@ -666,8 +684,10 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    domain: 'posthog',
     provider: 'posthog',
     regex: /\b(posthog|analytics|usage|insight|insights|cohort|cohorts|flag|flags|person|persons|funnel|funnels)\b/i,
+    fuzzyKeywords: ['posthog', 'analytics', 'insight', 'insights', 'cohort', 'cohorts', 'funnel', 'funnels'],
     tools: [
       'searchPostHogPersons',
       'getPostHogEvents',
@@ -681,8 +701,10 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    domain: 'linear',
     provider: 'linear',
     regex: /\b(linear|issue|issues|bug|bugs|ticket|tickets|project|projects|workspace|task|tasks|todo|todos|backlog|kanban|board)\b/i,
+    fuzzyKeywords: ['linear', 'issue', 'issues', 'ticket', 'tickets', 'project', 'projects', 'backlog', 'kanban'],
     tools: [
       'searchLinearIssuesTool',
       'getLinearIssueTool',
@@ -697,8 +719,10 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    domain: 'intercom',
     provider: 'intercom',
     regex: /\b(intercom|conversation|conversations|convo|convos|support|contact|contacts)\b/i,
+    fuzzyKeywords: ['intercom', 'conversation', 'conversations', 'support', 'contact', 'contacts'],
     tools: [
       'listIntercomConvos',
       'getIntercomConvo',
@@ -713,8 +737,10 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    domain: 'hubspot',
     provider: 'hubspot',
     regex: /\b(hubspot|crm|deal|deals|pipeline|pipelines|company|companies|owner|owners)\b/i,
+    fuzzyKeywords: ['hubspot', 'pipeline', 'pipelines', 'company', 'companies'],
     tools: [
       'searchHubSpotContactsTool',
       'getHubSpotContactTool',
@@ -731,8 +757,10 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    domain: 'sentry',
     provider: 'sentry',
     regex: /\b(sentry|error|errors|crash|crashes|exception|exceptions|release|releases|stacktrace|log|logs|failure|failures)\b/i,
+    fuzzyKeywords: ['sentry', 'error', 'errors', 'crash', 'crashes', 'exception', 'exceptions', 'stacktrace', 'failure'],
     tools: [
       'listSentryIssuesTool',
       'getSentryIssueTool',
@@ -745,8 +773,10 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    domain: 'airtable',
     provider: 'airtable',
     regex: /\b(airtable|base|bases|table|tables|record|records)\b/i,
+    fuzzyKeywords: ['airtable', 'table', 'tables', 'record', 'records'],
     tools: [
       'listAirtableBasesTool',
       'listAirtableTablesTool',
@@ -758,48 +788,192 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
     ],
   },
   {
-    // Web research runs on an environment API key, not a connection row.
+    domain: 'web_research',
     provider: null,
     regex: /\b(search|web|google|pricing|competitor|url|http|https|crawl|scrape)\b/i,
+    fuzzyKeywords: ['search', 'google', 'pricing', 'competitor', 'crawl', 'scrape'],
     tools: ['webSearchTool', 'webExtractTool', 'webCrawlTool', 'webMapTool'],
   },
 ]
 
-/**
- * Providers that a piece of text is about, newest-first order preserved.
- *
- * Used to check an assistant reply's claim ("let me check your inbox") against
- * the providers whose tools it actually called.
- */
+export function tokenizeForDomainRouting(text: string): string[] {
+  if (!text) return []
+  return text.toLowerCase().match(/[a-z0-9]+/g) || []
+}
+
+export function levenshteinDistanceWithin(
+  left: string,
+  right: string,
+  limit: number
+): boolean {
+  if (left === right) return true
+  const lLen = left.length
+  const rLen = right.length
+  if (Math.abs(lLen - rLen) > limit) return false
+
+  let prev = new Array(rLen + 1)
+  let curr = new Array(rLen + 1)
+
+  for (let j = 0; j <= rLen; j++) {
+    prev[j] = j
+  }
+
+  for (let i = 1; i <= lLen; i++) {
+    curr[0] = i
+    let rowMin = curr[0]
+    const leftChar = left.charCodeAt(i - 1)
+
+    for (let j = 1; j <= rLen; j++) {
+      const cost = leftChar === right.charCodeAt(j - 1) ? 0 : 1
+      const val = Math.min(
+        prev[j] + 1,
+        curr[j - 1] + 1,
+        prev[j - 1] + cost
+      )
+      curr[j] = val
+      if (val < rowMin) rowMin = val
+    }
+
+    if (rowMin > limit) return false
+
+    const temp = prev
+    prev = curr
+    curr = temp
+  }
+
+  return prev[rLen] <= limit
+}
+
+export function textMatchesDomain(
+  text: string,
+  group: ToolDomainGroup
+): boolean {
+  if (!text) return false
+  if (group.regex.test(text)) return true
+
+  const tokens = tokenizeForDomainRouting(text)
+  for (const token of tokens) {
+    if (token.length <= 3) continue
+    const limit = token.length <= 5 ? 1 : 2
+
+    for (const keyword of group.fuzzyKeywords) {
+      if (keyword.length <= 3) continue
+      if (levenshteinDistanceWithin(token, keyword, limit)) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+export function getEligibleToolsForDomains(
+  eligibleToolNames: readonly AgentToolName[],
+  domains: readonly ToolDomain[]
+): AgentToolName[] {
+  const domainSet = new Set(domains)
+  const eligibleSet = new Set(eligibleToolNames)
+  const matchedTools: AgentToolName[] = []
+
+  for (const group of TOOL_DOMAIN_GROUPS) {
+    if (domainSet.has(group.domain)) {
+      for (const toolName of group.tools) {
+        if (eligibleSet.has(toolName) && !matchedTools.includes(toolName)) {
+          matchedTools.push(toolName)
+        }
+      }
+    }
+  }
+
+  return matchedTools
+}
+
+export function resolveRequestedToolDomains(
+  steps: readonly unknown[]
+): ToolDomain[] {
+  if (!Array.isArray(steps)) return []
+
+  const requestedDomains: ToolDomain[] = []
+  const domainSet = new Set<string>(TOOL_DOMAINS)
+
+  for (const step of steps) {
+    if (!step || typeof step !== 'object') continue
+    const toolCalls = (step as { toolCalls?: unknown[] }).toolCalls
+    if (!Array.isArray(toolCalls)) continue
+
+    for (const call of toolCalls) {
+      if (!call || typeof call !== 'object') continue
+      const { toolName, args, input } = call as {
+        toolName?: string
+        args?: { domain?: string }
+        input?: { domain?: string }
+      }
+
+      if (toolName === 'requestMoreTools') {
+        const rawDomain = args?.domain ?? input?.domain
+        if (typeof rawDomain === 'string' && domainSet.has(rawDomain)) {
+          const domain = rawDomain as ToolDomain
+          if (!requestedDomains.includes(domain)) {
+            requestedDomains.push(domain)
+          }
+        }
+      }
+    }
+  }
+
+  return requestedDomains
+}
+
+export function resolveActiveToolNamesForStep(
+  initialToolNames: readonly AgentToolName[],
+  eligibleToolNames: readonly AgentToolName[],
+  requestedDomains: readonly ToolDomain[]
+): AgentToolName[] {
+  const eligibleSet = new Set(eligibleToolNames)
+  const initialEligible = initialToolNames.filter((t) => eligibleSet.has(t))
+  const expanded = getEligibleToolsForDomains(eligibleToolNames, requestedDomains)
+
+  const activeSet = new Set<AgentToolName>([
+    ...initialEligible,
+    ...expanded,
+  ])
+
+  return [...activeSet]
+}
+
+export function createRequestMoreToolsTool(eligibleToolNames: readonly AgentToolName[]) {
+  return tool({
+    description:
+      'Request an integration domain needed to finish this task. The orchestration loop activates permitted tools from that domain on the next reasoning step. Continue the task after this result.',
+    inputSchema: z.object({
+      domain: z.enum(TOOL_DOMAINS),
+      reason: z.string().min(1).max(240),
+    }),
+    execute: async ({ domain }) => {
+      const activatedTools = getEligibleToolsForDomains(eligibleToolNames, [domain])
+
+      return activatedTools.length > 0
+        ? { ok: true, status: 'expansion_requested', domain, activatedTools }
+        : {
+            ok: false,
+            status: 'outside_policy',
+            domain,
+            activatedTools: [],
+            message: 'This persona or workflow is not permitted to use that domain.',
+          }
+    },
+  })
+}
+
 export function resolveDomainProvidersFromText(text: string): string[] {
   if (!text) return []
 
   return TOOL_DOMAIN_GROUPS.filter(
-    (group): group is (typeof TOOL_DOMAIN_GROUPS)[number] & { provider: string } =>
-      group.provider !== null && group.regex.test(text)
+    (group): group is ToolDomainGroup & { provider: string } =>
+      group.provider !== null && textMatchesDomain(text, group)
   ).map((group) => group.provider)
 }
 
-/**
- * Narrow the tool surface to what this turn plausibly needs.
- *
- * Applies to chat and automation alike. A model choosing between ~14 relevant
- * tools routes far more accurately than one handed the entire registry, and the
- * system prompt also carries every exposed tool name verbatim, so an unfiltered
- * surface costs tokens on every single turn.
- *
- * Three sources feed the selection:
- *  - the newest user line (primary — this is what the founder just asked for)
- *  - earlier lines in the retained window (secondary — keeps a cross-provider
- *    thread alive so "reply to him and move the meeting" still works)
- *  - tools actually invoked earlier in the conversation, via
- *    `extractToolNamesFromHistory` — this is what lets a bare "do it" or
- *    "delete it" resolve against the thread or event a previous turn surfaced
- *
- * Only when none of the three yields a signal does this fall back to the full
- * set. That case means the request has no detectable domain and no history to
- * anchor to (a greeting, a typo), where being generous is harmless.
- */
 export function selectRelevantToolsForPrompt(
   promptText: string,
   availableToolNames: readonly AgentToolName[],
@@ -819,9 +993,6 @@ export function selectRelevantToolsForPrompt(
   ]
   const availableCoreTools = coreTools.filter((t) => availableToolNames.includes(t))
 
-  const domainGroups = TOOL_DOMAIN_GROUPS
-
-  // Split promptText into messages/lines to weight newest message higher
   const lines = promptText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   const latestText = lines.length > 0 ? lines[lines.length - 1] : promptText
   const historyText = lines.length > 1 ? lines.slice(0, -1).join(' ') : ''
@@ -829,12 +1000,12 @@ export function selectRelevantToolsForPrompt(
   const primaryMatchedTools = new Set<AgentToolName>()
   const secondaryMatchedTools = new Set<AgentToolName>()
 
-  for (const group of domainGroups) {
-    if (group.regex.test(latestText)) {
+  for (const group of TOOL_DOMAIN_GROUPS) {
+    if (textMatchesDomain(latestText, group)) {
       group.tools.forEach((t) => {
         if (availableToolNames.includes(t)) primaryMatchedTools.add(t)
       })
-    } else if (historyText && group.regex.test(historyText)) {
+    } else if (historyText && textMatchesDomain(historyText, group)) {
       group.tools.forEach((t) => {
         if (availableToolNames.includes(t)) secondaryMatchedTools.add(t)
       })
@@ -850,14 +1021,12 @@ export function selectRelevantToolsForPrompt(
     availableToolNames.includes(t)
   )
 
-  // Fallback only when the turn carries no signal at all: no domain keyword in
-  // the newest line, none in the retained window, and no tool used earlier in
-  // the conversation. Counting core tools here is what previously made this
-  // branch unreachable — they are always present, so they can never indicate
-  // whether the request was understood.
   const hasRoutingSignal = domainMatchedTools.size > 0 || historyToolNames.length > 0
   if (!hasRoutingSignal) {
-    return [...availableToolNames]
+    if (options?.channel === 'automation') {
+      return [...availableToolNames]
+    }
+    return [...availableCoreTools]
   }
 
   return [...new Set([...availableCoreTools, ...domainMatchedTools, ...historyToolNames])]
@@ -1139,15 +1308,41 @@ export function resolveAgentFallbackModelId(primaryModelId?: string): string | n
 }
 
 function buildAgentStepMetadata(result: Awaited<ReturnType<ToolLoopAgent['generate']>>) {
-  return {
-    stepCount: result.steps.length,
-    toolsUsed: [...new Set(result.steps.flatMap((step) => step.toolCalls.map((call) => call.toolName)))],
-    steps: result.steps.map((step) => ({
+  const steps = result.steps.map((step) => {
+    const toolExpansionRequests: Array<{ domain: string; reason: string }> = []
+    if (step.toolCalls && Array.isArray(step.toolCalls)) {
+      for (const call of step.toolCalls) {
+        if (call.toolName === 'requestMoreTools') {
+          const callRecord = call as Record<string, unknown>
+          const args = (callRecord.args ?? callRecord.input) as
+            | { domain?: string; reason?: string }
+            | undefined
+          const rawDomain = args?.domain
+          const rawReason = args?.reason
+          if (typeof rawDomain === 'string') {
+            toolExpansionRequests.push({
+              domain: rawDomain,
+              reason: typeof rawReason === 'string' ? rawReason.slice(0, 240) : '',
+            })
+          }
+        }
+      }
+    }
+
+    return {
       stepNumber: step.stepNumber,
       finishReason: step.finishReason,
-      toolNames: step.toolCalls.map((call) => call.toolName),
-      textPreview: step.text.slice(0, 240),
-    })),
+      toolNames: step.toolCalls ? step.toolCalls.map((call) => call.toolName) : [],
+      textPreview: step.text ? step.text.slice(0, 240) : '',
+      ...(toolExpansionRequests.length > 0 ? { toolExpansionRequests } : {}),
+    }
+  })
+
+  return {
+    stepCount: result.steps.length,
+    toolsUsed: [...new Set(result.steps.flatMap((step) => (step.toolCalls ? step.toolCalls.map((call) => call.toolName) : [])))],
+    toolExpansionRequests: steps.flatMap((s) => s.toolExpansionRequests ?? []),
+    steps,
   }
 }
 
@@ -1177,23 +1372,24 @@ export function getAgentForPersona(
   const runType = options?.runType ?? (channel === 'chat' ? 'chat_message' : 'agent_run')
 
   const persona = getPersona(safeId)
-  let rawToolNames = getAvailableToolNamesForPersona(safeId, options?.allowedToolNames, { channel })
-  if (options?.prompt) {
-    rawToolNames = selectRelevantToolsForPrompt(options.prompt, rawToolNames, options?.historyMessages, { channel })
-  }
+  const eligibleToolNames = getAvailableToolNamesForPersona(safeId, options?.allowedToolNames, { channel })
+  const initialToolNames = options?.prompt
+    ? selectRelevantToolsForPrompt(options.prompt, eligibleToolNames, options?.historyMessages, { channel })
+    : [...eligibleToolNames]
 
   const allowedToolNamesKey = options?.allowedToolNames
     ? [...new Set(options.allowedToolNames)].sort().join(',')
     : 'all'
-  const selectedToolNamesKey = [...new Set(rawToolNames)].sort().join(',')
+  const selectedToolNamesKey = [...new Set(initialToolNames)].sort().join(',')
   const cacheKey = `${safeId}:${modelId}:${channel}:${runType}:${allowedToolNamesKey}:tools:${selectedToolNamesKey}`
 
   const cached = agentCache.get(cacheKey)
   if (cached) return cached
-  const availableToolNames = new Set(rawToolNames)
-  const filteredTools = Object.fromEntries(
+
+  const eligibleToolSet = new Set(eligibleToolNames)
+  const runtimeTools: Record<string, unknown> = Object.fromEntries(
     Object.entries(ALL_TOOLS)
-      .filter(([name]) => availableToolNames.has(name as AgentToolName))
+      .filter(([name]) => eligibleToolSet.has(name as AgentToolName))
       .map(([name, toolDef]) => {
         // Wrap approval-required tools in chat mode
         const approvalProtectedTool =
@@ -1211,25 +1407,38 @@ export function getAgentForPersona(
       })
   )
 
-  const runtimeInstructions = buildRuntimeInstructionBlock({
-    personaId: persona.id,
-    personaName: persona.name,
-    channel,
-    runType,
-    availableToolNames: Object.keys(filteredTools),
-  })
+  const isChat = channel === 'chat'
+  if (isChat) {
+    runtimeTools.requestMoreTools = createRequestMoreToolsTool(eligibleToolNames)
+  }
 
-  // Append persona-specific and runtime instructions to the base instructions.
-  // The runtime block is last so it can correct older tool examples safely.
-  const instructions = persona.systemInstructionSuffix
-    ? `${AGENT_INSTRUCTIONS}\n\n${persona.systemInstructionSuffix}\n\n${runtimeInstructions}`
-    : `${AGENT_INSTRUCTIONS}\n\n${runtimeInstructions}`
+  const initialActiveTools: string[] = isChat
+    ? [...new Set([...initialToolNames, 'requestMoreTools'])]
+    : [...initialToolNames]
+
+  const buildInstructionsForActiveTools = (activeNames: readonly string[]) => {
+    const runtimeInstructions = buildRuntimeInstructionBlock({
+      personaId: persona.id,
+      personaName: persona.name,
+      channel,
+      runType,
+      availableToolNames: activeNames,
+      canRequestMoreTools: isChat,
+    })
+
+    return persona.systemInstructionSuffix
+      ? `${AGENT_INSTRUCTIONS}\n\n${persona.systemInstructionSuffix}\n\n${runtimeInstructions}`
+      : `${AGENT_INSTRUCTIONS}\n\n${runtimeInstructions}`
+  }
+
+  const initialInstructions = buildInstructionsForActiveTools(initialActiveTools)
 
   const agent = new ToolLoopAgent({
     id: `agent-${persona.id}`,
     model: getLanguageModel(modelId) as any,
-    instructions,
-    tools: filteredTools,
+    instructions: initialInstructions,
+    tools: runtimeTools as any,
+    activeTools: initialActiveTools as any,
     maxOutputTokens: 4096,
     temperature: 0.3,
     // Transient upstream failures (5xx, timeout, reset) are common enough on
@@ -1238,6 +1447,25 @@ export function getAgentForPersona(
     // (auth, context limit, content filter) are not retried by the provider.
     maxRetries: 3,
     stopWhen: stepCountIs(25),
+    prepareStep: async ({ steps }) => {
+      if (!isChat) return undefined
+
+      const requestedDomains = resolveRequestedToolDomains(steps)
+      if (requestedDomains.length === 0) return undefined
+
+      const stepActiveNames = resolveActiveToolNamesForStep(
+        initialToolNames,
+        eligibleToolNames,
+        requestedDomains
+      )
+      const fullActiveTools = [...new Set([...stepActiveNames, 'requestMoreTools'])]
+      const updatedInstructions = buildInstructionsForActiveTools(fullActiveTools)
+
+      return {
+        activeTools: fullActiveTools as any,
+        system: updatedInstructions,
+      }
+    },
     onStepFinish: async ({ toolCalls }) => {
       if (toolCalls && toolCalls.length > 0) {
         const toolNames = toolCalls.map((tc) => tc.toolName).join(', ')

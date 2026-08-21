@@ -154,52 +154,81 @@ Instead of a single boolean gate (`hasRoutingSignal`) that drops Calendar when G
 
 ---
 
-### Layer 3 — Self-Correcting Execution Loop & `requestMoreTools`
+### Layer 3 — Self-Correcting Execution Loop & In-Loop `prepareStep` Expansion
 
-The ultimate failsafe for Invariant G3 is the **`requestMoreTools` meta-tool**.
+The ultimate failsafe for Invariant G3 is the **`requestMoreTools` meta-tool + AI SDK `prepareStep` orchestration**:
 
 ```ts
-export const requestMoreTools = createTool({
-  description: 'Dynamically unlock and load tools for an integration domain when needed during execution.',
-  parameters: z.object({
-    domain: z.enum([
-      'google_calendar', 'gmail', 'stripe', 'slack', 'notion',
-      'posthog', 'linear', 'intercom', 'hubspot', 'sentry', 'airtable', 'web_research'
-    ]),
-    reason: z.string().describe('Why this domain is needed to fulfill the founder request')
-  }),
-  execute: async ({ domain, reason }) => {
-    return {
-      ok: true,
-      domain,
-      status: 'unlocked',
-      message: `Domain ${domain} tools are now available for subsequent steps in this execution turn.`
-    }
+// 1. Meta-tool records domain request within persona/workflow authorization ceiling
+export function createRequestMoreToolsTool(eligibleToolNames: readonly AgentToolName[]) {
+  return tool({
+    description:
+      'Request an integration domain needed to finish this task. The orchestration loop activates permitted tools from that domain on the next reasoning step. Continue the task after this result.',
+    inputSchema: z.object({
+      domain: z.enum(TOOL_DOMAINS),
+      reason: z.string().min(1).max(240),
+    }),
+    execute: async ({ domain }) => {
+      const activatedTools = getEligibleToolsForDomains(eligibleToolNames, [domain])
+
+      return activatedTools.length > 0
+        ? { ok: true, status: 'expansion_requested', domain, activatedTools }
+        : {
+            ok: false,
+            status: 'outside_policy',
+            domain,
+            activatedTools: [],
+            message: 'This persona or workflow is not permitted to use that domain.',
+          }
+    },
+  })
+}
+
+// 2. Pure step expansion in ToolLoopAgent without cross-request state leakage
+prepareStep: async ({ steps }) => {
+  if (!isChat) return undefined
+
+  const requestedDomains = resolveRequestedToolDomains(steps)
+  if (requestedDomains.length === 0) return undefined
+
+  const stepActiveNames = resolveActiveToolNamesForStep(
+    initialToolNames,
+    eligibleToolNames,
+    requestedDomains
+  )
+  const fullActiveTools = [...new Set([...stepActiveNames, 'requestMoreTools'])]
+  const updatedInstructions = buildInstructionsForActiveTools(fullActiveTools)
+
+  return {
+    activeTools: fullActiveTools,
+    system: updatedInstructions,
   }
-})
+}
 ```
 
 **How It Works:**
-1. If the user prompt was ambiguous (e.g. *"Check that user's problem and fix it"*), the agent starts with Core + Support tools.
-2. Upon inspecting the user, the agent realizes it is a billing failure.
-3. Instead of giving up or outputting *"I don't have billing tools"*, the model calls `requestMoreTools({ domain: 'stripe' })`.
-4. The system expands the active execution schema and completes the action in the same turn.
+1. The `ToolLoopAgent` holds all persona-eligible tool definitions internally, but sends only the scoped `activeTools` schema subset to the model on step one.
+2. If an ambiguous or multi-step prompt needs another domain (e.g. starts with support, discovers billing churn), the model calls `requestMoreTools({ domain: 'stripe', reason: '...' })`.
+3. Between reasoning steps, `prepareStep` inspects tool calls in `steps`, expands `activeTools` with eligible tools for the requested domain, and updates system instructions dynamically.
+4. The model immediately receives the newly active schemas in the same tool loop turn without restarting the HTTP stream.
 
 ---
 
 ### Layer 4 — UI Trust Surface & Workflow Visibility
 
 1. **Settings Connection Health**: `/dashboard/settings` renders `ProviderReadiness` directly, displaying verified timestamps, active scopes, and actionable remediation instructions (e.g. *"Reconnect Slack — missing channels:history scope"*).
-2. **Execution Inspection**: Guard blocks and `requestMoreTools` events are recorded in `agent_runs`, providing full visibility into agent reasoning and security decisions.
+2. **Execution Inspection**: Guard blocks, model retry/fallbacks, and `requestMoreTools` expansion events are recorded in `agent_runs`, providing full visibility into agent reasoning and security decisions.
 
 ---
 
 ## 4. Test & Verification Matrix
 
-| Scenario | Prior Behavior | Target Architecture Behavior | Status |
+| Scenario | Prior Behavior | Shipped Architecture Behavior | Status |
 |---|---|---|---|
-| `"now chekmy mails and the calender togragther"` | Calendar silently dropped (typo `calender`) | Fuzzy matcher matches both Gmail + Calendar tools | ✅ Verified in `agent.test.ts` |
-| Ambiguous prompt needs un-routed tool | Model apologized ("tool not loaded") | Model calls `requestMoreTools({ domain })` and completes turn | ✅ Layer 3 Design |
+| `"now chekmy emials and the calandar togragther"` | Calendar/Gmail dropped due to typos | Adaptive Levenshtein ($\le 2$) + regex matches both Gmail + Calendar | ✅ Verified in `agent.test.ts` |
+| Ambiguous chat prompt needs un-routed domain | Model apologized ("tool not loaded") | Model calls `requestMoreTools` and `prepareStep` activates domain in-turn | ✅ Verified in `agent.test.ts` |
+| Ineligible domain requested under policy ceiling | Model assumed arbitrary permissions | Tool returns `outside_policy` and `activeTools` rejects expansion | ✅ Verified in `agent.test.ts` |
+| Transient upstream 500 / timeout | Crashed turn with error banner | `maxRetries: 3` + `AGENT_FALLBACK_MODEL_ID` failover attempt | ✅ Verified in `agent.test.ts` |
 | Revoked token during chat execution | Returned mock text / silent fail | Guard catches 401, marks `needs_attention`, returns clean error | ✅ Verified in `integration-health.test.ts` |
 | Slack brief delivery fails | Marked entire workspace un-synced | Delivery failure logged; inbound sync state preserved | ✅ Layer 1 Invariant |
 | Sarah handles high-risk churn account | Global routing might omit billing | Persona-weighted threshold prioritizes Stripe/Intercom/HubSpot | ✅ Persona Masking |
@@ -208,8 +237,8 @@ export const requestMoreTools = createTool({
 
 ## 5. Phased Implementation Roadmap
 
-- [x] **Phase 0 — Stop Fake Data & Remove Dead Code** (Completed in recent audit).
+- [x] **Phase 0 — Stop Fake Data & Remove Dead Code** (Completed).
 - [x] **Phase 1 — Typo-Resilient Regex & Regression Suite** (Completed in `agent.ts`).
-- [ ] **Phase 2 — Levenshtein Fuzzy Matcher & Independent Domain Inclusion** (Instant 0-cost universal typo protection).
-- [ ] **Phase 3 — `requestMoreTools` Self-Healing Meta-Tool** (Zero dead-ends in execution loop).
-- [ ] **Phase 4 — Unified `ProviderReadiness` Contract & Settings Surface**.
+- [x] **Phase 2 — Adaptive Levenshtein Fuzzy Matcher & Independent Domain Scoring** (Completed in `agent.ts`).
+- [x] **Phase 3 — `requestMoreTools` & `prepareStep` In-Loop Schema Expansion** (Completed in `agent.ts` and `route.ts`).
+- [ ] **Phase 4 — Unified `ProviderReadiness` Contract & Settings Surface** (Next backlog phase).

@@ -6,6 +6,7 @@ type RuntimeInstructionOptions = {
   channel: 'chat' | 'automation'
   runType?: string
   availableToolNames: readonly string[]
+  canRequestMoreTools?: boolean
 }
 
 type TurnContextOptions = {
@@ -30,6 +31,21 @@ function compactToolSurface(toolNames: readonly string[]) {
 export function buildRuntimeInstructionBlock(options: RuntimeInstructionOptions) {
   const toolSurface = compactToolSurface(options.availableToolNames)
 
+  const expansionDirectives = options.canRequestMoreTools
+    ? `
+Only call tools listed above. If the task needs another integration domain, call requestMoreTools with that domain and a concrete reason. After its result, continue the task using the schemas activated on the next step. Do not tell the founder that tools were activated until an actual provider tool has run.
+
+Tool routing is not provider readiness. requestMoreTools changes schema visibility only; it does not connect, authenticate, or verify an integration. Use inspectIntegrationConnectionsTool before claiming a provider is connected, disconnected, expired, or broken.
+`.trim()
+    : `
+Only call tools in the available list above. If older persona docs mention a tool that is not listed here, treat that tool as unavailable.
+
+Tool availability is not connection state. Keep these separate:
+- A tool missing from this turn's list is a routing fact about this turn only. It says nothing about the founder's workspace. Never tell the founder a capability does not exist, is not connected, or is unavailable because its tool is absent from this list.
+- Before stating that any provider is disconnected, broken, expired, revoked, or unavailable, call inspectIntegrationConnectionsTool and answer from what it returns. Never infer a provider's current state from an error in an earlier turn.
+- If the request is outside this persona's scope, name the persona or surface that performs it and offer that path. Do not report the capability as nonexistent.
+`.trim()
+
   return `
 ## Current Runtime Contract
 
@@ -40,15 +56,10 @@ Runtime:
 - channel: ${options.channel}
 - run type: ${options.runType ?? 'agent_run'}
 
-Available tools in this run:
+Tools active in this reasoning step:
 ${toolSurface}
 
-Only call tools in the available list above. If older persona docs mention a tool that is not listed here, treat that tool as unavailable.
-
-Tool availability is not connection state. Keep these separate:
-- A tool missing from this turn's list is a routing fact about this turn only. It says nothing about the founder's workspace. Never tell the founder a capability does not exist, is not connected, or is unavailable because its tool is absent from this list.
-- Before stating that any provider is disconnected, broken, expired, revoked, or unavailable, call inspectIntegrationConnectionsTool and answer from what it returns. Never infer a provider's current state from an error in an earlier turn.
-- If the request is outside this persona's scope, name the persona or surface that performs it and offer that path. Do not report the capability as nonexistent.
+${expansionDirectives}
 
 Do not attempt hidden human-approval or deterministic-brief tools:
 ${HIDDEN_HUMAN_APPROVAL_ACTIONS.join(', ')}

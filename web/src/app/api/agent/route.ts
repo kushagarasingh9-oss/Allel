@@ -61,6 +61,7 @@ type ChatStepTrace = {
   finishReason?: string
   toolNames: string[]
   textPreview: string
+  toolExpansionRequests?: Array<{ domain: string; reason: string }>
 }
 
 async function resolveAgentRequestContext(request: Request) {
@@ -305,11 +306,30 @@ Incorporate these emojis naturally into your status summaries and action recomme
           agent: agentToRun,
           uiMessages: enrichedMessages,
           onStepFinish: async (step) => {
+            const toolExpansionRequests: Array<{ domain: string; reason: string }> = []
+            for (const call of step.toolCalls) {
+              if (call.toolName === 'requestMoreTools') {
+                const callRecord = call as Record<string, unknown>
+                const args = (callRecord.args ?? callRecord.input) as
+                  | { domain?: string; reason?: string }
+                  | undefined
+                const rawDomain = args?.domain
+                const rawReason = args?.reason
+                if (typeof rawDomain === 'string') {
+                  toolExpansionRequests.push({
+                    domain: rawDomain,
+                    reason: typeof rawReason === 'string' ? rawReason.slice(0, 240) : '',
+                  })
+                }
+              }
+            }
+
             stepTrace.push({
               stepNumber: step.stepNumber,
               finishReason: step.finishReason,
               toolNames: step.toolCalls.map((call) => call.toolName),
               textPreview: step.text.slice(0, 240),
+              ...(toolExpansionRequests.length > 0 ? { toolExpansionRequests } : {}),
             })
           },
           onFinish: async ({ responseMessage }) => {
@@ -391,6 +411,7 @@ Incorporate these emojis naturally into your status summaries and action recomme
                     messageCount: mergedMessages.length + 1,
                     stepCount: stepTrace.length,
                     toolsUsed: [...new Set(stepTrace.flatMap((step) => step.toolNames))],
+                    toolExpansionRequests: stepTrace.flatMap((s) => s.toolExpansionRequests ?? []),
                     announcedActionMismatch,
                     steps: stepTrace,
                   },

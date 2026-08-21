@@ -3,12 +3,22 @@ import test from 'node:test'
 import { classifyAndSanitizeServerError } from './error-classifier'
 import { formatCleanErrorMessage } from '../../components/agent-feed/agent-feed'
 import {
+  createRequestMoreToolsTool,
   estimateAgentCost,
   getAgentForPersona,
   getAvailableToolNamesForPersona,
+  getEligibleToolsForDomains,
   getIntegrationProviderForTool,
+  levenshteinDistanceWithin,
   MANUAL_APPROVAL_REQUIRED_TOOL_NAMES,
+  resolveActiveToolNamesForStep,
+  resolveRequestedToolDomains,
   selectRelevantToolsForPrompt,
+  textMatchesDomain,
+  tokenizeForDomainRouting,
+  TOOL_DOMAINS,
+  TOOL_DOMAIN_GROUPS,
+  type ToolDomain,
 } from './agent'
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ||= 'https://example.supabase.co'
@@ -411,6 +421,176 @@ test('extractToolNamesFromHistory extracts tool names from nested toolInvocation
   const extracted = extractToolNamesFromHistory(sampleMessages)
   assert.ok(extracted.includes('listCalendarEventsTool'), 'Must extract listCalendarEventsTool from nested toolInvocation')
 })
+
+// ── TC-1, TC-2, TC-3 Router & Expansion In-Loop Tests ────────────────────────
+
+test('TC-1.1: fuzzy matching recognizes "check my emials and calandar" and selects Gmail and Calendar tools', () => {
+  const available = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+  const selected = selectRelevantToolsForPrompt('check my emials and calandar', available, undefined, { channel: 'chat' })
+
+  assert.ok(selected.includes('getMyInbox'), 'Fuzzy "emials" must match Gmail')
+  assert.ok(selected.includes('listCalendarEventsTool'), 'Fuzzy "calandar" must match Google Calendar')
+  assert.equal(selected.includes('refundStripeCharge'), false, 'Unrelated billing tools must not be exposed')
+})
+
+test('TC-1.2: fuzzy matching recognizes "show striep invoices" and selects Stripe tools', () => {
+  const available = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+  const selected = selectRelevantToolsForPrompt('show striep invoices', available, undefined, { channel: 'chat' })
+
+  assert.ok(selected.includes('listStripeInvoicesTool'), 'Fuzzy "striep" + "invoices" must match Stripe')
+  assert.equal(selected.includes('listCalendarEventsTool'), false, 'Calendar tools must not be exposed')
+})
+
+test('TC-1.3: fuzzy matching recognizes "search notoin docs" and selects Notion tools', () => {
+  const available = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+  const selected = selectRelevantToolsForPrompt('search notoin docs', available, undefined, { channel: 'chat' })
+
+  assert.ok(selected.includes('searchNotionTool'), 'Fuzzy "notoin" must match Notion')
+  assert.equal(selected.includes('getMyInbox'), false, 'Gmail tools must not be exposed')
+})
+
+test('TC-1.4: misspelled domain in compound prompt is not dropped because another domain matched exactly', () => {
+  const available = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+  const selected = selectRelevantToolsForPrompt('check my emials and search sentry errors', available, undefined, { channel: 'chat' })
+
+  assert.ok(selected.includes('getMyInbox'), 'Fuzzy "emials" must match Gmail')
+  assert.ok(selected.includes('listSentryIssuesTool'), 'Exact "sentry" must match Sentry')
+  assert.equal(selected.includes('listCalendarEventsTool'), false, 'Calendar must not be exposed')
+})
+
+test('TC-1.5: "who is on the team?" does not select Calendar through fuzzy matching', () => {
+  const available = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+  const selected = selectRelevantToolsForPrompt('who is on the team?', available, undefined, { channel: 'chat' })
+
+  assert.equal(selected.includes('listCalendarEventsTool'), false, 'Calendar must not match "team"')
+})
+
+test('TC-1.6: short unrelated words do not trigger fuzzy matching', () => {
+  assert.equal(levenshteinDistanceWithin('cat', 'calendar', 2), false)
+  assert.equal(levenshteinDistanceWithin('dog', 'notion', 2), false)
+  assert.equal(levenshteinDistanceWithin('run', 'stripe', 2), false)
+})
+
+test('TC-1.7: no-signal chat prompt returns core tools rather than all capability tools', () => {
+  const available = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+  const selected = selectRelevantToolsForPrompt('hello how are you', available, undefined, { channel: 'chat' })
+
+  assert.ok(selected.includes('getAccountDetails'), 'Core tool must be present')
+  assert.ok(selected.includes('inspectIntegrationConnectionsTool'), 'Core tool must be present')
+  assert.equal(selected.includes('getMyInbox'), false, 'Provider tools must not be in no-signal chat initial set')
+  assert.equal(selected.includes('listCalendarEventsTool'), false, 'Provider tools must not be in no-signal chat initial set')
+  assert.ok(selected.length <= 10, `No-signal chat must be a small core set, got ${selected.length}`)
+})
+
+test('TC-1.8: no-signal automation prompt retains full stage-permitted tool set', () => {
+  const available = getAvailableToolNamesForPersona('alex', undefined, { channel: 'automation' })
+  const selected = selectRelevantToolsForPrompt('hello how are you', available, undefined, { channel: 'automation' })
+
+  assert.equal(selected.length, available.length, 'No-signal automation prompt must retain all stage-permitted tools')
+})
+
+test('TC-2.1: getEligibleToolsForDomains maps domain names to persona-eligible tool lists', () => {
+  const alexEligible = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+  const calendarTools = getEligibleToolsForDomains(alexEligible, ['google_calendar'])
+
+  assert.ok(calendarTools.includes('listCalendarEventsTool'))
+  assert.ok(calendarTools.includes('createCalendarEventTool'))
+  assert.equal(calendarTools.includes('getMyInbox'), false)
+})
+
+test('TC-2.2: resolveActiveToolNamesForStep adds requested domain tools to initial selection', () => {
+  const alexEligible = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+  const initial = selectRelevantToolsForPrompt('check my emails', alexEligible, undefined, { channel: 'chat' })
+
+  assert.ok(initial.includes('getMyInbox'))
+  assert.equal(initial.includes('listCalendarEventsTool'), false)
+
+  const stepActive = resolveActiveToolNamesForStep(initial, alexEligible, ['google_calendar'])
+  assert.ok(stepActive.includes('getMyInbox'), 'Initial tools must remain active')
+  assert.ok(stepActive.includes('listCalendarEventsTool'), 'Requested Calendar tools must be added')
+  assert.equal(stepActive.includes('refundStripeCharge'), false, 'Unrequested tools must not be added')
+})
+
+test('TC-2.3: multiple domain requests accumulate across steps and duplicate requests are idempotent', () => {
+  const alexEligible = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+  const initial = selectRelevantToolsForPrompt('hello', alexEligible, undefined, { channel: 'chat' })
+
+  const fakeSteps = [
+    {
+      toolCalls: [
+        { toolName: 'requestMoreTools', args: { domain: 'google_calendar', reason: 'Need calendar' } },
+      ],
+    },
+    {
+      toolCalls: [
+        { toolName: 'requestMoreTools', args: { domain: 'stripe', reason: 'Need billing' } },
+        { toolName: 'requestMoreTools', args: { domain: 'google_calendar', reason: 'Need calendar again' } },
+      ],
+    },
+  ]
+
+  const requested = resolveRequestedToolDomains(fakeSteps)
+  assert.deepEqual(requested, ['google_calendar', 'stripe'], 'Domains must accumulate without duplicates')
+
+  const active = resolveActiveToolNamesForStep(initial, alexEligible, requested)
+  assert.ok(active.includes('listCalendarEventsTool'), 'Calendar must be active')
+  assert.ok(active.includes('getStripeBalanceTool'), 'Stripe must be active')
+  assert.equal(active.includes('listIntercomConvos'), false, 'Unrequested domains must stay inactive')
+})
+
+test('TC-2.4: Henry requesting Calendar domain receives only read tools and never writes', () => {
+  const henryEligible = getAvailableToolNamesForPersona('henry', undefined, { channel: 'chat' })
+  const calendarTools = getEligibleToolsForDomains(henryEligible, ['google_calendar'])
+
+  assert.ok(calendarTools.includes('listCalendarEventsTool'), 'Henry can read calendar')
+  assert.ok(calendarTools.includes('getCalendarEventTool'), 'Henry can inspect calendar event')
+  assert.equal(calendarTools.includes('createCalendarEventTool'), false, 'Henry cannot create calendar events')
+  assert.equal(calendarTools.includes('deleteCalendarEventTool'), false, 'Henry cannot delete calendar events')
+})
+
+test('TC-2.5: requestMoreTools meta-tool respects workflow allowlist ceilings', async () => {
+  const restrictedAllowlist = ['getAccountDetails', 'inspectIntegrationConnectionsTool'] as const
+  const metaTool = createRequestMoreToolsTool(restrictedAllowlist)
+
+  const allowedRes = await (metaTool as any).execute({ domain: 'google_calendar', reason: 'calendar requested' })
+  assert.equal(allowedRes.ok, false)
+  assert.equal(allowedRes.status, 'outside_policy')
+  assert.deepEqual(allowedRes.activatedTools, [])
+})
+
+test('TC-2.6: resolveRequestedToolDomains ignores unknown/malformed domains', () => {
+  const malformedSteps = [
+    { toolCalls: null },
+    { toolCalls: [{ toolName: 'otherTool', args: {} }] },
+    { toolCalls: [{ toolName: 'requestMoreTools', args: { domain: 'fake_domain_xyz' } }] },
+    { toolCalls: [{ toolName: 'requestMoreTools', args: { domain: 'google_calendar' } }] },
+  ]
+
+  const requested = resolveRequestedToolDomains(malformedSteps)
+  assert.deepEqual(requested, ['google_calendar'])
+})
+
+test('TC-2.7: two independent steps arrays produce independent active sets (no cross-turn state leakage)', () => {
+  const alexEligible = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+  const initial = selectRelevantToolsForPrompt('hello', alexEligible, undefined, { channel: 'chat' })
+
+  const runASteps = [
+    { toolCalls: [{ toolName: 'requestMoreTools', args: { domain: 'gmail' } }] },
+  ]
+  const runBSteps = [
+    { toolCalls: [{ toolName: 'requestMoreTools', args: { domain: 'sentry' } }] },
+  ]
+
+  const runAActive = resolveActiveToolNamesForStep(initial, alexEligible, resolveRequestedToolDomains(runASteps))
+  const runBActive = resolveActiveToolNamesForStep(initial, alexEligible, resolveRequestedToolDomains(runBSteps))
+
+  assert.ok(runAActive.includes('getMyInbox'), 'Run A must have Gmail')
+  assert.equal(runAActive.includes('listSentryIssuesTool'), false, 'Run A must NOT have Sentry')
+
+  assert.ok(runBActive.includes('listSentryIssuesTool'), 'Run B must have Sentry')
+  assert.equal(runBActive.includes('getMyInbox'), false, 'Run B must NOT have Gmail')
+})
+
 
 
 

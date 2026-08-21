@@ -23,8 +23,11 @@ export function getLanguageModel(modelIdOverride?: string) {
   const azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT || process.env.AZURE_OPENAI_BASE_URL
 
   if (azureEndpoint) {
-    let baseURL = azureEndpoint.replace(/\/responses\/?$/, '').replace(/\/+$/, '')
-    if (!baseURL.endsWith('/v1')) {
+    let baseURL = azureEndpoint
+      .replace(/\/chat\/completions\/?$/, '')
+      .replace(/\/responses\/?$/, '')
+      .replace(/\/+$/, '')
+    if (!baseURL.endsWith('/openai/v1') && !baseURL.endsWith('/v1')) {
       baseURL = baseURL.replace(/\/openai\/?$/, '') + '/openai/v1'
     }
     const azureOpenAI = createOpenAI({

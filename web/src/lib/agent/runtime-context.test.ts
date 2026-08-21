@@ -57,3 +57,34 @@ test('turn context prompt anchors newest request without losing runtime metadata
   assert.match(prompt, /Workflow stage: analyze/)
   assert.match(prompt, /Please check Acme risk now/)
 })
+
+test('TC-3.1: chat runtime instructions include requestMoreTools instructions when enabled', () => {
+  const prompt = buildRuntimeInstructionBlock({
+    personaId: 'alex',
+    personaName: 'Alex',
+    channel: 'chat',
+    runType: 'chat_message',
+    availableToolNames: ['getMyInbox', 'requestMoreTools'],
+    canRequestMoreTools: true,
+  })
+
+  assert.match(prompt, /Tools active in this reasoning step:/)
+  assert.match(prompt, /requestMoreTools/)
+  assert.match(prompt, /schemas activated on the next step/)
+  assert.match(prompt, /Tool routing is not provider readiness/)
+})
+
+test('TC-3.2: automation runtime instructions omit requestMoreTools directives', () => {
+  const prompt = buildRuntimeInstructionBlock({
+    personaId: 'alex',
+    personaName: 'Alex',
+    channel: 'automation',
+    runType: 'agent_run',
+    availableToolNames: ['getAllAccounts', 'getAccountDetails'],
+    canRequestMoreTools: false,
+  })
+
+  assert.doesNotMatch(prompt, /call requestMoreTools/)
+  assert.match(prompt, /Only call tools in the available list above/)
+})
+
