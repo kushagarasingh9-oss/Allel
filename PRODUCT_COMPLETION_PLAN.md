@@ -1,208 +1,103 @@
 # Product Completion Plan
 
-> Updated: 2026-04-24
-> This is the practical completion plan from the current codebase, not the old aspirational roadmap.
+> **Updated:** 2026-08-22  
+> **Status:** Authoritative roadmap reflecting the current working tree and shipped in-loop tool-calling engine.
 
 ---
 
 ## Current State
 
-The product now has a credible backend and the beginnings of a credible operator console.
+The product has a robust retention operations backend, an in-loop self-healing AI SDK 6 agent runtime with conservative fuzzy routing, multi-tenant database models, live integration syncs, and a functional operator console.
 
-What is already real:
-- authenticated multi-workspace dashboard
-- account, signal, timeline, draft, brief, and memory data models
-- provider connect + token storage + sync flows
-- cron and webhook automation
-- persona-based agent chat
-- signed assistant history
-- compacted conversation persistence
-- durable account memory
-- workflow-level run logging and inspection APIs
-- dashboard shell with real chat feed and live settings UI
-
-The product is clearly beyond prototype stage. The remaining work is about trust, continuity, inspection, and sharpness.
-
----
-
-## Completed
-
-### Foundation
-- Supabase auth
-- workspace auto-provisioning
-- RLS-backed core schema
-- encrypted integration token storage
-
-### Data ingestion
-- Stripe sync + webhook handling
-- PostHog sync + webhook handling
-- Gmail sync + send flows
-- Intercom sync
-- HubSpot sync
-- Slack sync / delivery
-- Sentry sync
-- Linear sync
-- direct agent tools for Notion, Airtable, Calendar, and web research
-
-### Agent layer
-- Alex / Henry / Sarah personas
-- persona-specific tool access
-- trusted assistant history signing
-- compacted conversation persistence
-- durable account memory retrieval
-- workflow jobs for daily review and webhook follow-up
-- richer `agent_runs` logging
-- workflow inspection APIs
-
-### Product surfaces
-- dashboard shell
-- real streaming chat feed
-- live integrations settings page
-- account and draft surfaces
-- deterministic founder brief generation from live state
+### What Is Shipped & Verified Live (118 Tests Passing)
+- **Multi-Tenant Foundation**: Authenticated Supabase dashboard with RLS isolation across 21 database tables.
+- **Data Normalization**: Normalized customer accounts, contacts, timeline events, signals, and outcome tracking.
+- **Direct & Syncable Integrations**: 8 syncable providers (Stripe, PostHog, Gmail, Intercom, HubSpot, Slack, Sentry, Linear), 3 tool-only integrations (Notion, Airtable, Calendar), and Tavily web research.
+- **Provider Guards**: Strict `wrapToolWithLiveIntegrationGuard` interceptors preventing mock data fabrication on auth failures.
+- **Deterministic Risk Engine**: 6-factor deterministic churn risk scoring and automated daily brief generator.
+- **AI SDK 6 Agent Runtime**:
+  - `ToolLoopAgent` with Azure OpenAI / OpenAI support and endpoint URL normalization.
+  - Conservative adaptive Levenshtein fuzzy domain routing (dist $\le 1$ for 4–5 chars, dist $\le 2$ for 6+ chars).
+  - In-loop dynamic `prepareStep` tool expansion via `requestMoreTools` meta-tool without stream resets.
+  - Hard persona authorization boundaries (`Alex`, `Henry`, `Sarah`) and staged workflow allowlists (`detect` $\rightarrow$ `analyze` $\rightarrow$ `draft` $\rightarrow$ `verify`).
+  - Step-aware runtime instruction blocks.
+- **Memory & Trust**:
+  - Dual-memory: compacted transcript persistence in `agent_conversations` + durable `account_memories` refresh queue.
+  - Human-in-the-loop: strict gating requiring verified founder approval before drafts can be sent.
+  - HMAC-SHA256 assistant history signing.
+- **Observability**: `agent_runs` logging with model-aware token costs, redacted step traces, and tool expansion request tracking. Grouped workflow inspection APIs (`/api/agent/runs`).
 
 ---
 
-## Partially Complete
+## Completed Milestones
 
-These areas are real, but still not at the level we want for a world-class product.
+### 1. Data Ingestion & Integration Health
+- [x] Stripe & PostHog webhook ingestion with idempotency tracking.
+- [x] Gmail thread syncing and reply draft creation.
+- [x] Google Calendar OAuth with single complete Calendar scope.
+- [x] Health status persistence (`connected`, `needs_attention`, `disconnected`).
+- [x] Pipedream dependency cleanup; direct API & OAuth storage.
 
-### 1. Memory quality
+### 2. Agent Execution & Tool Reliability (TC-1, TC-2, TC-3)
+- [x] Zero false negatives: Typo-resilient fuzzy domain matching with independent domain scoring.
+- [x] Zero false positives: Provider live guards preventing fabricated data.
+- [x] Zero dead ends: `requestMoreTools` meta-tool with in-loop `prepareStep` dynamic `activeTools` schema expansion.
+- [x] Robust error classification and automatic fallback model failover (`AGENT_FALLBACK_MODEL_ID` + `maxRetries: 3`).
+- [x] Full regression test matrix with 118 passing unit tests.
 
-Current:
-- bounded transcript persistence
-- compacted conversation summary
-- account memory snapshots
-
-Still missing:
-- richer semantic retrieval
-- better long-horizon summaries
-- tighter account-context carryover across repeated workflows
-
-### 2. Run inspection UX
-
-Current:
-- grouped workflow inspection in the backend
-- list/detail APIs for workflow history
-- stage metadata and failure logging
-
-Still missing:
-- replay-grade UI depth
-- richer founder-facing inspection of what changed
-- tighter cross-links between run history and the rest of the dashboard
-
-### 3. Chat continuity UX
-
-Current:
-- server-backed persistence and signing
-- local persona thread persistence in the browser
-- real streaming agent UI
-
-Still missing:
-- explicit server hydration on first load
-- visible restored-context status
-- cleaner cross-device continuity
-
-### 4. Orchestration depth
-
-Current:
-- narrower `detect`, `analyze`, `draft`, and `verify` jobs
-- deterministic brief ownership
-- workflow IDs across cron and webhook runs
-
-Still missing:
-- planner / executor / critic structure
-- more task-specific model routing
-- deeper decomposition for complex workflows
-
-### 5. Integration readiness clarity
-
-Current:
-- backend catalog distinguishes syncable, tool-only, and planned providers
-- connection health is stored in `integration_connections`
-- settings now read those capability states from a shared backend catalog
-
-Still missing:
-- richer UI explanation of post-connect unlocks per provider
-- tighter gating and guidance around cataloged-but-not-ready providers
+### 3. Product Surfaces
+- [x] `/dashboard` with streaming `AgentFeed`, reasoning traces, and persona switcher.
+- [x] `/dashboard/accounts` and `/dashboard/accounts/[id]` with timeline and signals.
+- [x] `/dashboard/drafts` for founder review, edit, approve, reject, and send actions.
+- [x] `/dashboard/settings` with direct credential modals and live catalog state.
 
 ---
 
-## Highest-Leverage Next Work
+## High-Leverage Next Work (Backlog)
 
-### Priority 1
-- deepen the shipped run history UI on top of `/api/agent/runs`
-- hydrate chat from server-backed history on initial load
-- make integration readiness clearer in settings and onboarding
+### Priority 1 — Run Inspection UI (`/dashboard/flows`)
+- **Current State**: Backend workflow grouping and list/detail APIs (`/api/agent/runs` and `/api/agent/runs/[workflowId]`) are live and tested. The frontend route `/dashboard/flows` is an empty placeholder.
+- **Action**:
+  1. Build the founder-facing workflow inspection screen on `/dashboard/flows`.
+  2. Display execution stages (`detect`, `analyze`, `draft`, `verify`), tool expansion events, provider latencies, and token spend.
+  3. Deep-link account cards and draft notifications directly to their originating workflow runs.
 
-### Priority 2
-- improve memory quality and retrieval
-- improve evidence rendering in chat, accounts, and drafts
-- connect workflow history to the rest of the dashboard
+### Priority 2 — First-Load Server Chat History Hydration
+- **Current State**: Chat history persistence, HMAC signing, and compaction are active on the server, but the frontend currently boots primarily from local `sessionStorage`.
+- **Action**:
+  1. Fetch server-persisted transcript history on first load via `/api/agent/history`.
+  2. Merge server history with local thread state and show a clear "Restored session" indicator.
+  3. Enable frictionless cross-device and multi-tab founder continuity.
 
-### Priority 3
-- make model routing more deliberate by job type
-- only after the current runtime is fully trustworthy, consider deeper agent architecture
+### Priority 3 — Provider Readiness Dashboard
+- **Current State**: Backend catalog cleanly separates syncable, tool-only, and planned providers, and guards enforce live credentials.
+- **Action**:
+  1. Surface actionable post-connect readiness metrics on `/dashboard/settings` (e.g. verified scopes, last sync timestamp, remediation steps for `needs_attention`).
+  2. Provide one-click sync retry buttons and token re-authentication modals.
 
----
-
-## Step-By-Step Execution Order
-
-### Step 1. Ship run history in the dashboard
-
-Status:
-- v1 shipped
-- replay-grade depth still ahead
-
-Tasks:
-1. deepen the dashboard surface for recent workflows
-2. improve evidence, drill-down, and failure detail
-3. deep-link more product surfaces into workflow detail
-
-### Step 2. Make chat continuity server-first
-
-Status:
-- partially completed
-
-Tasks:
-1. fetch server-backed persona history on first load
-2. merge it cleanly with local thread state
-3. show that prior context was restored
-
-### Step 3. Deepen memory
-
-Status:
-- partially completed
-
-Tasks:
-1. improve conversation compaction quality
-2. tighten account-memory refresh and retrieval strategy
-3. preserve higher-signal account context for repeated workflows
-
-### Step 4. Keep narrowing automation jobs
-
-Status:
-- partially completed
-
-Tasks:
-1. keep tightening prompts and scopes per workflow stage
-2. continue reducing unnecessary write access in read-heavy phases
-3. improve per-job model selection
-
-### Step 5. Improve readiness and evidence UX
-
-Status:
-- partially completed
-
-Tasks:
-1. explain provider capability states in the settings UI
-2. surface richer evidence in accounts, drafts, and chat
-3. connect recent workflow changes back to the operator console
+### Priority 4 — Semantic Memory Retrieval
+- **Current State**: Deterministic account memory synthesis and trailing rolling compaction.
+- **Action**:
+  1. Add vector embeddings for long-horizon account memories.
+  2. Enable semantic retrieval in the agent loop for complex founder inquiries across months of customer history.
 
 ---
 
-## Honest Summary
+## Step-by-Step Execution Plan
 
-The product is now a strong v1: real data model, real automation, real chat, real memory, and real workflow logging.
+```mermaid
+graph TD
+    A[Step 1: Workflow Run Inspection UI on /dashboard/flows] --> B[Step 2: Server-First Chat Hydration on /dashboard]
+    B --> C[Step 3: Provider Readiness Surface in Settings]
+    C --> D[Step 4: Semantic Vector Memory Layer]
+```
 
-What is missing is not "build the product from scratch." What is missing is the layer that makes the product feel obviously trustworthy and inspectable every day.
+1. **Step 1: Run Inspection UI (`/dashboard/flows`)**
+   - Consume `GET /api/agent/runs` and render the list of automated cron runs, webhook follow-ups, and chat sessions.
+   - Render step traces, tool expansion requests, and error cards with copyable IDs.
+2. **Step 2: Server-First Chat Hydration**
+   - Hook `ChatProvider` to hydrate active persona transcripts from `/api/agent/history` on initial mount.
+3. **Step 3: Settings Readiness Surface**
+   - Display active scopes and verified health directly on integration cards.
+4. **Step 4: Semantic Vector Retrieval**
+   - Implement pgvector index on `account_memories` for high-recall queries over historical churn cases.

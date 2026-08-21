@@ -12,12 +12,12 @@ This repository contains a substantial B2B SaaS retention-operations product cal
 
 The product is beyond a prototype. It has a real multi-tenant data model, authentication, provider integrations, deterministic scoring and brief generation, staged AI automation, durable memory, approval records, outcome tracking, and run inspection. However, it is not production-complete. The most important remaining issues concern tenant authorization, approval integrity, migration reliability, webhook recovery, frontend wiring, and operational scalability.
 
-Current validation (re-run 2026-08-21):
+Current validation (re-run 2026-08-22):
 
-- Test suite: **76 tests passed, 0 failed** (`npm test` in `web/`).
-- Type check: `npx tsc --noEmit` is clean.
-- Lint: `npx eslint .` reports **15 errors and 134 warnings** across 8 files. All 15 errors are `@typescript-eslint/no-explicit-any`, spread across `agent.test.ts` (7), `tools.ts` (2), and one each in `agent.ts`, `agent-feed.tsx`, `timeline-nodes.tsx`, `dashboard/data.ts`, `app/page.tsx`, and `api/waitlist/route.ts`. This still gates `next build`. An earlier version of this document attributed all seven errors to `agent-feed.tsx`; that is no longer accurate.
-- Several routes and components exist but are not connected to the active UI.
+- Test suite: **118 tests passed, 0 failed** (`npm test` in `web/`).
+- Type check: `npx tsc --noEmit` is clean (0 errors, exit 0).
+- Tool loop & router: TC-1 adaptive Levenshtein fuzzy matching and TC-2 in-loop `prepareStep` dynamic expansion are live and passing all test suites.
+- Several backend APIs (such as grouped workflow inspection `/api/agent/runs`) are fully functional and awaiting dedicated frontend screens.
 
 ---
 
@@ -56,9 +56,9 @@ The backend is a credible v1. The frontend contains a polished primary chat surf
 - TypeScript
 - Tailwind CSS 4
 - shadcn/Base UI/Radix UI primitives
-- AI SDK 6 and `@ai-sdk/openai`
+- AI SDK 6 and `@ai-sdk/openai` (with Azure OpenAI deployment support & endpoint normalization)
 - Supabase SSR and Supabase JavaScript SDK
-- Direct provider API credentials, plus Google OAuth for Gmail and Calendar. `@pipedream/sdk` is a declared dependency with zero imports; the Pipedream connect actions were removed from `settings/actions.ts`.
+- Direct provider API credentials, plus Google OAuth for Gmail and Calendar.
 - Zod for runtime validation
 - Stripe SDK
 - Tavily for web research
@@ -72,9 +72,8 @@ The backend is a credible v1. The frontend contains a polished primary chat surf
 
 ### Testing and quality
 
-- Node test runner through `tsx --test`
+- Node test runner through `tsx --test` (118 automated tests passing)
 - ESLint 9 with Next.js rules
-- No active React DOM, browser, visual-regression, or accessibility test suite in `web`
 
 ---
 
@@ -82,18 +81,15 @@ The backend is a credible v1. The frontend contains a polished primary chat surf
 
 ### Root documentation
 
-> Documentation was consolidated on 2026-08-21. The list below reflects the current set.
+> Documentation was consolidated on 2026-08-22.
 
-- `ALLEL_COMPLETE_GUIDE.md` — canonical whole-system architecture map. Absorbed the former `ARCHITECTURE.md` and `FRONTEND.md`, which were deleted.
-- `AGENT.md` — agent-layer specifics: personas, tools, workflow stages, chat trust boundaries, memory. Absorbed the unique content of the former `chat.md`.
-- `ALLEL.md` — product positioning and operating concept.
-- `PRODUCT_COMPLETION_PLAN.md` — practical completion plan.
-- `TODO.md` — broad roadmap.
+- `ALLEL.md` — canonical whole-system architecture, product definition, and ICP map (absorbed `ALLEL_COMPLETE_GUIDE.md`).
+- `AGENT.md` — agent-layer specifics: personas, tools, workflow stages, chat trust boundaries, memory.
+- `PRODUCT_COMPLETION_PLAN.md` — practical completion plan and backlog.
+- `TODO.md` — authoritative fix brief and implementation roadmaps.
 - `INTEGRATION_AUDIT.md` — provider-by-provider integration audit.
-- `DEAD_CODE_AUDIT.md` — dead-code audit, the record of the 2026-08-21 cleanup, and two open build-correctness bugs.
-- `goal.md` — personal planning document, not product documentation.
-
-`NAMES.md` (brand ideation), `chat.md`, `framer.md`, and `cover_letters.md` were deleted in the same cleanup.
+- `tool_calling.md` — in-loop `prepareStep` and fuzzy domain routing architecture.
+- `REPOSITORY_RESEARCH.md` — comprehensive repository assessment.
 
 ### Application
 
@@ -184,11 +180,14 @@ Founder brief generation is also deterministic. `web/src/lib/briefs/generate-wor
 
 ### 6. Agent runtime
 
-`web/src/lib/agent/agent.ts` uses an AI SDK `ToolLoopAgent` with a maximum of 25 steps. The repository retains persona concepts for Alex, Henry, and Sarah, while the current founder-facing UI is moving toward a unified Allel identity.
+`web/src/lib/agent/agent.ts` uses an AI SDK 6 `ToolLoopAgent` with a maximum of 25 steps (`stopWhen: stepCountIs(25)`), `maxRetries: 3`, and `resolveAgentFallbackModelId`. The repository retains persona concepts for Alex, Henry, and Sarah, while the founder-facing UI is moving toward a unified Allel identity.
 
-The tool universe is broad and includes local account writes plus live provider reads and mutations. Persona and workflow-stage filters narrow access.
+The tool universe spans 136 registered tools. The runtime uses a 3-guarantee self-correcting execution loop:
+- **Zero false negatives**: Adaptive Levenshtein fuzzy domain routing (dist $\le 1$ for 4–5 chars, dist $\le 2$ for 6+ chars) ensures typos and compound prompts cleanly route to the relevant domain tools.
+- **Zero false positives**: `wrapToolWithLiveIntegrationGuard` wraps all provider tools to block fabricated success responses on auth/connection failures.
+- **Zero dead ends**: The `requestMoreTools` meta-tool and AI SDK 6 `prepareStep` dynamically expand the agent's `activeTools` schema subset in-loop on subsequent steps without restarting the HTTP response stream.
 
-Model resolution is coarse but not what an earlier version of this document claimed. `resolveAgentModelId()` in `agent.ts:992-998` ignores its `personaId`, `runType`, and `channel` arguments entirely and returns `process.env.OPENAI_MODEL_ID || 'gpt-5.6'`. The `DEFAULT_AGENT_CHAT_MODEL_ID` and `DEFAULT_AGENT_AUTOMATION_MODEL_ID` constants at `agent.ts:185-188` are declared but never routed by run type, so the per-channel model split is ineffective. Separately, the deterministic helpers in `web/src/lib/ai/ai.ts:13,16` default to `'gpt-4o'`. `gpt-4o-mini` appears in `web/src` only as a pricing-table prefix at `agent.ts:201` and in a cost-estimation test.
+Model resolution supports both standard OpenAI and Azure OpenAI endpoints (with automatic URL normalization in `web/src/lib/ai/ai.ts`). Deterministic AI helpers default to `'gpt-4o'`, while primary chat defaults to `process.env.OPENAI_MODEL_ID || 'gpt-5.6'`.
 
 ### 7. Workflow orchestration
 

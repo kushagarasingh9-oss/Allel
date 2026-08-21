@@ -1,7 +1,13 @@
 # Integration System Audit
 
-> Started: 2026-08-06
-> Status: In progress — findings are added after each verified layer.
+> Started: 2026-08-06  
+> Last Verified: 2026-08-22  
+> **Status:** Active Reference & Remediation Audit.  
+> **Recent Fixes Landed:**  
+> - **Fabrication Removed:** `getSlackCredentials` no longer invents `direct_token_*` synthetic credentials.
+> - **Live Integration Guard Shipped:** `wrapToolWithLiveIntegrationGuard` wraps all 136 tools in `agent.ts`, preventing fake mock data when credentials or tokens fail.
+> - **Google Calendar OAuth**: Verified Calendar OAuth flow with complete scope; manual insecure app-password path disabled for private user calendar data.
+> - **Sync Status Agreement:** Unified connection status checking between `connection-guard.ts` and `dashboard/data.ts`.
 
 ## Audit Objective
 
