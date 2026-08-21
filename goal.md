@@ -1,231 +1,310 @@
-# 🎯 GOAL: Win Razorpay AI Builder Internship — Track 3: AI Revenue Recovery
+# Mission Control: Win Razorpay AI Builder — Track 3, AI Revenue Recovery
 
-> **Deadline**: September 5, 2026
-> **Days remaining**: 16
-> **Track**: 03 — AI Revenue Recovery
-> **Offer**: ₹75,000/month · 6 or 12 months · In-person Bangalore
+> **Submission deadline:** September 5, 2026
+>
+> **Current planning date:** August 22, 2026
+>
+> **Time remaining:** 14 full days, plus the deadline day
+>
+> **Target:** Submit a working, measurable revenue-recovery system—not a feature demo.
 
----
+## The win condition
 
-## The Bar (What Razorpay Wants to See)
+Allel wins only if a reviewer can watch one short demonstration and verify this complete loop:
 
-> *"Don't just identify the problem. Show **measured money recovered across a batch**, with **compliant escalation**, **stopping rules**, and an **audit trail**."*
+```text
+Stripe billing signal + PostHog usage signal
+                    ↓
+        account risk and root cause
+                    ↓
+       compliant recovery recommendation
+                    ↓
+        founder-reviewed rescue draft
+                    ↓
+     approved send or explicit stop decision
+                    ↓
+       measured outcome and revenue impact
+                    ↓
+       timestamped, inspectable audit trail
+```
 
-We need to deliver ALL FOUR:
+The submission must prove four things:
 
-| Requirement | How Allel Delivers | Status |
+| Requirement | Evidence the reviewer must see | Current state |
 |---|---|---|
-| **Measured money recovered** | Run pipeline on 15+ test accounts, show X accounts saved, $Y MRR recovered | ❌ Need to build |
-| **Compliant escalation** | Severity classification (critical/urgent/info) → Slack alerts → email alerts | ✅ Code exists, needs demo |
-| **Stopping rules** | Stage-specific tool access controls (detect=read-only, draft=gated, verify=read-only) + founder approval gates | ✅ Built |
-| **Audit trail** | Workflow run logging + inspection APIs + agent_runs table | ✅ Built |
+| Measured recovery | One reproducible batch with account count, risk count, drafts, approvals, outcomes, MRR at risk, and MRR protected/recovered | **Not yet proven with a completed demo batch** |
+| Compliant escalation | Severity-driven Slack/email notification with triggering evidence and no fabricated provider data | **Implemented; live demo verification required** |
+| Stopping rules | Read-only detect/verify stages, separated draft stage, founder approval before sending, and clean failure behavior | **Implemented; demonstrate it** |
+| Audit trail | One workflow ID showing detect → analyze → draft → verify, tool use, model, timing, failures, and outcome | **Backend implemented; reviewer-facing Workflows UI is still missing** |
+
+## Current verified baseline
+
+Verified on August 22, 2026:
+
+- `npm test` passes: **118/118 tests**.
+- `npx tsc --noEmit` passes with no errors.
+- Reliable tool routing is implemented: exact matching, conservative fuzzy matching, compound-domain selection, scoped schemas, and in-loop expansion through AI SDK `activeTools` + `prepareStep`.
+- Model retries and optional fallback-model recovery are implemented.
+- Chat history is workspace/user/session scoped and assistant history is signed.
+- Live-provider tools are guarded; a disconnected or unhealthy integration must not silently fall back to demo data.
+- Daily, Stripe-webhook, and PostHog-webhook workflows use `detect → analyze → draft → verify` stages.
+- Draft approval/send enforcement and outcome tracking exist in the backend.
+- `GET /api/metrics/revenue-saved` exists.
+- Workflow inspection APIs exist at `GET /api/agent/runs` and `GET /api/agent/runs/[workflowId]`.
+- `/dashboard/flows` is still an empty placeholder. The audit trail cannot yet be judged from the product UI.
+
+Do not spend competition time rebuilding the items above. Preserve existing uncommitted work unless a task explicitly overlaps it.
 
 ---
 
-## Competition Estimate
+## Competition strategy: how Allel becomes the memorable submission
 
-| Factor | Estimate |
+Most entries will stop at “AI detects churn” or show a chatbot producing a nice email. Allel must demonstrate the harder operational loop.
+
+### 1. Lead with recovered revenue, not the number of features
+
+The first result slide and dashboard screen must answer:
+
+- How many accounts were processed?
+- How many were correctly flagged?
+- How much MRR was at risk?
+- How many recovery actions were drafted and approved?
+- How many accounts recovered, remained at risk, or churned?
+- How much MRR was protected or recovered?
+
+Do not call test-mode money “real customer revenue.” Label it clearly as a **reproducible test-mode recovery simulation**. If genuine pilot data exists, show it separately with customer details anonymized.
+
+### 2. Show one compound-signal case
+
+The hero scenario should combine two sources:
+
+- Stripe: payment failure, overdue invoice, cancellation, or past-due state.
+- PostHog: material usage decline or loss of a key activation event.
+
+The output must explain why the combination is more urgent than either signal alone. This demonstrates judgment, not merely API connectivity.
+
+### 3. Show restraint as a feature
+
+Include one control account that the system deliberately leaves alone. Show why it did not draft or escalate. A recovery agent that contacts every customer is unsafe; the stopping decision is part of the product.
+
+Also demonstrate:
+
+- a detect/verify stage cannot use write tools;
+- a draft cannot send itself;
+- a disconnected provider returns an actionable error instead of synthetic data;
+- duplicate webhook delivery does not create duplicate recovery actions.
+
+### 4. Make the audit trail visible
+
+Reviewers should not need to inspect Supabase or read source code. Build the smallest useful Workflows screen from the existing run-inspection APIs:
+
+- workflow status and trigger;
+- account and severity;
+- four stages in order;
+- tools used per stage;
+- duration, retry/fallback count, and model used;
+- draft/outcome link;
+- failure reason when a stage fails.
+
+This screen is competition-critical. It proves compliance, stopping rules, and debuggability simultaneously.
+
+### 5. Make the Razorpay relevance explicit
+
+Frame the product as a payment-provider-aware revenue recovery engine, not as a Stripe-specific inbox assistant. Explain that billing events enter through a provider adapter and the recovery pipeline is provider-independent.
+
+Only after the complete Stripe test-mode demo works, consider a narrow Razorpay adapter or event-schema example. Do not jeopardize the working submission by starting a broad new integration during the final week.
+
+### 6. Optimize for reviewer confidence
+
+Every claim in the video must be backed by one of:
+
+- a visible product state;
+- a traceable workflow ID;
+- a deterministic test;
+- a provider event ID;
+- a saved outcome row;
+- a documented calculation.
+
+Never use line count, tool count, speculative acceptance odds, or architecture complexity as the main proof. A small completed loop beats a large unfinished platform.
+
+---
+
+## Priority 0: the competition-critical path
+
+Complete these in order. Do not add unrelated features before all six gates pass.
+
+### Gate 1 — Freeze a trustworthy build
+
+- [x] Tool-routing redesign implemented and documented.
+- [x] Unit tests pass: 118/118.
+- [x] TypeScript check passes.
+- [ ] Run `npm run lint`; fix new or material errors only.
+- [ ] Run `npm run build` with the intended production environment.
+- [ ] Confirm no secrets, customer data, temporary files, or debug dumps are included in the repository.
+- [ ] Update `web/README.md` with a five-minute local setup, architecture summary, required environment variables, demo command, and known limitations.
+
+**Exit proof:** clean test, typecheck, lint, and production-build transcript.
+
+### Gate 2 — Create a reproducible 15-account competition dataset
+
+Use Stripe test mode and an isolated PostHog test project. Create exactly named, repeatable scenarios instead of manually improvising them during recording.
+
+| Cohort | Count | Required condition |
+|---|---:|---|
+| Payment failed | 3 | Failed invoice/payment with meaningful MRR |
+| Past due | 2 | Subscription remains active but payment is overdue |
+| Cancelled | 2 | Recent cancellation with a recoverable reason |
+| Usage decline | 3 | Active billing plus a measurable PostHog usage drop |
+| Compound risk | 2 | Billing problem and usage decline on the same account |
+| Healthy controls | 3 | Active, paid, and stable usage; must not be escalated |
+
+Requirements:
+
+- [ ] Use deterministic customer names and metadata so records can be reset.
+- [ ] Write one supported seed/reset procedure; do not depend on undocumented dashboard clicking.
+- [ ] Store expected classification and expected action for every account.
+- [ ] Ensure the seed is idempotent or documents cleanup precisely.
+- [ ] Never commit API keys or personally identifiable information.
+
+**Exit proof:** a fresh test workspace can be populated and produces the same 15 accounts and expected cohort labels.
+
+### Gate 3 — Prove the complete recovery pipeline
+
+- [ ] Run Stripe sync and confirm customers, subscriptions, invoices, and MRR enter the correct workspace.
+- [ ] Run PostHog sync and confirm usage signals attach to the intended accounts.
+- [ ] Trigger the daily batch and preserve its workflow ID.
+- [ ] Trigger one signed `invoice.payment_failed` webhook and preserve its event and workflow IDs.
+- [ ] Trigger one signed PostHog usage-drop webhook.
+- [ ] Confirm idempotency by replaying one event safely.
+- [ ] Verify risk score, severity, root-cause evidence, draft creation, founder approval, send behavior, and final verify stage.
+- [ ] Verify one provider failure path produces `needs_attention` with clear remediation and no invented business data.
+
+**Exit proof:** one evidence table mapping every stage to its input, output, timestamp, tool, and database/run record.
+
+### Gate 4 — Produce honest outcome metrics
+
+Define metrics before running the final demo:
+
+```text
+flag rate          = flagged accounts / processed accounts
+precision          = correctly flagged accounts / flagged accounts
+draft rate         = drafts created / eligible at-risk accounts
+approval rate      = approved drafts / drafts created
+recovery rate      = recovered accounts / contacted at-risk accounts
+MRR at risk        = sum of pre-action MRR for eligible at-risk accounts
+MRR protected      = sum of MRR for accounts still active after intervention
+MRR recovered      = sum of MRR restored after a failed/cancelled state
+time to action     = draft created at - triggering signal received at
+```
+
+- [ ] Decide and document the exact condition for `recovered`, `protected`, `responded`, `still_at_risk`, and `churned`.
+- [ ] Do not count `responded` as fully recovered revenue. If the existing endpoint applies a weighted estimate, label it as an estimate and also show the strict recovered amount.
+- [ ] Record denominators and observation window beside every percentage.
+- [ ] Export the final result table and retain screenshots.
+
+**Exit proof:** the same source records reproduce every number shown in the dashboard, README, application, and video.
+
+### Gate 5 — Build only the two missing reviewer surfaces
+
+1. **Workflows:** replace the empty `/dashboard/flows` page using the existing run-inspection endpoints. Show the four-stage audit trail and failures.
+2. **Results:** expose the revenue-saved endpoint in a compact card/table showing strict recovered MRR, protected MRR, pending outcomes, and observation window.
+
+No broad redesign is allowed here. Reuse the current dashboard visual system. No command palette, new persona, extra integration, or landing-page animation until these two surfaces work.
+
+**Exit proof:** a reviewer can understand one recovery from signal to outcome without opening developer tools.
+
+### Gate 6 — Package and submit
+
+- [ ] Create a clean public repository or reviewer-accessible snapshot.
+- [ ] Add architecture, setup, demo, security, and limitations to the README.
+- [ ] Prepare a one-page result sheet with final metrics and a workflow ID.
+- [ ] Record the five-minute video.
+- [ ] Complete the application by September 3.
+- [ ] Submit by September 4, keeping September 5 only as emergency buffer.
+- [ ] Verify every submitted link in a logged-out/private browser window.
+
+---
+
+## Five-minute pitch structure
+
+| Time | Story | Visible proof |
+|---|---|---|
+| 0:00–0:25 | Revenue leaks hide across billing and product usage | One sentence and the 15-account batch |
+| 0:25–1:10 | Allel combines signals and ranks intervention | At-risk list plus one healthy control |
+| 1:10–2:10 | Live recovery workflow | Trigger webhook → diagnosis → draft |
+| 2:10–2:45 | Human control and stopping rules | Founder approval and blocked-write example |
+| 2:45–3:30 | Auditability and failure honesty | Workflows timeline, tool calls, provider failure |
+| 3:30–4:15 | Measured result | Funnel, MRR at risk, protected/recovered amount |
+| 4:15–4:45 | Architecture | Provider adapters → four-stage pipeline → outcomes |
+| 4:45–5:00 | Close | Why this is ready for Razorpay's revenue stack |
+
+Video rules:
+
+- Show the product before source code.
+- Use one continuous hero scenario, not a tour of every integration.
+- Keep architecture to one diagram and 30 seconds.
+- State “test-mode simulation” wherever applicable.
+- Do not say “fully autonomous” when founder approval is required.
+- End with the measured result and repository/demo link.
+
+---
+
+## Remaining-day schedule
+
+| Date | Non-negotiable output |
 |---|---|
-| Total applicants across all 5 tracks | ~1,000–2,000 (Razorpay is top-tier Indian fintech, student program, ₹75k stipend) |
-| Track 3 applicants specifically | ~100–300 (most students will pick Track 1 or Track 5) |
-| Interns hired per track | ~3–5 |
-| **Your acceptance odds (Track 3)** | **~5–10%** if demo works end-to-end with measured recovery |
+| Aug 22 | Freeze baseline; finalize this execution plan |
+| Aug 23 | Reproducible 15-account Stripe/PostHog test dataset |
+| Aug 24 | Stripe and PostHog sync verified against the seeded workspace |
+| Aug 25 | Daily batch run completed; failures documented |
+| Aug 26 | Stripe and PostHog webhook runs completed; idempotency verified |
+| Aug 27 | Workflows audit-trail page usable |
+| Aug 28 | Outcome/revenue result surface usable |
+| Aug 29 | Full stopping-rule, approval, and provider-failure rehearsal |
+| Aug 30 | Final measured batch; evidence table and screenshots frozen |
+| Aug 31 | README, architecture diagram, and result sheet complete |
+| Sep 1 | First full five-minute recording |
+| Sep 2 | Fix only demo blockers; record final version |
+| Sep 3 | Application answers and all links finalized |
+| Sep 4 | Submit and verify receipt |
+| Sep 5 | Emergency buffer only |
 
-### Why your odds are actually higher than average:
-- Most students will submit weekend hackathon projects (few hundred lines)
-- You have **43,000 lines of production code** with a real scoring engine, real agent pipeline, real integrations
-- Track 3 requires understanding of revenue operations — most CS students don't have this
-- You already built exactly what they're describing before even seeing this program
-- **If the demo works and the video is good, you're top 5% of applicants**
-
-### What could beat you:
-- Someone who builds on Razorpay's actual APIs (stronger signal for Razorpay specifically)
-- Someone with a cleaner, more focused project (less code, tighter scope, better demo)
-- Someone with actual real-world revenue recovery data (not test data)
-
----
-
-## Phase 1: Codebase Cleanup (Days 1–3)
-
-The codebase has unnecessary test files, stale code, and artifacts from development. Clean it up so it looks production-grade when reviewers look at the repo.
-
-### Tasks
-
-- [ ] Remove unnecessary test files that aren't real tests
-- [ ] Remove stale persona references (Henry/Sarah are kept for automation but old persona-switcher UI code may linger)
-- [ ] Clean up unused imports and dead code across all files
-- [ ] Remove any console.log debug statements
-- [ ] Remove scratch files, temp files, development artifacts
-- [ ] Clean up .env.example — make it clear and professional
-- [ ] Update README.md in /web — make it a strong project README:
-  - What Allel is (2 sentences)
-  - Architecture diagram (text-based)
-  - How to run locally
-  - How the 4-stage pipeline works
-  - Key files to read
-- [ ] Remove or clean up root-level markdown files that are internal notes (chat.md, cover_letters.md, framer.md, NAMES.md)
-- [ ] Make sure npm run build passes with 0 errors
-- [ ] Make sure npm test passes all 55 tests
-- [ ] Add a LICENSE file (MIT is fine)
+If a day slips, remove polish before removing proof. Do not move submission work onto September 5 unless an external dependency forces it.
 
 ---
 
-## Phase 2: Stripe Integration — Test Mode Demo (Days 4–7)
+## Final evidence checklist
 
-Get Stripe fully working in test mode so you can demo the complete revenue recovery pipeline.
+The submission is ready only when every box is checked:
 
-### Tasks
+- [ ] Public/reviewer-accessible product URL works in a private browser.
+- [ ] Repository instructions work from a clean clone.
+- [ ] Tests, typecheck, lint, and production build pass.
+- [ ] Fifteen deterministic test accounts are visible.
+- [ ] At least one compound Stripe + PostHog risk is demonstrated.
+- [ ] At least one healthy account is correctly left untouched.
+- [ ] One signed Stripe webhook completes the four-stage workflow.
+- [ ] One duplicate webhook is safely ignored or handled idempotently.
+- [ ] One founder-approved draft is sent through the intended path.
+- [ ] One disallowed or unapproved action is visibly stopped.
+- [ ] One integration failure is surfaced honestly without fake data.
+- [ ] Workflow UI shows the complete audit trail.
+- [ ] Result UI shows reproducible metrics with denominators and time window.
+- [ ] All monetary claims distinguish test-mode simulation from real recovery.
+- [ ] Five-minute video stays under the limit and contains no secrets.
+- [ ] Application is submitted before the final day.
 
-- [ ] Create Stripe account (free) if you don't have one
-- [ ] Get test-mode API keys (sk_test_...)
-- [ ] Set up Stripe CLI locally for webhook testing (stripe listen --forward-to localhost:3000/api/webhooks/stripe)
-- [ ] Add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET to .env.local
-- [ ] Create 15 test customers in Stripe test mode with different scenarios:
-  - 3 customers: payment_failed (card declined)
-  - 2 customers: subscription cancelled
-  - 2 customers: invoice overdue
-  - 3 customers: active but declining usage (pair with PostHog)
-  - 2 customers: past_due payments
-  - 3 customers: healthy (control group)
-- [ ] Verify Stripe sync works — stripe-sync.ts pulls customers/subscriptions/invoices into Supabase
-- [ ] Verify Stripe webhook handler works — payment.failed triggers the 4-stage pipeline
-- [ ] Verify the scoring engine produces correct scores for each test customer
-- [ ] Verify the agent drafts rescue emails for high-risk accounts
-- [ ] Verify the approval flow works — approve a draft, it gets "sent"
-- [ ] Verify the outcome tracker records the result
+## Scope lock
 
-### Deliverable
-A working demo where you can show: "15 accounts → 7 flagged at-risk → 5 rescue drafts generated → 3 approved and sent → revenue saved tracked"
+Until the checklist above is complete, do not build:
 
----
+- additional integrations;
+- more personas;
+- multi-agent orchestration;
+- vector/RAG memory;
+- a command palette;
+- a landing-page redesign;
+- generalized automation-rule builders;
+- speculative features added only to increase code size.
 
-## Phase 3: PostHog Integration — Verify & Demo (Days 4–7, parallel with Stripe)
-
-PostHog gives usage data that feeds into the scoring engine. Verify it works.
-
-### Tasks
-
-- [ ] Verify PostHog API key works (phx_... — already in .env.local)
-- [ ] Verify posthog-sync.ts can pull events and usage data
-- [ ] Verify PostHog usage data feeds into the scoring engine's usage factors (usageDelta7d, usageDelta30d, featureBreadth)
-- [ ] Set up PostHog test project with sample events if needed
-- [ ] Verify PostHog webhook handler triggers pipeline on usage drop events
-- [ ] Verify compound signal detection works: Stripe payment_failed + PostHog usage_drop = critical severity
-
-### Deliverable
-Show that the scoring engine uses BOTH billing (Stripe) AND usage (PostHog) data to produce compound signals.
-
----
-
-## Phase 4: End-to-End Pipeline Demo (Days 8–10)
-
-Run the full pipeline and document measured results.
-
-### Tasks
-
-- [ ] Deploy to Vercel (free tier) with all env vars configured
-- [ ] Set GOOGLE_REDIRECT_URI and NEXT_PUBLIC_APP_URL to production URL
-- [ ] Add production URL to Google Cloud Console authorized redirect URIs
-- [ ] Run the daily cron pipeline (/api/cron/daily-run) against your 15 test accounts
-- [ ] Document the results:
-  - How many accounts were flagged
-  - What risk scores were assigned
-  - What root causes were diagnosed
-  - How many drafts were generated
-  - What the rescue emails said
-  - What outcomes were tracked
-- [ ] Trigger a Stripe webhook (payment.failed) and show the real-time pipeline response
-- [ ] Show the workflow run logs (audit trail) in the dashboard
-- [ ] Take screenshots / screen recordings of every step
-
-### Deliverable
-A documented batch run with measured numbers: "X accounts processed, Y flagged, Z drafts created, $W MRR at risk, N recovered"
-
----
-
-## Phase 5: Record 5-min Pitch Video (Days 11–12)
-
-### Tasks
-
-- [ ] Install Loom (free) or set up OBS
-- [ ] Practice the script 2-3 times before recording
-- [ ] Record the video following this structure:
-
-| Time | Section | Show |
-|------|---------|------|
-| 0:00–0:30 | **The Problem** | Face cam. "SaaS founders lose revenue silently. Signals are buried across 10 tools." |
-| 0:30–1:30 | **Live Demo — Dashboard** | Screen share: at-risk accounts, churn scores, daily brief, rescue drafts |
-| 1:30–2:30 | **Agent in Action** | Screen share: trigger webhook, watch 4-stage pipeline run, see draft generated |
-| 2:30–3:30 | **Architecture** | Screen share: scoring engine code, compound signals, workflow pipeline, stage tool controls |
-| 3:30–4:15 | **Measured Results** | Screen share: "15 accounts → 7 flagged → 5 drafts → 3 recovered → $X saved" |
-| 4:15–5:00 | **Why Me + Close** | Face cam. "Built solo in 3 weeks. 43k lines. 55 tests. Live at allel.co." |
-
-- [ ] Upload to YouTube (unlisted) or Loom
-- [ ] Get the shareable link
-
----
-
-## Phase 6: Submit Application (Day 13)
-
-### Tasks
-
-- [ ] Open the Google Form
-- [ ] Select Track 3: AI Revenue Recovery
-- [ ] Fill in Project Name: Allel
-- [ ] Paste Project Objectives from razorpay_application.md
-- [ ] GitHub URL: explain private repo + link to allel.co
-- [ ] Paste 5-min Pitch Video Link
-- [ ] Paste Build Challenges from razorpay_application.md
-- [ ] Check confirmation box
-- [ ] **SUBMIT**
-
----
-
-## Phase 7: Buffer Days (Days 14–16)
-
-- [ ] Fix any bugs found during demo
-- [ ] Re-record video if first take wasn't strong enough
-- [ ] Polish the landing page at allel.co
-- [ ] Prepare for the panel interview (shortlisted builders go straight to a panel)
-
----
-
-## Daily Schedule
-
-| Day | Date | Focus |
-|-----|------|-------|
-| 1 | Aug 21 (Thu) | Codebase cleanup: remove dead files, clean imports |
-| 2 | Aug 22 (Fri) | Codebase cleanup: update README, clean .env.example |
-| 3 | Aug 23 (Sat) | Codebase cleanup: verify build + tests pass, remove scratch files |
-| 4 | Aug 24 (Sun) | Stripe test mode setup: create account, get keys, create test customers |
-| 5 | Aug 25 (Mon) | Stripe integration: verify sync, webhooks, scoring engine with real test data |
-| 6 | Aug 26 (Tue) | PostHog verification: verify sync, usage data in scoring, compound signals |
-| 7 | Aug 27 (Wed) | Integration testing: Stripe + PostHog together, compound signal demo |
-| 8 | Aug 28 (Thu) | Deploy to Vercel, configure production env |
-| 9 | Aug 29 (Fri) | End-to-end pipeline run: daily cron on 15 accounts, document results |
-| 10 | Aug 30 (Sat) | End-to-end pipeline: webhook-triggered run, screenshots, screen recordings |
-| 11 | Aug 31 (Sun) | Video: practice script, first recording attempt |
-| 12 | Sep 1 (Mon) | Video: final recording, upload |
-| 13 | Sep 2 (Tue) | **SUBMIT APPLICATION** |
-| 14 | Sep 3 (Wed) | Buffer: fix bugs, polish |
-| 15 | Sep 4 (Thu) | Buffer: re-record video if needed |
-| 16 | Sep 5 (Fri) | **DEADLINE** |
-
----
-
-## What Will Make You Win
-
-1. **The demo works end-to-end** — not "here's the code," but "watch me trigger a payment failure and see the agent draft a rescue email in 30 seconds"
-2. **Measured numbers** — "15 accounts, 7 flagged, 5 drafts, $850 MRR recovered" beats any amount of architecture explanation
-3. **The video is energetic and focused** — show the product, not slides
-4. **The codebase is clean** — when they look at the repo, it looks professional
-5. **You built it solo** — massive signal for a builder internship
-
-## What Will NOT Make You Win
-
-- ❌ More features
-- ❌ More integrations
-- ❌ A fancier landing page
-- ❌ Spending 10 days coding instead of 2 days demoing
-
-**The product is built. Now prove it works.**
+The product is technically substantial. The remaining job is to make its value measurable, reproducible, visible, and impossible for a reviewer to miss.
