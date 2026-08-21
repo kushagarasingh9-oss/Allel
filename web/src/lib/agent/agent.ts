@@ -591,7 +591,7 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
 }> = [
   {
     provider: 'google_calendar',
-    regex: /\b(calendar|cal|meeting|meetings|schedule|schedules|event|events|cancel|delete|freebusy|free|busy|book|appointment|appointments|am|pm|tomorrow|today|agenda|slot|slots|availability|invite|invites|meet)\b/i,
+    regex: /\b(calendar|calender|calndr|gcal|cal|meeting|meetings|schedule|schedules|schdule|schedual|event|events|cancel|delete|freebusy|free|busy|book|appointment|appointments|am|pm|tomorrow|today|agenda|slot|slots|availability|invite|invites|meet)\b/i,
     tools: [
       'listCalendarEventsTool',
       'getCalendarEventTool',
@@ -605,7 +605,7 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
   },
   {
     provider: 'gmail',
-    regex: /\b(email|emails|mail|mails|gmail|inbox|reply|send|draft|drafts|thread|threads|outbox)\b/i,
+    regex: /\b(email|emails|mail|mails|gmail|gamil|mial|inbox|imbox|reply|send|draft|drafts|thread|threads|outbox)\b/i,
     tools: [
       'getMyInbox',
       'getGmailThreadsForAccount',
@@ -635,7 +635,7 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
   },
   {
     provider: 'stripe',
-    regex: /\b(stripe|billing|mrr|revenue|churn|invoice|invoices|subscription|subscriptions|charge|charges|refund|refunds|coupon|coupons|dispute|disputes|discount|discounts|payment|payments|plan|plans|price|pricing|customer|customers|financial)\b/i,
+    regex: /\b(stripe|strpi|strip|billing|mrr|revenue|churn|invoice|invoices|subscription|subscriptions|charge|charges|refund|refunds|coupon|coupons|dispute|disputes|discount|discounts|payment|payments|plan|plans|price|pricing|customer|customers|financial)\b/i,
     tools: [
       'searchStripeCustomersTool',
       'getStripeCustomerDetail',
@@ -653,7 +653,7 @@ const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
   },
   {
     provider: 'notion',
-    regex: /\b(notion|doc|docs|knowledge|page|pages|wiki|wikis|database|databases|note|notes|file|files|document|documents|spec|specs|readme)\b/i,
+    regex: /\b(notion|doc|docs|knowledge|knowlege|knowlee|page|pages|wiki|wikis|database|databases|note|notes|file|files|document|documents|spec|specs|readme)\b/i,
     tools: [
       'searchNotionTool',
       'getNotionPageTool',

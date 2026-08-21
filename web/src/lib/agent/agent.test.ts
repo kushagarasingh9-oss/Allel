@@ -139,6 +139,24 @@ test('Task 2.2b: chat selection narrows the surface for a single-domain request'
   )
 })
 
+test('Task 2.2c: typo-tolerant compound requests match both calendar and email', () => {
+  const available = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+  const selected = selectRelevantToolsForPrompt(
+    'now chekmy mails and the calender togragther',
+    available,
+    undefined,
+    { channel: 'chat' }
+  )
+
+  assert.ok(selected.includes('getMyInbox'), 'Mails typo/plural must match Gmail')
+  assert.ok(selected.includes('listCalendarEventsTool'), 'Calender typo must match Google Calendar')
+  assert.equal(
+    selected.includes('refundStripeCharge'),
+    false,
+    'Unrelated billing tools must not be exposed'
+  )
+})
+
 test('Task 2.2c: a bare follow-up retains tools used earlier in the conversation', () => {
   const available = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
   const historyMessages = [
