@@ -115,20 +115,31 @@ async function saveEncryptedToken(params: {
   if (error) throw error
 }
 
-async function upsertConnection(params: {
+export async function upsertConnection(params: {
   supabase: Awaited<ReturnType<typeof createClient>>
   workspaceId: string
   provider: string
   status?: 'connected' | 'needs_attention' | 'disconnected' | 'coming_soon'
   metadata?: Record<string, unknown>
 }) {
+  const status = params.status ?? 'connected'
+  const isConnected = status === 'connected'
+  const baseMetadata = params.metadata ?? {}
+  const metadata = isConnected
+    ? {
+        connected_via: baseMetadata.connected_via ?? 'direct_api',
+        api_key_verified_at: baseMetadata.api_key_verified_at ?? new Date().toISOString(),
+        ...baseMetadata,
+      }
+    : baseMetadata
+
   const { error } = await params.supabase.from('integration_connections').upsert(
     {
       workspace_id: params.workspaceId,
       provider: params.provider,
-      status: params.status ?? 'connected',
+      status,
       last_synced_at: null,
-      metadata: params.metadata ?? {},
+      metadata,
     },
     { onConflict: 'workspace_id,provider' }
   )

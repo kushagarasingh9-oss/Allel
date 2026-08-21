@@ -11,6 +11,11 @@ import { decrypt, encrypt } from './encryption'
 import {
   requireIntegrationConnected,
 } from './connection-guard'
+import {
+  isProviderAuthFailure,
+  markIntegrationAuthFailed,
+  markIntegrationAuthSucceeded,
+} from './integration-health'
 
 // ============================================================
 //  Types
@@ -59,7 +64,7 @@ export type CalendarListEntry = {
 //  Access Token — Independent Google Calendar OAuth
 // ============================================================
 
-async function getCalendarAccessToken(workspaceId: string): Promise<string> {
+async function getCalendarAccessToken(workspaceId: string, forceRefresh: boolean = false): Promise<string> {
   const supabase = createServiceClient()
 
   await requireIntegrationConnected(supabase, workspaceId, 'google_calendar')
@@ -75,16 +80,23 @@ async function getCalendarAccessToken(workspaceId: string): Promise<string> {
 
   if (accessError) throw accessError
   if (!accessRow) {
-    throw new Error(
-      'Google Calendar OAuth credentials are missing — reconnect in Settings > Connections.'
-    )
+    const errorMsg = 'Google Calendar OAuth credentials are missing — reconnect in Settings > Connections.'
+    await markIntegrationAuthFailed({
+      supabase,
+      workspaceId,
+      provider: 'google_calendar',
+      errorMessage: errorMsg,
+    })
+    throw new Error(errorMsg)
   }
 
   // Keep a safety margin so the token cannot expire during an API request.
+  // A null or non-finite expires_at MUST be treated as expired.
   const expiresAtMs = accessRow.expires_at
     ? new Date(accessRow.expires_at).getTime()
     : Number.NaN
-  if (!Number.isFinite(expiresAtMs) || expiresAtMs > Date.now() + 60_000) {
+  const isTokenValid = !forceRefresh && Number.isFinite(expiresAtMs) && expiresAtMs > Date.now() + 60_000
+  if (isTokenValid) {
     return decrypt(accessRow.encrypted_value, accessRow.iv, accessRow.auth_tag)
   }
 
@@ -99,29 +111,83 @@ async function getCalendarAccessToken(workspaceId: string): Promise<string> {
 
   if (refreshError) throw refreshError
   if (!refreshRow) {
-    throw new Error('Google Calendar refresh token not found — reconnect in Settings > Connections.')
+    const errorMsg = 'Google Calendar refresh token not found — reconnect in Settings > Connections.'
+    await markIntegrationAuthFailed({
+      supabase,
+      workspaceId,
+      provider: 'google_calendar',
+      errorMessage: errorMsg,
+    })
+    throw new Error(errorMsg)
   }
 
-  const refreshToken = decrypt(refreshRow.encrypted_value, refreshRow.iv, refreshRow.auth_tag)
-  const { accessToken, expiresAt } = await refreshGoogleToken(refreshToken)
+  try {
+    const refreshToken = decrypt(refreshRow.encrypted_value, refreshRow.iv, refreshRow.auth_tag)
+    const { accessToken, expiresAt } = await refreshGoogleToken(refreshToken)
 
-  // Save the new access token before using it.
-  const encrypted = encrypt(accessToken)
-  const { error: updateError } = await supabase
-    .from('integration_tokens')
-    .update({
-      encrypted_value: encrypted.encrypted,
-      iv: encrypted.iv,
-      auth_tag: encrypted.authTag,
-      expires_at: expiresAt.toISOString(),
+    // Save the new access token before using it.
+    const encrypted = encrypt(accessToken)
+    const { error: updateError } = await supabase
+      .from('integration_tokens')
+      .update({
+        encrypted_value: encrypted.encrypted,
+        iv: encrypted.iv,
+        auth_tag: encrypted.authTag,
+        expires_at: expiresAt.toISOString(),
+      })
+      .eq('workspace_id', workspaceId)
+      .eq('provider', 'google_calendar')
+      .eq('token_type', 'oauth_access')
+
+    if (updateError) throw updateError
+
+    return accessToken
+  } catch (refreshErr) {
+    const errorMsg = refreshErr instanceof Error ? refreshErr.message : String(refreshErr)
+    await markIntegrationAuthFailed({
+      supabase,
+      workspaceId,
+      provider: 'google_calendar',
+      errorMessage: errorMsg,
     })
-    .eq('workspace_id', workspaceId)
-    .eq('provider', 'google_calendar')
-    .eq('token_type', 'oauth_access')
+    throw refreshErr
+  }
+}
 
-  if (updateError) throw updateError
+export async function executeWithCalendarAccessToken<T>(
+  workspaceId: string,
+  fn: (accessToken: string) => Promise<T>
+): Promise<T> {
+  const supabase = createServiceClient()
 
-  return accessToken
+  try {
+    const accessToken = await getCalendarAccessToken(workspaceId, false)
+    const result = await fn(accessToken)
+    await markIntegrationAuthSucceeded({ supabase, workspaceId, provider: 'google_calendar' })
+    return result
+  } catch (error) {
+    // Shared detector so Calendar, Gmail, and the chat-boundary guard all agree
+    // on what an auth failure is — and all correctly exclude a 403 rate limit.
+    if (isProviderAuthFailure(error)) {
+      try {
+        const freshAccessToken = await getCalendarAccessToken(workspaceId, true)
+        const result = await fn(freshAccessToken)
+        await markIntegrationAuthSucceeded({ supabase, workspaceId, provider: 'google_calendar' })
+        return result
+      } catch (retryError) {
+        const msg = retryError instanceof Error ? retryError.message : String(retryError)
+        await markIntegrationAuthFailed({
+          supabase,
+          workspaceId,
+          provider: 'google_calendar',
+          errorMessage: `Google Calendar 401 retry failed: ${msg}`,
+        })
+        throw retryError
+      }
+    }
+
+    throw error
+  }
 }
 
 /** Refresh a Google OAuth token (works for any Google provider) */

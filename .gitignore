@@ -43,6 +43,7 @@ scratch_playwright/node_modules/
 # Video files
 *.webm
 *.mp4
+!web/public/1.mp4
 
 # Gemini/Agent
 .agents/

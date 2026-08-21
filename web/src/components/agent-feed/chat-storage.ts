@@ -152,3 +152,41 @@ export function sanitizeStoredPersonaMessages(
     return hasScopedTrustedHistory(message, options)
   })
 }
+
+/**
+ * Merge a locally cached thread with the server's copy, server-first.
+ *
+ * The server record is canonical: `chat-memory.ts` merges server-first when
+ * persisting, and the local copy is lossy by design — `sanitizeStoredPersonaMessages`
+ * drops any assistant message whose signature is missing, version-mismatched, or
+ * scoped to another workspace. Letting a partially-signed local copy win is what
+ * made reloads lose earlier turns.
+ *
+ * Local messages are not discarded outright though: a turn appended after the
+ * last successful save exists only locally, and dropping it would lose the
+ * founder's most recent message. So server ordering is preserved and local-only
+ * messages are appended after it.
+ *
+ * Pure, so the merge is testable without React.
+ */
+export function reconcileConversationHistory<T extends { id?: string }>(
+  localMessages: readonly T[],
+  serverMessages: readonly T[]
+): T[] {
+  if (serverMessages.length === 0) return [...localMessages]
+  if (localMessages.length === 0) return [...serverMessages]
+
+  const serverIds = new Set(
+    serverMessages
+      .map((message) => message.id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0)
+  )
+
+  // A local message with no id cannot be matched, so it is treated as local-only
+  // rather than silently dropped.
+  const localOnly = localMessages.filter(
+    (message) => !(typeof message.id === "string" && serverIds.has(message.id))
+  )
+
+  return [...serverMessages, ...localOnly]
+}

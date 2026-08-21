@@ -19,10 +19,15 @@ import {
 } from 'ai'
 import { createClient } from '@/lib/supabase/server'
 import {
+  type AgentToolName,
   getAgentForPersona,
+  getIntegrationProviderForTool,
   isAgentConfigured,
+  resolveAgentFallbackModelId,
   resolveAgentModelId,
+  resolveDomainProvidersFromText,
 } from '@/lib/agent/agent'
+import { detectAnnouncedActionMismatch } from '@/lib/agent/announced-action'
 import {
   buildConversationMemorySystemPrompt,
   clearPersistedConversationHistory,
@@ -43,7 +48,11 @@ import {
 } from '@/lib/agent/ui-message-utils'
 import { ensureWorkspaceForUser } from '@/lib/workspaces/ensure-workspace'
 import { checkRateLimit, rateLimitResponse } from '@/lib/security/rate-limiter'
-import { classifyAndSanitizeServerError } from '@/lib/agent/error-classifier'
+import {
+  classifyAndSanitizeServerError,
+  classifyModelFailureClass,
+  isFallbackEligibleFailure,
+} from '@/lib/agent/error-classifier'
 
 type AgentChatMessage = UIMessage<TrustedMessageMetadata>
 
@@ -279,13 +288,21 @@ Incorporate these emojis naturally into your status summaries and action recomme
     historyMessages: enrichedMessages,
   })
 
+  // The run log must record the model that actually answered, not the one that
+  // was requested — otherwise a fallback turn is indistinguishable from a
+  // primary-model turn when inspecting runs later.
+  let effectiveModelId = modelId
+
   const stream = createUIMessageStream<AgentChatMessage>({
     execute: async ({ writer }) => {
       const stepTrace: ChatStepTrace[] = []
 
-      try {
-        const agentStream = await createAgentUIStream({
-          agent,
+      // Defined once and reused by the primary and fallback attempts. Kept as a
+      // factory rather than a lifted options object so the stream callbacks keep
+      // their inferred parameter types from the call site.
+      const startAgentStream = (agentToRun: typeof agent) =>
+        createAgentUIStream({
+          agent: agentToRun,
           uiMessages: enrichedMessages,
           onStepFinish: async (step) => {
             stepTrace.push({
@@ -299,11 +316,47 @@ Incorporate these emojis naturally into your status summaries and action recomme
             if (responseMessage.role !== 'assistant') return
 
             try {
-              const metadata = buildTrustedMessageMetadata({
-                workspaceId,
-                personaId: persona.id,
-                message: responseMessage as AgentChatMessage,
+              const outputText = getMessageTextContent(responseMessage as AgentChatMessage)
+              const calledToolNames = stepTrace.flatMap((step) => step.toolNames)
+
+              // Catches both "promised an action and ran nothing" and "announced
+              // one provider, called another".
+              const mismatchResult = detectAnnouncedActionMismatch({
+                outputText,
+                toolNames: calledToolNames,
+                resolveToolProvider: (toolName) =>
+                  getIntegrationProviderForTool(toolName as AgentToolName) ?? null,
+                resolveTextProviders: resolveDomainProvidersFromText,
               })
+              const announcedActionMismatch = mismatchResult.mismatch
+
+              if (mismatchResult.mismatch) {
+                console.warn(
+                  `[agent-route] Announced action mismatch (${mismatchResult.reason}): announced ${
+                    mismatchResult.announcedProviders.join(', ') || 'unspecified'
+                  }, called ${mismatchResult.calledProviders.join(', ') || 'nothing'} — "${outputText.slice(0, 120)}"`
+                )
+              }
+
+              // Built after the mismatch check so the flag can travel with the
+              // metadata; the founder needs to see that the promise was broken,
+              // not just have it recorded server-side.
+              const metadata: TrustedMessageMetadata = {
+                ...buildTrustedMessageMetadata({
+                  workspaceId,
+                  personaId: persona.id,
+                  message: responseMessage as AgentChatMessage,
+                }),
+                ...(mismatchResult.mismatch
+                  ? {
+                      announcedActionMismatch: {
+                        reason: mismatchResult.reason,
+                        announcedProviders: mismatchResult.announcedProviders,
+                        calledProviders: mismatchResult.calledProviders,
+                      },
+                    }
+                  : {}),
+              }
 
               writer.write({
                 type: 'message-metadata',
@@ -313,16 +366,6 @@ Incorporate these emojis naturally into your status summaries and action recomme
               const assistantMessage = {
                 ...(responseMessage as AgentChatMessage),
                 metadata,
-              }
-              const outputText = getMessageTextContent(assistantMessage)
-              const totalToolCalls = stepTrace.flatMap((step) => step.toolNames).length
-              const announcedActionRegex = /\b(let me check|checking your|let's see|fetching|reading your|pulling your|looking at your)\b/i
-              const announcedActionMismatch = totalToolCalls === 0 && announcedActionRegex.test(outputText)
-
-              if (announcedActionMismatch) {
-                console.warn(
-                  `[agent-route] Mismatch detected: text announced action but 0 tool calls were executed: "${outputText.slice(0, 120)}"`
-                )
               }
 
               await Promise.allSettled([
@@ -341,7 +384,7 @@ Incorporate these emojis naturally into your status summaries and action recomme
                     ? getMessageTextContent(latestUserMessage).slice(0, 500)
                     : null,
                   outputSummary: outputText.slice(0, 1000),
-                  modelUsed: modelId,
+                  modelUsed: effectiveModelId,
                   metadata: {
                     personaId: persona.id,
                     sessionId,
@@ -359,10 +402,55 @@ Incorporate these emojis naturally into your status summaries and action recomme
           },
         })
 
+      const mergeAgentStream = (agentStream: unknown) => {
         writer.merge(
           agentStream as AsyncIterableStream<InferUIMessageChunk<AgentChatMessage>>
         )
+      }
+
+      try {
+        mergeAgentStream(await startAgentStream(agent))
       } catch (streamError) {
+        // The provider rejected the request outright (bad deployment, exhausted
+        // quota, hard 5xx before the first token). `maxRetries` on the agent has
+        // already been spent against the primary model, so the only remaining
+        // move is a different model.
+        //
+        // Note: a failure that arrives *after* streaming has begun cannot be
+        // recovered here — it surfaces through `onError` below. Transparently
+        // retrying mid-stream would require buffering the whole response.
+        const fallbackModelId = resolveAgentFallbackModelId(modelId)
+
+        if (fallbackModelId && isFallbackEligibleFailure(streamError)) {
+          console.warn(
+            `[agent-route] Primary model ${modelId} failed (${classifyModelFailureClass(streamError)}); retrying on fallback ${fallbackModelId}`,
+            streamError
+          )
+
+          try {
+            const fallbackAgent = getAgentForPersona(agentId, {
+              modelId: fallbackModelId,
+              channel: 'chat',
+              runType: 'chat_message',
+              prompt: conversationText,
+              historyMessages: enrichedMessages,
+            })
+            effectiveModelId = fallbackModelId
+            mergeAgentStream(await startAgentStream(fallbackAgent))
+            return
+          } catch (fallbackError) {
+            console.error(
+              `[agent-route] Fallback model ${fallbackModelId} also failed`,
+              fallbackError
+            )
+            writer.write({
+              type: 'error',
+              errorText: classifyAndSanitizeServerError(fallbackError),
+            })
+            return
+          }
+        }
+
         console.error('[agent-route] Agent stream creation failed', streamError)
         writer.write({
           type: 'error',

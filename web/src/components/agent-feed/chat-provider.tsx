@@ -19,6 +19,7 @@ import { buildAgentChatStorageScope } from "@/lib/agent/chat-session"
 import {
   buildPersonaThreadChatId,
   buildPersonaThreadStorageKey,
+  reconcileConversationHistory,
   resolveChatStorageScope,
   sanitizeStoredPersonaMessages,
   type ResolvedChatStorageScope,
@@ -249,11 +250,10 @@ export function ChatProvider({
       setHydrationStatus("restored")
       return
     }
-    if (chatRef.current.chat.messages.length > 0) {
-      setHydrationStatus("empty")
-      return
-    }
-
+    // Deliberately no "local state already populated, skip the fetch" shortcut.
+    // Local Restore runs first (it is declared above this effect), so that
+    // shortcut meant the lossy sessionStorage copy always beat the canonical
+    // server record and earlier turns disappeared on reload.
     let cancelled = false
     setHydrationStatus("loading")
 
@@ -270,8 +270,14 @@ export function ChatProvider({
         const serverMessages = data.messages as UIMessage[] | undefined
 
         if (serverMessages && serverMessages.length > 0 && !cancelled && chatRef.current) {
-          chatRef.current.chat.messages = serverMessages
-          setMessages(serverMessages)
+          // Server wins, but a turn appended after the last save exists only
+          // locally and must survive.
+          const merged = reconcileConversationHistory(
+            chatRef.current.chat.messages,
+            serverMessages
+          )
+          chatRef.current.chat.messages = merged
+          setMessages(merged)
           setHydrationStatus("restored")
           persistThread()
         } else {

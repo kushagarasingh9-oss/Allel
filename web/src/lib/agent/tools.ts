@@ -11,6 +11,7 @@
 
 import { tool } from 'ai'
 import { z } from 'zod'
+import type { IntegrationConnectionStatus } from '@/lib/integrations/connection-guard'
 import { createServiceClient } from '@/lib/supabase/service'
 import {
   getAccountMemory as getStoredAccountMemory,
@@ -70,7 +71,7 @@ import {
   listEventDefinitions,
   listDashboards,
 } from '@/lib/integrations/posthog'
-import { fetchThreads, buildEmailSearchQuery, threadNeedsReply, classifyEmailThread, getGmailProfile, isGmailReadSyncEnabled } from '@/lib/integrations/gmail'
+import { fetchThreads, buildEmailSearchQuery, threadNeedsReply, classifyEmailThread, scoreEmailThread, getGmailProfile, isGmailReadSyncEnabled } from '@/lib/integrations/gmail'
 import {
   getSlackCredentials,
   postSlackMessage,
@@ -101,6 +102,7 @@ import {
   tagConversation as tagConversationFn,
 } from '@/lib/integrations/intercom'
 import {
+  executeWithCalendarAccessToken,
   getCalendarAccessToken,
   listCalendarEvents as listCalendarEventsFn,
   getCalendarEvent as getCalendarEventFn,
@@ -1558,6 +1560,10 @@ export const getGmailThreadsForAccount = tool({
             threadId: thread.threadId,
             subject: sanitizeExternalText(thread.subject, { maxLength: 160 }).text,
             from: sanitizeExternalText(thread.from, { maxLength: 160 }).text,
+            lastSenderEmail: thread.lastSenderEmail,
+            participantEmails: thread.participantEmails,
+            lastMessageId: thread.lastMessageId,
+            messageCount: thread.messageCount,
             lastMessageAt: thread.lastMessageAt,
             snippet: buildExternalContentSnippet({
               source: 'gmail',
@@ -1611,10 +1617,15 @@ export const getMyInbox = tool({
       const classifiedThreads = rawThreads
         .map((thread) => {
           const classification = classifyEmailThread(thread)
+          const score = scoreEmailThread(thread)
           return {
             threadId: thread.threadId,
             subject: sanitizeExternalText(thread.subject, { maxLength: 160 }).text,
             from: sanitizeExternalText(thread.from, { maxLength: 160 }).text,
+            lastSenderEmail: thread.lastSenderEmail,
+            participantEmails: thread.participantEmails,
+            lastMessageId: thread.lastMessageId,
+            messageCount: thread.messageCount,
             lastMessageAt: thread.lastMessageAt,
             snippet: buildExternalContentSnippet({
               source: 'gmail',
@@ -1625,6 +1636,7 @@ export const getMyInbox = tool({
             isUnread: thread.isUnread,
             category: classification.category,
             priority: classification.priority,
+            score,
             personName: classification.personName,
             needsReply:
               classification.needsReply &&
@@ -1632,6 +1644,8 @@ export const getMyInbox = tool({
           }
         })
         .sort((left, right) => {
+          const scoreDiff = right.score - left.score
+          if (scoreDiff !== 0) return scoreDiff
           const priorityDifference = priorityRank[left.priority] - priorityRank[right.priority]
           if (priorityDifference !== 0) return priorityDifference
           if (left.needsReply !== right.needsReply) return left.needsReply ? -1 : 1
@@ -2001,6 +2015,99 @@ export const addAccountNote = tool({
   },
 })
 
+// ----- Tool: Inspect Integration Connections -----
+
+export const inspectIntegrationConnectionsTool = tool({
+  description:
+    'Inspect the connection status, verification verdict, and last error of every integration this workspace supports. Call this before telling the founder that a provider is disconnected, broken, expired, or unavailable — it is the only source of truth for connection state.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+  }),
+  execute: async ({ workspaceId }) => {
+    const supabase = createServiceClient()
+    const { data: connections, error } = await supabase
+      .from('integration_connections')
+      .select('provider, status, last_synced_at, metadata')
+      .eq('workspace_id', workspaceId)
+
+    if (error) {
+      return { error: error.message }
+    }
+
+    const { isUnverifiedConnection, resolveConnectionStatus } = await import(
+      '@/lib/integrations/connection-guard'
+    )
+    const { INTEGRATION_DEFINITIONS } = await import('@/lib/integrations/catalog')
+
+    const rowsByProvider = new Map(
+      (connections ?? []).map((conn: {
+        provider: string
+        status: string
+        last_synced_at: string | null
+        metadata: Record<string, unknown> | null
+      }) => [conn.provider, conn])
+    )
+
+    // Iterate the catalog, not the rows. A provider the founder never connected
+    // has no row at all, and omitting it makes "is Airtable connected?"
+    // unanswerable — the agent cannot tell "never connected" from "unsupported".
+    const results = INTEGRATION_DEFINITIONS.map((definition) => {
+      const row = rowsByProvider.get(definition.provider)
+      const metadata = (row?.metadata ?? {}) as Record<string, unknown>
+
+      if (!row) {
+        return {
+          provider: definition.provider,
+          label: definition.label,
+          capability: definition.capability,
+          status: definition.capability === 'planned' ? 'coming_soon' : 'disconnected',
+          verificationVerdict:
+            definition.capability === 'planned' ? 'coming_soon' : 'disconnected',
+          isUnverified: false,
+          isUsable: false,
+          lastError: null,
+          lastErrorAt: null,
+          lastSyncedAt: null,
+        }
+      }
+
+      const connectionShape = {
+        provider: definition.provider,
+        status: row.status as IntegrationConnectionStatus,
+        metadata,
+      }
+      const verificationVerdict = resolveConnectionStatus(connectionShape)
+
+      return {
+        provider: definition.provider,
+        label: definition.label,
+        capability: definition.capability,
+        status: row.status,
+        verificationVerdict,
+        isUnverified: isUnverifiedConnection(connectionShape),
+        // The single field to act on: true only when a live call can succeed.
+        isUsable: verificationVerdict === 'connected',
+        lastError: metadata.last_error ?? null,
+        lastErrorAt: metadata.last_error_at ?? null,
+        lastSyncedAt: row.last_synced_at,
+      }
+      // Deliberately no raw `metadata` blob: it carries internal provenance
+      // (connected_via, oauth_verified_at, sync sources) that must not reach a
+      // model instructed never to leak internals.
+    })
+
+    return {
+      workspaceId,
+      connections: results,
+      usableProviders: results.filter((r) => r.isUsable).map((r) => r.provider),
+      needsAttentionProviders: results
+        .filter((r) => r.status === 'needs_attention')
+        .map((r) => r.provider),
+      totalCount: results.length,
+    }
+  },
+})
+
 // ----- Tool: Archive / Deactivate Account -----
 
 export const archiveAccount = tool({
@@ -2046,23 +2153,98 @@ export const archiveAccount = tool({
   },
 })
 
+// ----- Tool: Get Gmail Thread Detail -----
+
+export const getGmailThreadDetailTool = tool({
+  description:
+    'Get full details of a specific Gmail thread including message list, sender/recipient addresses, and snippet. Use when the founder asks to read a thread or inspect message contents.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    threadId: z.string().describe('The Gmail thread ID'),
+  }),
+  execute: async ({ workspaceId, threadId }) => {
+    if (!isGmailReadSyncEnabled()) {
+      return {
+        error:
+          'Gmail is connected in send-only mode. Reconnect it in Settings > Connections with inbox-read permission to read thread details.',
+      }
+    }
+
+    try {
+      const { fetchThreadDetail } = await import('@/lib/integrations/gmail')
+      const thread = await fetchThreadDetail(workspaceId, threadId)
+      if (!thread) {
+        return { error: `Thread ${threadId} not found.` }
+      }
+
+      return {
+        threadId: thread.threadId,
+        subject: sanitizeExternalText(thread.subject, { maxLength: 160 }).text,
+        from: sanitizeExternalText(thread.from, { maxLength: 160 }).text,
+        lastSenderEmail: thread.lastSenderEmail,
+        participantEmails: thread.participantEmails,
+        lastMessageId: thread.lastMessageId,
+        messageCount: thread.messageCount,
+        lastMessageAt: thread.lastMessageAt,
+        snippet: buildExternalContentSnippet({
+          source: 'gmail',
+          text: thread.snippet,
+          maxLength: 500,
+          title: thread.subject,
+        }).text,
+        isUnread: thread.isUnread,
+        // Message bodies are untrusted external content — prompt injection via
+        // email body is a live risk on a tool whose whole job is reading mail.
+        messages: (thread.messages ?? []).map((message) => ({
+          id: message.id,
+          from: sanitizeExternalText(message.from, { maxLength: 160 }).text,
+          fromEmail: message.fromEmail,
+          to: sanitizeExternalText(message.to, { maxLength: 320 }).text,
+          date: message.date,
+          body: buildExternalContentSnippet({
+            source: 'gmail',
+            text: message.body,
+            maxLength: 2000,
+            title: thread.subject,
+          }).text,
+        })),
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to get thread detail' }
+    }
+  },
+})
+
 // ----- Tool: Send Gmail Reply -----
 
 export const sendGmailReply = tool({
   description:
-    'Reply to a Gmail thread immediately. Sends the reply right away.',
+    'Reply to a Gmail thread immediately. If recipient email (to) is omitted, addressing is derived automatically from the thread context.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    threadId: z.string().describe('Gmail thread ID from getMyInbox'),
-    to: z.string().describe('Recipient email'),
+    threadId: z.string().describe('Gmail thread ID from getMyInbox or getGmailThreadDetailTool'),
+    to: z.string().optional().describe('Recipient email address. Optional if threadId is provided.'),
     subject: z.string().describe('Subject line (prepend Re: to original)'),
     body: z.string().max(2000).describe('Reply body, max 2000 chars'),
   }),
   execute: async ({ workspaceId, threadId, to, subject, body }) => {
     try {
-      const { sendEmail } = await import('@/lib/integrations/gmail')
+      const { sendEmail, fetchThreadDetail } = await import('@/lib/integrations/gmail')
+
+      let recipientEmail = to
+      if (!recipientEmail && threadId) {
+        const detail = await fetchThreadDetail(workspaceId, threadId)
+        if (detail) {
+          recipientEmail = detail.lastSenderEmail ?? detail.participantEmails?.[0]
+        }
+      }
+
+      if (!recipientEmail) {
+        return { success: false, error: 'Recipient email address could not be resolved for thread. Please specify the recipient email.' }
+      }
+
       const result = await sendEmail(workspaceId, {
-        to,
+        to: recipientEmail,
         subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
         body,
         replyToThreadId: threadId,
@@ -2071,9 +2253,9 @@ export const sendGmailReply = tool({
         success: true,
         messageId: result.messageId,
         threadId: result.threadId,
-        to,
+        to: recipientEmail,
         subject,
-        message: `DONE! Reply sent to ${to}.`,
+        message: `DONE! Reply sent to ${recipientEmail}.`,
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
@@ -3632,25 +3814,26 @@ export const listCalendarEventsTool = tool({
   }),
   execute: async ({ workspaceId, timeMin, timeMax, maxResults }) => {
     try {
-      const accessToken = await getCalendarAccessToken(workspaceId)
-      const events = await listCalendarEventsFn(accessToken, 'primary', {
-        timeMin: timeMin ?? new Date().toISOString(),
-        timeMax,
-        maxResults: maxResults ?? 15,
+      return await executeWithCalendarAccessToken(workspaceId, async (accessToken) => {
+        const events = await listCalendarEventsFn(accessToken, 'primary', {
+          timeMin: timeMin ?? new Date().toISOString(),
+          timeMax,
+          maxResults: maxResults ?? 15,
+        })
+        return {
+          events: events.map((e) => ({
+            id: e.id,
+            summary: e.summary,
+            start: e.start.dateTime ?? e.start.date,
+            end: e.end.dateTime ?? e.end.date,
+            location: e.location,
+            attendees: e.attendees?.map((a) => ({ email: a.email, status: a.responseStatus })) ?? [],
+            meetLink: e.conferenceData?.entryPoints?.find((ep) => ep.entryPointType === 'video')?.uri ?? null,
+            htmlLink: e.htmlLink,
+          })),
+          count: events.length,
+        }
       })
-      return {
-        events: events.map((e) => ({
-          id: e.id,
-          summary: e.summary,
-          start: e.start.dateTime ?? e.start.date,
-          end: e.end.dateTime ?? e.end.date,
-          location: e.location,
-          attendees: e.attendees?.map((a) => ({ email: a.email, status: a.responseStatus })) ?? [],
-          meetLink: e.conferenceData?.entryPoints?.find((ep) => ep.entryPointType === 'video')?.uri ?? null,
-          htmlLink: e.htmlLink,
-        })),
-        count: events.length,
-      }
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to list events' }
     }
@@ -3668,26 +3851,27 @@ export const getCalendarEventTool = tool({
   }),
   execute: async ({ workspaceId, eventId }) => {
     try {
-      const accessToken = await getCalendarAccessToken(workspaceId)
-      const event = await getCalendarEventFn(accessToken, 'primary', eventId)
-      return {
-        id: event.id,
-        summary: event.summary,
-        description: event.description,
-        location: event.location,
-        start: event.start.dateTime ?? event.start.date,
-        end: event.end.dateTime ?? event.end.date,
-        status: event.status,
-        organizer: event.organizer?.email,
-        attendees: event.attendees?.map((a) => ({
-          email: a.email,
-          name: a.displayName,
-          status: a.responseStatus,
-          self: a.self,
-        })) ?? [],
-        meetLink: event.conferenceData?.entryPoints?.find((ep) => ep.entryPointType === 'video')?.uri ?? null,
-        htmlLink: event.htmlLink,
-      }
+      return await executeWithCalendarAccessToken(workspaceId, async (accessToken) => {
+        const event = await getCalendarEventFn(accessToken, 'primary', eventId)
+        return {
+          id: event.id,
+          summary: event.summary,
+          description: event.description,
+          location: event.location,
+          start: event.start.dateTime ?? event.start.date,
+          end: event.end.dateTime ?? event.end.date,
+          status: event.status,
+          organizer: event.organizer?.email,
+          attendees: event.attendees?.map((a) => ({
+            email: a.email,
+            name: a.displayName,
+            status: a.responseStatus,
+            self: a.self,
+          })) ?? [],
+          meetLink: event.conferenceData?.entryPoints?.find((ep) => ep.entryPointType === 'video')?.uri ?? null,
+          htmlLink: event.htmlLink,
+        }
+      })
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to get event' }
     }
@@ -3712,54 +3896,34 @@ export const createCalendarEventTool = tool({
   execute: async ({ workspaceId, summary, startDateTime, endDateTime, description, location, attendeeEmails, timeZone }) => {
     try {
       const tz = timeZone ?? 'Asia/Kolkata'
-      // Auto-compute endDateTime if not provided (default: 1 hour after start)
       let resolvedEnd = endDateTime
       if (!resolvedEnd) {
         const startMs = new Date(startDateTime).getTime()
         resolvedEnd = new Date(startMs + 60 * 60 * 1000).toISOString()
       }
 
-      console.log('[createCalendarEventTool] Executing with:', {
-        workspaceId,
-        summary,
-        startDateTime,
-        resolvedEnd,
-        tz,
-        attendeeEmails,
+      return await executeWithCalendarAccessToken(workspaceId, async (accessToken) => {
+        const event = await createCalendarEventFn(accessToken, 'primary', {
+          summary,
+          description,
+          location,
+          start: { dateTime: startDateTime, timeZone: tz },
+          end: { dateTime: resolvedEnd, timeZone: tz },
+          attendees: attendeeEmails?.map((email) => ({ email })),
+        })
+
+        return {
+          success: true,
+          created: true,
+          eventId: event.id,
+          summary: event.summary,
+          start: event.start.dateTime ?? event.start.date,
+          htmlLink: event.htmlLink,
+          message: `DONE! Event "${summary}" has been created on Google Calendar. View it: ${event.htmlLink}`,
+        }
       })
-
-      const accessToken = await getCalendarAccessToken(workspaceId)
-      console.log('[createCalendarEventTool] Got access token, calling Google Calendar API...')
-
-      const event = await createCalendarEventFn(accessToken, 'primary', {
-        summary,
-        description,
-        location,
-        start: { dateTime: startDateTime, timeZone: tz },
-        end: { dateTime: resolvedEnd, timeZone: tz },
-        attendees: attendeeEmails?.map((email) => ({ email })),
-      })
-
-      console.log('[createCalendarEventTool] SUCCESS! Event created:', {
-        eventId: event.id,
-        summary: event.summary,
-        htmlLink: event.htmlLink,
-        start: event.start,
-        end: event.end,
-      })
-
-      return {
-        success: true,
-        created: true,
-        eventId: event.id,
-        summary: event.summary,
-        start: event.start.dateTime ?? event.start.date,
-        htmlLink: event.htmlLink,
-        message: `DONE! Event "${summary}" has been created on Google Calendar. View it: ${event.htmlLink}`,
-      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
-      console.error('[createCalendarEventTool] FAILED:', msg, err)
       return {
         success: false,
         created: false,
@@ -3785,21 +3949,22 @@ export const updateCalendarEventTool = tool({
   }),
   execute: async ({ workspaceId, eventId, summary, startDateTime, endDateTime, description, location }) => {
     try {
-      const accessToken = await getCalendarAccessToken(workspaceId)
-      const updates: Record<string, unknown> = {}
-      if (summary) updates.summary = summary
-      if (description) updates.description = description
-      if (location) updates.location = location
-      if (startDateTime) updates.start = { dateTime: startDateTime }
-      if (endDateTime) updates.end = { dateTime: endDateTime }
+      return await executeWithCalendarAccessToken(workspaceId, async (accessToken) => {
+        const updates: Record<string, unknown> = {}
+        if (summary) updates.summary = summary
+        if (description) updates.description = description
+        if (location) updates.location = location
+        if (startDateTime) updates.start = { dateTime: startDateTime }
+        if (endDateTime) updates.end = { dateTime: endDateTime }
 
-      const event = await updateCalendarEventFn(accessToken, 'primary', eventId, updates as Parameters<typeof updateCalendarEventFn>[3])
-      return {
-        success: true,
-        eventId: event.id,
-        summary: event.summary,
-        message: `Event "${event.summary}" updated`,
-      }
+        const event = await updateCalendarEventFn(accessToken, 'primary', eventId, updates as Parameters<typeof updateCalendarEventFn>[3])
+        return {
+          success: true,
+          eventId: event.id,
+          summary: event.summary,
+          message: `Event "${event.summary}" updated`,
+        }
+      })
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to update event' }
     }
@@ -3817,12 +3982,12 @@ export const deleteCalendarEventTool = tool({
   }),
   execute: async ({ workspaceId, eventId }) => {
     try {
-      const accessToken = await getCalendarAccessToken(workspaceId)
-      await deleteCalendarEventFn(accessToken, 'primary', eventId)
-      return { success: true, eventId, message: `Event ${eventId} deleted successfully.` }
+      return await executeWithCalendarAccessToken(workspaceId, async (accessToken) => {
+        await deleteCalendarEventFn(accessToken, 'primary', eventId)
+        return { success: true, eventId, message: `Event ${eventId} deleted successfully.` }
+      })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to delete event'
-      console.error('[deleteCalendarEventTool] FAILED:', msg, err)
       return { success: false, error: `FAILED to delete event: ${msg}` }
     }
   },
@@ -3840,17 +4005,18 @@ export const checkCalendarFreeBusy = tool({
   }),
   execute: async ({ workspaceId, timeMin, timeMax }) => {
     try {
-      const accessToken = await getCalendarAccessToken(workspaceId)
-      const busySlots = await queryFreeBusy(accessToken, timeMin, timeMax)
-      const primaryBusy = busySlots['primary'] ?? []
-      return {
-        timeRange: { start: timeMin, end: timeMax },
-        busySlots: primaryBusy,
-        isFree: primaryBusy.length === 0,
-        message: primaryBusy.length === 0
-          ? `Free from ${timeMin} to ${timeMax}`
-          : `${primaryBusy.length} busy slot(s) found`,
-      }
+      return await executeWithCalendarAccessToken(workspaceId, async (accessToken) => {
+        const busySlots = await queryFreeBusy(accessToken, timeMin, timeMax)
+        const primaryBusy = busySlots['primary'] ?? []
+        return {
+          timeRange: { start: timeMin, end: timeMax },
+          busySlots: primaryBusy,
+          isFree: primaryBusy.length === 0,
+          message: primaryBusy.length === 0
+            ? `Free from ${timeMin} to ${timeMax}`
+            : `${primaryBusy.length} busy slot(s) found`,
+        }
+      })
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to check free/busy' }
     }
@@ -3867,18 +4033,19 @@ export const listCalendarsTool = tool({
   }),
   execute: async ({ workspaceId }) => {
     try {
-      const accessToken = await getCalendarAccessToken(workspaceId)
-      const calendars = await listCalendarsFn(accessToken)
-      return {
-        calendars: calendars.map((c) => ({
-          id: c.id,
-          name: c.summary,
-          primary: c.primary ?? false,
-          accessRole: c.accessRole,
-          timeZone: c.timeZone,
-        })),
-        count: calendars.length,
-      }
+      return await executeWithCalendarAccessToken(workspaceId, async (accessToken) => {
+        const calendars = await listCalendarsFn(accessToken)
+        return {
+          calendars: calendars.map((c) => ({
+            id: c.id,
+            name: c.summary,
+            primary: c.primary ?? false,
+            accessRole: c.accessRole,
+            timeZone: c.timeZone,
+          })),
+          count: calendars.length,
+        }
+      })
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to list calendars' }
     }
@@ -3898,34 +4065,31 @@ export const searchCalendarEventsTool = tool({
   }),
   execute: async ({ workspaceId, query, timeMin, timeMax }) => {
     try {
-      const accessToken = await getCalendarAccessToken(workspaceId)
-      const now = new Date()
-      const resolvedTimeMin = timeMin ?? now.toISOString()
-      const resolvedTimeMax = timeMax ?? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      return await executeWithCalendarAccessToken(workspaceId, async (accessToken) => {
+        const now = new Date()
+        const resolvedTimeMin = timeMin ?? now.toISOString()
+        const resolvedTimeMax = timeMax ?? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
-      console.log('[searchCalendarEventsTool] Searching:', { query, timeMin: resolvedTimeMin, timeMax: resolvedTimeMax })
-
-      const events = await listCalendarEventsFn(accessToken, 'primary', {
-        q: query,
-        timeMin: resolvedTimeMin,
-        timeMax: resolvedTimeMax,
-        maxResults: 20,
+        const events = await listCalendarEventsFn(accessToken, 'primary', {
+          q: query,
+          timeMin: resolvedTimeMin,
+          timeMax: resolvedTimeMax,
+          maxResults: 20,
+        })
+        return {
+          events: events.map((e) => ({
+            id: e.id,
+            summary: e.summary,
+            start: e.start.dateTime ?? e.start.date,
+            end: e.end.dateTime ?? e.end.date,
+            location: e.location,
+          })),
+          count: events.length,
+          query,
+        }
       })
-      return {
-        events: events.map((e) => ({
-          id: e.id,
-          summary: e.summary,
-          start: e.start.dateTime ?? e.start.date,
-          end: e.end.dateTime ?? e.end.date,
-          location: e.location,
-        })),
-        count: events.length,
-        query,
-      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to search events'
-      console.error('[searchCalendarEventsTool] Error:', msg, err)
-      // Return the error but don't show "Connect" badge — this is an API error, not a connection issue
       return { error: `Calendar search failed: ${msg}` }
     }
   },
@@ -5348,31 +5512,10 @@ export const searchGoogleDocsTool = tool({
     workspaceId: z.string().describe('The workspace ID'),
     query: z.string().describe('Search query for document titles or content'),
   }),
-  execute: async ({ workspaceId, query }) => {
-    try {
-      const supabase = createServiceClient()
-      const connected = await isIntegrationConnected(supabase, workspaceId, 'google_docs')
-      if (!connected) {
-        return {
-          dataSource: 'connection_guard',
-          error: 'Google Docs is not connected for this workspace.',
-        }
-      }
-      return {
-        dataSource: 'live_provider_api',
-        query,
-        documents: [
-          {
-            id: 'doc_1',
-            title: `Q3 Product Strategy & Roadmap (${query})`,
-            lastModified: new Date().toISOString(),
-            url: 'https://docs.google.com/document/d/doc_1',
-            snippet: 'Enterprise AI workflows, key deliverables, and Q3 launch milestones.',
-          },
-        ],
-      }
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Failed to search Google Docs' }
+  execute: async () => {
+    return {
+      success: false,
+      error: 'Google Docs integration is a planned provider and is not implemented on the backend yet.',
     }
   },
 })
@@ -5385,26 +5528,10 @@ export const readGoogleDocTool = tool({
     workspaceId: z.string().describe('The workspace ID'),
     documentId: z.string().describe('The Google Doc ID or URL'),
   }),
-  execute: async ({ workspaceId, documentId }) => {
-    try {
-      const supabase = createServiceClient()
-      const connected = await isIntegrationConnected(supabase, workspaceId, 'google_docs')
-      if (!connected) {
-        return {
-          dataSource: 'connection_guard',
-          error: 'Google Docs is not connected for this workspace.',
-        }
-      }
-      return {
-        dataSource: 'live_provider_api',
-        documentId,
-        title: 'Q3 Product Strategy & Roadmap',
-        author: 'Founder Team',
-        lastModified: new Date().toISOString(),
-        content: '# Q3 Product Strategy & Roadmap\n\n1. Launch AI Co-Founder UI\n2. Direct OAuth Integrations for Google Docs, Stripe, and PostHog\n3. Executive Briefing Engine',
-      }
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Failed to read Google Doc' }
+  execute: async () => {
+    return {
+      success: false,
+      error: 'Google Docs integration is a planned provider and is not implemented on the backend yet.',
     }
   },
 })
@@ -5418,27 +5545,10 @@ export const createGoogleDocTool = tool({
     title: z.string().describe('Title of the document'),
     content: z.string().describe('Initial content of the document'),
   }),
-  execute: async ({ workspaceId, title, content }) => {
-    try {
-      const supabase = createServiceClient()
-      const connected = await isIntegrationConnected(supabase, workspaceId, 'google_docs')
-      if (!connected) {
-        return {
-          dataSource: 'connection_guard',
-          error: 'Google Docs is not connected for this workspace.',
-        }
-      }
-      const docId = `doc_${Date.now()}`
-      return {
-        dataSource: 'live_provider_api',
-        success: true,
-        documentId: docId,
-        title,
-        url: `https://docs.google.com/document/d/${docId}`,
-        message: `Google Doc "${title}" created successfully!`,
-      }
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Failed to create Google Doc' }
+  execute: async () => {
+    return {
+      success: false,
+      error: 'Google Docs integration is a planned provider and is not implemented on the backend yet.',
     }
   },
 })

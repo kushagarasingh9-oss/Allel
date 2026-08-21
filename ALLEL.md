@@ -51,11 +51,12 @@ Current product shape:
 - human approval for sensitive outbound actions
 
 Current primary surfaces:
-- dashboard inbox with brief + tasks on the left and chat on the right
+- `/dashboard` — the agent panel, which is the main founder workspace today
 - account list and account detail
 - draft queue
 - settings / integrations
-- persona chat
+
+The brief-plus-tasks split shell exists in code (`workspace-layout.tsx`, `left-pane.tsx`) but its only route, `/dashboard/inbox`, currently renders nothing.
 
 ---
 
@@ -154,11 +155,13 @@ The system already supports:
 The product is no longer only a backend with a thin wrapper.
 
 What is already live:
-- a dashboard workspace shell
-- a real streaming agent feed
+- a dashboard shell with a real streaming agent feed
 - a shared chat provider across the shell
+- account list and account detail pages
+- a draft review and send queue
 - a live integrations page with connection state and connect/disconnect flows
-- a first run-history screen in the dashboard
+
+What is not: there is no run-history screen. `/dashboard/flows` is an empty placeholder even though the backend inspection APIs work.
 
 ---
 
@@ -206,10 +209,10 @@ These are the next moves that most directly improve the product itself.
 ### Step 1. Make runs visible to founders
 
 Status:
-- mostly completed
-- backend workflow inspection is live
-- a first dashboard run-history surface is live
-- richer replay-grade inspection is still ahead
+- backend only
+- workflow grouping and the `/api/agent/runs` inspection APIs are live and tested
+- there is no UI: `/dashboard/flows` renders an empty div, and the run-history component that once existed was deleted in the 2026-08-21 cleanup
+- this is the largest gap between what the backend can do and what a founder can see
 
 Why it matters for the product:
 - once founders rely on automation, they need to see what changed and why

@@ -86,9 +86,24 @@ export const PERSONAS: AgentPersona[] = [
       'getIntercomConvo',
       'searchIntercomConvosTool',
       'searchIntercomContactsTool',
-      // Gmail — read context and draft, but do not send directly
+      // Gmail — read context and draft, but do not send directly.
+      // Thread detail is required to resolve a real sender address; without it
+      // the agent can only see a truncated display name and will ask the
+      // founder for an address Gmail already returned.
       'getMyInbox',
       'getGmailThreadsForAccount',
+      'getGmailThreadDetailTool',
+      // Calendar — read-only. Growth work needs to see availability and
+      // existing commitments to time campaigns and follow-ups, but scheduling,
+      // moving, and cancelling stay with the founder and Sarah. Read tools only
+      // is a deliberate posture, not an oversight.
+      'listCalendarEventsTool',
+      'getCalendarEventTool',
+      'searchCalendarEventsTool',
+      'checkCalendarFreeBusy',
+      // Connection introspection — the runtime contract requires verifying a
+      // provider's real state before telling the founder anything is broken.
+      'inspectIntegrationConnectionsTool',
       // Drafts — creating and managing email drafts
       'generateFollowUpDraft',
       'getExistingDrafts',
@@ -168,8 +183,11 @@ export const PERSONAS: AgentPersona[] = [
       'updateDraftContent',
       'getMyInbox',
       'getGmailThreadsForAccount',
+      'getGmailThreadDetailTool',
       'sendGmailReply',
       'composeNewEmail',
+      // Connection introspection — required before claiming a provider is down.
+      'inspectIntegrationConnectionsTool',
       // Slack — internal escalation
       'sendSlackMessage',
       'searchSlack',
@@ -179,11 +197,17 @@ export const PERSONAS: AgentPersona[] = [
       // Web Research — Tavily AI (for customer/market intelligence)
       'webSearchTool',
       'webExtractTool',
-      // Calendar — customer check-in calls
+      // Calendar — customer check-in calls. Full read/write: booking a rescue
+      // call is useless if the same persona cannot move or cancel it when the
+      // account's situation changes.
       'listCalendarEventsTool',
+      'getCalendarEventTool',
       'createCalendarEventTool',
+      'updateCalendarEventTool',
+      'deleteCalendarEventTool',
       'searchCalendarEventsTool',
       'checkCalendarFreeBusy',
+      'listCalendarsTool',
     ],
   },
 ]

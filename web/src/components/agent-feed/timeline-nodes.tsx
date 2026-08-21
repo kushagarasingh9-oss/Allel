@@ -17,15 +17,58 @@ export interface TimelineNodeProps {
   className?: string
 }
 
+export type ReasoningBatchState = {
+  isExecuting: boolean
+  stepsCount: number
+  /** Server observation: the reply promised an action the turn never performed. */
+  announcedActionMismatch?: boolean
+}
+
+export type ReasoningBatchLabel = {
+  text: string
+  /** Whether the turn should read as a problem rather than as completed work. */
+  isUnfulfilled: boolean
+}
+
+/**
+ * The batch header label.
+ *
+ * Extracted as a pure function so the decision is unit-testable — there is no
+ * component test harness in this repo, and the distinction between "answered
+ * without tools" and "promised an action and did nothing" is the whole point of
+ * the label.
+ */
+export function describeReasoningBatch(state: ReasoningBatchState): ReasoningBatchLabel {
+  if (state.isExecuting) {
+    return { text: "Identifying user needs and intent", isUnfulfilled: false }
+  }
+
+  if (state.announcedActionMismatch) {
+    return { text: "Announced action was not executed", isUnfulfilled: true }
+  }
+
+  if (state.stepsCount === 0) {
+    return { text: "Direct response (no tools used)", isUnfulfilled: false }
+  }
+
+  return {
+    text: `Identifying user needs and intent (${state.stepsCount} step${state.stepsCount === 1 ? '' : 's'})`,
+    isUnfulfilled: false,
+  }
+}
+
 export function AgentReasoningBatch({
   children,
   stepsCount = 1,
   isExecuting = false,
+  announcedActionMismatch = false,
 }: {
   children: React.ReactNode
   stepsCount?: number
   isExecuting?: boolean
+  announcedActionMismatch?: boolean
 }) {
+  const label = describeReasoningBatch({ isExecuting, stepsCount, announcedActionMismatch })
   // Start open if it's currently executing, closed if it's a past message
   const [isOpen, setIsOpen] = React.useState(isExecuting)
 
@@ -39,13 +82,14 @@ export function AgentReasoningBatch({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 text-[13px] font-medium text-neutral-400 hover:text-neutral-200 transition-colors group select-none py-1"
+        className={cn(
+          "flex items-center gap-1.5 text-[13px] font-medium transition-colors group select-none py-1",
+          label.isUnfulfilled
+            ? "text-amber-400/90 hover:text-amber-300"
+            : "text-neutral-400 hover:text-neutral-200"
+        )}
       >
-        <span>
-          {isExecuting
-            ? "Identifying user needs and intent"
-            : `Identifying user needs and intent (${stepsCount} step${stepsCount === 1 ? '' : 's'})`}
-        </span>
+        <span>{label.text}</span>
         <ChevronRight
           className={cn(
             "w-3.5 h-3.5 text-neutral-500 group-hover:text-neutral-300 transition-transform duration-200",

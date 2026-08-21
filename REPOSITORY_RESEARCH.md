@@ -12,11 +12,11 @@ This repository contains a substantial B2B SaaS retention-operations product cal
 
 The product is beyond a prototype. It has a real multi-tenant data model, authentication, provider integrations, deterministic scoring and brief generation, staged AI automation, durable memory, approval records, outcome tracking, and run inspection. However, it is not production-complete. The most important remaining issues concern tenant authorization, approval integrity, migration reliability, webhook recovery, frontend wiring, and operational scalability.
 
-Current validation:
+Current validation (re-run 2026-08-21):
 
-- Test suite: **63 tests passed, 0 failed**.
-- Production compilation: source compilation succeeds.
-- Production build gate: fails during ESLint because `src/components/agent-feed/agent-feed.tsx` has seven `no-explicit-any` errors.
+- Test suite: **76 tests passed, 0 failed** (`npm test` in `web/`).
+- Type check: `npx tsc --noEmit` is clean.
+- Lint: `npx eslint .` reports **15 errors and 134 warnings** across 8 files. All 15 errors are `@typescript-eslint/no-explicit-any`, spread across `agent.test.ts` (7), `tools.ts` (2), and one each in `agent.ts`, `agent-feed.tsx`, `timeline-nodes.tsx`, `dashboard/data.ts`, `app/page.tsx`, and `api/waitlist/route.ts`. This still gates `next build`. An earlier version of this document attributed all seven errors to `agent-feed.tsx`; that is no longer accurate.
 - Several routes and components exist but are not connected to the active UI.
 
 ---
@@ -58,7 +58,7 @@ The backend is a credible v1. The frontend contains a polished primary chat surf
 - shadcn/Base UI/Radix UI primitives
 - AI SDK 6 and `@ai-sdk/openai`
 - Supabase SSR and Supabase JavaScript SDK
-- Pipedream SDK for OAuth-backed integration connections
+- Direct provider API credentials, plus Google OAuth for Gmail and Calendar. `@pipedream/sdk` is a declared dependency with zero imports; the Pipedream connect actions were removed from `settings/actions.ts`.
 - Zod for runtime validation
 - Stripe SDK
 - Tavily for web research
@@ -82,14 +82,18 @@ The backend is a credible v1. The frontend contains a polished primary chat surf
 
 ### Root documentation
 
-- `AGENT.md` — April agent-layer status and invariants.
-- `ARCHITECTURE.md` — clearest high-level architecture map, dated April 24.
+> Documentation was consolidated on 2026-08-21. The list below reflects the current set.
+
+- `ALLEL_COMPLETE_GUIDE.md` — canonical whole-system architecture map. Absorbed the former `ARCHITECTURE.md` and `FRONTEND.md`, which were deleted.
+- `AGENT.md` — agent-layer specifics: personas, tools, workflow stages, chat trust boundaries, memory. Absorbed the unique content of the former `chat.md`.
 - `ALLEL.md` — product positioning and operating concept.
-- `FRONTEND.md` — frontend architecture snapshot.
-- `PRODUCT_COMPLETION_PLAN.md` — practical April completion plan.
-- `TODO.md` — newest broad roadmap, but internally contradictory.
-- `chat.md` — chat implementation notes.
-- `NAMES.md` — naming and brand ideation, not implementation guidance.
+- `PRODUCT_COMPLETION_PLAN.md` — practical completion plan.
+- `TODO.md` — broad roadmap.
+- `INTEGRATION_AUDIT.md` — provider-by-provider integration audit.
+- `DEAD_CODE_AUDIT.md` — dead-code audit, the record of the 2026-08-21 cleanup, and two open build-correctness bugs.
+- `goal.md` — personal planning document, not product documentation.
+
+`NAMES.md` (brand ideation), `chat.md`, `framer.md`, and `cover_letters.md` were deleted in the same cleanup.
 
 ### Application
 
@@ -184,7 +188,7 @@ Founder brief generation is also deterministic. `web/src/lib/briefs/generate-wor
 
 The tool universe is broad and includes local account writes plus live provider reads and mutations. Persona and workflow-stage filters narrow access.
 
-Although several model environment variables and defaults exist, current model resolution always returns `gpt-4o-mini`. The configured chat/automation model constants are presently ineffective.
+Model resolution is coarse but not what an earlier version of this document claimed. `resolveAgentModelId()` in `agent.ts:992-998` ignores its `personaId`, `runType`, and `channel` arguments entirely and returns `process.env.OPENAI_MODEL_ID || 'gpt-5.6'`. The `DEFAULT_AGENT_CHAT_MODEL_ID` and `DEFAULT_AGENT_AUTOMATION_MODEL_ID` constants at `agent.ts:185-188` are declared but never routed by run type, so the per-channel model split is ineffective. Separately, the deterministic helpers in `web/src/lib/ai/ai.ts:13,16` default to `'gpt-4o'`. `gpt-4o-mini` appears in `web/src` only as a pricing-table prefix at `agent.ts:201` and in a cost-estimation test.
 
 ### 7. Workflow orchestration
 
@@ -525,7 +529,7 @@ Provider synchronizers calculate account scores, but production calls to `record
 
 #### Two score-history models
 
-Both normalized daily `churn_scores`/`churn_score_factors` and JSON-based `score_snapshots` exist without a clearly defined canonical role.
+Both normalized daily `churn_scores`/`churn_score_factors` and JSON-based `score_snapshots` exist without a clearly defined canonical role. Still open as of 2026-08-21, and one side is now provably dead: `churn_scores` and `churn_score_factors` are read and written by the `getChurnScoreHistory` tool (`tools.ts:2444-2466`), while `score_snapshots` is touched only by `web/src/lib/engine/score-history.ts`, which has no importer outside the equally unreferenced `compound-signals.ts`. Both engine files still exist on disk; they were left in place during the 2026-08-21 cleanup. Either wire them in or delete them and drop the table.
 
 #### Brief replacement is non-transactional
 
@@ -540,7 +544,7 @@ Recommended correction:
 
 ### P1 — Frontend completeness
 
-- `/dashboard/flows` is empty even though a live `FlowsPage` component exists.
+- `/dashboard/flows` is empty and, since the 2026-08-21 cleanup, there is no `FlowsPage` component either — the 782-line implementation was unreferenced and was deleted. The `/api/agent/runs` APIs it would have consumed are still live, so this is now a build-from-scratch item.
 - `/dashboard/inbox` imports intended components but renders none.
 - Accounts and drafts are not present in active sidebar navigation.
 - Approval cards only update local visual state and do not call the approval API.
@@ -601,28 +605,20 @@ Recommended correction:
 
 ## Documentation Assessment
 
+> **Partially resolved 2026-08-21.** The five overlapping architecture documents were consolidated into `ALLEL_COMPLETE_GUIDE.md`, `ARCHITECTURE.md` and `FRONTEND.md` were deleted after their content was folded in, `AGENT.md` was slimmed to agent-loop specifics, and all 63 stale `/Users/kushagrasingh/dev/agenticworkflow/...` paths were replaced with repo-relative ones. The drift items below that were not addressed by that pass are marked inline.
+
 ### Best current sources
 
-- Use `ARCHITECTURE.md` for the clearest conceptual system map.
-- Use `TODO.md` for the newest product direction.
-- Verify both against source and migrations.
+- Use `ALLEL_COMPLETE_GUIDE.md` for the whole-system map. It is verified against the working tree and dated.
+- Use `AGENT.md` for the agent loop.
+- Use `TODO.md` for product direction, with the caveat below.
+- Verify all of them against source and migrations before relying on a specific claim.
 
 ### Documentation drift
 
-The April documents do not include July additions such as:
+Now covered in `ALLEL_COMPLETE_GUIDE.md`: draft outcome tracking, `score_snapshots`, tool approval requests, and the unified founder-facing Allel direction.
 
-- draft outcome tracking
-- score snapshots and velocity
-- tool approval requests
-- unified founder-facing Allel direction
-
-`TODO.md` is newer but repeats some completed work as open work and contains schema/tree examples that no longer match the repository.
-
-Recommended correction:
-
-- Make this document or a revised `ARCHITECTURE.md` the current source of truth.
-- Separate verified current state, known defects, and roadmap.
-- Add dates and migration references to architecture changes.
+Still open: `TODO.md` repeats some completed work as open work, and its schema and tree examples are only partially corrected.
 
 ---
 
@@ -643,9 +639,13 @@ Core variables used by the repository include:
 Feature-specific configuration includes:
 
 - Gmail/Google OAuth client ID, secret, redirect URI, and scope mode
-- Pipedream client ID, secret, and project ID
+- `STRIPE_SECRET_KEY`
 - `TAVILY_API_KEY`
+- `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_NOTIFICATION_EMAIL`
+- `OPENAI_MODEL_ID`, and optionally `AZURE_OPENAI_API_KEY` with `AZURE_OPENAI_ENDPOINT` or `AZURE_OPENAI_BASE_URL`
 - `NEXT_PUBLIC_APP_URL` or `VERCEL_URL`
+
+The `PIPEDREAM_*` keys still documented in `web/.env.example` are read by no code.
 
 `ENCRYPTION_KEY` must be exactly 64 hexadecimal characters. If `AGENT_HISTORY_SIGNING_SECRET` is absent, code may reuse `OPENAI_API_KEY`, which is operationally convenient but not ideal key separation.
 
@@ -735,8 +735,8 @@ Before modifying backend behavior:
 ### Product engine
 
 - `web/src/lib/engine/score-engine.ts`
-- `web/src/lib/engine/score-history.ts`
-- `web/src/lib/engine/compound-signals.ts`
+- `web/src/lib/engine/score-history.ts` — present but unreferenced; see "Two score-history models"
+- `web/src/lib/engine/compound-signals.ts` — present but unreferenced
 - `web/src/lib/drafts/draft-workflows.ts`
 - `web/src/lib/drafts/send-draft.ts`
 - `web/src/lib/drafts/outcome-tracker.ts`

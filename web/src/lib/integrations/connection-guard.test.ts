@@ -190,3 +190,49 @@ test('mergeIntegrationConnectionMetadata retains Pipedream credentials when a sy
     coverage: '3 Gmail threads synced',
   })
 })
+
+test('C5: the displayed verdict and the chat guard agree for every row/token combination', async () => {
+  const { resolveConnectionStatus } = await import('./connection-guard')
+
+  // A stored token with no connection row is the case that used to read
+  // "Connected" on the Connections page while requireIntegrationConnected threw
+  // 'missing' — the integration looked healthy and every call failed.
+  assert.equal(
+    resolveConnectionStatus(null, true),
+    'needs_attention',
+    'A token with no connection row must not read as connected'
+  )
+  assert.equal(
+    resolveConnectionStatus(null, false),
+    'disconnected',
+    'No row and no token is simply disconnected'
+  )
+
+  // requireIntegrationConnected rejects the same input, so the two agree.
+  await assert.rejects(
+    () =>
+      requireIntegrationConnected(
+        createFakeSupabase([]) as never,
+        'workspace-1',
+        'notion'
+      ),
+    IntegrationConnectionError,
+    'Guard must reject a provider with no connection row'
+  )
+
+  // Preservation: a verified OAuth calendar row still resolves to connected.
+  assert.equal(
+    resolveConnectionStatus(
+      {
+        provider: 'google_calendar',
+        status: 'connected',
+        metadata: {
+          connected_via: 'google_oauth',
+          oauth_verified_at: '2026-05-01T00:00:00.000Z',
+        },
+      },
+      true
+    ),
+    'connected'
+  )
+})

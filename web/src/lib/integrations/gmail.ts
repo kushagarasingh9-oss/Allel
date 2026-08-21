@@ -1,6 +1,11 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { decrypt, encrypt } from './encryption'
-import { requireIntegrationConnected } from './connection-guard'
+import { getIntegrationConnection, requireIntegrationConnected } from './connection-guard'
+import {
+  isProviderAuthFailure,
+  markIntegrationAuthFailed,
+  markIntegrationAuthSucceeded,
+} from './integration-health'
 
 export type GmailScopeMode = 'send_only' | 'full'
 
@@ -17,6 +22,23 @@ export type GmailThread = {
   lastMessageId: string
   lastSenderEmail: string | null
   participantEmails: string[]
+  /**
+   * Per-message contents, oldest first.
+   *
+   * Optional because the inbox listing does not need it — only thread detail
+   * populates it. Without this the agent could see who a thread was from but not
+   * what it said, so "what does this say?" was answered from a 220-char snippet.
+   */
+  messages?: GmailThreadMessage[]
+}
+
+export type GmailThreadMessage = {
+  id: string
+  from: string
+  fromEmail: string | null
+  to: string
+  date: string
+  body: string
 }
 
 export type GmailProfile = {
@@ -44,13 +66,58 @@ type GmailHeader = {
   value?: string
 }
 
+type GmailMessagePart = {
+  mimeType?: string
+  body?: { data?: string; size?: number }
+  parts?: GmailMessagePart[]
+}
+
 type GmailMessage = {
   id?: string
   internalDate?: string
   labelIds?: string[]
   payload?: {
     headers?: GmailHeader[]
+    mimeType?: string
+    body?: { data?: string; size?: number }
+    parts?: GmailMessagePart[]
   }
+}
+
+/**
+ * Plain-text body of a Gmail message.
+ *
+ * Gmail nests bodies arbitrarily deep in multipart messages, so this walks the
+ * tree preferring text/plain and falling back to text/html. Returns an empty
+ * string rather than throwing: a body that cannot be decoded must not fail the
+ * whole thread read.
+ */
+function extractMessageBody(part: GmailMessagePart | undefined, depth = 0): string {
+  if (!part || depth > 8) return ''
+
+  const decode = (data?: string) =>
+    data ? Buffer.from(data, 'base64url').toString('utf8') : ''
+
+  if (part.mimeType === 'text/plain' && part.body?.data) {
+    return decode(part.body.data)
+  }
+
+  for (const child of part.parts ?? []) {
+    const nested = extractMessageBody(child, depth + 1)
+    if (nested) return nested
+  }
+
+  if (part.mimeType === 'text/html' && part.body?.data) {
+    // Strip tags rather than hand markup to the model.
+    return decode(part.body.data)
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
+  return decode(part.body?.data)
 }
 
 type GmailThreadResponse = {
@@ -155,6 +222,25 @@ function buildThreadFromResponse(thread: GmailThreadResponse): GmailThread | nul
     lastMessageId: lastMessage?.id ?? thread.id,
     lastSenderEmail: extractEmailAddress(from),
     participantEmails,
+    messages: sortedMessages.map((message) => {
+      const headers = message.payload?.headers ?? []
+      const messageFrom = getHeaderValue(headers, 'From')
+      const messageDateHeader = getHeaderValue(headers, 'Date')
+
+      return {
+        id: message.id ?? '',
+        from: messageFrom,
+        fromEmail: extractEmailAddress(messageFrom),
+        to: getHeaderValue(headers, 'To'),
+        date:
+          message.internalDate && Number(message.internalDate) > 0
+            ? new Date(Number(message.internalDate)).toISOString()
+            : messageDateHeader
+              ? new Date(messageDateHeader).toISOString()
+              : lastMessageAt,
+        body: extractMessageBody(message.payload),
+      }
+    }),
   }
 }
 
@@ -176,6 +262,7 @@ export type GmailThreadClassification = {
   category: GmailThreadCategory
   needsReply: boolean
   priority: GmailThreadPriority
+  score: number
   personName?: string
 }
 
@@ -215,6 +302,7 @@ const MARKETING_CONTENT_MARKERS = [
   'posts per day',
   'unicoin',
   "defining crypto's place",
+  'product update',
 ]
 
 function includesAny(value: string, markers: readonly string[]) {
@@ -229,12 +317,71 @@ function extractLinkedInInvitePerson(subject: string, snippet: string) {
   return match?.[1]?.trim()
 }
 
+export function scoreEmailThread(thread: {
+  subject?: string
+  from?: string
+  snippet?: string
+  messageCount?: number
+}): number {
+  const from = (thread.from ?? '').toLowerCase()
+  const subject = (thread.subject ?? '').toLowerCase()
+  const snippet = (thread.snippet ?? '').toLowerCase()
+  const content = `${subject}\n${snippet}`
+
+  let score = 50
+
+  // 1. Financial / Revenue / Critical
+  if (includesAny(content, ['payment failed', 'card declined', 'invoice overdue', 'subscription expiring', 'payout failed'])) {
+    score += 35
+  }
+
+  // 2. Customer support / bug report
+  if (
+    includesAny(content, ['bug', 'broken', 'not working', 'cannot access', "can't access", 'locked out']) &&
+    /\b(i|we|my|our)\b|can you|could you|please help/.test(content)
+  ) {
+    score += 40
+  }
+
+  // 3. Stated deadlines or explicit questions
+  if (includesAny(content, ['deadline', 'asap', 'by tomorrow', 'by today', 'due date', 'urgent'])) {
+    score += 20
+  }
+  if (content.includes('?')) {
+    score += 15
+  }
+
+  // 4. Thread depth / active conversation
+  if ((thread.messageCount ?? 1) > 1) {
+    score += Math.min(15, (thread.messageCount ?? 1) * 3)
+  }
+
+  // 5. Automated / Marketing negative signals
+  if (includesAny(from, AUTOMATED_SENDER_MARKERS)) {
+    score -= 30
+  }
+  if (includesAny(content, MARKETING_CONTENT_MARKERS)) {
+    score -= 35
+  }
+
+  // Weak negative signal for brand domain alone (only if accompanied by automated sender marker)
+  const isBrandDomain = includesAny(from, AUTOMATED_BRAND_MARKERS)
+  const isNoReply = includesAny(from, AUTOMATED_SENDER_MARKERS) || includesAny(from, ['hello@', 'info@', 'news@', 'updates@'])
+  if (isBrandDomain && isNoReply) {
+    score -= 15
+  } else if (isBrandDomain) {
+    score -= 5
+  }
+
+  return score
+}
+
 /**
  * Returns machine-readable triage only. The agent, not this parser, is
  * responsible for the founder-facing summary and recommendation.
  */
 export function classifyEmailThread(
-  thread: { subject?: string; from?: string; snippet?: string }
+  thread: { subject?: string; from?: string; snippet?: string; messageCount?: number }
 ): GmailThreadClassification {
   const from = (thread.from ?? '').toLowerCase()
   const subject = (thread.subject ?? '').toLowerCase()
@@ -244,6 +391,16 @@ export function classifyEmailThread(
   const isLinkedInInvite =
     from.includes('linkedin') &&
     (content.includes('connect') || content.includes('connection request'))
+  if (isLinkedInInvite) {
+    return {
+      category: 'linkedin_invite',
+      needsReply: false,
+      priority: 'medium',
+      score: 50,
+      personName: extractLinkedInInvitePerson(thread.subject ?? '', thread.snippet ?? ''),
+    }
+  }
+
   const isSecurityAlert = includesAny(content, [
     'security alert',
     'unrecognised device',
@@ -252,6 +409,10 @@ export function classifyEmailThread(
     'new sign-in',
     'verify your identity',
   ])
+  if (isSecurityAlert) {
+    return { category: 'security_alert', needsReply: false, priority: 'high', score: 85 }
+  }
+
   const isFinancialEvent = includesAny(content, [
     'payment failed',
     'card declined',
@@ -261,67 +422,58 @@ export function classifyEmailThread(
     'payout failed',
     'payout on hold',
   ])
-  const isAutomatedOrMarketing =
-    includesAny(from, AUTOMATED_SENDER_MARKERS) ||
-    includesAny(from, AUTOMATED_BRAND_MARKERS) ||
-    includesAny(content, MARKETING_CONTENT_MARKERS)
-
-  // A LinkedIn invite is an actionable networking signal, not a human email
-  // that deserves a reply. Keep it separate before the broad automated filter.
-  if (isLinkedInInvite) {
-    return {
-      category: 'linkedin_invite',
-      needsReply: false,
-      priority: 'medium',
-      personName: extractLinkedInInvitePerson(thread.subject ?? '', thread.snippet ?? ''),
-    }
-  }
-
-  // Transactional security and billing notices are not newsletters. They do
-  // not need an email reply, but the founder should see them above digests.
-  if (isSecurityAlert) {
-    return { category: 'security_alert', needsReply: false, priority: 'high' }
-  }
-
   if (isFinancialEvent) {
-    return { category: 'financial_revenue_event', needsReply: false, priority: 'high' }
+    return { category: 'financial_revenue_event', needsReply: false, priority: 'high', score: 85 }
   }
 
-  // First-pass digest filter: this must happen before support keyword checks.
-  // It stops a GitLab update or market recap containing words such as "issue"
-  // or "support" from becoming a fake customer escalation.
-  if (isAutomatedOrMarketing) {
-    return { category: 'marketing_digest', needsReply: false, priority: 'low' }
+  const score = scoreEmailThread(thread)
+
+  const isStrictlyAutomatedMarketing =
+    includesAny(from, AUTOMATED_SENDER_MARKERS) ||
+    includesAny(content, MARKETING_CONTENT_MARKERS) ||
+    (includesAny(from, AUTOMATED_BRAND_MARKERS) && includesAny(from, ['hello@', 'info@', 'news@', 'updates@', 'digest@']))
+
+  if (isStrictlyAutomatedMarketing) {
+    return { category: 'marketing_digest', needsReply: false, priority: 'low', score }
   }
 
   const reportsProductProblem = includesAny(content, [
     'bug',
     'broken',
     'not working',
-    'doesn\'t work',
+    "doesn't work",
     'cannot access',
-    'can\'t access',
+    "can't access",
     'account locked',
     'locked out',
     'cannot log in',
-    'can\'t log in',
+    "can't log in",
     'billing issue',
     'payment issue',
     'invoice problem',
     'refund request',
     'charged twice',
   ])
-  const soundsLikeCustomerReport = /\b(i|we|my|our)\b|can you|could you|please help/.test(
-    content
-  )
+  const soundsLikeCustomerReport = /\b(i|we|my|our)\b|can you|could you|please help/.test(content)
 
-  // Do not elevate mail merely because it is from "support@". A critical
-  // support case requires an explicit, human customer report about the SaaS.
   if (reportsProductProblem && soundsLikeCustomerReport) {
-    return { category: 'customer_support_issue', needsReply: true, priority: 'critical' }
+    return { category: 'customer_support_issue', needsReply: true, priority: 'critical', score: Math.max(90, score) }
   }
 
-  return { category: 'direct_human_email', needsReply: true, priority: 'medium' }
+  let priority: GmailThreadPriority = 'medium'
+  if (score >= 80) priority = 'critical'
+  else if (score >= 65) priority = 'high'
+  else if (score >= 45) priority = 'medium'
+  else priority = 'low'
+
+  const needsReply = !isStrictlyAutomatedMarketing && score >= 45
+
+  return {
+    category: 'direct_human_email',
+    needsReply,
+    priority,
+    score,
+  }
 }
 
 export function threadNeedsReply(
@@ -512,7 +664,10 @@ export async function refreshGmailToken(refreshToken: string): Promise<{
   }
 }
 
-export async function getGmailAccessToken(workspaceId: string): Promise<string> {
+export async function getGmailAccessToken(
+  workspaceId: string,
+  forceRefresh = false
+): Promise<string> {
   const supabase = createServiceClient()
 
   await requireIntegrationConnected(supabase, workspaceId, 'gmail')
@@ -542,7 +697,15 @@ export async function getGmailAccessToken(workspaceId: string): Promise<string> 
     throw new Error('Gmail not connected for this workspace')
   }
 
-  if (accessRow.expires_at && new Date(accessRow.expires_at) > new Date()) {
+  // A null expires_at is falsy and therefore treated as expired — absent expiry
+  // means "refresh before use". The 60s margin stops a token from expiring
+  // mid-request, matching the Calendar path.
+  const isTokenValid =
+    !forceRefresh &&
+    Boolean(accessRow.expires_at) &&
+    new Date(accessRow.expires_at as string).getTime() > Date.now() + 60_000
+
+  if (isTokenValid) {
     return decrypt(accessRow.encrypted_value, accessRow.iv, accessRow.auth_tag)
   }
 
@@ -585,6 +748,55 @@ export async function getGmailAccessToken(workspaceId: string): Promise<string> 
   return accessToken
 }
 
+/**
+ * Run a Gmail call with a valid access token, recovering from a mid-window
+ * expiry and recording connection health.
+ *
+ * Mirrors `executeWithCalendarAccessToken`. Without this, a token that expired
+ * between the validity check and the request surfaced as a hard failure, and an
+ * auth failure in chat marked nothing — Gmail is `syncable`, so its health was
+ * only ever written when the sync runner happened to run.
+ *
+ * A non-auth failure (404, validation, rate limit) is rethrown untouched: it is
+ * not a connection problem and must not flip the row to `needs_attention`.
+ */
+export async function executeWithGmailAccessToken<T>(
+  workspaceId: string,
+  fn: (accessToken: string) => Promise<T>
+): Promise<T> {
+  const supabase = createServiceClient()
+
+  const markHealthy = async () => {
+    const connection = await getIntegrationConnection(supabase, workspaceId, 'gmail')
+    if (connection?.metadata.last_error) {
+      await markIntegrationAuthSucceeded({ supabase, workspaceId, provider: 'gmail' })
+    }
+  }
+
+  try {
+    const result = await fn(await getGmailAccessToken(workspaceId))
+    await markHealthy()
+    return result
+  } catch (error) {
+    if (!isProviderAuthFailure(error)) throw error
+
+    try {
+      const result = await fn(await getGmailAccessToken(workspaceId, true))
+      await markHealthy()
+      return result
+    } catch (retryError) {
+      await markIntegrationAuthFailed({
+        supabase,
+        workspaceId,
+        provider: 'gmail',
+        errorMessage:
+          retryError instanceof Error ? retryError.message : String(retryError),
+      })
+      throw retryError
+    }
+  }
+}
+
 async function fetchThreadDetailByAccessToken(
   accessToken: string,
   threadId: string
@@ -610,38 +822,36 @@ async function fetchThreadDetailByAccessToken(
 }
 
 export async function getGmailProfile(workspaceId: string): Promise<GmailProfile> {
-  const accessToken = await getGmailAccessToken(workspaceId)
+  return executeWithGmailAccessToken(workspaceId, async (accessToken) => {
+    const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
 
-  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(`Gmail profile fetch failed: ${response.status} ${error}`)
+    }
+
+    const data = (await response.json()) as {
+      emailAddress: string
+      messagesTotal: number
+      threadsTotal: number
+    }
+
+    return {
+      emailAddress: data.emailAddress.toLowerCase(),
+      messagesTotal: data.messagesTotal,
+      threadsTotal: data.threadsTotal,
+    }
   })
-
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Gmail profile fetch failed: ${error}`)
-  }
-
-  const data = (await response.json()) as {
-    emailAddress: string
-    messagesTotal: number
-    threadsTotal: number
-  }
-
-  return {
-    emailAddress: data.emailAddress.toLowerCase(),
-    messagesTotal: data.messagesTotal,
-    threadsTotal: data.threadsTotal,
-  }
 }
 
 export async function sendEmail(
   workspaceId: string,
   params: SendEmailParams
 ): Promise<SendEmailResult> {
-  const accessToken = await getGmailAccessToken(workspaceId)
-
   let rawMessage: string
 
   if (params.htmlBody) {
@@ -678,30 +888,32 @@ export async function sendEmail(
 
   const encodedMessage = Buffer.from(rawMessage).toString('base64url')
 
-  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      raw: encodedMessage,
-      ...(params.replyToThreadId ? { threadId: params.replyToThreadId } : {}),
-    }),
+  return executeWithGmailAccessToken(workspaceId, async (accessToken) => {
+    const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        raw: encodedMessage,
+        ...(params.replyToThreadId ? { threadId: params.replyToThreadId } : {}),
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(`Gmail send failed: ${response.status} ${error}`)
+    }
+
+    const data = (await response.json()) as { id: string; threadId: string }
+
+    return {
+      messageId: data.id,
+      threadId: data.threadId,
+      sent: true,
+    }
   })
-
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Gmail send failed: ${error}`)
-  }
-
-  const data = (await response.json()) as { id: string; threadId: string }
-
-  return {
-    messageId: data.id,
-    threadId: data.threadId,
-    sent: true,
-  }
 }
 
 export async function fetchThreads(
@@ -713,45 +925,45 @@ export async function fetchThreads(
     return []
   }
 
-  const accessToken = await getGmailAccessToken(workspaceId)
-
   const params = new URLSearchParams({
     q: query,
     maxResults: String(maxResults),
   })
 
-  const response = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/threads?${params.toString()}`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    }
-  )
-
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Gmail threads fetch failed: ${error}`)
-  }
-
-  const data = (await response.json()) as {
-    threads?: Array<{ id: string }>
-  }
-
-  const details = await Promise.all(
-    (data.threads ?? []).map(async (thread) => {
-      try {
-        return await fetchThreadDetailByAccessToken(accessToken, thread.id)
-      } catch (error) {
-        console.warn('[gmail] Skipping thread fetch failure', { threadId: thread.id, error })
-        return null
+  return executeWithGmailAccessToken(workspaceId, async (accessToken) => {
+    const response = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/threads?${params.toString()}`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
       }
-    })
-  )
-
-  return details
-    .filter((thread): thread is GmailThread => Boolean(thread))
-    .sort((left, right) =>
-      new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime()
     )
+
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(`Gmail threads fetch failed: ${response.status} ${error}`)
+    }
+
+    const data = (await response.json()) as {
+      threads?: Array<{ id: string }>
+    }
+
+    const details = await Promise.all(
+      (data.threads ?? []).map(async (thread) => {
+        try {
+          return await fetchThreadDetailByAccessToken(accessToken, thread.id)
+        } catch (error) {
+          console.warn('[gmail] Skipping thread fetch failure', { threadId: thread.id, error })
+          return null
+        }
+      })
+    )
+
+    return details
+      .filter((thread): thread is GmailThread => Boolean(thread))
+      .sort((left, right) =>
+        new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime()
+      )
+  })
 }
 
 export async function findMostRecentThreadForEmail(
@@ -768,6 +980,15 @@ export async function findMostRecentThreadForEmail(
     threads.find((thread) => thread.participantEmails.includes(email.toLowerCase())) ??
     threads[0] ??
     null
+  )
+}
+
+export async function fetchThreadDetail(
+  workspaceId: string,
+  threadId: string
+): Promise<GmailThread | null> {
+  return executeWithGmailAccessToken(workspaceId, (accessToken) =>
+    fetchThreadDetailByAccessToken(accessToken, threadId)
   )
 }
 

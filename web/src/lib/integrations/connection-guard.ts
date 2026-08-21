@@ -46,19 +46,49 @@ function providerLabel(provider: string) {
   return PROVIDER_LABELS[provider] ?? provider
 }
 
-function isUnverifiedConnection(connection: IntegrationConnection | null) {
+export function isUnverifiedConnection(connection: { provider: string; metadata?: Record<string, unknown> | null } | null | undefined) {
   if (!connection) return false
 
-  const coverage = connection.metadata.coverage
+  const metadata = connection.metadata ?? {}
+  const coverage = metadata.coverage
   const isLegacyDemo =
-    connection.metadata.connected_via === 'workspace_connect' ||
+    metadata.connected_via === 'workspace_connect' ||
+    metadata.connected_via === 'demo_mock' ||
     (typeof coverage === 'string' && coverage.includes('connected via Direct API Connection'))
   const isUnverifiedCalendar =
     connection.provider === 'google_calendar' &&
-    (connection.metadata.connected_via !== 'google_oauth' ||
-      typeof connection.metadata.oauth_verified_at !== 'string')
+    (metadata.connected_via !== 'google_oauth' ||
+      typeof metadata.oauth_verified_at !== 'string')
 
-  return isLegacyDemo || isUnverifiedCalendar
+  return Boolean(isLegacyDemo || isUnverifiedCalendar)
+}
+
+export function resolveConnectionStatus(
+  connection: { provider: string; status: IntegrationConnectionStatus; metadata?: Record<string, unknown> | null } | null | undefined,
+  hasToken: boolean = false
+): IntegrationConnectionStatus {
+  if (!connection) {
+    // A token with no connection row is not usable: `requireIntegrationConnected`
+    // rejects it as 'missing', so reporting it as connected is exactly the
+    // page/guard divergence that makes an integration look healthy while every
+    // call fails. It is not 'disconnected' either — there is a stored credential
+    // to clean up — so it needs attention.
+    return hasToken ? 'needs_attention' : 'disconnected'
+  }
+
+  const status = connection.status
+  if (status === 'needs_attention') return 'needs_attention'
+  if (status === 'coming_soon') return 'coming_soon'
+  if (status === 'disconnected') return 'disconnected'
+
+  if (status === 'connected') {
+    if (isUnverifiedConnection(connection)) {
+      return 'disconnected'
+    }
+    return 'connected'
+  }
+
+  return 'disconnected'
 }
 
 export class IntegrationConnectionError extends Error {

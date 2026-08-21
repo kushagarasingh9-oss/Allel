@@ -23,7 +23,15 @@ import {
 } from './personas'
 import { isAIConfigured, getLanguageModel } from '@/lib/ai/ai'
 import { createServiceClient } from '@/lib/supabase/service'
-import { requireIntegrationConnected } from '@/lib/integrations/connection-guard'
+import {
+  getIntegrationConnection,
+  requireIntegrationConnected,
+} from '@/lib/integrations/connection-guard'
+import {
+  isProviderAuthFailure,
+  markIntegrationAuthFailed,
+  markIntegrationAuthSucceeded,
+} from '@/lib/integrations/integration-health'
 import { logAgentRun } from './run-logger'
 import { createApprovalRequest } from './approval-store'
 import {
@@ -127,10 +135,7 @@ import {
   appendNotionContentTool,
   addNotionCommentTool,
   listNotionUsersTool,
-  // Google Docs tools
-  searchGoogleDocsTool,
-  readGoogleDocTool,
-  createGoogleDocTool,
+
   // HubSpot tools
   searchHubSpotContactsTool,
   getHubSpotContactTool,
@@ -296,10 +301,7 @@ export const ALL_TOOLS = {
   appendNotionContentTool,
   addNotionCommentTool,
   listNotionUsersTool,
-  // Google Docs tools
-  searchGoogleDocsTool,
-  readGoogleDocTool,
-  createGoogleDocTool,
+
   // HubSpot tools (full CRM management)
   searchHubSpotContactsTool,
   getHubSpotContactTool,
@@ -569,10 +571,234 @@ export function extractToolNamesFromHistory(messages?: unknown): AgentToolName[]
 }
 
 /**
- * Dynamically filter available tool names based on keywords in the prompt.
- * Reduces the system prompt payload for automation workflows while keeping
- * full tool availability in interactive chat mode so multi-turn sessions
- * never lose access to any integration tools.
+ * Domain keyword groups: the single source of truth for "which provider is this
+ * text about".
+ *
+ * Two consumers depend on this being one list. `selectRelevantToolsForPrompt`
+ * uses it to scope the turn's tool surface, and `resolveDomainProvidersFromText`
+ * uses it to work out which provider an assistant reply *claimed* it was about,
+ * so an announced action can be checked against the tools actually called.
+ * Duplicating these keywords would let the two drift apart silently.
+ *
+ * Declared at module scope so the regexes are compiled once rather than on every
+ * turn. `provider` is the integration this domain maps to, or null for domains
+ * with no `integration_connections` row (web research).
+ */
+const TOOL_DOMAIN_GROUPS: ReadonlyArray<{
+  provider: string | null
+  regex: RegExp
+  tools: AgentToolName[]
+}> = [
+  {
+    provider: 'google_calendar',
+    regex: /\b(calendar|cal|meeting|meetings|schedule|schedules|event|events|cancel|delete|freebusy|free|busy|book|appointment|appointments|am|pm|tomorrow|today|agenda|slot|slots|availability|invite|invites|meet)\b/i,
+    tools: [
+      'listCalendarEventsTool',
+      'getCalendarEventTool',
+      'createCalendarEventTool',
+      'updateCalendarEventTool',
+      'deleteCalendarEventTool',
+      'checkCalendarFreeBusy',
+      'listCalendarsTool',
+      'searchCalendarEventsTool',
+    ],
+  },
+  {
+    provider: 'gmail',
+    regex: /\b(email|emails|mail|mails|gmail|inbox|reply|send|draft|drafts|thread|threads|outbox)\b/i,
+    tools: [
+      'getMyInbox',
+      'getGmailThreadsForAccount',
+      'getGmailThreadDetailTool',
+      'sendGmailReply',
+      'composeNewEmail',
+      'generateFollowUpDraft',
+      'updateDraftContent',
+      'rejectDraft',
+    ],
+  },
+  {
+    provider: 'slack',
+    regex: /\b(slack|channel|channels|team|teams|message|messages|chat|chats|dm|dms|slackbot|discussion|discussions)\b/i,
+    tools: [
+      'getSlackHistory',
+      'sendSlackMessage',
+      'searchSlack',
+      'replyInSlackThread',
+      'reactToSlackMessage',
+      'editSlackMessage',
+      'deleteSlackMsg',
+      'scheduleSlackMsg',
+      'pinSlackMsg',
+      'addSlackBookmarkTool',
+    ],
+  },
+  {
+    provider: 'stripe',
+    regex: /\b(stripe|billing|mrr|revenue|churn|invoice|invoices|subscription|subscriptions|charge|charges|refund|refunds|coupon|coupons|dispute|disputes|discount|discounts|payment|payments|plan|plans|price|pricing|customer|customers|financial)\b/i,
+    tools: [
+      'searchStripeCustomersTool',
+      'getStripeCustomerDetail',
+      'listStripeInvoicesTool',
+      'getUpcomingStripeInvoice',
+      'getStripeSubscriptionDetail',
+      'cancelStripeSubscriptionTool',
+      'refundStripeCharge',
+      'applyStripeCoupon',
+      'getStripeBalanceTool',
+      'listStripeDisputesTool',
+      'getStripeAccountState',
+      'createRescueDiscountTool',
+    ],
+  },
+  {
+    provider: 'notion',
+    regex: /\b(notion|doc|docs|knowledge|page|pages|wiki|wikis|database|databases|note|notes|file|files|document|documents|spec|specs|readme)\b/i,
+    tools: [
+      'searchNotionTool',
+      'getNotionPageTool',
+      'createNotionPageTool',
+      'updateNotionPageTool',
+      'queryNotionDatabaseTool',
+      'appendNotionContentTool',
+      'addNotionCommentTool',
+      'listNotionUsersTool',
+    ],
+  },
+  {
+    provider: 'posthog',
+    regex: /\b(posthog|analytics|usage|insight|insights|cohort|cohorts|flag|flags|person|persons|funnel|funnels)\b/i,
+    tools: [
+      'searchPostHogPersons',
+      'getPostHogEvents',
+      'listPostHogInsights',
+      'listPostHogCohorts',
+      'getPostHogAccountUsage',
+      'createPostHogAnnotation',
+      'listPostHogFeatureFlags',
+      'togglePostHogFeatureFlag',
+      'getPostHogEventDefinitions',
+    ],
+  },
+  {
+    provider: 'linear',
+    regex: /\b(linear|issue|issues|bug|bugs|ticket|tickets|project|projects|workspace|task|tasks|todo|todos|backlog|kanban|board)\b/i,
+    tools: [
+      'searchLinearIssuesTool',
+      'getLinearIssueTool',
+      'createLinearIssueTool',
+      'updateLinearIssueTool',
+      'addLinearCommentTool',
+      'listLinearTeamsTool',
+      'listLinearWorkflowStatesTool',
+      'listLinearLabelsTool',
+      'listLinearProjectsTool',
+      'listLinearUsersTool',
+    ],
+  },
+  {
+    provider: 'intercom',
+    regex: /\b(intercom|conversation|conversations|convo|convos|support|contact|contacts)\b/i,
+    tools: [
+      'listIntercomConvos',
+      'getIntercomConvo',
+      'replyToIntercomConvo',
+      'closeIntercomConvo',
+      'snoozeIntercomConvo',
+      'assignIntercomConvo',
+      'searchIntercomConvosTool',
+      'searchIntercomContactsTool',
+      'createIntercomNote',
+      'tagIntercomConvo',
+    ],
+  },
+  {
+    provider: 'hubspot',
+    regex: /\b(hubspot|crm|deal|deals|pipeline|pipelines|company|companies|owner|owners)\b/i,
+    tools: [
+      'searchHubSpotContactsTool',
+      'getHubSpotContactTool',
+      'createHubSpotContactTool',
+      'updateHubSpotContactTool',
+      'searchHubSpotCompaniesTool',
+      'getHubSpotCompanyTool',
+      'searchHubSpotDealsTool',
+      'createHubSpotDealTool',
+      'updateHubSpotDealTool',
+      'createHubSpotNoteTool',
+      'listHubSpotOwnersTool',
+      'listHubSpotPipelinesTool',
+    ],
+  },
+  {
+    provider: 'sentry',
+    regex: /\b(sentry|error|errors|crash|crashes|exception|exceptions|release|releases|stacktrace|log|logs|failure|failures)\b/i,
+    tools: [
+      'listSentryIssuesTool',
+      'getSentryIssueTool',
+      'resolveSentryIssueTool',
+      'assignSentryIssueTool',
+      'getSentryLatestEventTool',
+      'listSentryProjectsTool',
+      'listSentryReleasesTool',
+      'listSentryIssueTagsTool',
+    ],
+  },
+  {
+    provider: 'airtable',
+    regex: /\b(airtable|base|bases|table|tables|record|records)\b/i,
+    tools: [
+      'listAirtableBasesTool',
+      'listAirtableTablesTool',
+      'listAirtableRecordsTool',
+      'getAirtableRecordTool',
+      'createAirtableRecordTool',
+      'updateAirtableRecordTool',
+      'deleteAirtableRecordTool',
+    ],
+  },
+  {
+    // Web research runs on an environment API key, not a connection row.
+    provider: null,
+    regex: /\b(search|web|google|pricing|competitor|url|http|https|crawl|scrape)\b/i,
+    tools: ['webSearchTool', 'webExtractTool', 'webCrawlTool', 'webMapTool'],
+  },
+]
+
+/**
+ * Providers that a piece of text is about, newest-first order preserved.
+ *
+ * Used to check an assistant reply's claim ("let me check your inbox") against
+ * the providers whose tools it actually called.
+ */
+export function resolveDomainProvidersFromText(text: string): string[] {
+  if (!text) return []
+
+  return TOOL_DOMAIN_GROUPS.filter(
+    (group): group is (typeof TOOL_DOMAIN_GROUPS)[number] & { provider: string } =>
+      group.provider !== null && group.regex.test(text)
+  ).map((group) => group.provider)
+}
+
+/**
+ * Narrow the tool surface to what this turn plausibly needs.
+ *
+ * Applies to chat and automation alike. A model choosing between ~14 relevant
+ * tools routes far more accurately than one handed the entire registry, and the
+ * system prompt also carries every exposed tool name verbatim, so an unfiltered
+ * surface costs tokens on every single turn.
+ *
+ * Three sources feed the selection:
+ *  - the newest user line (primary — this is what the founder just asked for)
+ *  - earlier lines in the retained window (secondary — keeps a cross-provider
+ *    thread alive so "reply to him and move the meeting" still works)
+ *  - tools actually invoked earlier in the conversation, via
+ *    `extractToolNamesFromHistory` — this is what lets a bare "do it" or
+ *    "delete it" resolve against the thread or event a previous turn surfaced
+ *
+ * Only when none of the three yields a signal does this fall back to the full
+ * set. That case means the request has no detectable domain and no history to
+ * anchor to (a greeting, a typo), where being generous is harmless.
  */
 export function selectRelevantToolsForPrompt(
   promptText: string,
@@ -581,12 +807,6 @@ export function selectRelevantToolsForPrompt(
   options?: { channel?: 'chat' | 'automation' }
 ): AgentToolName[] {
   if (!promptText || typeof promptText !== 'string') return [...availableToolNames]
-
-  // In interactive chat mode, preserve all persona tools so multi-turn sessions
-  // and cross-domain prompts (e.g. email scanning then calendar/tasks) never lose tool access.
-  if (options?.channel === 'chat') {
-    return [...availableToolNames]
-  }
 
   const coreTools: AgentToolName[] = [
     'inspectIntegrationConnectionsTool',
@@ -599,173 +819,7 @@ export function selectRelevantToolsForPrompt(
   ]
   const availableCoreTools = coreTools.filter((t) => availableToolNames.includes(t))
 
-  const domainGroups: Array<{ regex: RegExp; tools: AgentToolName[] }> = [
-    {
-      regex: /\b(calendar|cal|meeting|meetings|schedule|schedules|event|events|cancel|delete|freebusy|free|busy|book|appointment|appointments|am|pm|tomorrow|today|agenda|slot|slots|availability|invite|invites|meet)\b/i,
-      tools: [
-        'listCalendarEventsTool',
-        'getCalendarEventTool',
-        'createCalendarEventTool',
-        'updateCalendarEventTool',
-        'deleteCalendarEventTool',
-        'checkCalendarFreeBusy',
-        'listCalendarsTool',
-        'searchCalendarEventsTool',
-      ],
-    },
-    {
-      regex: /\b(email|emails|mail|mails|gmail|inbox|reply|send|draft|drafts|thread|threads|outbox)\b/i,
-      tools: [
-        'getMyInbox',
-        'getGmailThreadsForAccount',
-        'sendGmailReply',
-        'composeNewEmail',
-        'generateFollowUpDraft',
-        'updateDraftContent',
-        'rejectDraft',
-      ],
-    },
-    {
-      regex: /\b(slack|channel|channels|team|teams|message|messages|chat|chats|dm|dms|slackbot|discussion|discussions)\b/i,
-      tools: [
-        'getSlackHistory',
-        'sendSlackMessage',
-        'searchSlack',
-        'replyInSlackThread',
-        'reactToSlackMessage',
-        'editSlackMessage',
-        'deleteSlackMsg',
-        'scheduleSlackMsg',
-        'pinSlackMsg',
-        'addSlackBookmarkTool',
-      ],
-    },
-    {
-      regex: /\b(stripe|billing|mrr|revenue|churn|invoice|invoices|subscription|subscriptions|charge|charges|refund|refunds|coupon|coupons|dispute|disputes|discount|discounts|payment|payments|plan|plans|price|pricing|customer|customers|financial)\b/i,
-      tools: [
-        'searchStripeCustomersTool',
-        'getStripeCustomerDetail',
-        'listStripeInvoicesTool',
-        'getUpcomingStripeInvoice',
-        'getStripeSubscriptionDetail',
-        'cancelStripeSubscriptionTool',
-        'refundStripeCharge',
-        'applyStripeCoupon',
-        'getStripeBalanceTool',
-        'listStripeDisputesTool',
-        'getStripeAccountState',
-        'createRescueDiscountTool',
-      ],
-    },
-    {
-      regex: /\b(notion|doc|docs|knowledge|page|pages|wiki|wikis|database|databases|note|notes|file|files|document|documents|spec|specs|readme)\b/i,
-      tools: [
-        'searchNotionTool',
-        'getNotionPageTool',
-        'createNotionPageTool',
-        'updateNotionPageTool',
-        'queryNotionDatabaseTool',
-        'appendNotionContentTool',
-        'addNotionCommentTool',
-        'listNotionUsersTool',
-      ],
-    },
-    {
-      regex: /\b(posthog|analytics|usage|insight|insights|cohort|cohorts|flag|flags|person|persons|funnel|funnels)\b/i,
-      tools: [
-        'searchPostHogPersons',
-        'getPostHogEvents',
-        'listPostHogInsights',
-        'listPostHogCohorts',
-        'getPostHogAccountUsage',
-        'createPostHogAnnotation',
-        'listPostHogFeatureFlags',
-        'togglePostHogFeatureFlag',
-        'getPostHogEventDefinitions',
-      ],
-    },
-    {
-      regex: /\b(linear|issue|issues|bug|bugs|ticket|tickets|project|projects|workspace|task|tasks|todo|todos|backlog|kanban|board)\b/i,
-      tools: [
-        'searchLinearIssuesTool',
-        'getLinearIssueTool',
-        'createLinearIssueTool',
-        'updateLinearIssueTool',
-        'addLinearCommentTool',
-        'listLinearTeamsTool',
-        'listLinearWorkflowStatesTool',
-        'listLinearLabelsTool',
-        'listLinearProjectsTool',
-        'listLinearUsersTool',
-      ],
-    },
-    {
-      regex: /\b(intercom|conversation|conversations|convo|convos|support|contact|contacts)\b/i,
-      tools: [
-        'listIntercomConvos',
-        'getIntercomConvo',
-        'replyToIntercomConvo',
-        'closeIntercomConvo',
-        'snoozeIntercomConvo',
-        'assignIntercomConvo',
-        'searchIntercomConvosTool',
-        'searchIntercomContactsTool',
-        'createIntercomNote',
-        'tagIntercomConvo',
-      ],
-    },
-    {
-      regex: /\b(hubspot|crm|deal|deals|pipeline|pipelines|company|companies|owner|owners)\b/i,
-      tools: [
-        'searchHubSpotContactsTool',
-        'getHubSpotContactTool',
-        'createHubSpotContactTool',
-        'updateHubSpotContactTool',
-        'searchHubSpotCompaniesTool',
-        'getHubSpotCompanyTool',
-        'searchHubSpotDealsTool',
-        'createHubSpotDealTool',
-        'updateHubSpotDealTool',
-        'createHubSpotNoteTool',
-        'listHubSpotOwnersTool',
-        'listHubSpotPipelinesTool',
-      ],
-    },
-    {
-      regex: /\b(sentry|error|errors|crash|crashes|exception|exceptions|release|releases|stacktrace|log|logs|failure|failures)\b/i,
-      tools: [
-        'listSentryIssuesTool',
-        'getSentryIssueTool',
-        'resolveSentryIssueTool',
-        'assignSentryIssueTool',
-        'getSentryLatestEventTool',
-        'listSentryProjectsTool',
-        'listSentryReleasesTool',
-        'listSentryIssueTagsTool',
-      ],
-    },
-    {
-      regex: /\b(airtable|base|bases|table|tables|record|records)\b/i,
-      tools: [
-        'listAirtableBasesTool',
-        'listAirtableTablesTool',
-        'listAirtableRecordsTool',
-        'getAirtableRecordTool',
-        'createAirtableRecordTool',
-        'updateAirtableRecordTool',
-        'deleteAirtableRecordTool',
-      ],
-    },
-    {
-      regex: /\b(search|web|google|pricing|competitor|url|http|https|crawl|scrape)\b/i,
-      tools: [
-        'webSearchTool',
-        'webExtractTool',
-        'webCrawlTool',
-        'webMapTool',
-      ],
-    },
-  ]
+  const domainGroups = TOOL_DOMAIN_GROUPS
 
   // Split promptText into messages/lines to weight newest message higher
   const lines = promptText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
@@ -796,8 +850,13 @@ export function selectRelevantToolsForPrompt(
     availableToolNames.includes(t)
   )
 
-  // Fallback: evaluate on count of domain-matched tools only (excluding core tools)
-  if (domainMatchedTools.size <= 5) {
+  // Fallback only when the turn carries no signal at all: no domain keyword in
+  // the newest line, none in the retained window, and no tool used earlier in
+  // the conversation. Counting core tools here is what previously made this
+  // branch unreachable — they are always present, so they can never indicate
+  // whether the request was understood.
+  const hasRoutingSignal = domainMatchedTools.size > 0 || historyToolNames.length > 0
+  if (!hasRoutingSignal) {
     return [...availableToolNames]
   }
 
@@ -938,7 +997,31 @@ function wrapToolWithLiveIntegrationGuard(
         }
       }
 
-      const result = await execute(input)
+      // Record connection health from the outcome of the call.
+      //
+      // Health used to be written only by the sync runner, which never runs for
+      // tool_only providers (Calendar, Notion, Airtable) — so those could fail
+      // authentication indefinitely while the row still read `connected` and the
+      // founder was told the integration was fine. Doing it here covers every
+      // provider-mapped tool in one place instead of at ~130 call sites.
+      //
+      // Tools catch their own exceptions and return `{ error }`, so both shapes
+      // have to be inspected.
+      let result: unknown
+      try {
+        result = await execute(input)
+      } catch (error) {
+        await recordProviderCallHealth(workspaceId, provider, error)
+        throw error
+      }
+
+      const toolError =
+        result && typeof result === 'object' && !Array.isArray(result)
+          ? (result as Record<string, unknown>).error
+          : undefined
+
+      await recordProviderCallHealth(workspaceId, provider, toolError)
+
       if (!result || typeof result !== 'object' || Array.isArray(result)) {
         return result
       }
@@ -951,6 +1034,50 @@ function wrapToolWithLiveIntegrationGuard(
       }
     },
   } as unknown as (typeof ALL_TOOLS)[AgentToolName]
+}
+
+/**
+ * Mark a provider's connection health from a call outcome.
+ *
+ * Only authentication failures flip a connection to `needs_attention`. A 404, a
+ * validation error, or a rate limit is not a broken connection, and recording
+ * one as such would block every later call behind the connection guard.
+ *
+ * A successful call clears a previously recorded failure, so a reconnect or a
+ * token refresh heals the row without founder action. Health writes must never
+ * break the tool call, so failures here are logged and swallowed.
+ */
+async function recordProviderCallHealth(
+  workspaceId: string,
+  provider: string,
+  failure: unknown
+) {
+  try {
+    const supabase = createServiceClient()
+
+    if (failure !== undefined && failure !== null && isProviderAuthFailure(failure)) {
+      await markIntegrationAuthFailed({
+        supabase,
+        workspaceId,
+        provider,
+        errorMessage: failure instanceof Error ? failure.message : String(failure),
+      })
+      return
+    }
+
+    // Nothing to clear unless a failure was previously recorded.
+    if (failure === undefined || failure === null) {
+      const connection = await getIntegrationConnection(supabase, workspaceId, provider)
+      if (connection?.metadata.last_error) {
+        await markIntegrationAuthSucceeded({ supabase, workspaceId, provider })
+      }
+    }
+  } catch (healthError) {
+    console.error(
+      `[agent] Failed to record connection health for ${provider}`,
+      healthError
+    )
+  }
 }
 
 function assertPersonaToolConfiguration() {
@@ -995,6 +1122,20 @@ export function resolveAgentModelId(_options?: {
   channel?: 'chat' | 'automation'
 }) {
   return process.env.OPENAI_MODEL_ID || 'gpt-5.6'
+}
+
+/**
+ * Optional second model to attempt when the primary fails with a retryable or
+ * quota-related error. Returns null when unconfigured, or when it would resolve
+ * to the same model as the primary — re-attempting an identical request against
+ * an identical target cannot change the outcome.
+ */
+export function resolveAgentFallbackModelId(primaryModelId?: string): string | null {
+  const fallback = process.env.AGENT_FALLBACK_MODEL_ID?.trim()
+  if (!fallback) return null
+
+  const primary = primaryModelId ?? resolveAgentModelId()
+  return fallback === primary ? null : fallback
 }
 
 function buildAgentStepMetadata(result: Awaited<ReturnType<ToolLoopAgent['generate']>>) {
@@ -1091,6 +1232,11 @@ export function getAgentForPersona(
     tools: filteredTools,
     maxOutputTokens: 4096,
     temperature: 0.3,
+    // Transient upstream failures (5xx, timeout, reset) are common enough on
+    // quota-capped deployments that a single attempt makes the product feel
+    // broken. The SDK backs off between attempts; deterministic failures
+    // (auth, context limit, content filter) are not retried by the provider.
+    maxRetries: 3,
     stopWhen: stepCountIs(25),
     onStepFinish: async ({ toolCalls }) => {
       if (toolCalls && toolCalls.length > 0) {

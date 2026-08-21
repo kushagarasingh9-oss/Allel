@@ -2,6 +2,7 @@ import { cache } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { ensureWorkspaceForUser } from '@/lib/workspaces/ensure-workspace'
+import { resolveConnectionStatus } from '@/lib/integrations/connection-guard'
 import type {
   AccountSummary,
   ActionTask,
@@ -499,18 +500,21 @@ function normalizeStatus(
     return definition.core ? 'Disconnected' : 'Coming soon'
   }
 
-  const rowStatus = (row?.status ?? '').toLowerCase()
+  const resolved = resolveConnectionStatus(
+    row
+      ? {
+          provider: row.provider,
+          status: row.status as any,
+          metadata: row.metadata,
+        }
+      : null,
+    hasToken
+  )
 
-  if (definition.core) {
-    if (rowStatus === 'needs_attention') return 'Needs attention'
-    if (hasToken || rowStatus === 'connected') return 'Connected'
-    return 'Disconnected'
-  }
-
-  if (rowStatus === 'connected') return 'Connected'
-  if (rowStatus === 'needs_attention') return 'Needs attention'
-  if (rowStatus === 'disconnected') return 'Disconnected'
-  return 'Coming soon'
+  if (resolved === 'connected') return 'Connected'
+  if (resolved === 'needs_attention') return 'Needs attention'
+  if (resolved === 'disconnected') return 'Disconnected'
+  return definition.core ? 'Disconnected' : 'Coming soon'
 }
 
 function buildIntegrationItems(

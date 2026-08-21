@@ -12,6 +12,11 @@ import type { ZodSchema } from 'zod'
 
 const MODEL_ID = process.env.OPENAI_MODEL_ID || 'gpt-4o'
 
+/** Resolve the model via the unified router so Azure/GitHub Models deployments work. */
+function resolvedModel() {
+  return getLanguageModel(MODEL_ID)
+}
+
 export function getLanguageModel(modelIdOverride?: string) {
   const modelId = modelIdOverride || process.env.OPENAI_MODEL_ID || 'gpt-4o'
   const apiKey = process.env.AZURE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || ''
@@ -83,7 +88,7 @@ export async function generateText(params: {
   const start = Date.now()
 
   const result = await aiGenerateText({
-    model: openai(MODEL_ID),
+    model: resolvedModel(),
     system: params.system,
     prompt: params.prompt,
     maxOutputTokens: params.maxOutputTokens ?? 1024,
@@ -124,7 +129,7 @@ export async function generateObject<T>(params: {
   const start = Date.now()
 
   const result = await aiGenerateObject({
-    model: openai(MODEL_ID),
+    model: resolvedModel(),
     system: params.system,
     prompt: params.prompt,
     schema: params.schema,

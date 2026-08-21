@@ -4,8 +4,11 @@ import {
   processQueuedAccountMemoryRefreshes,
 } from '@/lib/agent/account-memory'
 import { logAgentRun } from '@/lib/agent/run-logger'
-import { sanitizeJsonRecord } from '@/lib/json-metadata'
 import { SYNCABLE_PROVIDERS, TOOL_ONLY_PROVIDERS } from './catalog'
+import {
+  getExistingConnectionState,
+  normalizeConnectionMetadata,
+} from './integration-health'
 import { syncGmailWorkspace } from './gmail-sync'
 import { syncHubSpotWorkspace } from './hubspot-sync'
 import { syncIntercomWorkspace } from './intercom-sync'
@@ -35,14 +38,6 @@ export type IntegrationSyncTrigger =
   | 'gmail_oauth_callback'
   | 'api_connect'
 
-type IntegrationConnectionRow = {
-  metadata: Record<string, unknown> | null
-  last_synced_at: string | null
-}
-
-function normalizeConnectionMetadata(value: Record<string, unknown> | null | undefined) {
-  return sanitizeJsonRecord(value ?? {})
-}
 
 function formatErrorMessage(error: unknown) {
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -50,23 +45,6 @@ function formatErrorMessage(error: unknown) {
   }
 
   return 'Unknown sync error'
-}
-
-async function getExistingConnectionState(
-  supabase: AnySupabaseClient,
-  workspaceId: string,
-  provider: string
-) {
-  const { data, error } = await supabase
-    .from('integration_connections')
-    .select('metadata, last_synced_at')
-    .eq('workspace_id', workspaceId)
-    .eq('provider', provider)
-    .maybeSingle<IntegrationConnectionRow>()
-
-  if (error) throw error
-
-  return data
 }
 
 export async function markIntegrationSyncSucceeded(input: {
@@ -170,6 +148,11 @@ export async function markIntegrationSyncFailed(input: {
 
   if (error) throw error
 }
+
+// Auth-failure health writes live in the leaf `integration-health` module so the
+// integration modules can call them without importing this file (which pulls in
+// every *-sync module). Re-exported here so existing callers keep one entry point.
+export { markIntegrationAuthFailed, markIntegrationAuthSucceeded } from './integration-health'
 
 function buildToolOnlyMessage(provider: string) {
   return `${provider} is a live integration - data is read directly from the API when the agent needs it.`

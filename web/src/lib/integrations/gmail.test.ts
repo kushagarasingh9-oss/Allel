@@ -102,11 +102,10 @@ test('classifyEmailThread filters automated digests before support-like keywords
   })
 
   for (const classification of [ftmo, gitlab, wispr, unicoin]) {
-    assert.deepEqual(classification, {
-      category: 'marketing_digest',
-      needsReply: false,
-      priority: 'low',
-    })
+    assert.equal(classification.category, 'marketing_digest')
+    assert.equal(classification.needsReply, false)
+    assert.equal(classification.priority, 'low')
+    assert.ok(typeof classification.score === 'number')
   }
 })
 
@@ -122,30 +121,26 @@ test('classifyEmailThread only escalates an explicit human customer problem', ()
     snippet: 'We have updated your request.',
   })
 
-  assert.deepEqual(customerProblem, {
-    category: 'customer_support_issue',
-    needsReply: true,
-    priority: 'critical',
-  })
-  assert.deepEqual(vendorSupportUpdate, {
-    category: 'direct_human_email',
-    needsReply: true,
-    priority: 'medium',
-  })
+  assert.equal(customerProblem.category, 'customer_support_issue')
+  assert.equal(customerProblem.needsReply, true)
+  assert.equal(customerProblem.priority, 'critical')
+  assert.ok(customerProblem.score >= 80)
+
+  assert.equal(vendorSupportUpdate.category, 'direct_human_email')
+  assert.equal(vendorSupportUpdate.needsReply, true)
+  assert.equal(vendorSupportUpdate.priority, 'medium')
+  assert.ok(typeof vendorSupportUpdate.score === 'number')
 })
 
 test('classifyEmailThread keeps transactional alerts and networking separate from replies', () => {
-  assert.deepEqual(
-    classifyEmailThread({
-      from: 'Billing <no-reply@payments.example>',
-      subject: 'Payment failed for your subscription',
-    }),
-    {
-      category: 'financial_revenue_event',
-      needsReply: false,
-      priority: 'high',
-    }
-  )
+  const fin = classifyEmailThread({
+    from: 'Billing <no-reply@payments.example>',
+    subject: 'Payment failed for your subscription',
+  })
+  assert.equal(fin.category, 'financial_revenue_event')
+  assert.equal(fin.needsReply, false)
+  assert.equal(fin.priority, 'high')
+  assert.equal(fin.score, 85)
 
   const invite = classifyEmailThread({
     from: 'LinkedIn <messages-noreply@linkedin.com>',

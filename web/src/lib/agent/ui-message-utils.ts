@@ -17,6 +17,20 @@ export type TrustedMessageMetadata = {
     contentSha256: string
     signature: string
   }
+  /**
+   * Set when the reply promised an action the turn did not perform, or performed
+   * against a different provider than it announced.
+   *
+   * A sibling of `trustedHistory`, not part of it: the signature covers
+   * `{ id, role, parts }`, so adding this does not affect verification. It is a
+   * server observation about the turn, used only to render the turn honestly —
+   * never trusted as input.
+   */
+  announcedActionMismatch?: {
+    reason: 'no_tool_calls' | 'wrong_domain'
+    announcedProviders: string[]
+    calledProviders: string[]
+  }
 }
 
 type MessageSanitizationContext = {
@@ -44,16 +58,31 @@ export function getMessageTextContent(message: UIMessage) {
 }
 
 function getHistorySigningSecret() {
-  const secret =
-    process.env.AGENT_HISTORY_SIGNING_SECRET ?? process.env.OPENAI_API_KEY
+  const dedicatedSecret = process.env.AGENT_HISTORY_SIGNING_SECRET
 
-  if (!secret) {
+  if (dedicatedSecret) return dedicatedSecret
+
+  // Falling back to the model API key couples conversation memory to an
+  // unrelated credential: rotating the OpenAI key silently invalidates every
+  // stored assistant message. Acceptable for local development, never in
+  // production — fail loudly at boot instead.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Missing AGENT_HISTORY_SIGNING_SECRET. Generate one with `openssl rand -hex 32`. " +
+        "Do not rely on the OPENAI_API_KEY fallback in production: rotating that key " +
+        "would invalidate all stored assistant history."
+    )
+  }
+
+  const fallbackSecret = process.env.OPENAI_API_KEY
+
+  if (!fallbackSecret) {
     throw new Error(
       "Missing AGENT_HISTORY_SIGNING_SECRET or OPENAI_API_KEY for agent history verification"
     )
   }
 
-  return secret
+  return fallbackSecret
 }
 
 function normalizeForSignature(value: unknown): unknown {
@@ -156,13 +185,31 @@ function hasValidTrustedMetadata(
   )
 }
 
-export function sanitizeClientUiMessages(
+export type SanitizationOutcome = {
+  messages: TrustedUIMessage[]
+  /** Assistant messages dropped because their signature did not verify. */
+  rejectedAssistantCount: number
+}
+
+/**
+ * Same filtering as `sanitizeClientUiMessages`, but reports what it dropped.
+ *
+ * The count matters because signature failure is silent and total: if
+ * `AGENT_HISTORY_SIGNING_SECRET` changes — including the implicit change from
+ * rotating `OPENAI_API_KEY`, which it falls back to — every stored assistant
+ * message stops verifying and the conversation reads as user messages only. The
+ * rows are still intact in the database; only verification fails. Without a
+ * count that looks like the agent forgetting rather than a config change.
+ */
+export function sanitizeClientUiMessagesWithOutcome(
   messages: unknown,
   context?: MessageSanitizationContext
-): TrustedUIMessage[] {
-  if (!Array.isArray(messages)) return []
+): SanitizationOutcome {
+  if (!Array.isArray(messages)) return { messages: [], rejectedAssistantCount: 0 }
 
-  return messages.filter((message): message is TrustedUIMessage => {
+  let rejectedAssistantCount = 0
+
+  const sanitized = messages.filter((message): message is TrustedUIMessage => {
     if (!isRecord(message)) return false
     if (typeof message.id !== "string") return false
     if (!isAllowedRole(message.role)) return false
@@ -181,8 +228,35 @@ export function sanitizeClientUiMessages(
     const candidate = message as unknown as TrustedUIMessage
 
     if (candidate.role === "user") return true
-    if (!context) return false
 
-    return hasValidTrustedMetadata(candidate, context)
+    if (!context) {
+      rejectedAssistantCount += 1
+      return false
+    }
+
+    if (hasValidTrustedMetadata(candidate, context)) return true
+
+    rejectedAssistantCount += 1
+    return false
   })
+
+  return { messages: sanitized, rejectedAssistantCount }
+}
+
+export function sanitizeClientUiMessages(
+  messages: unknown,
+  context?: MessageSanitizationContext
+): TrustedUIMessage[] {
+  const { messages: sanitized, rejectedAssistantCount } =
+    sanitizeClientUiMessagesWithOutcome(messages, context)
+
+  if (rejectedAssistantCount > 0) {
+    console.warn(
+      `[agent-history] Dropped ${rejectedAssistantCount} assistant message(s) that failed signature verification. ` +
+        `If this is every message in the thread, AGENT_HISTORY_SIGNING_SECRET has changed since they were stored ` +
+        `(it falls back to OPENAI_API_KEY when unset, so rotating that key has the same effect).`
+    )
+  }
+
+  return sanitized
 }

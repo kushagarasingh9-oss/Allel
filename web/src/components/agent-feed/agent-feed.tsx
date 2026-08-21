@@ -500,6 +500,14 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
   let toolBatch: React.ReactNode[] = []
   let toolBatchCount = 0
 
+  // Server observation attached in the chat route: the reply promised an action
+  // the turn never performed, or served a different provider than it announced.
+  // Without this the turn renders as ordinary completed work.
+  const announcedActionMismatch = Boolean(
+    (message.metadata as { announcedActionMismatch?: unknown } | undefined)
+      ?.announcedActionMismatch
+  )
+
   const flushToolBatch = () => {
     if (toolBatch.length > 0) {
       // Check if any tool in this batch is still executing (input-streaming or input-available)
@@ -508,7 +516,12 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       )
 
       rendered.push(
-        <AgentReasoningBatch key={`batch-${rendered.length}`} stepsCount={toolBatchCount} isExecuting={isExecuting}>
+        <AgentReasoningBatch
+          key={`batch-${rendered.length}`}
+          stepsCount={toolBatchCount}
+          isExecuting={isExecuting}
+          announcedActionMismatch={!isExecuting && announcedActionMismatch}
+        >
           {toolBatch}
         </AgentReasoningBatch>
       )
@@ -612,7 +625,7 @@ function AgentThinking() {
 }
 
 // ─── Error Message Formatter ──────────────────────────────────────────
-function formatCleanErrorMessage(rawMsg: string): string {
+export function formatCleanErrorMessage(rawMsg: string): string {
   if (!rawMsg) return "An unexpected error occurred."
 
   let msg = rawMsg
@@ -632,11 +645,62 @@ function formatCleanErrorMessage(rawMsg: string): string {
     // Keep original
   }
 
-  if (msg.includes("rate_limit_exceeded") || msg.includes("429") || msg.includes("TPM") || msg.includes("RPM")) {
+  const low = msg.toLowerCase()
+
+  if (low.includes("rate_limit") || low.includes("429") || low.includes("tpm") || low.includes("rpm")) {
     return "OpenAI API rate limit reached. Please wait a few moments before trying again or check your OpenAI plan quota."
   }
 
-  return msg
+  if (
+    low.includes("500") ||
+    low.includes("502") ||
+    low.includes("503") ||
+    low.includes("504") ||
+    low.includes("overloaded") ||
+    low.includes("timeout") ||
+    low.includes("service_unavailable") ||
+    low.includes("bad gateway")
+  ) {
+    return "The AI model service is temporarily unavailable. Please try your request again in a few moments."
+  }
+
+  if (
+    low.includes("401") ||
+    low.includes("403") ||
+    low.includes("invalid_api_key") ||
+    low.includes("unauthorized") ||
+    low.includes("not configured")
+  ) {
+    return "AI model authentication or configuration issue. Please check your API key settings."
+  }
+
+  if (
+    low.includes("context_length") ||
+    low.includes("maximum context length") ||
+    low.includes("token limit")
+  ) {
+    return "The request exceeded the maximum conversation context limit. Try starting a fresh thread or asking a more focused question."
+  }
+
+  if (
+    low.includes("content_filter") ||
+    low.includes("policy_violation") ||
+    low.includes("flagged")
+  ) {
+    return "The request could not be processed due to content safety policies."
+  }
+
+  // Strip any vendor URLs or request IDs that passed through
+  let sanitized = msg
+    .replace(/https?:\/\/[^\s]+/gi, '')
+    .replace(/\b(?:request\s*id|apim-request-id|req_[a-zA-Z0-9]+)[:=]?\s*[^\s]+/gi, '')
+    .trim()
+
+  if (!sanitized || sanitized.startsWith('{') || sanitized.includes('"error"')) {
+    return "The agent encountered an unexpected issue while processing your request. Please try again."
+  }
+
+  return sanitized
 }
 
 // ─── Main Feed Component ─────────────────────────────────────────────

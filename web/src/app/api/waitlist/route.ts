@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
@@ -78,7 +82,7 @@ export async function POST(req: Request) {
       }
 
       // 2. Send Confirmation Email to Subscriber
-      if (email && email.includes('@')) {
+      if (isValidEmail(email)) {
         try {
           await resend.emails.send({
             from: fromEmail,
