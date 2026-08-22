@@ -30,27 +30,28 @@
 ## 1. Product Definition & ICP
 
 ### What The Product Is
-**Allel is a founder-facing retention operations product that helps save revenue automatically.**
+**Allel is a unified founder operator platform that automates daily founder workflows and saves revenue automatically through integration-powered AI agents.**
 
-It is not primarily a generic "AI chat tool", nor is it a CRM or an open-ended workflow canvas. 
+Rather than forcing founders to jump between siloed tools or manually triage customer health every morning, Allel acts as a single command center. It deploys specialized AI agents across all connected integrations (**Stripe, PostHog, Gmail, Google Calendar, Linear, Slack, HubSpot, Intercom**) to automate daily operations, eliminate manual triage, and execute verified revenue-rescue campaigns from one platform.
+
 The core value proposition:
-- **Detect churn risk early** across billing, usage, support, CRM, and engineering signals.
-- **Explain why churn is happening** with concrete, multi-source evidence.
-- **Draft the next best save action fast** (e.g., rescue discounts, targeted founder emails).
-- **Deliver one daily operating brief** to the founder's inbox and Slack.
-- **Provide a unified operator console** (`/dashboard`) with persona-driven AI co-founders.
+- **Unified Integration Intelligence**: Connects billing (Stripe), telemetry (PostHog), communications (Gmail/Calendar), dev (Linear), and CRM/support (HubSpot/Intercom/Slack) into a single operational platform.
+- **Specialized AI Agents & Personas**: Deploys persona-driven AI co-founders with 136 dedicated integration tools to execute daily founder tasks automatically.
+- **Early Churn Risk Detection**: Detects hidden drop-offs and billing failures before customers cancel.
+- **Automated Revenue Rescue**: Synthesizes multi-source evidence, drafts founder-voiced rescue campaigns, and executes approved save actions with strict dollar-for-dollar revenue attribution.
+- **Daily Operating Brief**: Delivers a single consolidated founder brief to Slack and email with prioritized next-best actions.
 
 ### Ideal Customer Profile (ICP)
 - **Target**: Founder-led B2B SaaS teams (1 to 20 people, roughly `$1k–$50k MRR`).
-- **Situation**: Operating customer success manually without a dedicated CS organization.
+- **Situation**: Operating customer success and daily operations manually without dedicated CS or Ops teams.
 - **Core Pain**:
-  - *"Signals exist, but they are scattered across Stripe, PostHog, Gmail, Intercom, Linear, and Sentry."*
-  - *"I don't have time to manually triage churn risk every morning."*
-  - *"By the time I notice an account went silent, it has already canceled."*
+  - *"Signals exist, but they are scattered across Stripe, PostHog, Gmail, Intercom, Linear, and Slack."*
+  - *"I don't have time to manually triage customer risk and perform manual outreach every morning."*
+  - *"By the time I notice an account went silent or failed a payment, they have already churned."*
 
 ### Positioning Guidance
-- **Lead with**: *"Retention agent that saves revenue automatically"*, *"You are losing users and don't know why"*, *"Daily founder brief with the next best action"*.
-- **Avoid leading with**: Generic "AI assistant" tropes, vague "all-in-one workspace" buzzwords, or ungrounded automation claims.
+- **Lead with**: *"Unified founder operator platform for revenue rescue"*, *"Automates daily founder work across all your tools"*, *"AI agents that save revenue automatically"*.
+- **Avoid leading with**: Vague "all-in-one workspace" buzzwords or ungrounded open-ended chat tropes without specific integration outcomes.
 
 ---
 
