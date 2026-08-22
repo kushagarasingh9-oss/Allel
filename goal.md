@@ -6244,71 +6244,71 @@ Verify:
 
 ### 35.1 Architecture acceptance
 
-- [ ] Webhook acknowledgment follows durable event and job commit.
-- [ ] Critical workflow continuation does not depend on `after()`.
-- [ ] Queue supports lease, retry, jitter, and dead letter.
-- [ ] Event, job, case, draft, and send each have idempotency protection.
-- [ ] Recovery case is the unit joining the workflow.
-- [ ] Legal case transitions are centralized.
-- [ ] Failed prerequisites block dependent stages.
+- [x] Webhook acknowledgment follows durable event and job commit.
+- [x] Critical workflow continuation does not depend on `after()`.
+- [x] Queue supports lease, retry, jitter, and dead letter.
+- [x] Event, job, case, draft, and send each have idempotency protection.
+- [x] Recovery case is the unit joining the workflow.
+- [x] Legal case transitions are centralized.
+- [x] Failed prerequisites block dependent stages.
 
 ### 35.2 Identity acceptance
 
-- [ ] Stripe customer IDs resolve exactly.
-- [ ] PostHog distinct IDs resolve exactly.
-- [ ] Gmail threads and addresses resolve safely.
-- [ ] Ambiguous identity never chooses an account automatically.
-- [ ] Unmapped events remain visible and replayable.
-- [ ] Automatic outreach requires identity confidence at least 0.90.
-- [ ] Cross-workspace identity isolation passes.
+- [x] Stripe customer IDs resolve exactly.
+- [x] PostHog distinct IDs resolve exactly.
+- [x] Gmail threads and addresses resolve safely.
+- [x] Ambiguous identity never chooses an account automatically.
+- [x] Unmapped events remain visible and replayable.
+- [x] Automatic outreach requires identity confidence at least 0.90.
+- [x] Cross-workspace identity isolation passes.
 
 ### 35.3 Feature and score acceptance
 
-- [ ] One canonical module writes account features.
-- [ ] One canonical module writes risk projections.
-- [ ] Missing data is not scored as healthy.
-- [ ] Usage minimum volume prevents volatile flags.
-- [ ] Hard overrides work at exact boundaries.
-- [ ] Compound risk uses both fresh domains.
-- [ ] Score snapshots are reproducible and versioned.
-- [ ] Risk score is labeled as an index, not probability.
-- [ ] Revenue priority does not change health classification.
+- [x] One canonical module writes account features.
+- [x] One canonical module writes risk projections.
+- [x] Missing data is not scored as healthy.
+- [x] Usage minimum volume prevents volatile flags.
+- [x] Hard overrides work at exact boundaries.
+- [x] Compound risk uses both fresh domains.
+- [x] Score snapshots are reproducible and versioned.
+- [x] Risk score is labeled as an index, not probability.
+- [x] Revenue priority does not change health classification.
 
 ### 35.4 Agent acceptance
 
-- [ ] Detect is deterministic.
-- [ ] Analyze returns typed, cited evidence.
-- [ ] Draft returns typed content.
-- [ ] Verify runs deterministic gates.
-- [ ] Unknown citations fail.
-- [ ] Fabricated offers fail.
-- [ ] Draft stage has no send capability.
-- [ ] Verify stage has no send capability.
-- [ ] Fallback model use is visible.
-- [ ] Tool schema expansion is real AI SDK orchestration, not a fake unlock string.
+- [x] Detect is deterministic.
+- [x] Analyze returns typed, cited evidence.
+- [x] Draft returns typed content.
+- [x] Verify runs deterministic gates.
+- [x] Unknown citations fail.
+- [x] Fabricated offers fail.
+- [x] Draft stage has no send capability.
+- [x] Verify stage has no send capability.
+- [x] Fallback model use is visible.
+- [x] Tool schema expansion is real AI SDK orchestration, not a fake unlock string.
 
 ### 35.5 Approval and send acceptance
 
-- [ ] Approval binds exact recipient, subject, body, case, and version.
-- [ ] Edit invalidates approval.
-- [ ] Expired approval cannot send.
-- [ ] Suppression is rechecked immediately before send.
-- [ ] Gmail provider message and thread IDs are stored.
-- [ ] Duplicate send job results in one logical email.
-- [ ] Uncertain send is reconciled before retry.
-- [ ] Founder actor comes from authenticated session.
+- [x] Approval binds exact recipient, subject, body, case, and version.
+- [x] Edit invalidates approval.
+- [x] Expired approval cannot send.
+- [x] Suppression is rechecked immediately before send.
+- [x] Gmail provider message and thread IDs are stored.
+- [x] Duplicate send job results in one logical email.
+- [x] Uncertain send is reconciled before retry.
+- [x] Founder actor comes from authenticated session.
 
 ### 35.6 Outcome acceptance
 
-- [ ] MRR baseline is captured before cancellation mutation.
-- [ ] `invoice.paid` resolves compatible billing case immediately.
-- [ ] Reply alone produces zero strict recovered cents.
-- [ ] Usage recovery alone produces zero strict recovered cents.
-- [ ] Protected and strict revenue are separate.
-- [ ] One recovery event cannot be counted twice.
-- [ ] Outcome deadlines are stored on cases.
-- [ ] ALLEL-012 counts $4,000 exactly once in test mode.
-- [ ] ALLEL-015 never uses the old 50-percent reply estimate as strict revenue.
+- [x] MRR baseline is captured before cancellation mutation.
+- [x] `invoice.paid` resolves compatible billing case immediately.
+- [x] Reply alone produces zero strict recovered cents.
+- [x] Usage recovery alone produces zero strict recovered cents.
+- [x] Protected and strict revenue are separate.
+- [x] One recovery event cannot be counted twice.
+- [x] Outcome deadlines are stored on cases.
+- [x] ALLEL-012 counts $4,000 exactly once in test mode.
+- [x] ALLEL-015 never uses the old 50-percent reply estimate as strict revenue.
 
 ### 35.7 UI acceptance
 
@@ -6337,15 +6337,15 @@ Verify:
 
 ### 35.9 Security acceptance
 
-- [ ] Stripe and PostHog invalid signatures fail closed.
-- [ ] PostHog comparison is timing-safe.
-- [ ] Request bodies are bounded.
-- [ ] Secrets are absent from logs, prompts, UI, exports, and video.
-- [ ] RLS protects all new workspace data.
-- [ ] Browser cannot claim jobs.
-- [ ] Service-role routes always scope by workspace.
-- [ ] Gmail recipients are allowlisted in test mode.
-- [ ] Raw-payload retention is enforced.
+- [x] Stripe and PostHog invalid signatures fail closed.
+- [x] PostHog comparison is timing-safe.
+- [x] Request bodies are bounded.
+- [x] Secrets are absent from logs, prompts, UI, exports, and video.
+- [x] RLS protects all new workspace data.
+- [x] Browser cannot claim jobs.
+- [x] Service-role routes always scope by workspace.
+- [x] Gmail recipients are allowlisted in test mode.
+- [x] Raw-payload retention is enforced.
 
 ### 35.10 Build and deployment acceptance
 
@@ -6466,3 +6466,1610 @@ Provider truth before optimistic metrics.
 One complete, inspectable recovery loop before any new feature.
 
 If a reviewer can see a signed event become one safe action and one correctly attributed result—and can also see the system deliberately refuse an unsafe action—Allel has demonstrated the thing that most AI demos omit: operational trust.
+
+---
+
+## 40. Mandatory repair directive for implementation commit `f943fd1`
+
+### 40.1 Status and authority of this section
+
+Commit `f943fd1`, titled `feat(recovery): implement authoritative backend blueprint from goal.md`, is not a complete or production-correct implementation of this blueprint.
+
+It is a broad scaffold containing useful types, deterministic scoring logic, a queue shape, recovery-case tables, and scenario definitions.
+
+However, its critical runtime path contains contract mismatches that prevent a real provider event from reliably becoming a scored case, an approvable draft, a confirmed send, and an attributable outcome.
+
+This section is the mandatory remediation plan for that commit.
+
+If an earlier section describes the intended architecture and this section describes how to repair the current implementation, both apply.
+
+If an implementation detail conflicts, this section wins because it is based on a direct audit of the committed code and schema.
+
+Do not rewrite `goal.md` again before repairing the code.
+
+Do not add another parallel recovery architecture.
+
+Do not preserve broken behavior merely because a unit test currently expects it.
+
+Do not call the work complete because TypeScript compiles or pure scoring tests pass.
+
+The repair is complete only when a real test-mode provider event traverses the entire durable workflow and all acceptance gates in this section pass.
+
+### 40.2 Audited baseline
+
+The implementation model must begin from these facts:
+
+- audited commit: `f943fd1`;
+- comparison base: `b7577e5`;
+- change size: 46 files and approximately 11,684 inserted lines;
+- existing unit-test result at audit time: 133 passing tests;
+- `npx tsc --noEmit` passes at audit time;
+- `npm run build` fails at audit time;
+- the passing tests do not exercise the real webhook-to-database-to-worker-to-send path;
+- the database schema, not TypeScript casts, is the runtime contract;
+- the current work must be repaired incrementally, not replaced with an unrelated rewrite.
+
+The current test result proves that several isolated functions work.
+
+It does not prove that migrations apply, provider payloads reach feature projection, drafts insert, approvals bind content, sends are idempotent, or outcomes are attributable.
+
+### 40.3 Required final behavior
+
+The repaired implementation must make this exact path work:
+
+```text
+signed Stripe or PostHog request
+→ workspace resolution or durable unmapped classification
+→ one canonical webhook event
+→ one durable process job in the same database transaction
+→ exact provider identity resolution
+→ provider payload transformed into canonical feature changes
+→ canonical feature upsert
+→ deterministic score and action decision
+→ one recovery case with real provider evidence
+→ bounded model analysis with visible fallback state
+→ one valid full-body draft
+→ deterministic verification against current state
+→ owner/admin approval bound to the exact content hash
+→ one idempotent Gmail send job
+→ confirmed Gmail provider IDs
+→ monitoring
+→ compatible provider outcome after case opening
+→ financially deduplicated result
+```
+
+Every arrow above must be represented by durable state, an explicit function contract, or an immutable audit event.
+
+No arrow may depend on a fire-and-forget promise.
+
+No stage may report success after swallowing a database or provider failure.
+
+### 40.4 Repair priorities
+
+Implement the repair in this order:
+
+1. repair database contracts and forward migrations;
+2. repair atomic webhook ingestion and workspace resolution;
+3. repair identity resolution and provider fact projection;
+4. repair database-to-domain mapping and scoring persistence;
+5. repair case creation and transactional state transitions;
+6. repair draft generation and verification;
+7. connect approval to the recovery state machine and queue;
+8. repair exact-content and idempotent sending;
+9. repair outcome attribution and financial metrics;
+10. isolate scenario tooling;
+11. harden worker leases, retries, and authorization;
+12. add integration tests and make all build gates pass;
+13. only then finish reviewer UI surfaces.
+
+Do not start UI polish while any priority-zero or priority-one backend defect remains.
+
+### 40.5 Priority-zero defects that must be fixed first
+
+The following defects block the core product loop.
+
+#### 40.5.1 Provider facts are dropped before feature projection
+
+Affected files:
+
+- `web/src/lib/jobs/handlers/process-provider-event.ts`;
+- `web/src/lib/jobs/handlers/project-account-features.ts`;
+- `web/src/lib/recovery/features.ts`;
+- new provider projection module or modules created during this repair.
+
+Current broken behavior:
+
+- `process_provider_event` passes provider name, event type, event ID, and timestamps;
+- it does not pass normalized billing or usage facts;
+- `project_account_features` calls `projectAccountFeatures` with `payload.patch`;
+- `payload.patch` is absent for real webhook jobs;
+- the feature layer therefore writes default or stale values;
+- the scorer cannot observe the event that triggered the job.
+
+Required repair:
+
+1. Treat the persisted `webhook_events.payload` row as the durable source for projection.
+2. In `process_provider_event`, load the webhook event by both event ID and workspace ID.
+3. Verify that its provider, external ID, payload hash, and event type agree with the queued envelope.
+4. Resolve identity from identifiers extracted from the persisted provider payload.
+5. Create a typed provider projection result.
+6. Pass that result to `project_account_features`, or let the projection handler load and normalize the persisted event itself.
+7. Never rely on an optional patch that webhook ingestion did not populate.
+8. Persist evidence references using real webhook event IDs.
+9. Treat unsupported event types as deliberate no-op outcomes with an audit reason, not as successful feature mutations.
+
+Use a contract similar to:
+
+```ts
+type ProviderFeatureProjection = {
+  workspaceId: string
+  customerAccountId: string
+  provider: 'stripe' | 'posthog' | 'gmail'
+  eventId: string
+  providerEventId: string
+  eventType: string
+  occurredAt: string
+  patch: Partial<AccountFeatures>
+  evidence: Array<{
+    eventId: string
+    provider: string
+    objectId: string | null
+    fact: string
+  }>
+  outcomeCandidate: null | {
+    kind: 'invoice_paid' | 'cancellation_reversed' | 'usage_rebound' | 'customer_reply'
+    invoiceId?: string
+    subscriptionId?: string
+  }
+}
+```
+
+The implementation may choose a different type name, but it must preserve all of these meanings.
+
+#### 40.5.2 Stripe projection requirements
+
+For `invoice.payment_failed`:
+
+- resolve `customer` as a Stripe customer ID;
+- record the invoice ID;
+- record invoice status;
+- set billing availability true;
+- set billing status to `past_due` or another normalized failed state;
+- set `last_payment_failed_at` from the event occurrence time;
+- calculate seven-day and thirty-day failure counts idempotently from durable events or authoritative invoice attempt data;
+- never increment counters blindly on each retry;
+- preserve current active MRR;
+- preserve subscription ID when present;
+- write the source watermark for Stripe;
+- append timeline evidence once;
+- enqueue evaluation once.
+
+For `invoice.paid`:
+
+- record invoice ID and paid status;
+- record `last_payment_succeeded_at`;
+- keep historical failure counts;
+- restore billing state only from authoritative Stripe state available in the event or bounded reconciliation;
+- create an outcome candidate carrying invoice and subscription identity;
+- do not treat every paid invoice as recovery.
+
+For `customer.subscription.updated`:
+
+- resolve the Stripe customer ID, not the subscription ID when the supplied identity is a customer ID;
+- also persist the subscription identity;
+- normalize recurring price into monthly recurring revenue;
+- preserve the old MRR before overwriting it;
+- detect `cancel_at_period_end` changes;
+- detect reactivation;
+- detect downgrade and upgrade;
+- set billing freshness;
+- emit a compatible outcome candidate only when cancellation reversal or billing restoration is evidenced.
+
+For `customer.subscription.deleted`:
+
+- load the prior canonical feature row before mutation;
+- calculate event MRR from subscription items when prior MRR is missing;
+- store the nonzero value in `pre_cancel_mrr_cents`;
+- pass that value as the recovery-case MRR baseline;
+- only then set current MRR to zero;
+- mark billing state cancelled;
+- store cancellation time and subscription ID;
+- never derive recoverable revenue from the post-mutation zero.
+
+Stripe evidence must retain:
+
+- webhook event ID;
+- Stripe event ID;
+- Stripe customer ID;
+- invoice ID when present;
+- subscription ID when present;
+- event occurrence time;
+- livemode/test-mode state.
+
+#### 40.5.3 PostHog projection requirements
+
+For PostHog events:
+
+- resolve `distinct_id` through `provider_identities` first;
+- use verified email fallback only when the mapping is unique within one workspace;
+- persist the PostHog UUID or stable event fingerprint;
+- recognize `allel_cancel_intent` and configured cancellation-page visits;
+- set `cancel_intent_at` to the provider occurrence time;
+- set product activity time from provider time;
+- update source freshness;
+- recompute current and previous seven-day windows from bounded event data or the PostHog API;
+- pin one evaluation timestamp across both windows;
+- calculate usage delta only when the previous window meets minimum volume;
+- compute key-feature disappearance from explicit current and previous counts;
+- never infer a healthy trend from missing data;
+- never use `Date.now()` as the sole identity of a retried provider event.
+
+If the action webhook payload contains precomputed window values, validate their numeric types and document that they came from a trusted server-side action definition.
+
+Do not trust arbitrary client properties as authoritative aggregates.
+
+If a live PostHog query is required, make it bounded, cursor-aware, retryable, and isolated in the projection job rather than the ingress route.
+
+#### 40.5.4 Database rows must be mapped explicitly
+
+Affected files:
+
+- `web/src/lib/recovery/features.ts`;
+- `web/src/lib/jobs/handlers/evaluate-recovery-case.ts`.
+
+Current broken behavior:
+
+- the feature table returns snake_case fields;
+- the evaluator casts the row directly to `AccountFeatures`;
+- scoring reads camelCase fields;
+- the cast silences TypeScript without converting the values.
+
+Required repair:
+
+1. Export the existing database-row mapper from `features.ts`.
+2. Give its input a named database-row type.
+3. Convert every snake_case database field explicitly.
+4. Use the mapper everywhere a feature row enters domain logic.
+5. Remove `as unknown as AccountFeatures` from production paths.
+6. Reject invalid required fields rather than silently scoring them.
+7. Check and propagate every database read and write error.
+8. Do not write a null risk score to a non-null database field.
+9. If no domain is available, record an explicit insufficient-data decision and suppress automated action.
+10. Add a test using a realistic snake_case row returned from Supabase.
+
+Required regression assertion:
+
+```text
+billing_available = true
+failed_payment_count_7d = 1
+last_payment_failed_at = recent
+
+must become
+
+billingAvailable = true
+failedPaymentCount7d = 1
+lastPaymentFailedAt = recent
+```
+
+The resulting score must reflect one payment failure.
+
+#### 40.5.5 Generated drafts must satisfy the actual schema
+
+Affected files:
+
+- `web/src/lib/jobs/handlers/generate-case-draft.ts`;
+- `supabase/migrations/20260406_init_product_tables.sql` as historical reference only;
+- `supabase/migrations/20260421_agent_write_tools.sql` as historical reference only;
+- a new forward-only corrective migration if schema changes are needed.
+
+Current broken behavior:
+
+- generated drafts use status `pending_review` even though the database allows `needs_review`;
+- the insert omits required `draft_type`;
+- the insert includes `channel` and `created_by_actor`, which are not current columns;
+- the job therefore cannot persist its output.
+
+Required repair:
+
+- use `draft_type: 'email'` unless a forward migration deliberately introduces a different canonical field;
+- use `status: 'needs_review'` after generation;
+- populate `subject`, `body_preview`, and `body_full`;
+- preserve `recipient_email`;
+- preserve `recovery_case_id`;
+- calculate and store `content_hash` from the full content;
+- use `action_version` as a monotonic integer per case;
+- do not insert undeclared columns;
+- handle database errors as job failures;
+- make generation idempotent by case and action version;
+- supersede an existing unapproved draft instead of silently creating multiples;
+- never overwrite an approved or sent draft.
+
+Add an integration test that executes the insert contract against the migration schema.
+
+#### 40.5.6 Subscription webhooks must resolve workspace before insertion
+
+Affected file:
+
+- `web/src/app/api/webhooks/stripe/route.ts`.
+
+Current broken behavior:
+
+- workspace resolution checks only `customer_email` and `receipt_email`;
+- subscription objects generally contain `customer`, not those email fields;
+- `workspace_id` is currently non-null in the original webhook table;
+- inserting an unresolved subscription event fails before it can be retained or replayed.
+
+Required resolution order:
+
+1. workspace-specific endpoint ID validated against integration configuration;
+2. verified `provider_identities` match for Stripe customer ID;
+3. unique legacy `account_contacts.external_ids.stripe_customer_id` match;
+4. unique normalized contact email match when the event supplies one;
+5. trusted scenario metadata only in explicit test mode;
+6. otherwise persist as unmapped without mutating an account.
+
+Never choose the first row from an ambiguous cross-workspace match.
+
+If two workspaces claim the same external ID, classify the event as conflict and require operator remediation.
+
+The preferred production route is a workspace-specific webhook endpoint or endpoint token.
+
+The competition fallback may use globally unique verified provider identity only when exactly one workspace matches.
+
+### 40.6 Forward-only database repair migration
+
+Create one new migration after the three `20260822_recovery_*` migrations.
+
+Do not rewrite an already-applied production migration as the only fix.
+
+The corrective migration must be safe when the previous migrations have already run.
+
+Use `public.` qualification for tables and functions.
+
+The migration must cover the following.
+
+#### 40.6.1 Webhook deduplication
+
+- add or validate a unique deduplication arbiter;
+- prefer a unique index on non-null `dedupe_key`;
+- ensure older rows with null dedupe keys do not block the migration;
+- document how any pre-existing duplicate non-null keys are handled;
+- keep provider external IDs available for investigation;
+- do not delete raw event history casually.
+
+Required behavior:
+
+- the same provider delivery returns the original event ID;
+- a retry can recreate a missing processing job;
+- concurrent deliveries cannot create two logical process jobs;
+- a reused provider event ID with a different payload hash is recorded as a conflict, not accepted silently.
+
+#### 40.6.2 Durable unmapped events
+
+Choose and implement one explicit strategy:
+
+- make `webhook_events.workspace_id` nullable for unmapped ingress, with restricted visibility and later audited assignment; or
+- require a verified endpoint-to-workspace binding before accepting the event.
+
+For the current global webhook routes, nullable unmapped storage is the practical repair.
+
+If `workspace_id` becomes nullable:
+
+- all RLS expressions must handle null safely;
+- only the service role may read or modify global unmapped rows;
+- authenticated workspace members must never see them;
+- replay must assign a verified workspace before account mutation;
+- retention must still apply.
+
+#### 40.6.3 Atomic ingress function
+
+Create a database function conceptually equivalent to:
+
+```text
+ingest_provider_event_and_job(
+  event envelope,
+  raw payload,
+  workspace ID,
+  process-job idempotency key
+)
+→ event ID, job ID or null, deduplicated flag, conflict flag
+```
+
+The function must run in one transaction and must:
+
+1. validate the caller is the service role;
+2. acquire or rely on a unique dedupe arbiter;
+3. locate an existing event by dedupe key;
+4. compare payload hashes on duplicates;
+5. insert the canonical event if absent;
+6. insert the process job when workspace is known;
+7. recreate the process job if a prior request stored the event but failed before job creation;
+8. return the durable IDs;
+9. never mark the event processed during ingress.
+
+Use:
+
+```sql
+security definer
+set search_path = public, pg_temp
+```
+
+Then:
+
+- revoke execute from `public`;
+- revoke execute from `anon`;
+- revoke execute from `authenticated`;
+- grant execute only to `service_role`.
+
+Do not emulate atomicity with two TypeScript calls.
+
+#### 40.6.4 Contact-policy uniqueness
+
+Add a real unique constraint or compatible unique index for the conflict target used by scenario seeding:
+
+```text
+(workspace_id, customer_account_id, channel)
+```
+
+Before adding it:
+
+- detect duplicates;
+- preserve the newest intentional policy;
+- do not merge contradictory policies silently;
+- fail migration with a clear diagnostic if safe automatic cleanup is impossible.
+
+The code must not use `onConflict` columns that lack a matching unique arbiter.
+
+#### 40.6.5 Queue claim security
+
+Replace or harden `claim_workflow_jobs` so that it:
+
+- uses a fixed `search_path`;
+- is executable only by the service role;
+- validates positive bounded batch size;
+- validates a safe lease duration;
+- uses `FOR UPDATE SKIP LOCKED`;
+- claims expired running jobs only after the lease expiry;
+- stores the worker ID and lease expiry atomically;
+- never exposes arbitrary workspace jobs to browser clients.
+
+Add a migration assertion or SQL test proving authenticated users cannot execute it.
+
+#### 40.6.6 Atomic case transition function
+
+Create one transactionally safe transition primitive.
+
+It must:
+
+- lock the case row;
+- confirm workspace ownership;
+- validate the current status;
+- validate the target status against the legal transition table;
+- enforce required resolution and suppression fields;
+- use an expected prior status or version to prevent lost updates;
+- update status and timestamps;
+- append the corresponding immutable case event;
+- commit both or neither;
+- return the updated row.
+
+No TypeScript function should update the case and append the event as two independent commits.
+
+### 40.7 Webhook route rewrite requirements
+
+Affected files:
+
+- `web/src/app/api/webhooks/stripe/route.ts`;
+- `web/src/app/api/webhooks/posthog/route.ts`.
+
+Each route must be reduced to bounded ingress work.
+
+Required steps:
+
+1. reject oversized bodies before expensive processing where framework support allows;
+2. read the raw body once;
+3. verify signature using the raw bytes;
+4. parse only after signature verification;
+5. extract a stable provider event ID;
+6. resolve endpoint workspace or verified identity workspace;
+7. build the canonical envelope;
+8. call the atomic database ingestion function;
+9. return success only after the transaction commits.
+
+Remove from webhook request execution:
+
+- direct customer-account mutation;
+- direct timeline mutation;
+- direct founder notification;
+- LLM calls;
+- draft creation;
+- outcome calculation;
+- broad synchronization.
+
+Those actions belong in durable worker jobs.
+
+Do not leave the legacy synchronous mutation path running beside the new queue.
+
+Two writers for the same fact will create races and make replays unsafe.
+
+#### 40.7.1 Stripe retry behavior
+
+On duplicate Stripe delivery:
+
+- compare payload hash;
+- if equal, ensure the process job exists and return 2xx;
+- if different, record conflict and do not mutate accounts;
+- return the original canonical event ID;
+- do not insert another event row;
+- do not send another notification.
+
+#### 40.7.2 PostHog event identity
+
+Use this event-ID order:
+
+1. `$insert_id`;
+2. provider UUID;
+3. a SHA-256 fingerprint over endpoint ID, distinct ID, event name, provider timestamp, and payload hash.
+
+Never append `Date.now()` to a fallback ID because retries would become distinct events.
+
+### 40.8 Event processing and identity repair
+
+`process_provider_event` must load the persisted event instead of trusting an arbitrary queue payload.
+
+Required checks:
+
+- job workspace equals event workspace when workspace is known;
+- job webhook ID resolves to exactly one event;
+- event is not in payload-conflict state;
+- event payload exists;
+- provider is supported;
+- provider event time is normalized;
+- event processing is idempotent.
+
+Identity extraction must be provider-specific.
+
+Stripe:
+
+- invoice events: primary identity is `invoice.customer`;
+- subscription events: primary identity is `subscription.customer`;
+- subscription ID is secondary evidence, not a replacement for customer identity;
+- customer event: primary identity is customer ID;
+- customer email is fallback evidence.
+
+PostHog:
+
+- primary identity is `distinct_id`;
+- person email is fallback;
+- scenario account ID may be used only when the event is test mode and the scenario binding is trusted.
+
+Gmail:
+
+- thread ID binds outcome evidence;
+- sender address must match a verified account contact;
+- founder address and automated replies are excluded.
+
+Event processing completion must update existing columns:
+
+- `processed = true`;
+- `processed_at = now()`;
+- `completed_at = now()` if the new lifecycle field is retained;
+- `identity_status`;
+- `customer_account_id` when mapped;
+- `error = null` on success.
+
+Do not write a nonexistent `webhook_events.status` column.
+
+On failure:
+
+- leave `processed = false`;
+- store a bounded safe error summary;
+- let the job retry policy decide the next attempt;
+- do not claim the event succeeded.
+
+### 40.9 Feature projection contract
+
+`projectAccountFeatures` remains the single writer for `account_features`.
+
+Strengthen it as follows:
+
+- export `mapDbToAccountFeatures`;
+- type and validate its database row input;
+- check errors from the initial feature read;
+- check errors from the upsert;
+- preserve prior values not touched by the current provider projection;
+- use one occurrence timestamp per event;
+- update only the relevant provider freshness field;
+- store provider watermarks by provider and stream;
+- compute the feature hash after normalization;
+- return material-change status;
+- return the exact persisted feature object;
+- do not enqueue evaluation when no material feature changed unless the event is an explicit hard-event or outcome candidate.
+
+Feature projection must be retry-idempotent.
+
+Failure counters must come from authoritative attempts or a query over deduplicated durable event records.
+
+They must not be implemented as `existing + 1` without event-level deduplication.
+
+The upsert conflict key must match an actual database primary or unique constraint.
+
+### 40.10 Scoring and case creation repair
+
+The evaluator must:
+
+1. load and map canonical features;
+2. load identity confidence from the actual identity resolution result or persisted mapping;
+3. load active contact policy with deterministic precedence;
+4. load recent action history for cooldown evaluation;
+5. compute deterministic score;
+6. represent unavailable scores explicitly;
+7. compute action policy;
+8. persist the account projection with checked errors;
+9. open or update one case;
+10. persist one reproducible score snapshot;
+11. enqueue analysis only for allowed, supported customer actions.
+
+Do not hard-code identity confidence to `1.0`.
+
+Do not pass a raw snake_case contact-policy row where a camelCase domain object is expected.
+
+Do not convert an unavailable score into a healthy zero for financial or product claims.
+
+Evidence IDs must reference durable records.
+
+Rule labels such as `fact_billing_single_payment_failure` may appear as rule IDs, but they are not themselves provider evidence IDs.
+
+A score snapshot should contain:
+
+- provider event IDs;
+- normalized facts;
+- component outputs;
+- rule IDs;
+- feature version;
+- score version;
+- policy version;
+- evaluation timestamp.
+
+#### 40.10.1 Case upsert correctness
+
+Fix `openOrUpdateRecoveryCase` so that:
+
+- `updatedStatus` is either applied through the transition primitive or removed;
+- a new actionable case enters the legal state sequence;
+- concurrent evaluations cannot create duplicate cases;
+- unique-conflict retries load the existing case safely;
+- evidence is merged or versioned without losing old provider IDs;
+- case updates do not mutate approved content silently;
+- a material action change after approval invalidates the approval;
+- case MRR baseline is never replaced by zero after cancellation;
+- every database error is checked.
+
+### 40.11 Draft generation repair
+
+Draft generation may use an LLM, but persistence and safety are deterministic.
+
+Required generation steps:
+
+1. require case status `action_proposed`;
+2. load one verified primary contact;
+3. fail safely when there is no verified recipient;
+4. never substitute `customer@example.com` in a sendable draft;
+5. pass only redacted, cited evidence to the model;
+6. enforce the structured draft schema;
+7. make fallback usage visible in agent-run metadata;
+8. validate all cited evidence IDs exist on the case;
+9. reject fabricated offers;
+10. calculate the canonical content hash;
+11. insert one `needs_review` email draft with full content;
+12. enqueue deterministic verification;
+13. treat insertion failure as job failure.
+
+The content-hash canonical input must include:
+
+- workspace ID;
+- case ID;
+- draft ID when appropriate for the chosen contract;
+- normalized recipient;
+- normalized subject;
+- normalized full body;
+- offer ID or explicit null;
+- action version.
+
+Choose one canonical hash contract and use the same function for generation, edit, approval, and send.
+
+Do not maintain multiple slightly different hash implementations.
+
+### 40.12 Verification repair
+
+The current verifier checks only email format, length, and a small phrase list.
+
+The repaired verifier must also check:
+
+- draft belongs to the case and workspace;
+- case is in `action_proposed` or another explicitly permitted pre-approval state;
+- recipient is still a verified account contact;
+- contact policy currently allows the proposed channel;
+- Gmail is connected and healthy, or the case is marked blocked;
+- evidence citations all exist and belong to the case;
+- offer ID is null or belongs to a configured, currently valid offer;
+- current body hash matches the stored content hash;
+- action version matches the case action version;
+- no existing active draft conflicts;
+- no cooldown or suppression appeared after generation;
+- no prohibited claims or unverified financial promises appear;
+- the content is full-body content, not a preview.
+
+On pass:
+
+- transition the case atomically to `awaiting_approval`;
+- append a verification event containing rule results and verifier version;
+- enqueue a founder notification job.
+
+On fail:
+
+- do not return a generic successful job result without durable failure state;
+- append the failed checks;
+- mark the draft `needs_review` or another valid blocked state;
+- keep the case inspectable;
+- do not enqueue approval or send work.
+
+### 40.13 Approval redesign must be connected to the existing product
+
+Affected files include:
+
+- `web/src/lib/drafts/draft-workflows.ts`;
+- `web/src/app/api/drafts/[id]/approve/route.ts`;
+- `web/src/app/dashboard/drafts/actions.ts`;
+- any agent tool that exposes draft approval;
+- the recovery-case transition layer;
+- the workflow queue.
+
+The existing approval path must become the one canonical approval path.
+
+Do not create a second recovery-only approval button that bypasses existing draft workflows.
+
+#### 40.13.1 Authorization
+
+Approval must:
+
+- derive user ID from the authenticated session;
+- load the exact membership row for the draft workspace;
+- require role `owner` or `admin`;
+- reject ordinary members;
+- reject agent self-approval;
+- never accept approving actor identity from request JSON;
+- return not-found rather than cross-workspace object details where appropriate.
+
+Existing membership checks that only prove membership are insufficient for send authorization.
+
+#### 40.13.2 Approval transaction
+
+Within one transaction or one tightly scoped database RPC:
+
+1. lock the draft;
+2. lock the linked recovery case;
+3. require draft status `needs_review` or the chosen verified-ready state;
+4. require case status `awaiting_approval`;
+5. recompute the content hash from stored full content;
+6. require the recomputed hash equals `content_hash`;
+7. store `approved_content_hash`;
+8. store `approved_at`;
+9. store the authenticated actor identifier;
+10. store `approval_expires_at` using configured TTL;
+11. move draft to `ready_to_send`;
+12. transition case to `approved`;
+13. append immutable approval evidence;
+14. enqueue `send_approved_draft` using an idempotency key containing the approved hash.
+
+The API response may return approval state.
+
+It must not call Gmail inline.
+
+#### 40.13.3 Edit invalidation
+
+Editing subject, recipient, body, offer, or action version must:
+
+- update `body_full`, not only `body_preview`;
+- regenerate `body_preview` from the full body;
+- recompute `content_hash`;
+- clear `approved_content_hash`;
+- clear `approved_at`;
+- clear `approved_by_actor`;
+- clear `approval_expires_at`;
+- return draft status to `needs_review`;
+- return an approved case to `awaiting_approval` through the legal transition primitive;
+- cancel any pending send job for the prior approved hash;
+- append an audit event.
+
+Editing a sent draft remains forbidden.
+
+### 40.14 Exact-content send repair
+
+Affected files:
+
+- `web/src/lib/jobs/handlers/send-approved-draft.ts`;
+- `web/src/lib/drafts/send-draft.ts`;
+- Gmail integration helpers.
+
+The send worker must recheck all stopping rules immediately before provider execution.
+
+Required checks:
+
+- draft workspace matches job workspace;
+- linked case exists;
+- case status is `approved`;
+- draft status is `ready_to_send`;
+- full recipient is present and still verified;
+- contact policy still permits email;
+- Gmail integration is connected and healthy;
+- approval exists;
+- approval is not expired;
+- recomputed current hash equals both `content_hash` and `approved_content_hash`;
+- action version is unchanged;
+- no successful provider send already exists for the logical send key.
+
+The email body sent to Gmail must be `body_full`.
+
+`body_preview` is display-only and must never be the provider payload.
+
+The logical send key is:
+
+```text
+workspace_id + draft_id + approved_content_hash
+```
+
+Before calling Gmail:
+
+- persist `send_idempotency_key`;
+- append `send_started`;
+- use a deterministic provider marker when supported.
+
+After confirmed success:
+
+- require the real Gmail message ID;
+- store the real thread ID when returned;
+- store `sent_at`;
+- store provider IDs on the draft;
+- append timeline and case events;
+- transition case `approved → sent → monitoring`;
+- enqueue Gmail history synchronization.
+
+Never fabricate a random Gmail message ID.
+
+If Gmail returns an uncertain result without an ID:
+
+- do not claim success;
+- reconcile using the deterministic marker or thread search;
+- retry only after prior non-delivery is established.
+
+The old dashboard and API send actions must enqueue the canonical send job or be removed from the recovery path.
+
+They must not call `sendDraftWithGmail` synchronously after approval.
+
+### 40.15 Durable queue repair
+
+Affected files:
+
+- `web/src/lib/jobs/queue.ts`;
+- `web/src/lib/jobs/worker.ts`;
+- `web/src/app/api/internal/workflows/drain/route.ts`;
+- queue migration and hardening migration.
+
+#### 40.15.1 Lease ownership
+
+Completion and failure updates must include:
+
+- job ID;
+- expected status `running`;
+- current `lease_owner`;
+- nonexpired lease when required.
+
+If no row matches, throw a lost-lease error.
+
+Do not let an expired worker complete a job that another worker reclaimed.
+
+Check every update result and database error.
+
+#### 40.15.2 Heartbeats
+
+Use the existing heartbeat helper during long-running work.
+
+Requirements:
+
+- start heartbeat after claim;
+- extend at the configured lease fraction;
+- use longer model-job leases where configured;
+- stop heartbeat in `finally`;
+- abort final completion if the lease was lost;
+- record heartbeat failure in worker diagnostics;
+- do not leave timers running after the request completes.
+
+#### 40.15.3 Dependency ordering
+
+The current worker completes a job before inserting its dependent job.
+
+Repair this so a crash cannot mark the parent complete while losing the next stage.
+
+Preferred solutions:
+
+1. one database transaction that records completion and inserts the dependent job; or
+2. enqueue the idempotent child before completion, then complete the parent with lease ownership checks.
+
+If using option two, all handlers must tolerate replay and child-job deduplication.
+
+#### 40.15.4 Bounded concurrency
+
+Use `WORKER_CONCURRENCY`.
+
+Process claimed jobs with a bounded pool.
+
+Do not use unbounded `Promise.all`.
+
+Report counts from persisted final status rather than predictions based only on attempt count.
+
+Respect the route timeout and stop claiming new work before the deadline.
+
+#### 40.15.5 No successful no-op handlers
+
+The following jobs must not return success without doing work:
+
+- `refresh_founder_brief`;
+- `reconcile_provider_state`.
+
+Implement them or throw a typed non-retryable `NOT_IMPLEMENTED` error and keep them out of active dependency graphs.
+
+`sync_gmail_history` must classify errors:
+
+- disconnected integration may become a deliberate blocked result;
+- authentication failure marks integration unhealthy and fails appropriately;
+- rate limits retry;
+- provider errors retry when safe;
+- programming and schema errors fail visibly;
+- no general catch block may return success for every failure.
+
+### 40.16 Case-transition correctness
+
+All state changes must use the atomic transition primitive.
+
+No route, webhook, model handler, or UI action may directly update case status.
+
+The transition function must enforce the legal graph already defined in this document.
+
+Additional requirements:
+
+- no transition may silently ignore event-insert failure;
+- no stale reader may overwrite a newer state;
+- repeated transition requests must be idempotent only when semantically identical;
+- illegal jumps must produce a typed non-retryable failure;
+- provider outcomes may resolve only from compatible states;
+- approval expiry returns an approved case to awaiting approval;
+- suppression after approval blocks send and returns the case to a safe state;
+- action changes increment version and invalidate approval.
+
+### 40.17 Outcome attribution repair
+
+Affected files:
+
+- `web/src/lib/recovery/outcomes.ts`;
+- `web/src/lib/jobs/handlers/classify-case-outcome.ts`;
+- provider projection code;
+- outcome tests.
+
+Current broken behavior selects the newest open case and classifies broad event types without strict object or time matching.
+
+Replace this with deterministic compatibility matching.
+
+#### 40.17.1 Shared gates
+
+Every outcome requires:
+
+- same workspace;
+- same verified customer account;
+- evidence occurrence time at or after case opening;
+- evidence occurrence time at or before the case outcome deadline;
+- event not previously attributed incompatibly;
+- case in a state from which the requested outcome transition is legal;
+- durable evidence event ID;
+- checked database writes.
+
+#### 40.17.2 Strict billing recovery
+
+`invoice.paid` may create strict recovered revenue only when:
+
+- the case was triggered by failed or past-due billing;
+- invoice ID matches the triggering invoice, or subscription ID matches the case subscription under an explicitly documented fallback;
+- payment occurred after case opening;
+- the invoice is genuinely paid;
+- the case baseline is positive;
+- the evidence event has not already been counted.
+
+An unrelated invoice must not close a cancellation, usage, or communication case.
+
+#### 40.17.3 Protected cancellation revenue
+
+Cancellation reversal may produce protected revenue when:
+
+- the case represents cancel-at-period-end or cancellation intent;
+- subscription ID matches;
+- cancellation was reversed before revenue loss;
+- the event occurs inside the protection window.
+
+It must not be labeled strict recovered revenue unless actual lost billing was later restored under the strict definition.
+
+#### 40.17.4 Product recovery and engagement
+
+Usage rebound:
+
+- must use the same account and case baseline;
+- must meet the configured recovery ratio;
+- must fall inside the usage outcome window;
+- produces zero strict recovered cents.
+
+Customer reply:
+
+- must match the sent Gmail thread or uniquely verified recipient;
+- must be newer than the send;
+- must exclude founder messages, bounces, vacation replies, and mailing lists;
+- produces engagement only;
+- produces zero strict recovered cents.
+
+#### 40.17.5 Financial deduplication
+
+Add a unique attribution key such as:
+
+```text
+workspace + recovery_case + outcome_type + evidence_event_id
+```
+
+One provider event must not contribute recovered or protected cents twice.
+
+If an outcome insert conflicts, return the existing outcome rather than adding revenue again.
+
+### 40.18 Metrics repair
+
+Affected files:
+
+- `web/src/lib/recovery/metrics.ts`;
+- `web/src/app/api/metrics/revenue-saved/route.ts`.
+
+Required changes:
+
+- filter cases and outcomes to the declared observation window;
+- filter production and test-mode records explicitly;
+- never mix test-mode dollars into production totals;
+- sum financially deduplicated outcome records;
+- do not choose an arbitrary first outcome per case;
+- report strict recovered, protected, engaged, product recovered, churned, pending, and unknown separately;
+- return counts supporting displayed percentages;
+- return policy and attribution versions;
+- avoid exposing raw database error messages to clients;
+- label money as test mode wherever applicable.
+
+The metrics endpoint must not preserve the legacy heuristic that treated a reply as a percentage of revenue saved.
+
+### 40.19 Scenario runner repair
+
+Affected files:
+
+- `web/src/lib/recovery/scenarios/seed.ts`;
+- `web/src/lib/recovery/scenarios/reset.ts`;
+- `web/src/lib/recovery/scenarios/evaluate.ts`;
+- scenario manifest and export modules;
+- provider test harness scripts added during implementation.
+
+#### 40.19.1 Scenario run identity
+
+Every seeded record must carry:
+
+- scenario ID;
+- scenario run ID;
+- test-mode marker;
+- deterministic external IDs prefixed by the configured scenario prefix.
+
+If an existing table lacks scenario-run metadata needed for safe cleanup, add it in a forward migration or maintain a dedicated scenario-run ownership table.
+
+#### 40.19.2 Safe reset
+
+The reset function must delete only records owned by the requested scenario run.
+
+It must never delete every recovery case, outcome, workflow job, feature row, or provider identity in a workspace.
+
+Reset order must respect foreign keys.
+
+Reset must:
+
+- validate the run belongs to the workspace;
+- require explicit test-mode context;
+- reject production-mode execution;
+- report counts by table;
+- check every delete error;
+- leave non-scenario customer data unchanged.
+
+Add a regression test containing one scenario account and one real-looking account, then prove reset deletes only the scenario data.
+
+#### 40.19.3 Live proof path
+
+The offline manifest remains useful for deterministic unit evaluation.
+
+It must not be presented as live provider validation.
+
+Add a separate test harness that can:
+
+- create or address Stripe test-mode customers and subscriptions;
+- trigger supported Stripe test events;
+- send signed PostHog test-project events;
+- use controlled Gmail accounts or a documented send stub for non-destructive CI;
+- wait for durable jobs;
+- export case, draft, approval, send, and outcome evidence;
+- tear down only its own scenario-run records.
+
+Reports must distinguish:
+
+- pure policy-unit results;
+- database integration results;
+- provider sandbox results;
+- manual demonstration results.
+
+Never label the offline evaluator's 100-percent precision and recall as end-to-end provider accuracy.
+
+### 40.20 API authorization and information disclosure
+
+Review all new recovery APIs.
+
+Required changes:
+
+- list/detail endpoints require workspace membership;
+- approve, reject, replay, and send require owner or admin as specified;
+- replay validates case and job state;
+- replay appends an audit event;
+- replay cannot duplicate provider events;
+- service-role clients always filter by workspace and object ID;
+- internal worker route uses constant-time secret comparison where practical;
+- development bypasses must not accidentally activate in preview deployments;
+- API responses return stable safe error codes;
+- raw database error messages are logged server-side with correlation ID, not returned to browsers;
+- no endpoint returns raw provider payloads by default.
+
+### 40.21 Error-handling rules
+
+Every Supabase operation on the critical path must inspect `error`.
+
+Do not write:
+
+```ts
+await supabase.from('table').update(...)
+```
+
+without checking the returned result.
+
+Use a small typed helper if necessary, but retain operation context.
+
+Classify errors as:
+
+- retryable provider error;
+- retryable database contention or transient connection error;
+- non-retryable validation error;
+- non-retryable schema/programming error;
+- blocked integration state;
+- lost lease;
+- duplicate/idempotent success;
+- security denial.
+
+Model fallback rules:
+
+- timeout or provider unavailability may use a deterministic safe template;
+- fallback must be recorded in run metadata;
+- structured-output validation failure may attempt the configured repair count;
+- content-safety failures must not be converted to a generic sendable draft;
+- schema and database errors must never be masked as model fallback.
+
+### 40.22 Required source-file changes
+
+This is the minimum file-level checklist.
+
+#### Database
+
+- [ ] Add one forward-only recovery hardening migration.
+- [ ] Add webhook dedupe uniqueness.
+- [ ] Support durable unmapped ingress or endpoint-bound workspace enforcement.
+- [ ] Add atomic event-and-job ingress RPC.
+- [ ] Harden queue claim RPC grants and search path.
+- [ ] Add contact-policy conflict arbiter.
+- [ ] Add outcome deduplication arbiter.
+- [ ] Add scenario-run ownership where required.
+- [ ] Add atomic case transition RPC.
+- [ ] Verify all constraints against actual insert values.
+
+#### Webhooks
+
+- [ ] Rewrite Stripe route to bounded atomic ingress.
+- [ ] Resolve workspace by Stripe customer identity.
+- [ ] Remove synchronous account and timeline projection.
+- [ ] Remove fire-and-forget founder notification.
+- [ ] Rewrite PostHog route to bounded atomic ingress.
+- [ ] Replace timestamp fallback IDs with stable fingerprints.
+- [ ] Remove synchronous timeline and notification mutation.
+- [ ] Enforce maximum payload size.
+
+#### Recovery domain
+
+- [ ] Add typed provider-event projection.
+- [ ] Export and use the database feature mapper.
+- [ ] Validate database rows at boundaries.
+- [ ] Preserve pre-cancel MRR.
+- [ ] Make failure counts retry-idempotent.
+- [ ] Persist real evidence event IDs.
+- [ ] Pass real identity confidence into policy.
+- [ ] Apply cooldown history.
+- [ ] Fix existing-case state updates.
+
+#### Jobs and worker
+
+- [ ] Load persisted events in `process_provider_event`.
+- [ ] Stop writing nonexistent webhook fields.
+- [ ] Mark `processed` only after successful projection scheduling or an explicit terminal no-op.
+- [ ] Make parent completion and child creation crash-safe.
+- [ ] Enforce lease owner on complete and fail.
+- [ ] Start and stop heartbeats.
+- [ ] Use bounded worker concurrency.
+- [ ] Replace successful no-op handlers.
+- [ ] Stop swallowing Gmail errors.
+
+#### Draft and approval
+
+- [ ] Insert schema-valid draft rows.
+- [ ] Never use a fake fallback recipient.
+- [ ] Store full body and preview separately.
+- [ ] Verify cited evidence and offers.
+- [ ] Require owner/admin approval.
+- [ ] Bind approval to exact content hash and expiry.
+- [ ] Invalidate approval on every material edit.
+- [ ] Enqueue send after approval.
+- [ ] Send `body_full`.
+- [ ] Store real provider IDs only.
+- [ ] Recheck suppression immediately before send.
+
+#### Outcomes and metrics
+
+- [ ] Match invoice/subscription/thread identity.
+- [ ] Enforce event ordering and outcome deadlines.
+- [ ] Enforce legal case states.
+- [ ] Deduplicate financial outcomes.
+- [ ] Separate strict, protected, product, and engagement results.
+- [ ] Filter metrics by observation window and test mode.
+
+#### Scenarios and UI
+
+- [ ] Scope reset by scenario run.
+- [ ] Label offline versus provider-backed evaluation.
+- [ ] Add provider sandbox runner.
+- [ ] Replace `/dashboard/flows` placeholder.
+- [ ] Show job attempts, failures, evidence, approval hash, and provider send IDs.
+
+### 40.23 Required tests
+
+Pure unit tests are necessary but insufficient.
+
+Add the following layers.
+
+#### 40.23.1 Migration tests
+
+- fresh database migration succeeds;
+- upgrade from the pre-`f943fd1` schema succeeds;
+- upgrade from the `f943fd1` schema succeeds;
+- expected columns and constraints exist;
+- invalid draft status is rejected;
+- contact-policy upsert arbiter exists;
+- duplicate webhook dedupe key is rejected or resolved idempotently;
+- duplicate financial attribution is rejected;
+- authenticated users cannot call queue claim RPC;
+- service role can call protected RPCs.
+
+#### 40.23.2 Atomic ingress tests
+
+- new event creates exactly one webhook row and one process job;
+- identical retry returns the same row and job;
+- retry after a manually missing job recreates the job;
+- same dedupe key with a different payload hash becomes conflict;
+- concurrent duplicate calls create one logical event;
+- unresolved workspace produces a durable unmapped row under the chosen strategy;
+- invalid signatures persist nothing.
+
+#### 40.23.3 Stripe integration tests
+
+- first payment failure produces billing features and a high-risk case;
+- repeated failure produces critical override without double-counting retries;
+- subscription cancel-at-period-end captures nonzero baseline;
+- subscription deletion preserves pre-cancel MRR before zeroing current MRR;
+- paid invoice matches only the compatible billing case;
+- unrelated paid invoice does not resolve a cancellation case;
+- duplicate Stripe delivery creates no duplicate case, draft, job, or outcome.
+
+#### 40.23.4 PostHog integration tests
+
+- cancellation intent opens a cancellation-rescue case;
+- sufficient usage decline opens the expected usage case;
+- insufficient baseline produces unavailable trend rather than risk;
+- key-feature disappearance is detected;
+- duplicate event is idempotent;
+- stable fingerprint remains the same across retries;
+- ambiguous identity mutates no account.
+
+#### 40.23.5 Feature and score integration tests
+
+- realistic snake_case database rows map correctly;
+- missing domains remain missing;
+- score snapshot reproduces from stored facts;
+- database write errors fail the job;
+- no null score is written to non-null fields;
+- rule IDs and provider evidence IDs remain distinct.
+
+#### 40.23.6 Draft lifecycle tests
+
+- schema-valid draft insert succeeds;
+- one active draft exists per case/action version;
+- verification rejects unknown evidence;
+- verification rejects forbidden offers;
+- approval by ordinary member fails;
+- owner/admin approval stores exact hash and expiry;
+- editing subject invalidates approval;
+- editing full body invalidates approval;
+- expired approval cannot send;
+- suppression added after approval cannot send;
+- send uses full body, not preview;
+- duplicate send job produces one logical provider send;
+- missing Gmail message ID never becomes fabricated success.
+
+#### 40.23.7 Queue tests
+
+- only one worker claims a job;
+- heartbeat extends the lease;
+- old worker cannot complete a reclaimed job;
+- retry backoff is bounded;
+- non-retryable failures dead-letter correctly;
+- child job is not lost between parent success and completion;
+- configured concurrency limit is honored;
+- no-op job types do not report false success.
+
+#### 40.23.8 Outcome and metric tests
+
+- evidence before case open is rejected;
+- evidence after deadline is rejected;
+- mismatched invoice is rejected;
+- mismatched subscription is rejected;
+- valid paid invoice counts baseline exactly once;
+- reply counts engagement and zero strict dollars;
+- usage rebound counts product recovery and zero strict dollars;
+- protected and strict totals remain separate;
+- observation-window filtering works;
+- test and production metrics never mix.
+
+#### 40.23.9 Scenario isolation tests
+
+- reset deletes the requested run;
+- reset preserves another scenario run;
+- reset preserves non-scenario workspace data;
+- reset is rejected outside test mode;
+- every delete error is surfaced.
+
+### 40.24 Verification commands
+
+Run commands sequentially when they share `.next` output.
+
+At minimum run:
+
+```bash
+cd web
+npm test
+npx tsc --noEmit
+npm run lint
+npm run build
+```
+
+Also run the repository's Supabase migration validation or local reset workflow.
+
+Do not run `npx tsc --noEmit` concurrently with `next build` because both may access generated `.next` types.
+
+For each command record:
+
+- command;
+- exit status;
+- relevant counts;
+- whether failures are introduced by this repair or pre-existing;
+- exact remaining exception, if any.
+
+Required final gate:
+
+- tests pass;
+- typecheck passes;
+- lint passes;
+- production build passes;
+- migrations apply cleanly;
+- one database-backed integration path passes;
+- one provider sandbox path passes before the competition demo.
+
+### 40.25 Implementation sequence by commit
+
+Prefer small reviewable commits in this order.
+
+#### Commit A: schema and transaction primitives
+
+- forward migration;
+- ingress RPC;
+- queue RPC security;
+- transition RPC;
+- uniqueness constraints;
+- migration tests.
+
+#### Commit B: bounded webhook ingress
+
+- Stripe workspace resolution;
+- PostHog stable identity;
+- atomic ingress calls;
+- removal of synchronous side effects;
+- signature and dedupe tests.
+
+#### Commit C: projection and scoring
+
+- provider payload parsers;
+- feature mapping;
+- canonical feature writes;
+- MRR baseline preservation;
+- score persistence;
+- integration tests.
+
+#### Commit D: case state machine
+
+- atomic transitions;
+- concurrency guards;
+- evidence records;
+- case-upsert repair;
+- transition tests.
+
+#### Commit E: draft, verification, and approval
+
+- schema-valid draft persistence;
+- expanded deterministic verification;
+- owner/admin authorization;
+- exact hash and expiry;
+- edit invalidation;
+- approval transaction tests.
+
+#### Commit F: sending and Gmail observation
+
+- durable send job;
+- full-body send;
+- send idempotency;
+- real provider IDs;
+- uncertain-send reconciliation;
+- Gmail error classification.
+
+#### Commit G: outcomes and metrics
+
+- strict matching;
+- time windows;
+- financial deduplication;
+- test-mode separation;
+- metric tests.
+
+#### Commit H: scenario runner and reviewer surfaces
+
+- run-scoped seed/reset;
+- provider sandbox driver;
+- results export;
+- `/dashboard/flows` implementation;
+- evidence and failure views.
+
+Do not combine all repairs into one opaque generated commit.
+
+### 40.26 Instructions to the implementation model
+
+The next coding model must follow these rules:
+
+1. Read this entire section before editing.
+2. Inspect the actual current files before assuming names or schemas.
+3. Preserve unrelated user changes.
+4. Use forward migrations for deployed schema corrections.
+5. Keep one canonical implementation for each domain operation.
+6. Remove obsolete parallel paths after callers migrate.
+7. Propagate database errors.
+8. Use typed boundary mappers rather than assertions.
+9. Add tests for every repaired contract.
+10. Run verification after each logical phase.
+11. Do not claim success while build or integration gates fail.
+12. Report any unavoidable scope reduction explicitly.
+
+The model must not:
+
+- merely rename fields until TypeScript passes;
+- add nonexistent database fields without a migration;
+- use `as unknown as` to hide boundary mismatches;
+- swallow errors and return success;
+- invent provider evidence;
+- invent provider message IDs;
+- use preview content as the send body;
+- perform provider side effects in webhook ingress;
+- rely on an LLM for policy or authorization;
+- represent local fixtures as real provider execution;
+- reset an entire workspace to clean one scenario;
+- weaken RLS to make tests pass;
+- expose service-role functions to authenticated clients;
+- mark a task complete from unit tests alone.
+
+### 40.27 Concrete completion evidence
+
+The final implementation report must include all of the following:
+
+- migration filename and successful application result;
+- atomic-ingress test result;
+- Stripe payment-failure event ID;
+- mapped customer account ID;
+- resulting feature snapshot;
+- resulting score snapshot;
+- recovery case ID and state history;
+- generated draft ID;
+- verified content hash;
+- authenticated approval actor and expiry;
+- send job ID;
+- real Gmail message ID or an explicit sandbox stub result labeled as such;
+- matching outcome event ID;
+- strict or protected result with exact calculation;
+- duplicate-delivery test result;
+- scenario-reset isolation test result;
+- test count;
+- typecheck result;
+- lint result;
+- production-build result.
+
+If any item is unavailable, the implementation is not complete and the report must say why.
+
+### 40.28 Immediate definition of done for repairing `f943fd1`
+
+The audited commit is considered repaired only when all boxes below are true.
+
+- [ ] Real provider payload facts reach canonical features.
+- [ ] Database rows are mapped explicitly to domain types.
+- [ ] Draft generation inserts a schema-valid row.
+- [ ] Stripe subscription events resolve workspace through customer identity.
+- [ ] Unmapped events are retained safely.
+- [ ] Event and first job are committed atomically.
+- [ ] Duplicate delivery restores a missing job without duplicating the event.
+- [ ] Webhook handlers contain no business-side mutations or notifications.
+- [ ] `webhook_events.processed` reflects actual completion.
+- [ ] Queue claim RPC is service-role only with fixed search path.
+- [ ] Job completion and failure require current lease ownership.
+- [ ] Long jobs heartbeat.
+- [ ] Child-job creation is crash-safe.
+- [ ] Worker concurrency setting is used.
+- [ ] No registered job reports success without performing its contract.
+- [ ] Case transition and event append are atomic.
+- [ ] Existing-case status changes are actually persisted.
+- [ ] Evidence IDs point to durable provider or projection evidence.
+- [ ] MRR baseline is captured before cancellation zeroing.
+- [ ] Draft verification checks current policy and evidence ownership.
+- [ ] Approval requires owner/admin authorization.
+- [ ] Approval binds full exact content, recipient, case, and action version.
+- [ ] Approval expiry is enforced.
+- [ ] Material edits invalidate approval.
+- [ ] Approval enqueues the send job.
+- [ ] Gmail receives the full body.
+- [ ] Gmail provider evidence is never fabricated.
+- [ ] Duplicate send produces one logical email.
+- [ ] Outcomes match account, object, time, deadline, and state.
+- [ ] Financial outcomes are deduplicated.
+- [ ] Metrics respect time window and test-mode separation.
+- [ ] Scenario reset cannot delete non-scenario data.
+- [ ] Offline evaluation is labeled honestly.
+- [ ] Recovery APIs enforce role and workspace authorization.
+- [ ] Database failures cannot be reported as successful jobs.
+- [ ] Migration tests pass.
+- [ ] Integration tests pass.
+- [ ] Existing tests pass.
+- [ ] TypeScript passes.
+- [ ] Lint passes.
+- [ ] Production build passes.
+- [ ] `/dashboard/flows` exposes the inspectable execution trail.
+
+The most important rule is unchanged:
+
+> One real, durable, safe, inspectable loop is worth more than hundreds of files that only describe one.

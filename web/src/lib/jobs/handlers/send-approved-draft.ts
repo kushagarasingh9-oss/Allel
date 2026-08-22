@@ -1,8 +1,16 @@
-import crypto from 'crypto';
+/**
+ * Send Approved Draft — Durable worker job handler
+ *
+ * §40.14: Exact-content send with all stopping rules rechecked.
+ * Never fabricates Gmail message IDs.
+ * Uses body_full, not body_preview.
+ */
+
 import { SupabaseClient } from '@supabase/supabase-js';
 import { JobExecutionContext, JobExecutionResult } from '../types';
 import { transitionRecoveryCase } from '../../recovery/transitions';
 import { sendDraftWithGmail } from '../../drafts/send-draft';
+import { computeContentHash } from './generate-case-draft';
 
 export async function handleSendApprovedDraft(
   supabase: SupabaseClient,
@@ -29,22 +37,158 @@ export async function handleSendApprovedDraft(
     throw new Error(`Draft ${draftId} not found in workspace ${workspaceId}`);
   }
 
-  // 2. Validate approval provenance
-  if (draft.status !== 'approved' && draft.status !== 'ready_to_send') {
-    throw new Error(`Draft ${draftId} is not in approved/ready_to_send status (status: ${draft.status})`);
+  // §40.14: Recheck ALL stopping rules before provider execution
+
+  // Check: draft status is ready_to_send
+  if (draft.status !== 'ready_to_send') {
+    throw new Error(`Draft ${draftId} status is ${draft.status}, expected ready_to_send`);
   }
 
-  if (draft.approved_content_hash && draft.content_hash && draft.approved_content_hash !== draft.content_hash) {
-    throw new Error(`Draft ${draftId} content hash mismatch; re-approval required`);
+  // Check: linked case exists and is approved
+  if (recoveryCaseId) {
+    const { data: caseRow, error: caseError } = await supabase
+      .from('recovery_cases')
+      .select('status, workspace_id')
+      .eq('id', recoveryCaseId)
+      .single();
+
+    if (caseError || !caseRow) {
+      throw new Error(`Case ${recoveryCaseId} not found: ${caseError?.message}`);
+    }
+    if (caseRow.status !== 'approved') {
+      throw new Error(`Case ${recoveryCaseId} status is ${caseRow.status}, expected approved`);
+    }
+    if (caseRow.workspace_id !== workspaceId) {
+      throw new Error(`Case workspace mismatch`);
+    }
   }
 
-  // 3. Execute Send
+  // Check: recipient is present and valid
+  const recipientEmail = draft.recipient_email;
+  if (!recipientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+    throw new Error(`Draft ${draftId} has invalid recipient: ${recipientEmail}`);
+  }
+
+  // §40.14: Check contact policy still permits email
+  if (draft.customer_account_id) {
+    const { data: policy } = await supabase
+      .from('contact_policies')
+      .select('allowed')
+      .eq('workspace_id', workspaceId)
+      .eq('customer_account_id', draft.customer_account_id)
+      .eq('channel', 'email')
+      .maybeSingle();
+
+    if (policy && policy.allowed === false) {
+      throw new Error(`Contact policy blocks email for account ${draft.customer_account_id}`);
+    }
+  }
+
+  // §40.14: Check Gmail is connected and healthy
+  const { data: gmailIntegration } = await supabase
+    .from('integration_connections')
+    .select('status')
+    .eq('workspace_id', workspaceId)
+    .eq('provider', 'gmail')
+    .maybeSingle();
+
+  if (!gmailIntegration || gmailIntegration.status !== 'connected') {
+    throw new Error(`Gmail not connected for workspace ${workspaceId}`);
+  }
+
+  // §40.14: Check approval exists and is not expired
+  if (!draft.approved_at) {
+    throw new Error(`Draft ${draftId} has no approval`);
+  }
+  if (draft.approval_expires_at && new Date(draft.approval_expires_at) < new Date()) {
+    throw new Error(`Draft ${draftId} approval has expired at ${draft.approval_expires_at}`);
+  }
+
+  // §40.14: Recompute hash from stored content = content_hash = approved_content_hash
+  const bodyFull = draft.body_full;
+  if (!bodyFull) {
+    throw new Error(`Draft ${draftId} has no body_full — cannot send preview-only content`);
+  }
+
+  const recomputedHash = computeContentHash({
+    workspaceId,
+    caseId: recoveryCaseId || '',
+    recipientEmail,
+    subject: draft.subject,
+    bodyText: bodyFull,
+    actionVersion: draft.action_version || 1,
+    offerId: null,
+  });
+
+  if (draft.content_hash && recomputedHash !== draft.content_hash) {
+    throw new Error(`Draft ${draftId} content hash mismatch — content was modified`);
+  }
+  if (draft.approved_content_hash && recomputedHash !== draft.approved_content_hash) {
+    throw new Error(`Draft ${draftId} approved content hash mismatch — re-approval required`);
+  }
+
+  // §40.14: Check no prior successful send for this logical key
+  const sendIdempotencyKey = `${workspaceId}:${draftId}:${draft.approved_content_hash || recomputedHash}`;
+
+  if (draft.send_idempotency_key === sendIdempotencyKey && draft.sent_at) {
+    // Already sent with this exact content — idempotent success
+    return { success: true, workspaceId };
+  }
+
+  // §40.14: Persist send_idempotency_key before calling Gmail
+  const { error: preSendError } = await supabase
+    .from('follow_up_drafts')
+    .update({
+      send_idempotency_key: sendIdempotencyKey,
+    })
+    .eq('id', draftId);
+
+  if (preSendError) {
+    throw new Error(`Failed to persist send_idempotency_key: ${preSendError.message}`);
+  }
+
+  // 3. Execute Send — §40.14: send body_full, not body_preview
   const sendResult = await sendDraftWithGmail(supabase, draftId, {
     actor: 'founder',
     metadata: { via: 'recovery_job_queue' },
   });
 
-  // 4. If case exists, transition to 'sent' then 'monitoring'
+  // §40.14: Require the real Gmail message ID — never fabricate
+  const providerMessageId = sendResult.messageId;
+  const providerThreadId = sendResult.threadId;
+
+  if (!providerMessageId) {
+    // §40.14: Gmail returned uncertain result without ID — do not claim success
+    const { error: sendErrUpdate } = await supabase
+      .from('follow_up_drafts')
+      .update({
+        send_error: 'Gmail did not return a message ID — delivery uncertain',
+      })
+      .eq('id', draftId);
+
+    if (sendErrUpdate) {
+      console.error('[send-approved-draft] failed to record send error:', sendErrUpdate.message);
+    }
+    throw new Error('Gmail send did not return a message ID — cannot confirm delivery');
+  }
+
+  // §40.14: Store real provider IDs
+  const { error: postSendError } = await supabase
+    .from('follow_up_drafts')
+    .update({
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+      provider_message_id: providerMessageId,
+      provider_thread_id: providerThreadId,
+      send_error: null,
+    })
+    .eq('id', draftId);
+
+  if (postSendError) {
+    console.error('[send-approved-draft] failed to update draft post-send:', postSendError.message);
+  }
+
+  // 4. If case exists, transition approved → sent → monitoring
   if (recoveryCaseId) {
     await transitionRecoveryCase(supabase, {
       workspaceId,
@@ -56,8 +200,9 @@ export async function handleSendApprovedDraft(
       workflowJobId: context.job.id,
       detail: {
         draftId,
-        providerMessageId: sendResult.messageId || `msg_${crypto.randomUUID()}`,
-        providerThreadId: sendResult.threadId,
+        providerMessageId,
+        providerThreadId,
+        sendIdempotencyKey,
       },
     });
 
@@ -70,7 +215,26 @@ export async function handleSendApprovedDraft(
       eventType: 'monitoring_started',
       workflowJobId: context.job.id,
     });
+
+    // §40.14: Enqueue Gmail history sync
+    return {
+      success: true,
+      workspaceId,
+      nextJob: {
+        jobType: 'sync_gmail_history',
+        idempotencyKey: `ws:${workspaceId}:gmail_sync:${draftId}`,
+        workspaceId,
+        recoveryCaseId,
+        payload: {
+          workspaceId,
+          recoveryCaseId,
+          draftId,
+          providerThreadId,
+          providerMessageId,
+        },
+      },
+    };
   }
 
-  return { success: true };
+  return { success: true, workspaceId };
 }

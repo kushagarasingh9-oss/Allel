@@ -1,7 +1,11 @@
 /**
- * Stripe Webhook Handler
+ * Stripe Webhook Handler — Bounded Atomic Ingress
  *
  * POST /api/webhooks/stripe
+ *
+ * §40.7: Reduced to bounded ingress work only.
+ * All business mutations (timeline, notifications, account updates)
+ * happen in durable worker jobs, not here.
  *
  * Handles:
  * - invoice.payment_failed
@@ -15,20 +19,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { verifyWebhookSignature } from '@/lib/integrations/stripe'
 import { buildCanonicalProviderEvent } from '@/lib/recovery/events'
-import { enqueueWorkflowJob } from '@/lib/jobs/queue'
-import { notifyFounder } from '@/lib/notifications/notify-founder'
 import type Stripe from 'stripe'
 
-function assertNoDbError(
-  context: string,
-  error: { message: string } | null
-): asserts error is null {
-  if (error) {
-    throw new Error(`[stripe-webhook] ${context}: ${error.message}`)
-  }
-}
-
 export async function POST(request: NextRequest) {
+  // §40.7: Reject oversized bodies
+  const contentLength = request.headers.get('content-length')
+  if (contentLength && parseInt(contentLength, 10) > 500_000) {
+    return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
+  }
+
+  // §40.7 step 2: Read the raw body once
   const body = await request.text()
   const signature = request.headers.get('stripe-signature')
 
@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
   }
 
+  // §40.7 step 3: Verify signature using raw bytes
   let event: Stripe.Event
   try {
     event = verifyWebhookSignature(body, signature, webhookSecret)
@@ -49,27 +50,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 400 })
   }
 
+  // §40.7 step 4: Parse only after signature verification (already done by verifyWebhookSignature)
+
   const supabase = createServiceClient()
 
-  // Resolve workspace by matching Stripe customer to account_contacts
-  let workspaceId: string | null = null
-  try {
-    workspaceId = await resolveWorkspaceFromEvent(supabase, event)
-  } catch (resolveErr) {
-    console.error('[stripe-webhook] Failed to resolve workspace:', resolveErr)
-  }
+  // §40.7 step 5: Extract stable provider event ID
+  const providerEventId = event.id
 
+  // §40.5.6 + §40.7 step 6: Resolve workspace through customer identity
   const eventObj = event.data.object as unknown as Record<string, unknown>
   const customerId = typeof eventObj.customer === 'string' ? eventObj.customer : null
   const scenarioId = typeof eventObj.metadata === 'object' && eventObj.metadata !== null
     ? (eventObj.metadata as Record<string, string>).scenario_id ?? null
     : null
 
-  // 1. Build canonical provider event
+  let workspaceId: string | null = null
+  try {
+    workspaceId = await resolveWorkspaceForStripeEvent(supabase, customerId, eventObj)
+  } catch (resolveErr) {
+    console.error('[stripe-webhook] workspace resolution failed:', resolveErr)
+  }
+
+  // §40.7 step 7: Build the canonical envelope
   const canonicalEvent = buildCanonicalProviderEvent({
     workspaceId,
     provider: 'stripe',
-    providerEventId: event.id,
+    providerEventId,
     eventType: event.type,
     occurredAt: new Date(event.created * 1000).toISOString(),
     primaryExternalIdentity: customerId,
@@ -78,322 +84,106 @@ export async function POST(request: NextRequest) {
     testMode: !event.livemode,
   })
 
-  // 2. Check for duplicate event
-  if (workspaceId) {
-    const { data: existingEvent, error: existingError } = await supabase
-      .from('webhook_events')
-      .select('id, processed')
-      .eq('workspace_id', workspaceId)
-      .eq('provider', 'stripe')
-      .eq('external_id', event.id)
-      .maybeSingle()
-    assertNoDbError('check existing webhook event', existingError)
+  // §40.7 step 8: Call atomic database ingestion RPC
+  const jobIdempotencyKey = workspaceId
+    ? `ws:${workspaceId}:event:${providerEventId}:process:v1`
+    : null
 
-    if (existingEvent?.processed) {
-      return NextResponse.json({
-        received: true,
-        eventId: existingEvent.id,
-        deduplicated: true,
-      })
+  const { data: ingestResult, error: ingestError } = await supabase.rpc(
+    'ingest_provider_event_and_job',
+    {
+      p_event_id: canonicalEvent.eventId,
+      p_workspace_id: workspaceId,
+      p_provider: 'stripe',
+      p_event_type: event.type,
+      p_external_id: providerEventId,
+      p_dedupe_key: canonicalEvent.dedupeKey,
+      p_payload_hash: canonicalEvent.payloadHash,
+      p_occurred_at: canonicalEvent.occurredAt,
+      p_payload: event.data.object as unknown as Record<string, unknown>,
+      p_test_mode: canonicalEvent.testMode,
+      p_scenario_id: scenarioId,
+      p_job_idempotency: jobIdempotencyKey,
     }
+  )
+
+  if (ingestError) {
+    console.error('[stripe-webhook] ingest RPC error:', ingestError.message)
+    return NextResponse.json({ error: 'Ingestion failed' }, { status: 500 })
   }
 
-  // 3. Insert into webhook_events
-  const { data: loggedEvent, error: logError } = await supabase
-    .from('webhook_events')
-    .insert({
-      id: canonicalEvent.eventId,
-      workspace_id: workspaceId,
-      provider: 'stripe',
-      event_type: event.type,
-      external_id: event.id,
-      dedupe_key: canonicalEvent.dedupeKey,
-      payload_hash: canonicalEvent.payloadHash,
-      occurred_at: canonicalEvent.occurredAt,
-      payload: event.data.object as unknown as Record<string, unknown>,
-      processed: false,
-      test_mode: canonicalEvent.testMode,
-      scenario_id: scenarioId,
-    })
-    .select('id')
-    .single()
-  assertNoDbError('insert webhook event', logError)
-
-  const webhookEventId = loggedEvent.id
-
-  // 4. Enqueue durable job: process_provider_event
-  if (workspaceId) {
-    const jobKey = `ws:${workspaceId}:event:${event.id}:process:v1`
-    await enqueueWorkflowJob(supabase, {
-      workspaceId,
-      webhookEventId,
-      jobType: 'process_provider_event',
-      idempotencyKey: jobKey,
-      payload: canonicalEvent,
-    })
-  }
-
-  // 5. Update timeline / signals for fast dashboard view
-  try {
-    let affectedAccountId: string | null = null
-
-    switch (event.type) {
-      case 'invoice.payment_failed':
-        affectedAccountId = await handlePaymentFailed(supabase, event, workspaceId)
-        break
-      case 'customer.subscription.updated':
-        affectedAccountId = await handleSubscriptionUpdated(supabase, event, workspaceId)
-        break
-      case 'customer.subscription.deleted':
-        affectedAccountId = await handleSubscriptionDeleted(supabase, event, workspaceId)
-        break
-      case 'invoice.paid':
-        affectedAccountId = await handleInvoicePaid(supabase, event, workspaceId)
-        break
-    }
-
-    if (affectedAccountId && workspaceId) {
-      const { data: account } = await supabase
-        .from('customer_accounts')
-        .select('name, mrr_cents')
-        .eq('id', affectedAccountId)
-        .single()
-
-      const accountName = account?.name ?? undefined
-      const mrrCents = account?.mrr_cents ?? undefined
-
-      switch (event.type) {
-        case 'invoice.payment_failed': {
-          const invoice = event.data.object as Stripe.Invoice
-          const amount = ((invoice.amount_due ?? 0) / 100).toFixed(2)
-          notifyFounder({
-            workspaceId,
-            severity: 'critical',
-            headline: 'Payment failed',
-            detail: `Invoice payment of $${amount} failed. The account has been marked as past due. A recovery draft will be generated shortly.`,
-            accountName,
-            mrrCents,
-            source: 'stripe_webhook',
-            dashboardPath: `/dashboard/accounts/${affectedAccountId}`,
-          })
-          break
-        }
-        case 'customer.subscription.deleted':
-          notifyFounder({
-            workspaceId,
-            severity: 'critical',
-            headline: 'Subscription cancelled',
-            detail: 'Customer subscription has been cancelled. Immediate save email recommended.',
-            accountName,
-            mrrCents,
-            source: 'stripe_webhook',
-            dashboardPath: `/dashboard/accounts/${affectedAccountId}`,
-          })
-          break
-        case 'invoice.paid': {
-          const paidInvoice = event.data.object as Stripe.Invoice
-          const paidAmount = ((paidInvoice.amount_paid ?? 0) / 100).toFixed(2)
-          notifyFounder({
-            workspaceId,
-            severity: 'info',
-            headline: 'Payment received',
-            detail: `Invoice paid: $${paidAmount}. Account billing status restored to active.`,
-            accountName,
-            mrrCents,
-            source: 'stripe_webhook',
-            dashboardPath: `/dashboard/accounts/${affectedAccountId}`,
-          })
-          break
-        }
-      }
-    }
-  } catch (err) {
-    console.error('[stripe-webhook] Synchronous projection warning:', err)
-  }
-
+  // §40.7 step 9: Return success only after the transaction committed
+  const result = Array.isArray(ingestResult) ? ingestResult[0] : ingestResult
   return NextResponse.json({
     received: true,
-    eventId: webhookEventId,
-    deduplicated: false,
+    eventId: result?.event_id ?? canonicalEvent.eventId,
+    deduplicated: result?.deduplicated ?? false,
+    conflict: result?.conflict ?? false,
   })
 }
 
-// ----- Helpers -----
+// ---------------------------------------------------------------------------
+// §40.5.6  Workspace resolution order
+// ---------------------------------------------------------------------------
 
-async function resolveWorkspaceFromEvent(
+async function resolveWorkspaceForStripeEvent(
   supabase: ReturnType<typeof createServiceClient>,
-  event: Stripe.Event
+  customerId: string | null,
+  eventObj: Record<string, unknown>
 ): Promise<string | null> {
-  const obj = event.data.object as unknown as Record<string, unknown>
+  // 1. provider_identities match for Stripe customer ID
+  if (customerId) {
+    const { data: identity, error: identityError } = await supabase
+      .from('provider_identities')
+      .select('workspace_id')
+      .eq('provider', 'stripe')
+      .eq('identity_type', 'customer_id')
+      .eq('normalized_external_id', customerId.toLowerCase())
+      .limit(2)
+
+    if (!identityError && identity && identity.length === 1) {
+      return identity[0].workspace_id
+    }
+    // §40.5.6: If two workspaces claim the same ID, classify as conflict — return null
+    if (identity && identity.length > 1) {
+      console.warn(`[stripe-webhook] conflict: ${identity.length} workspaces claim customer ${customerId}`)
+      return null
+    }
+  }
+
+  // 2. Legacy account_contacts.external_ids match
+  if (customerId) {
+    const { data: contact, error: contactError } = await supabase
+      .from('account_contacts')
+      .select('workspace_id')
+      .contains('external_ids', { stripe_customer_id: customerId })
+      .limit(2)
+
+    if (!contactError && contact && contact.length === 1) {
+      return contact[0].workspace_id
+    }
+  }
+
+  // 3. Email fallback
   let email: string | null = null
-
-  if (typeof obj.customer_email === 'string') {
-    email = obj.customer_email
-  } else if (typeof obj.receipt_email === 'string') {
-    email = obj.receipt_email
+  if (typeof eventObj.customer_email === 'string') {
+    email = eventObj.customer_email
+  } else if (typeof eventObj.receipt_email === 'string') {
+    email = eventObj.receipt_email
   }
 
-  if (!email) return null
+  if (email) {
+    const { data: contact, error: contactError } = await supabase
+      .from('account_contacts')
+      .select('workspace_id')
+      .eq('email', email.toLowerCase())
+      .limit(2)
 
-  const { data, error } = await supabase
-    .from('account_contacts')
-    .select('workspace_id')
-    .eq('email', email.toLowerCase())
-    .limit(1)
-    .maybeSingle()
-  assertNoDbError('resolve workspace from event', error)
-
-  return data?.workspace_id ?? null
-}
-
-async function handlePaymentFailed(
-  supabase: ReturnType<typeof createServiceClient>,
-  event: Stripe.Event,
-  workspaceId: string | null
-): Promise<string | null> {
-  if (!workspaceId) return null
-  const invoice = event.data.object as Stripe.Invoice
-  const customerEmail = invoice.customer_email
-  if (!customerEmail) return null
-
-  const { data: contact, error: contactError } = await supabase
-    .from('account_contacts')
-    .select('customer_account_id')
-    .eq('workspace_id', workspaceId)
-    .eq('email', customerEmail.toLowerCase())
-    .maybeSingle()
-  assertNoDbError('lookup account contact for payment failure', contactError)
-
-  const accountId = contact?.customer_account_id
-  if (accountId) {
-    await supabase
-      .from('customer_accounts')
-      .update({ account_status: 'past_due' })
-      .eq('id', accountId)
-
-    await supabase.from('account_timeline').insert({
-      workspace_id: workspaceId,
-      customer_account_id: accountId,
-      event_type: 'billing',
-      headline: 'Payment failed',
-      detail: `Invoice ${invoice.number ?? invoice.id} failed. Amount due: $${((invoice.amount_due ?? 0) / 100).toFixed(2)}`,
-      source: 'stripe',
-      metadata: { invoice_id: invoice.id, amount_cents: invoice.amount_due },
-    })
+    if (!contactError && contact && contact.length === 1) {
+      return contact[0].workspace_id
+    }
   }
 
-  return accountId ?? null
-}
-
-async function handleSubscriptionUpdated(
-  supabase: ReturnType<typeof createServiceClient>,
-  event: Stripe.Event,
-  workspaceId: string | null
-): Promise<string | null> {
-  if (!workspaceId) return null
-  const subscription = event.data.object as unknown as Stripe.Subscription & { items: { data: Array<Stripe.SubscriptionItem> } }
-  const customer = subscription.customer as string
-  const item = subscription.items?.data?.[0]
-  const unitAmount = item?.price?.unit_amount ?? 0
-  const interval = item?.price?.recurring?.interval ?? 'month'
-
-  const mrrCents =
-    interval === 'year' ? Math.round(unitAmount / 12) :
-    interval === 'week' ? unitAmount * 4 :
-    unitAmount
-
-  const { data: contact, error: contactError } = await supabase
-    .from('account_contacts')
-    .select('customer_account_id')
-    .eq('workspace_id', workspaceId)
-    .contains('external_ids', { stripe_customer_id: customer })
-    .maybeSingle()
-  assertNoDbError('lookup account contact for subscription update', contactError)
-
-  if (contact?.customer_account_id) {
-    await supabase
-      .from('customer_accounts')
-      .update({
-        mrr_cents: mrrCents,
-        account_status: subscription.status === 'active' ? 'active' : 'past_due',
-      })
-      .eq('id', contact.customer_account_id)
-  }
-
-  return contact?.customer_account_id ?? null
-}
-
-async function handleSubscriptionDeleted(
-  supabase: ReturnType<typeof createServiceClient>,
-  event: Stripe.Event,
-  workspaceId: string | null
-): Promise<string | null> {
-  if (!workspaceId) return null
-  const subscription = event.data.object as unknown as Stripe.Subscription
-  const customer = subscription.customer as string
-
-  const { data: contact, error: contactError } = await supabase
-    .from('account_contacts')
-    .select('customer_account_id')
-    .eq('workspace_id', workspaceId)
-    .contains('external_ids', { stripe_customer_id: customer })
-    .maybeSingle()
-  assertNoDbError('lookup account contact for subscription deletion', contactError)
-
-  if (contact?.customer_account_id) {
-    await supabase
-      .from('customer_accounts')
-      .update({ account_status: 'cancelled', mrr_cents: 0 })
-      .eq('id', contact.customer_account_id)
-
-    await supabase.from('account_timeline').insert({
-      workspace_id: workspaceId,
-      customer_account_id: contact.customer_account_id,
-      event_type: 'billing',
-      headline: 'Subscription cancelled',
-      source: 'stripe',
-      metadata: { subscription_id: subscription.id },
-    })
-  }
-
-  return contact?.customer_account_id ?? null
-}
-
-async function handleInvoicePaid(
-  supabase: ReturnType<typeof createServiceClient>,
-  event: Stripe.Event,
-  workspaceId: string | null
-): Promise<string | null> {
-  if (!workspaceId) return null
-  const invoice = event.data.object as Stripe.Invoice
-  const customerEmail = invoice.customer_email
-  if (!customerEmail) return null
-
-  const { data: contact, error: contactError } = await supabase
-    .from('account_contacts')
-    .select('customer_account_id')
-    .eq('workspace_id', workspaceId)
-    .eq('email', customerEmail.toLowerCase())
-    .maybeSingle()
-  assertNoDbError('lookup account contact for invoice paid', contactError)
-
-  if (contact?.customer_account_id) {
-    await supabase
-      .from('customer_accounts')
-      .update({ account_status: 'active' })
-      .eq('id', contact.customer_account_id)
-      .eq('account_status', 'past_due')
-
-    await supabase.from('account_timeline').insert({
-      workspace_id: workspaceId,
-      customer_account_id: contact.customer_account_id,
-      event_type: 'billing',
-      headline: 'Payment received',
-      detail: `Invoice paid: $${((invoice.amount_paid ?? 0) / 100).toFixed(2)}`,
-      source: 'stripe',
-      metadata: { invoice_id: invoice.id, amount_cents: invoice.amount_paid },
-    })
-  }
-
-  return contact?.customer_account_id ?? null
+  // §40.5.6 step 6: Could not resolve — will be stored as unmapped
+  return null
 }

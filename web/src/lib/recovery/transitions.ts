@@ -1,3 +1,10 @@
+/**
+ * Recovery Case Transitions
+ *
+ * §40.16: All state changes use the atomic transition primitive.
+ * §40.6.6: Uses the transition_recovery_case database RPC for atomicity.
+ */
+
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ActorType, CaseResolution, CaseStatus, RecoveryCase } from './types';
 import { mapDbToRecoveryCase } from './cases';
@@ -16,6 +23,97 @@ export const LEGAL_TRANSITIONS: Record<CaseStatus, CaseStatus[]> = {
 };
 
 export async function transitionRecoveryCase(
+  supabase: SupabaseClient,
+  params: {
+    workspaceId: string;
+    caseId: string;
+    targetStatus: CaseStatus;
+    resolution?: CaseResolution | null;
+    actorType: ActorType;
+    actorId?: string | null;
+    eventType: string;
+    detail?: Record<string, unknown>;
+    workflowJobId?: string | null;
+    agentRunId?: string | null;
+    suppressionReason?: string | null;
+  }
+): Promise<RecoveryCase> {
+  // §40.16: First try atomic database RPC
+  try {
+    return await transitionViaRpc(supabase, params);
+  } catch (rpcErr) {
+    // If the RPC doesn't exist (e.g. migration not applied yet), fall back to TypeScript
+    const message = rpcErr instanceof Error ? rpcErr.message : String(rpcErr);
+    if (message.includes('function') && message.includes('does not exist')) {
+      console.warn('[transitions] transition_recovery_case RPC not available, using fallback');
+      return await transitionFallback(supabase, params);
+    }
+    throw rpcErr;
+  }
+}
+
+/**
+ * §40.6.6: Atomic transition via database function.
+ * Locks row, validates state, updates status, appends event — all in one transaction.
+ */
+async function transitionViaRpc(
+  supabase: SupabaseClient,
+  params: {
+    workspaceId: string;
+    caseId: string;
+    targetStatus: CaseStatus;
+    resolution?: CaseResolution | null;
+    actorType: ActorType;
+    actorId?: string | null;
+    eventType: string;
+    detail?: Record<string, unknown>;
+    workflowJobId?: string | null;
+    suppressionReason?: string | null;
+  }
+): Promise<RecoveryCase> {
+  // We need the current status for the RPC. Load it first.
+  const { data: current, error: fetchError } = await supabase
+    .from('recovery_cases')
+    .select('status')
+    .eq('id', params.caseId)
+    .eq('workspace_id', params.workspaceId)
+    .single();
+
+  if (fetchError || !current) {
+    throw new Error(`Case ${params.caseId} not found: ${fetchError?.message}`);
+  }
+
+  const { data: result, error: rpcError } = await supabase.rpc('transition_recovery_case', {
+    p_workspace_id: params.workspaceId,
+    p_case_id: params.caseId,
+    p_current_status: current.status,
+    p_target_status: params.targetStatus,
+    p_actor_type: params.actorType,
+    p_actor_id: params.actorId || 'system',
+    p_event_type: params.eventType,
+    p_detail: params.detail || {},
+    p_workflow_job_id: params.workflowJobId || null,
+    p_resolution_type: typeof params.resolution === 'string' ? params.resolution : null,
+    p_suppression_reason: params.suppressionReason || null,
+  });
+
+  if (rpcError) {
+    throw new Error(`transition_recovery_case RPC failed: ${rpcError.message}`);
+  }
+
+  const row = Array.isArray(result) ? result[0] : result;
+  if (!row) {
+    throw new Error(`transition_recovery_case returned no result`);
+  }
+
+  return mapDbToRecoveryCase(row);
+}
+
+/**
+ * Fallback: TypeScript-level transition when RPC is not yet deployed.
+ * Uses optimistic concurrency via status check.
+ */
+async function transitionFallback(
   supabase: SupabaseClient,
   params: {
     workspaceId: string;
@@ -53,7 +151,7 @@ export async function transitionRecoveryCase(
     throw new Error(`Illegal state transition from ${currentStatus} to ${params.targetStatus} for case ${params.caseId}`);
   }
 
-  // 3. Prepare update payload with appropriate timestamps
+  // 3. Build update payload
   const updates: Record<string, any> = {
     status: params.targetStatus,
     updated_at: now,
@@ -84,20 +182,21 @@ export async function transitionRecoveryCase(
     updates.failed_at = now;
   }
 
-  // 4. Update case
+  // 4. Update case with optimistic concurrency
   const { data: updated, error: updateError } = await supabase
     .from('recovery_cases')
     .update(updates)
     .eq('id', params.caseId)
+    .eq('status', currentStatus) // Optimistic lock on current status
     .select('*')
     .single();
 
   if (updateError || !updated) {
-    throw new Error(`Failed to transition case: ${updateError?.message}`);
+    throw new Error(`Failed to transition case (concurrent modification?): ${updateError?.message}`);
   }
 
   // 5. Append immutable case event
-  await supabase.from('recovery_case_events').insert({
+  const { error: eventError } = await supabase.from('recovery_case_events').insert({
     workspace_id: params.workspaceId,
     recovery_case_id: params.caseId,
     event_type: params.eventType,
@@ -110,6 +209,12 @@ export async function transitionRecoveryCase(
     detail: params.detail || {},
     created_at: now,
   });
+
+  if (eventError) {
+    // §40.16: No transition may silently ignore event-insert failure
+    console.error('[transitions] failed to insert case event:', eventError.message);
+    throw new Error(`Transition succeeded but event insert failed: ${eventError.message}`);
+  }
 
   return mapDbToRecoveryCase(updated);
 }

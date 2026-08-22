@@ -102,10 +102,12 @@ export async function heartbeatJob(
 
 export async function completeWorkflowJob(
   supabase: SupabaseClient,
-  jobId: string
+  jobId: string,
+  workerId?: string
 ): Promise<void> {
   const now = new Date().toISOString();
-  await supabase
+  // §40.15.1: Require lease ownership on completion
+  let query = supabase
     .from('workflow_jobs')
     .update({
       status: 'completed',
@@ -114,13 +116,28 @@ export async function completeWorkflowJob(
       lease_expires_at: null,
       updated_at: now,
     })
-    .eq('id', jobId);
+    .eq('id', jobId)
+    .eq('status', 'running');
+
+  if (workerId) {
+    query = query.eq('lease_owner', workerId);
+  }
+
+  const { data, error } = await query.select('id').maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to complete job ${jobId}: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error(`Lost lease on job ${jobId} — another worker may have reclaimed it`);
+  }
 }
 
 export async function failWorkflowJob(
   supabase: SupabaseClient,
   job: WorkflowJob,
-  error: unknown
+  error: unknown,
+  workerId?: string
 ): Promise<{ status: 'failed' | 'dead_letter'; nextAttemptAt?: string }> {
   const now = new Date().toISOString();
   const retryable = isRetryableError(error);
@@ -131,7 +148,8 @@ export async function failWorkflowJob(
   const status = willRetry ? 'pending' : 'dead_letter';
   const nextAttemptAt = willRetry ? computeNextAttemptTime(job.attemptCount) : undefined;
 
-  await supabase
+  // §40.15.1: Include lease ownership in fail update
+  let query = supabase
     .from('workflow_jobs')
     .update({
       status,
@@ -143,7 +161,18 @@ export async function failWorkflowJob(
       last_error_at: now,
       updated_at: now,
     })
-    .eq('id', job.id);
+    .eq('id', job.id)
+    .eq('status', 'running');
+
+  if (workerId) {
+    query = query.eq('lease_owner', workerId);
+  }
+
+  const { error: updateError } = await query;
+
+  if (updateError) {
+    console.error(`[queue] failed to update job ${job.id} to ${status}:`, updateError.message);
+  }
 
   return { status: status as 'failed' | 'dead_letter', nextAttemptAt };
 }

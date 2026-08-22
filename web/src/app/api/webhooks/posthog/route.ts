@@ -1,31 +1,29 @@
 /**
- * PostHog Webhook Handler
+ * PostHog Webhook Handler — Bounded Atomic Ingress
  *
  * POST /api/webhooks/posthog
  *
- * Handles PostHog action webhooks for usage threshold alerts and cancellation intent.
+ * §40.7: Reduced to bounded ingress work only.
+ * All business mutations happen in durable worker jobs.
+ *
+ * §40.7.2: Stable event ID order: $insert_id → UUID → SHA-256 fingerprint.
  */
 
-import { createHmac, timingSafeEqual } from 'crypto'
+import { createHmac, createHash, timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { buildCanonicalProviderEvent } from '@/lib/recovery/events'
-import { enqueueWorkflowJob } from '@/lib/jobs/queue'
-import { notifyFounder } from '@/lib/notifications/notify-founder'
-
-function assertNoDbError(
-  context: string,
-  error: { message: string } | null
-): asserts error is null {
-  if (error) {
-    throw new Error(`[posthog-webhook] ${context}: ${error.message}`)
-  }
-}
 
 export async function POST(request: NextRequest) {
+  // §40.7: Reject oversized bodies
+  const contentLength = request.headers.get('content-length')
+  if (contentLength && parseInt(contentLength, 10) > 500_000) {
+    return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
+  }
+
   const body = await request.text()
 
-  // ── Security: Timing-safe signature check ──
+  // Signature verification
   const signature = request.headers.get('x-posthog-signature')
   const webhookSecret = process.env.POSTHOG_WEBHOOK_SECRET
 
@@ -54,115 +52,144 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient()
 
-  // Resolve workspace and contact
-  const email = resolvePayloadEmail(payload)
   const distinctId = typeof payload.distinct_id === 'string' ? payload.distinct_id : null
-  const contact = await resolveContact(supabase, email, distinctId)
-  const workspaceId = contact?.workspace_id || null
-
   const eventName = payload.event ?? payload.hook?.event ?? 'action_fired'
-  const eventUuid = payload.properties?.$insert_id || payload.properties?.uuid || `${distinctId}:${eventName}:${Date.now()}`
 
-  // 1. Build canonical provider event
+  // §40.7.2: Stable event ID — never use Date.now()
+  const eventUuid = computeStablePostHogEventId(payload, distinctId, eventName)
+
+  const occurredAt = payload.properties?.timestamp
+    || (payload.properties?.['$timestamp'] as string | undefined)
+    || new Date().toISOString()
+
+  // Resolve workspace via provider_identities then email fallback
+  let workspaceId: string | null = null
+  try {
+    workspaceId = await resolveWorkspaceForPostHog(supabase, distinctId, payload)
+  } catch (err) {
+    console.error('[posthog-webhook] workspace resolution failed:', err)
+  }
+
+  // Build canonical envelope
   const canonicalEvent = buildCanonicalProviderEvent({
     workspaceId,
     provider: 'posthog',
     providerEventId: eventUuid,
     eventType: eventName,
-    occurredAt: payload.properties?.timestamp || new Date().toISOString(),
+    occurredAt,
     primaryExternalIdentity: distinctId,
     rawPayload: body,
   })
 
-  // 2. Check for duplicate event
-  if (workspaceId) {
-    const { data: existingEvent, error: existingError } = await supabase
-      .from('webhook_events')
-      .select('id, processed')
-      .eq('workspace_id', workspaceId)
-      .eq('provider', 'posthog')
-      .eq('external_id', eventUuid)
-      .maybeSingle()
-    assertNoDbError('check existing PostHog webhook event', existingError)
+  // Call atomic ingestion RPC
+  const jobIdempotencyKey = workspaceId
+    ? `ws:${workspaceId}:event:${eventUuid}:process:v1`
+    : null
 
-    if (existingEvent?.processed) {
-      return NextResponse.json({
-        received: true,
-        eventId: existingEvent.id,
-        deduplicated: true,
-      })
+  const { data: ingestResult, error: ingestError } = await supabase.rpc(
+    'ingest_provider_event_and_job',
+    {
+      p_event_id: canonicalEvent.eventId,
+      p_workspace_id: workspaceId,
+      p_provider: 'posthog',
+      p_event_type: eventName,
+      p_external_id: eventUuid,
+      p_dedupe_key: canonicalEvent.dedupeKey,
+      p_payload_hash: canonicalEvent.payloadHash,
+      p_occurred_at: occurredAt,
+      p_payload: payload as unknown as Record<string, unknown>,
+      p_test_mode: false,
+      p_scenario_id: null,
+      p_job_idempotency: jobIdempotencyKey,
     }
+  )
+
+  if (ingestError) {
+    console.error('[posthog-webhook] ingest RPC error:', ingestError.message)
+    return NextResponse.json({ error: 'Ingestion failed' }, { status: 500 })
   }
 
-  // 3. Insert into webhook_events
-  const { data: loggedEvent, error: webhookError } = await supabase
-    .from('webhook_events')
-    .insert({
-      id: canonicalEvent.eventId,
-      workspace_id: workspaceId,
-      provider: 'posthog',
-      event_type: eventName,
-      external_id: eventUuid,
-      dedupe_key: canonicalEvent.dedupeKey,
-      payload_hash: canonicalEvent.payloadHash,
-      occurred_at: canonicalEvent.occurredAt,
-      payload: payload as unknown as Record<string, unknown>,
-      processed: false,
-    })
-    .select('id')
-    .single()
-  assertNoDbError('insert webhook event', webhookError)
+  // §40.7: No synchronous side effects — no timeline inserts, no notifyFounder
 
-  const webhookEventId = loggedEvent.id
-
-  // 4. Enqueue durable job: process_provider_event
-  if (workspaceId) {
-    const jobKey = `ws:${workspaceId}:event:${eventUuid}:process:v1`
-    await enqueueWorkflowJob(supabase, {
-      workspaceId,
-      webhookEventId,
-      jobType: 'process_provider_event',
-      idempotencyKey: jobKey,
-      payload: canonicalEvent,
-    })
-  }
-
-  // 5. Update timeline / notifications for fast feedback
-  try {
-    if (contact) {
-      const accountId = contact.customer_account_id
-      const isCancellationPage =
-        payload.event === '$pageview' &&
-        payload.properties?.$current_url?.includes('/cancel')
-
-      if (isCancellationPage) {
-        await supabase.from('account_timeline').insert({
-          workspace_id: workspaceId!,
-          customer_account_id: accountId,
-          event_type: 'usage',
-          headline: 'Cancellation page visited',
-          source: 'posthog',
-        })
-
-        notifyFounder({
-          workspaceId: workspaceId!,
-          severity: 'critical',
-          headline: 'Cancellation page visited',
-          detail: `${email || 'User'} just visited the cancellation page. Immediate intervention recommended.`,
-          source: 'posthog_webhook',
-          dashboardPath: `/dashboard/accounts/${accountId}`,
-        })
-      }
-    }
-  } catch (err) {
-    console.error('[posthog-webhook] Synchronous projection warning:', err)
-  }
-
+  const result = Array.isArray(ingestResult) ? ingestResult[0] : ingestResult
   return NextResponse.json({
     received: true,
-    eventId: webhookEventId,
-    deduplicated: false,
+    eventId: result?.event_id ?? canonicalEvent.eventId,
+    deduplicated: result?.deduplicated ?? false,
+    conflict: result?.conflict ?? false,
   })
+}
+
+// ---------------------------------------------------------------------------
+// §40.7.2  Stable PostHog event ID
+// ---------------------------------------------------------------------------
+
+function computeStablePostHogEventId(
+  payload: PostHogWebhookPayload,
+  distinctId: string | null,
+  eventName: string
+): string {
+  // 1. $insert_id
+  const insertId = payload.properties?.$insert_id
+  if (typeof insertId === 'string' && insertId.length > 0) {
+    return insertId
+  }
+
+  // 2. Provider UUID
+  const uuid = payload.properties?.uuid
+  if (typeof uuid === 'string' && uuid.length > 0) {
+    return uuid
+  }
+
+  // 3. SHA-256 fingerprint — deterministic across retries
+  const timestamp = payload.properties?.timestamp || ''
+  const fingerprint = createHash('sha256')
+    .update([distinctId || '', eventName, timestamp, payload.properties?.$current_url || ''].join('::'))
+    .digest('hex')
+    .slice(0, 32)
+
+  return `ph_${fingerprint}`
+}
+
+// ---------------------------------------------------------------------------
+// §40.5.6  PostHog workspace resolution
+// ---------------------------------------------------------------------------
+
+async function resolveWorkspaceForPostHog(
+  supabase: ReturnType<typeof import('@/lib/supabase/service').createServiceClient>,
+  distinctId: string | null,
+  payload: PostHogWebhookPayload
+): Promise<string | null> {
+  // 1. provider_identities match for distinct_id
+  if (distinctId) {
+    const { data: identity } = await supabase
+      .from('provider_identities')
+      .select('workspace_id')
+      .eq('provider', 'posthog')
+      .eq('identity_type', 'distinct_id')
+      .eq('normalized_external_id', distinctId.toLowerCase())
+      .limit(2)
+
+    if (identity && identity.length === 1) {
+      return identity[0].workspace_id
+    }
+  }
+
+  // 2. Email fallback — unique match only
+  const email = resolvePayloadEmail(payload)
+  if (email) {
+    const { data: contact } = await supabase
+      .from('account_contacts')
+      .select('workspace_id')
+      .eq('email', email)
+      .limit(2)
+
+    if (contact && contact.length === 1) {
+      return contact[0].workspace_id
+    }
+  }
+
+  return null
 }
 
 function resolvePayloadEmail(payload: PostHogWebhookPayload): string | null {
@@ -182,42 +209,13 @@ function resolvePayloadEmail(payload: PostHogWebhookPayload): string | null {
   return null
 }
 
-async function resolveContact(
-  supabase: ReturnType<typeof createServiceClient>,
-  email: string | null,
-  distinctId: string | null
-) {
-  if (email) {
-    const { data, error } = await supabase
-      .from('account_contacts')
-      .select('workspace_id, customer_account_id')
-      .eq('email', email)
-      .maybeSingle()
-    assertNoDbError('lookup account contact by email', error)
-    if (data) return data
-  }
-
-  if (distinctId) {
-    const { data, error } = await supabase
-      .from('account_contacts')
-      .select('workspace_id, customer_account_id')
-      .contains('external_ids', { posthog_distinct_ids: [distinctId] })
-      .limit(1)
-      .maybeSingle()
-    assertNoDbError('lookup account contact by PostHog distinct id', error)
-    if (data) return data
-  }
-
-  return null
-}
-
 type PostHogWebhookPayload = {
   event?: string
   distinct_id?: string
   person?: {
     properties?: Record<string, unknown>
   }
-  properties?: Record<string, string>
+  properties?: Record<string, any>
   hook?: {
     event?: string
     target?: string

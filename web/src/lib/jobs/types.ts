@@ -46,6 +46,7 @@ export type JobExecutionContext = {
 
 export type JobExecutionResult = {
   success: boolean;
+  workspaceId?: string;
   error?: Error;
   errorCode?: string;
   retryable?: boolean;

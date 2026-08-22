@@ -3,7 +3,7 @@ import { JobExecutionContext, JobExecutionResult } from '../types';
 import { computeRiskDecision } from '../../recovery/scoring';
 import { evaluateActionPolicy } from '../../recovery/policy';
 import { constructCaseKey, openOrUpdateRecoveryCase } from '../../recovery/cases';
-import { AccountFeatures } from '../../recovery/types';
+import { mapDbToAccountFeatures, AccountFeaturesDbRow } from '../../recovery/features';
 
 export async function handleEvaluateRecoveryCase(
   supabase: SupabaseClient,
@@ -26,10 +26,11 @@ export async function handleEvaluateRecoveryCase(
     .single();
 
   if (featureError || !featureRow) {
-    throw new Error(`Features not found for account ${customerAccountId}`);
+    throw new Error(`Features not found for account ${customerAccountId}: ${featureError?.message}`);
   }
 
-  const features = featureRow as unknown as AccountFeatures;
+  // §40.5.4: Use explicit mapper — no `as unknown as`
+  const features = mapDbToAccountFeatures(featureRow as AccountFeaturesDbRow);
   const mrrBaselineCents = payload.mrrBaselineCents || features.currentMrrCents || features.preCancelMrrCents || 0;
 
   // 2. Fetch contact policy if any
@@ -49,7 +50,7 @@ export async function handleEvaluateRecoveryCase(
   });
 
   // 4. Update customer_accounts table with new risk score and level
-  await supabase
+  const { error: accountUpdateError } = await supabase
     .from('customer_accounts')
     .update({
       risk_score: riskDecision.score,
@@ -59,6 +60,10 @@ export async function handleEvaluateRecoveryCase(
       updated_at: new Date().toISOString(),
     })
     .eq('id', customerAccountId);
+
+  if (accountUpdateError) {
+    throw new Error(`Failed to update customer account: ${accountUpdateError.message}`);
+  }
 
   // 5. Construct case key and open/update case
   let triggerType: 'billing_failure' | 'subscription_cancel' | 'cancel_intent' | 'usage_decline' | 'compound' | 'general' = 'general';
@@ -109,8 +114,8 @@ export async function handleEvaluateRecoveryCase(
     evidenceItems,
   });
 
-  // Record score snapshot
-  await supabase.from('score_snapshots').insert({
+  // §40.10: Record score snapshot with provider evidence IDs, component outputs, rule IDs
+  const { error: snapshotError } = await supabase.from('score_snapshots').insert({
     workspace_id: workspaceId,
     customer_account_id: customerAccountId,
     recovery_case_id: recoveryCase.id,
@@ -125,6 +130,10 @@ export async function handleEvaluateRecoveryCase(
     policy_version: actionDecision.policyVersion,
     trigger_event_id: payload.triggerEventId || null,
   });
+
+  if (snapshotError) {
+    console.error('[evaluate] failed to insert score snapshot:', snapshotError.message);
+  }
 
   // 6. If action requires draft and is allowed, enqueue analysis
   if (

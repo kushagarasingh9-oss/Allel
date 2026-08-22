@@ -3,6 +3,100 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { AccountFeatures } from './types';
 import { RECOVERY_CONFIG } from './config';
 
+/**
+ * Named type for the raw snake_case row returned from Supabase.
+ * §40.5.4: Every boundary must have a typed mapper — no `as unknown as`.
+ */
+export type AccountFeaturesDbRow = {
+  workspace_id: string;
+  customer_account_id: string;
+  billing_available: boolean;
+  billing_status: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  current_mrr_cents: number | null;
+  pre_cancel_mrr_cents: number | null;
+  last_invoice_id: string | null;
+  last_invoice_status: string | null;
+  failed_payment_count_7d: number;
+  failed_payment_count_30d: number;
+  last_payment_failed_at: string | null;
+  last_payment_succeeded_at: string | null;
+  cancel_at_period_end: boolean | null;
+  cancelled_at: string | null;
+  usage_available: boolean;
+  usage_current_7d: number | null;
+  usage_previous_7d: number | null;
+  usage_delta_percent: number | null;
+  key_feature_current_7d: number | null;
+  key_feature_previous_7d: number | null;
+  key_feature_missing: boolean | null;
+  cancel_intent_at: string | null;
+  last_product_activity_at: string | null;
+  communication_available: boolean;
+  last_outbound_at: string | null;
+  last_inbound_at: string | null;
+  unreplied_outbound_count: number;
+  gmail_thread_id: string | null;
+  billing_fresh_at: string | null;
+  usage_fresh_at: string | null;
+  communication_fresh_at: string | null;
+  source_watermarks: Record<string, any>;
+  feature_version: string;
+  computed_at: string;
+  updated_at: string;
+};
+
+/**
+ * §40.5.4: Explicitly maps every snake_case DB field to camelCase domain type.
+ * Exported for use everywhere a feature row enters domain logic.
+ * Validates required fields and rejects invalid data.
+ */
+export function mapDbToAccountFeatures(row: AccountFeaturesDbRow): AccountFeatures {
+  if (!row.workspace_id || !row.customer_account_id) {
+    throw new Error('mapDbToAccountFeatures: missing required workspace_id or customer_account_id');
+  }
+  return {
+    workspaceId: row.workspace_id,
+    customerAccountId: row.customer_account_id,
+    billingAvailable: row.billing_available ?? false,
+    billingStatus: row.billing_status ?? null,
+    stripeCustomerId: row.stripe_customer_id ?? null,
+    stripeSubscriptionId: row.stripe_subscription_id ?? null,
+    currentMrrCents: row.current_mrr_cents ?? null,
+    preCancelMrrCents: row.pre_cancel_mrr_cents ?? null,
+    lastInvoiceId: row.last_invoice_id ?? null,
+    lastInvoiceStatus: row.last_invoice_status ?? null,
+    failedPaymentCount7d: row.failed_payment_count_7d ?? 0,
+    failedPaymentCount30d: row.failed_payment_count_30d ?? 0,
+    lastPaymentFailedAt: row.last_payment_failed_at ?? null,
+    lastPaymentSucceededAt: row.last_payment_succeeded_at ?? null,
+    cancelAtPeriodEnd: row.cancel_at_period_end ?? null,
+    cancelledAt: row.cancelled_at ?? null,
+    usageAvailable: row.usage_available ?? false,
+    usageCurrent7d: row.usage_current_7d ?? null,
+    usagePrevious7d: row.usage_previous_7d ?? null,
+    usageDeltaPercent: row.usage_delta_percent ?? null,
+    keyFeatureCurrent7d: row.key_feature_current_7d ?? null,
+    keyFeaturePrevious7d: row.key_feature_previous_7d ?? null,
+    keyFeatureMissing: row.key_feature_missing ?? null,
+    cancelIntentAt: row.cancel_intent_at ?? null,
+    lastProductActivityAt: row.last_product_activity_at ?? null,
+    communicationAvailable: row.communication_available ?? false,
+    lastOutboundAt: row.last_outbound_at ?? null,
+    lastInboundAt: row.last_inbound_at ?? null,
+    unrepliedOutboundCount: row.unreplied_outbound_count ?? 0,
+    gmailThreadId: row.gmail_thread_id ?? null,
+    billingFreshAt: row.billing_fresh_at ?? null,
+    usageFreshAt: row.usage_fresh_at ?? null,
+    communicationFreshAt: row.communication_fresh_at ?? null,
+    sourceWatermarks: row.source_watermarks || {},
+    featureVersion: row.feature_version,
+    computedAt: row.computed_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 export function computeFeatureHash(features: Partial<AccountFeatures>): string {
   const normalized = {
     billingAvailable: features.billingAvailable ?? false,
@@ -59,7 +153,7 @@ export async function projectAccountFeatures(
     .eq('customer_account_id', params.customerAccountId)
     .maybeSingle();
 
-  const previousHash = existing ? computeFeatureHash(mapDbToFeatures(existing)) : null;
+  const previousHash = existing ? computeFeatureHash(mapDbToAccountFeatures(existing as AccountFeaturesDbRow)) : null;
 
   // 2. Merge existing with patch
   const merged: AccountFeatures = {
@@ -118,7 +212,7 @@ export async function projectAccountFeatures(
   const materialChange = previousHash !== currentHash;
 
   // 3. Upsert to account_features table
-  await supabase.from('account_features').upsert(
+  const { error: upsertError } = await supabase.from('account_features').upsert(
     {
       workspace_id: merged.workspaceId,
       customer_account_id: merged.customerAccountId,
@@ -161,47 +255,11 @@ export async function projectAccountFeatures(
     { onConflict: 'customer_account_id' }
   );
 
+  if (upsertError) {
+    throw new Error(`projectAccountFeatures upsert failed: ${upsertError.message}`);
+  }
+
   return { features: merged, materialChange, previousHash, currentHash };
 }
 
-function mapDbToFeatures(row: Record<string, any>): AccountFeatures {
-  return {
-    workspaceId: row.workspace_id,
-    customerAccountId: row.customer_account_id,
-    billingAvailable: row.billing_available,
-    billingStatus: row.billing_status,
-    stripeCustomerId: row.stripe_customer_id,
-    stripeSubscriptionId: row.stripe_subscription_id,
-    currentMrrCents: row.current_mrr_cents,
-    preCancelMrrCents: row.pre_cancel_mrr_cents,
-    lastInvoiceId: row.last_invoice_id,
-    lastInvoiceStatus: row.last_invoice_status,
-    failedPaymentCount7d: row.failed_payment_count_7d,
-    failedPaymentCount30d: row.failed_payment_count_30d,
-    lastPaymentFailedAt: row.last_payment_failed_at,
-    lastPaymentSucceededAt: row.last_payment_succeeded_at,
-    cancelAtPeriodEnd: row.cancel_at_period_end,
-    cancelledAt: row.cancelled_at,
-    usageAvailable: row.usage_available,
-    usageCurrent7d: row.usage_current_7d,
-    usagePrevious7d: row.usage_previous_7d,
-    usageDeltaPercent: row.usage_delta_percent,
-    keyFeatureCurrent7d: row.key_feature_current_7d,
-    keyFeaturePrevious7d: row.key_feature_previous_7d,
-    keyFeatureMissing: row.key_feature_missing,
-    cancelIntentAt: row.cancel_intent_at,
-    lastProductActivityAt: row.last_product_activity_at,
-    communicationAvailable: row.communication_available,
-    lastOutboundAt: row.last_outbound_at,
-    lastInboundAt: row.last_inbound_at,
-    unrepliedOutboundCount: row.unreplied_outbound_count,
-    gmailThreadId: row.gmail_thread_id,
-    billingFreshAt: row.billing_fresh_at,
-    usageFreshAt: row.usage_fresh_at,
-    communicationFreshAt: row.communication_fresh_at,
-    sourceWatermarks: row.source_watermarks || {},
-    featureVersion: row.feature_version,
-    computedAt: row.computed_at,
-    updatedAt: row.updated_at,
-  };
-}
+// §40.5.4: Private mapDbToFeatures removed — use exported mapDbToAccountFeatures instead.

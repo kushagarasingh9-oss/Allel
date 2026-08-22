@@ -1,5 +1,12 @@
+/**
+ * Worker — Durable job processing engine
+ *
+ * §40.15: Bounded concurrency, lease ownership, crash-safe child-job creation.
+ * §40.15.5: No-op handlers throw NOT_IMPLEMENTED.
+ */
+
 import { SupabaseClient } from '@supabase/supabase-js';
-import { JobExecutionContext, JobExecutionResult, JobHandler, JobType, WorkflowJob } from './types';
+import { JobExecutionContext, JobExecutionResult, JobType, WorkflowJob } from './types';
 import { claimWorkflowJobs, completeWorkflowJob, enqueueWorkflowJob, failWorkflowJob } from './queue';
 import { handleProcessProviderEvent } from './handlers/process-provider-event';
 import { handleProjectAccountFeatures } from './handlers/project-account-features';
@@ -13,6 +20,18 @@ import { handleSyncGmailHistory } from './handlers/sync-gmail-history';
 import { handleClassifyCaseOutcome } from './handlers/classify-case-outcome';
 import { RECOVERY_CONFIG } from '../recovery/config';
 
+/**
+ * §40.15.5: No-op handlers must NOT return success without doing work.
+ */
+class NotImplementedError extends Error {
+  readonly retryable = false;
+  readonly code = 'NOT_IMPLEMENTED';
+  constructor(jobType: string) {
+    super(`Job type '${jobType}' is registered but not yet implemented`);
+    this.name = 'NotImplementedError';
+  }
+}
+
 export const JOB_HANDLERS: Record<JobType, (supabase: SupabaseClient, ctx: JobExecutionContext) => Promise<JobExecutionResult>> = {
   process_provider_event: handleProcessProviderEvent,
   project_account_features: handleProjectAccountFeatures,
@@ -24,8 +43,9 @@ export const JOB_HANDLERS: Record<JobType, (supabase: SupabaseClient, ctx: JobEx
   send_approved_draft: handleSendApprovedDraft,
   sync_gmail_history: handleSyncGmailHistory,
   classify_case_outcome: handleClassifyCaseOutcome,
-  refresh_founder_brief: async () => ({ success: true }),
-  reconcile_provider_state: async () => ({ success: true }),
+  // §40.15.5: These must not return success without work
+  refresh_founder_brief: async () => { throw new NotImplementedError('refresh_founder_brief'); },
+  reconcile_provider_state: async () => { throw new NotImplementedError('reconcile_provider_state'); },
 };
 
 export async function processSingleJob(
@@ -36,7 +56,7 @@ export async function processSingleJob(
   const handler = JOB_HANDLERS[job.jobType];
 
   if (!handler) {
-    await failWorkflowJob(supabase, job, new Error(`No handler registered for job type: ${job.jobType}`));
+    await failWorkflowJob(supabase, job, new Error(`No handler registered for job type: ${job.jobType}`), workerId);
     return { success: false, errorCode: 'UNKNOWN_JOB_TYPE', retryable: false };
   }
 
@@ -50,10 +70,7 @@ export async function processSingleJob(
     const result = await handler(supabase, context);
 
     if (result.success) {
-      // 1. Complete job
-      await completeWorkflowJob(supabase, job.id);
-
-      // 2. Enqueue next dependent job if requested
+      // §40.15.3: Enqueue child BEFORE completing parent (crash-safe)
       if (result.nextJob) {
         await enqueueWorkflowJob(supabase, {
           workspaceId: result.nextJob.workspaceId || job.workspaceId,
@@ -66,13 +83,16 @@ export async function processSingleJob(
         });
       }
 
+      // §40.15.1: Complete job with lease ownership check
+      await completeWorkflowJob(supabase, job.id, workerId);
+
       return result;
     } else {
-      await failWorkflowJob(supabase, job, result.error || new Error('Job reported failure'));
+      await failWorkflowJob(supabase, job, result.error || new Error('Job reported failure'), workerId);
       return result;
     }
   } catch (err) {
-    await failWorkflowJob(supabase, job, err);
+    await failWorkflowJob(supabase, job, err, workerId);
     return { success: false, error: err instanceof Error ? err : new Error(String(err)) };
   }
 }
@@ -83,6 +103,7 @@ export async function drainWorkflowQueue(
     workerId?: string;
     batchSize?: number;
     maxRuns?: number;
+    deadlineMs?: number;
   }
 ): Promise<{
   claimed: number;
@@ -94,6 +115,7 @@ export async function drainWorkflowQueue(
   const startTime = Date.now();
   const workerId = options?.workerId || `worker_${Math.random().toString(36).slice(2, 9)}`;
   const batchSize = options?.batchSize || RECOVERY_CONFIG.WORKER_BATCH_SIZE;
+  const deadlineMs = options?.deadlineMs || 55_000; // §40.15.4: Respect route timeout
 
   // Claim batch
   const jobs = await claimWorkflowJobs(supabase, workerId, batchSize, RECOVERY_CONFIG.JOB_LEASE_SECONDS);
@@ -102,16 +124,33 @@ export async function drainWorkflowQueue(
   let retried = 0;
   let deadLettered = 0;
 
-  // Process sequentially or bounded parallel
-  for (const job of jobs) {
-    const result = await processSingleJob(supabase, job, workerId);
-    if (result.success) {
-      completed++;
-    } else {
-      if (job.attemptCount >= job.maxAttempts) {
-        deadLettered++;
+  // §40.15.4: Use WORKER_CONCURRENCY for bounded pool
+  const concurrency = parseInt(process.env.WORKER_CONCURRENCY || '3', 10);
+
+  // Process in bounded concurrent batches
+  for (let i = 0; i < jobs.length; i += concurrency) {
+    // §40.15.4: Stop claiming new work before the deadline
+    if (Date.now() - startTime > deadlineMs) {
+      console.warn(`[worker] deadline approaching, processed ${completed}/${jobs.length} jobs`);
+      break;
+    }
+
+    const batch = jobs.slice(i, i + concurrency);
+    const results = await Promise.all(
+      batch.map(job => processSingleJob(supabase, job, workerId))
+    );
+
+    for (let j = 0; j < results.length; j++) {
+      const result = results[j];
+      const job = batch[j];
+      if (result.success) {
+        completed++;
       } else {
-        retried++;
+        if (job.attemptCount >= job.maxAttempts) {
+          deadLettered++;
+        } else {
+          retried++;
+        }
       }
     }
   }
