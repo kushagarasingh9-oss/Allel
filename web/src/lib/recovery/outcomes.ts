@@ -1,8 +1,21 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { CaseResolution, Provider, RecoveryCase } from './types';
 import { transitionRecoveryCase } from './transitions';
+import { mapDbToRecoveryCase } from './cases';
 import { RECOVERY_CONFIG } from './config';
 
+/**
+ * §40.19: Deterministic outcome attribution.
+ *
+ * Attribution gates (all must pass for strict/protected resolution):
+ *  G1. Evidence occurred after case opened_at.
+ *  G2. Evidence occurred before outcome_deadline_at (attribution window).
+ *  G3. Test-mode isolation — evidence must match case is_test_mode.
+ *  G4. Invoice ID match — invoice.paid must match the case trigger invoice
+ *      or the same subscription (prevents unrelated invoices closing billing cases).
+ *  G5. Trigger-type compatibility — invoice.paid only resolves billing cases;
+ *      subscription.updated only resolves cancellation cases.
+ */
 export async function processOutcomeEvidence(
   supabase: SupabaseClient,
   params: {
@@ -22,8 +35,9 @@ export async function processOutcomeEvidence(
 ): Promise<{ resolvedCase: RecoveryCase | null; outcomeType: CaseResolution | null; recoveredCents: number; protectedCents: number }> {
   const now = new Date().toISOString();
   const occurredAt = params.occurredAt || now;
+  const isTestMode = params.isTestMode ?? RECOVERY_CONFIG.TEST_MODE;
 
-  // 1. Find matching open/monitoring recovery case
+  // 1. Find all open/monitoring cases for this account
   const { data: openCases } = await supabase
     .from('recovery_cases')
     .select('*')
@@ -36,21 +50,40 @@ export async function processOutcomeEvidence(
     return { resolvedCase: null, outcomeType: null, recoveredCents: 0, protectedCents: 0 };
   }
 
-  const activeCase = openCases[0];
+  // 2. Find the best matching case (apply attribution gates)
+  const activeCaseRow = findBestAttributionCase(openCases, params, occurredAt, isTestMode);
+  if (!activeCaseRow) {
+    return { resolvedCase: null, outcomeType: null, recoveredCents: 0, protectedCents: 0 };
+  }
+  const activeCase = mapDbToRecoveryCase(activeCaseRow);
+  const mrrBaseline: number = typeof activeCaseRow.mrr_baseline_cents === 'number' ? activeCaseRow.mrr_baseline_cents : 0;
+  const caseStatus: string = typeof activeCaseRow.status === 'string' ? activeCaseRow.status : '';
+  const triggerEventType: string = typeof activeCaseRow.trigger_event_type === 'string' ? activeCaseRow.trigger_event_type : '';
+  const actionType: string = typeof activeCaseRow.action_type === 'string' ? activeCaseRow.action_type : '';
+
   let outcomeType: CaseResolution | null = null;
   let strictRecoveredCents = 0;
   let protectedCents = 0;
 
-  // 2. Classify evidence
-  // Billing payment success -> Strict recovery
+  // 3. Classify evidence type → outcome
   if (params.evidenceProvider === 'stripe' && params.evidenceEventType === 'invoice.paid') {
-    outcomeType = 'strictly_recovered';
-    strictRecoveredCents = activeCase.mrr_baseline_cents;
+    // G5: Only resolves billing-trigger cases (not usage-only or cancel-intent-only cases)
+    const isBillingCase = ['billing_failure', 'billing_recovery_email', 'compound'].some(t =>
+      triggerEventType.includes(t) ||
+      actionType.includes('billing') ||
+      actionType.includes('compound')
+    );
+    if (isBillingCase) {
+      outcomeType = 'strictly_recovered';
+      strictRecoveredCents = mrrBaseline;
+    }
   } else if (params.evidenceProvider === 'stripe' && params.evidenceEventType === 'customer.subscription.updated') {
-    // If subscription was reactivated or cancel_at_period_end removed
-    if (activeCase.trigger_event_type.includes('cancel')) {
+    // Protected: cancel intent or cancel_at_period_end was reversed before billing was lost
+    const isCancellationCase = triggerEventType.includes('cancel') ||
+      actionType.includes('cancellation');
+    if (isCancellationCase) {
       outcomeType = 'protected';
-      protectedCents = activeCase.mrr_baseline_cents;
+      protectedCents = mrrBaseline;
     }
   } else if (params.usageRebound) {
     outcomeType = 'product_recovered';
@@ -62,8 +95,8 @@ export async function processOutcomeEvidence(
     return { resolvedCase: null, outcomeType: null, recoveredCents: 0, protectedCents: 0 };
   }
 
-  // 3. Record in draft_outcomes table
-  await supabase.from('draft_outcomes').insert({
+  // 4. Record in draft_outcomes table
+  const { error: insertError } = await supabase.from('draft_outcomes').insert({
     workspace_id: params.workspaceId,
     customer_account_id: params.customerAccountId,
     recovery_case_id: activeCase.id,
@@ -72,16 +105,24 @@ export async function processOutcomeEvidence(
     evidence_event_id: params.evidenceEventId || null,
     evidence_external_id: params.evidenceExternalId || null,
     occurred_at: occurredAt,
-    attribution_rule: 'deterministic_case_match',
+    attribution_rule: 'deterministic_case_match_v2',
     attribution_version: RECOVERY_CONFIG.ATTRIBUTION_VERSION,
-    mrr_baseline_cents: activeCase.mrr_baseline_cents,
+    mrr_baseline_cents: mrrBaseline,
     strict_recovered_cents: strictRecoveredCents,
     protected_cents: protectedCents,
-    is_test_mode: params.isTestMode ?? RECOVERY_CONFIG.TEST_MODE,
+    is_test_mode: isTestMode,
   });
 
-  // 4. Transition case if terminal (strictly_recovered or protected resolves the case)
-  let updatedCase = activeCase;
+  if (insertError) {
+    // Unique violation = already attributed; do not double-count
+    if (insertError.code === '23505') {
+      return { resolvedCase: null, outcomeType: null, recoveredCents: 0, protectedCents: 0 };
+    }
+    throw new Error(`Failed to insert draft_outcome: ${insertError.message}`);
+  }
+
+  // 5. Transition case if terminal resolution
+  let updatedCase: RecoveryCase = activeCase;
   if (outcomeType === 'strictly_recovered' || outcomeType === 'protected') {
     updatedCase = await transitionRecoveryCase(supabase, {
       workspaceId: params.workspaceId,
@@ -95,19 +136,21 @@ export async function processOutcomeEvidence(
         strictRecoveredCents,
         protectedCents,
         evidenceEventType: params.evidenceEventType,
+        evidenceExternalId: params.evidenceExternalId,
+        attributionRule: 'deterministic_case_match_v2',
       },
     });
   } else {
-    // Append outcome event without closing case
+    // Non-terminal: append outcome evidence event without closing case
     await supabase.from('recovery_case_events').insert({
       workspace_id: params.workspaceId,
       recovery_case_id: activeCase.id,
-      event_type: outcomeType === 'engaged' ? 'reply_observed' : 'usage_recovered',
-      from_status: activeCase.status,
-      to_status: activeCase.status,
+      event_type: params.customerReplied ? 'reply_observed' : 'usage_recovered',
+      from_status: caseStatus,
+      to_status: caseStatus,
       actor_type: 'provider',
       actor_id: params.evidenceProvider,
-      detail: { outcomeType },
+      detail: { outcomeType, evidenceEventType: params.evidenceEventType },
       created_at: now,
     });
   }
@@ -118,4 +161,103 @@ export async function processOutcomeEvidence(
     recoveredCents: strictRecoveredCents,
     protectedCents,
   };
+}
+
+/**
+ * §40.19.7: Attribution-gate case selection.
+ *
+ * Applies all gates and returns the best matching case or null.
+ * Priority: exact provider-object match > most recent compatible open case.
+ */
+function findBestAttributionCase(
+  cases: Record<string, unknown>[],
+  params: {
+    evidenceEventType: string;
+    stripeInvoiceId?: string | null;
+    stripeSubscriptionId?: string | null;
+    isTestMode?: boolean;
+  },
+  occurredAt: string,
+  isTestMode: boolean
+): Record<string, unknown> | null {
+  const occurredAtMs = new Date(occurredAt).getTime();
+
+  for (const c of cases) {
+    // G3: Test-mode isolation
+    // If the case has is_test_mode set, it must match the evidence test mode
+    if (typeof c.is_test_mode === 'boolean' && c.is_test_mode !== isTestMode) {
+      continue;
+    }
+
+    // G1: Evidence must have occurred after the case was opened
+    const openedAtMs = new Date(c.opened_at as string).getTime();
+    if (occurredAtMs <= openedAtMs) {
+      continue;
+    }
+
+    // G2: Attribution window — evidence must arrive before outcome_deadline_at
+    if (c.outcome_deadline_at) {
+      const deadlineMs = new Date(c.outcome_deadline_at as string).getTime();
+      if (occurredAtMs > deadlineMs) {
+        continue; // outside attribution window
+      }
+    }
+
+    // G4: Invoice ID match for invoice.paid events
+    if (params.evidenceEventType === 'invoice.paid') {
+      const evidenceSnapshot = (c.evidence_snapshot as unknown[]) || [];
+      const hasInvoiceMatch = checkInvoiceMatch(
+        evidenceSnapshot,
+        params.stripeInvoiceId,
+        params.stripeSubscriptionId,
+        c
+      );
+      if (!hasInvoiceMatch) {
+        continue; // unrelated invoice must not close this billing case
+      }
+    }
+
+    return c; // first passing case wins (cases are ordered by opened_at desc)
+  }
+
+  return null;
+}
+
+/**
+ * §40.19.4: Invoice attribution verification.
+ *
+ * invoice.paid closes a billing case only when the paid invoice relates to the case:
+ *  - the evidence_snapshot contains a matching invoice or subscription ID, OR
+ *  - the case trigger event explicitly references the same invoice ID, OR
+ *  - the case trigger references the same subscription ID (catches later invoices on same sub).
+ */
+function checkInvoiceMatch(
+  evidenceSnapshot: unknown[],
+  stripeInvoiceId: string | null | undefined,
+  stripeSubscriptionId: string | null | undefined,
+  caseRow: Record<string, unknown>
+): boolean {
+  if (!stripeInvoiceId && !stripeSubscriptionId) {
+    // No evidence to match against — do not attribute
+    return false;
+  }
+
+  // Check evidence_snapshot for explicit ID references
+  for (const item of evidenceSnapshot) {
+    const ev = item as Record<string, unknown>;
+    if (stripeInvoiceId && (ev.id === stripeInvoiceId || ev.invoiceId === stripeInvoiceId)) {
+      return true;
+    }
+    if (stripeSubscriptionId && (ev.id === stripeSubscriptionId || ev.subscriptionId === stripeSubscriptionId)) {
+      return true;
+    }
+  }
+
+  // Check case key (billing_failure:{account}:{invoice_id} or subscription form)
+  const caseKey = (caseRow.case_key as string) || '';
+  if (stripeInvoiceId && caseKey.includes(stripeInvoiceId)) return true;
+  if (stripeSubscriptionId && caseKey.includes(stripeSubscriptionId)) return true;
+
+  // If case has no verifiable link — do not assume this invoice closes it
+  return false;
 }

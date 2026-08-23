@@ -7,7 +7,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { JobExecutionContext, JobExecutionResult, JobType, WorkflowJob } from './types';
-import { claimWorkflowJobs, completeWorkflowJob, enqueueWorkflowJob, failWorkflowJob } from './queue';
+import { claimWorkflowJobs, completeWorkflowJob, enqueueWorkflowJob, failWorkflowJob, heartbeatJob } from './queue';
 import { handleProcessProviderEvent } from './handlers/process-provider-event';
 import { handleProjectAccountFeatures } from './handlers/project-account-features';
 import { handleEvaluateRecoveryCase } from './handlers/evaluate-recovery-case';
@@ -31,6 +31,16 @@ class NotImplementedError extends Error {
     this.name = 'NotImplementedError';
   }
 }
+
+/**
+ * §40.15: Job types that call the LLM and may take longer than the default lease.
+ * These get a heartbeat interval so the lease is renewed during model execution.
+ */
+const MODEL_JOB_TYPES = new Set<JobType>([
+  'run_case_analysis',
+  'generate_case_draft',
+  'verify_case_draft',
+]);
 
 export const JOB_HANDLERS: Record<JobType, (supabase: SupabaseClient, ctx: JobExecutionContext) => Promise<JobExecutionResult>> = {
   process_provider_event: handleProcessProviderEvent,
@@ -66,6 +76,21 @@ export async function processSingleJob(
     job,
   };
 
+  // §40.15 (§11.10): Renew lease at 1/3 of the lease duration for model-stage jobs.
+  // This prevents a slow LLM call from letting the lease expire and being re-claimed
+  // by another worker, which would cause duplicate model execution.
+  let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  if (MODEL_JOB_TYPES.has(job.jobType)) {
+    const heartbeatMs = Math.floor(RECOVERY_CONFIG.MODEL_JOB_LEASE_SECONDS * 1000 * RECOVERY_CONFIG.JOB_HEARTBEAT_FRACTION);
+    heartbeatInterval = setInterval(async () => {
+      const renewed = await heartbeatJob(supabase, job.id, workerId, RECOVERY_CONFIG.MODEL_JOB_LEASE_SECONDS);
+      if (!renewed) {
+        // Lost lease — the interval will keep firing but the completion check will catch it
+        console.warn(`[worker] heartbeat lost lease on job ${job.id} (${job.jobType})`);
+      }
+    }, heartbeatMs);
+  }
+
   try {
     const result = await handler(supabase, context);
 
@@ -94,6 +119,11 @@ export async function processSingleJob(
   } catch (err) {
     await failWorkflowJob(supabase, job, err, workerId);
     return { success: false, error: err instanceof Error ? err : new Error(String(err)) };
+  } finally {
+    // Always clear the heartbeat interval when job finishes (success or failure)
+    if (heartbeatInterval !== null) {
+      clearInterval(heartbeatInterval);
+    }
   }
 }
 
