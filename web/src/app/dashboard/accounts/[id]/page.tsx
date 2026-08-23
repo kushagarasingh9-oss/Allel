@@ -59,6 +59,22 @@ type Draft = {
   created_at: string
 }
 
+type RecoveryCaseSummary = {
+  id: string
+  case_key: string
+  status: string
+  severity: string
+  risk_score: number
+  score_confidence: number
+  mrr_baseline_cents: number
+  trigger_provider: string
+  trigger_event_type: string
+  action_type: string
+  action_reason: string
+  resolution: string | null
+  opened_at: string
+}
+
 function getRiskColor(risk: string) {
   switch (risk?.toLowerCase()) {
     case 'high':
@@ -113,6 +129,7 @@ export default function AccountDetailPage() {
   const accountId = params.id as string
 
   const [account, setAccount] = useState<AccountDetail | null>(null)
+  const [activeCase, setActiveCase] = useState<RecoveryCaseSummary | null>(null)
   const [timeline, setTimeline] = useState<TimelineEvent[]>([])
   const [signals, setSignals] = useState<Signal[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -123,12 +140,19 @@ export default function AccountDetailPage() {
     async function load() {
       const supabase = createClient()
 
-      const [accountRes, timelineRes, signalsRes, contactsRes, draftsRes] = await Promise.all([
+      const [accountRes, caseRes, timelineRes, signalsRes, contactsRes, draftsRes] = await Promise.all([
         supabase
           .from('customer_accounts')
           .select('*')
           .eq('id', accountId)
           .single(),
+        supabase
+          .from('recovery_cases')
+          .select('*')
+          .eq('customer_account_id', accountId)
+          .order('opened_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
         supabase
           .from('account_timeline')
           .select('id, event_type, headline, detail, source, event_at, created_at')
@@ -156,6 +180,7 @@ export default function AccountDetailPage() {
       ])
 
       if (accountRes.data) setAccount(accountRes.data as AccountDetail)
+      if (caseRes.data) setActiveCase(caseRes.data as RecoveryCaseSummary)
       if (timelineRes.data) setTimeline(timelineRes.data as TimelineEvent[])
       if (signalsRes.data) setSignals(signalsRes.data as Signal[])
       if (contactsRes.data) setContacts(contactsRes.data as Contact[])
@@ -235,7 +260,7 @@ export default function AccountDetailPage() {
       )}
 
       {/* Key Metrics Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 32 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
         {[
           { label: 'MRR', value: formatCents(account.mrr_cents) },
           { label: 'Risk Score', value: `${account.risk_score}/100` },
@@ -260,6 +285,131 @@ export default function AccountDetailPage() {
           </div>
         ))}
       </div>
+
+      {/* Active Recovery Case Section */}
+      {activeCase && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.04) 100%)',
+            border: '1px solid rgba(99, 102, 241, 0.25)',
+            borderRadius: 14,
+            padding: '20px 24px',
+            marginBottom: 32,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: 'rgba(99, 102, 241, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 16,
+                }}
+              >
+                ⚡
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#f0f0f0' }}>
+                  Active Recovery Case
+                </div>
+                <div style={{ fontSize: 12, color: '#9a9aa4', marginTop: 2 }}>
+                  Triggered by {activeCase.trigger_provider} · {activeCase.trigger_event_type.replace(/_/g, ' ')}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  color: '#ef4444',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                }}
+              >
+                {activeCase.severity.toUpperCase()}
+              </span>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  background: 'rgba(99, 102, 241, 0.15)',
+                  color: '#818cf8',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                }}
+              >
+                {activeCase.status.replace(/_/g, ' ').toUpperCase()}
+              </span>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gap: 12,
+              paddingTop: 12,
+              borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#6d6d76', letterSpacing: '0.1em' }}>
+                MRR Baseline
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#a78bfa', marginTop: 4 }}>
+                {formatCents(activeCase.mrr_baseline_cents)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#6d6d76', letterSpacing: '0.1em' }}>
+                Score Confidence
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginTop: 4 }}>
+                {Math.round(activeCase.score_confidence * 100)}%
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#6d6d76', letterSpacing: '0.1em' }}>
+                Action Plan
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: '#e2e8f0', marginTop: 4 }}>
+                {activeCase.action_type.replace(/_/g, ' ')}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#6d6d76', letterSpacing: '0.1em' }}>
+                Workflow Link
+              </div>
+              <button
+                onClick={() => router.push('/dashboard/flows')}
+                style={{
+                  marginTop: 4,
+                  background: 'none',
+                  border: 'none',
+                  color: '#6366f1',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                Inspect timeline →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Two-column layout */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>

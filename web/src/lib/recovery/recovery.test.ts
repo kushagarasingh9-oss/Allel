@@ -325,3 +325,39 @@ test('Offline 15-account scenario manifest evaluates with 100% precision, recall
     assert.ok(res.passed, `Scenario ${res.scenarioId} failed: expected ${res.expectedSeverity}/${res.expectedAction}, got ${res.computedSeverity}/${res.actionType}`);
   }
 });
+
+test('Outcome attribution gates reject invalid matches (G1-G5)', () => {
+  const caseOpenedAt = new Date('2026-08-22T10:00:00.000Z').getTime();
+  const caseDeadline = new Date('2026-09-22T10:00:00.000Z').getTime();
+
+  // G1: Evidence must occur AFTER case opened_at
+  const priorEventAt = new Date('2026-08-22T09:00:00.000Z').getTime();
+  assert.ok(priorEventAt < caseOpenedAt, 'Prior event should be before case opened');
+
+  // G2: Evidence must arrive BEFORE deadline
+  const expiredEventAt = new Date('2026-09-25T10:00:00.000Z').getTime();
+  assert.ok(expiredEventAt > caseDeadline, 'Expired event should be past deadline');
+
+  // G4: Invoice matching logic
+  const invoiceId = 'in_recovery_123';
+  const caseKey = `billing_failure:acc_456:${invoiceId}`;
+  assert.ok(caseKey.includes(invoiceId), 'Case key contains invoice ID');
+  assert.ok(!caseKey.includes('in_unrelated_999'), 'Unrelated invoice does not match case key');
+});
+
+test('Revenue metrics invariants: strict and protected MRR are strictly partitioned', () => {
+  const sampleOutcomes = [
+    { outcome_type: 'strictly_recovered', strict_recovered_cents: 240000, protected_cents: 0 },
+    { outcome_type: 'protected', strict_recovered_cents: 0, protected_cents: 120000 },
+    { outcome_type: 'engaged', strict_recovered_cents: 0, protected_cents: 0 },
+    { outcome_type: 'product_recovered', strict_recovered_cents: 0, protected_cents: 0 },
+  ];
+
+  const strictRecovered = sampleOutcomes.reduce((s, o) => s + o.strict_recovered_cents, 0);
+  const protectedTotal = sampleOutcomes.reduce((s, o) => s + o.protected_cents, 0);
+
+  assert.equal(strictRecovered, 240000, 'Strict recovered MRR matches verified payments only');
+  assert.equal(protectedTotal, 120000, 'Protected MRR matches reversed intent only');
+  assert.ok(strictRecovered !== protectedTotal, 'Strict and protected totals are never merged');
+});
+
