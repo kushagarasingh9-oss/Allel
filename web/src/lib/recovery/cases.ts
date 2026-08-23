@@ -53,28 +53,47 @@ export async function openOrUpdateRecoveryCase(
     .maybeSingle();
 
   if (existing) {
-    // Update existing open case with fresh evidence
+    // Do not regress terminal or advanced states.
+    const terminalStatuses: CaseStatus[] = ['resolved', 'suppressed', 'failed'];
+    const advancedStatuses: CaseStatus[] = ['awaiting_approval', 'approved', 'sent', 'monitoring'];
+    const existingStatus = existing.status as CaseStatus;
+
+    // Only advance open → analyzing if the action policy warrants it;
+    // never touch terminal or already-advanced states.
+    const updatedStatus: CaseStatus =
+      existingStatus === 'open' && params.actionDecision.allowed && params.actionDecision.requiresApproval
+        ? 'analyzing'
+        : existingStatus;
+
+    const shouldUpdateStatus =
+      !terminalStatuses.includes(existingStatus) &&
+      !advancedStatuses.includes(existingStatus) &&
+      updatedStatus !== existingStatus;
+
     const currentScore = existing.risk_score;
     const newScore = Math.max(currentScore, params.riskDecision.score ?? 0);
-    const updatedStatus: CaseStatus =
-      existing.status === 'open' && params.actionDecision.allowed && params.actionDecision.requiresApproval
-        ? 'analyzing'
-        : (existing.status as CaseStatus);
+
+    const updatePayload: Record<string, unknown> = {
+      risk_score: newScore,
+      score_confidence: Math.max(Number(existing.score_confidence), params.riskDecision.confidence),
+      severity: params.riskDecision.severity,
+      revenue_priority: Math.max(Number(existing.revenue_priority), params.riskDecision.revenuePriority),
+      action_type: params.actionDecision.actionType,
+      action_reason: params.actionDecision.actionReason,
+      suppression_reason: params.actionDecision.suppressionReason,
+      last_signal_at: now,
+      evidence_snapshot: params.evidenceItems,
+      updated_at: now,
+    };
+
+    // Only write status if it actually changed and we are allowed to advance it.
+    if (shouldUpdateStatus) {
+      updatePayload.status = updatedStatus;
+    }
 
     const { data: updated, error: updateError } = await supabase
       .from('recovery_cases')
-      .update({
-        risk_score: newScore,
-        score_confidence: Math.max(existing.score_confidence, params.riskDecision.confidence),
-        severity: params.riskDecision.severity,
-        revenue_priority: Math.max(existing.revenue_priority, params.riskDecision.revenuePriority),
-        action_type: params.actionDecision.actionType,
-        action_reason: params.actionDecision.actionReason,
-        suppression_reason: params.actionDecision.suppressionReason,
-        last_signal_at: now,
-        evidence_snapshot: params.evidenceItems,
-        updated_at: now,
-      })
+      .update(updatePayload)
       .eq('id', existing.id)
       .select('*')
       .single();

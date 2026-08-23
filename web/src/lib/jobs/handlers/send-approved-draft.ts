@@ -69,17 +69,29 @@ export async function handleSendApprovedDraft(
     throw new Error(`Draft ${draftId} has invalid recipient: ${recipientEmail}`);
   }
 
-  // §40.14: Check contact policy still permits email
+  // §40.14: Check contact policy still permits email — fail-closed on DB errors
   if (draft.customer_account_id) {
-    const { data: policy } = await supabase
+    const { data: policyRows, error: policyError } = await supabase
       .from('contact_policies')
-      .select('allowed')
+      .select('policy, address, expires_at')
       .eq('workspace_id', workspaceId)
       .eq('customer_account_id', draft.customer_account_id)
-      .eq('channel', 'email')
-      .maybeSingle();
+      .eq('channel', 'email');
 
-    if (policy && policy.allowed === false) {
+    if (policyError) {
+      // §40.14: DB error on policy check = fail closed. Never send without confirmed policy.
+      throw new Error(`Contact policy DB error for account ${draft.customer_account_id}: ${policyError.message}`);
+    }
+
+    // Apply most restrictive active policy.
+    const now = new Date();
+    const blocked = (policyRows ?? []).some((p) => {
+      if (p.expires_at && new Date(p.expires_at) < now) return false; // expired
+      // For a revenue-recovery email: do_not_contact and transactional_only both block.
+      return p.policy === 'do_not_contact' || p.policy === 'transactional_only';
+    });
+
+    if (blocked) {
       throw new Error(`Contact policy blocks email for account ${draft.customer_account_id}`);
     }
   }

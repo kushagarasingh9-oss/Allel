@@ -93,7 +93,7 @@ async function transitionViaRpc(
     p_event_type: params.eventType,
     p_detail: params.detail || {},
     p_workflow_job_id: params.workflowJobId || null,
-    p_resolution_type: typeof params.resolution === 'string' ? params.resolution : null,
+    p_resolution: typeof params.resolution === 'string' ? params.resolution : null,
     p_suppression_reason: params.suppressionReason || null,
   });
 

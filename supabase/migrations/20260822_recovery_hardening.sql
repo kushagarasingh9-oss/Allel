@@ -162,10 +162,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_contact_policies_uniq
 -- ============================================================
 -- §40.6.5  Queue claim RPC hardening
 -- ============================================================
+-- NOTE: The existing queue migration defines p_lease_seconds (not p_lease_secs).
+-- We keep that parameter name so the existing TypeScript caller is not broken.
 CREATE OR REPLACE FUNCTION public.claim_workflow_jobs(
   p_worker_id    text,
   p_batch_size   integer DEFAULT 5,
-  p_lease_secs   integer DEFAULT 300
+  p_lease_seconds integer DEFAULT 300
 )
 RETURNS SETOF public.workflow_jobs
 LANGUAGE plpgsql
@@ -177,17 +179,17 @@ BEGIN
   IF p_batch_size < 1 OR p_batch_size > 50 THEN
     RAISE EXCEPTION 'batch_size must be between 1 and 50';
   END IF;
-  IF p_lease_secs < 30 OR p_lease_secs > 3600 THEN
-    RAISE EXCEPTION 'lease_secs must be between 30 and 3600';
+  IF p_lease_seconds < 30 OR p_lease_seconds > 3600 THEN
+    RAISE EXCEPTION 'lease_seconds must be between 30 and 3600';
   END IF;
 
   RETURN QUERY
   WITH claimable AS (
     SELECT id
       FROM public.workflow_jobs
-     WHERE (status = 'pending' AND scheduled_for <= now())
-        OR (status = 'running' AND lease_expires_at < now())
-     ORDER BY priority DESC, created_at ASC
+     WHERE (status = 'pending' AND next_attempt_at <= now())
+        OR (status = 'running' AND lease_expires_at <= now())
+     ORDER BY priority ASC, created_at ASC
      LIMIT p_batch_size
        FOR UPDATE SKIP LOCKED
   )
@@ -195,8 +197,8 @@ BEGIN
      SET status = 'running',
          started_at = CASE WHEN wj.status = 'pending' THEN now() ELSE wj.started_at END,
          lease_owner = p_worker_id,
-         lease_expires_at = now() + make_interval(secs => p_lease_secs),
-         attempts = wj.attempts + 1,
+         lease_expires_at = now() + make_interval(secs => p_lease_seconds),
+         attempt_count = wj.attempt_count + 1,
          updated_at = now()
     FROM claimable c
    WHERE wj.id = c.id
@@ -222,7 +224,7 @@ CREATE OR REPLACE FUNCTION public.transition_recovery_case(
   p_event_type       text,
   p_detail           jsonb DEFAULT '{}'::jsonb,
   p_workflow_job_id  uuid DEFAULT NULL,
-  p_resolution_type  text DEFAULT NULL,
+  p_resolution       text DEFAULT NULL,
   p_suppression_reason text DEFAULT NULL
 )
 RETURNS public.recovery_cases
@@ -251,13 +253,13 @@ BEGIN
 
   -- 3. Validate legal transition
   v_legal := CASE
-    WHEN p_current_status = 'open' AND p_target_status IN ('analyzing', 'suppressed') THEN true
-    WHEN p_current_status = 'analyzing' AND p_target_status IN ('action_proposed', 'suppressed', 'resolved') THEN true
-    WHEN p_current_status = 'action_proposed' AND p_target_status IN ('awaiting_approval', 'suppressed', 'resolved') THEN true
+    WHEN p_current_status = 'open'              AND p_target_status IN ('analyzing', 'suppressed') THEN true
+    WHEN p_current_status = 'analyzing'         AND p_target_status IN ('action_proposed', 'suppressed', 'resolved') THEN true
+    WHEN p_current_status = 'action_proposed'   AND p_target_status IN ('awaiting_approval', 'suppressed', 'resolved') THEN true
     WHEN p_current_status = 'awaiting_approval' AND p_target_status IN ('approved', 'action_proposed', 'suppressed', 'resolved') THEN true
-    WHEN p_current_status = 'approved' AND p_target_status IN ('sent', 'awaiting_approval', 'suppressed') THEN true
-    WHEN p_current_status = 'sent' AND p_target_status IN ('monitoring', 'resolved') THEN true
-    WHEN p_current_status = 'monitoring' AND p_target_status IN ('resolved') THEN true
+    WHEN p_current_status = 'approved'          AND p_target_status IN ('sent', 'awaiting_approval', 'suppressed') THEN true
+    WHEN p_current_status = 'sent'              AND p_target_status IN ('monitoring', 'resolved') THEN true
+    WHEN p_current_status = 'monitoring'        AND p_target_status IN ('resolved') THEN true
     ELSE false
   END;
 
@@ -266,20 +268,45 @@ BEGIN
   END IF;
 
   -- 4. Enforce required fields for terminal states
-  IF p_target_status = 'resolved' AND p_resolution_type IS NULL THEN
-    RAISE EXCEPTION 'resolution_type is required when transitioning to resolved';
+  IF p_target_status = 'resolved' AND p_resolution IS NULL THEN
+    RAISE EXCEPTION 'resolution is required when transitioning to resolved';
   END IF;
 
   IF p_target_status = 'suppressed' AND p_suppression_reason IS NULL THEN
     RAISE EXCEPTION 'suppression_reason is required when transitioning to suppressed';
   END IF;
 
-  -- 5. Update case
+  -- 5. Update case — set the correct status-specific timestamp alongside status.
   UPDATE public.recovery_cases
-     SET status = p_target_status,
-         resolution_type = COALESCE(p_resolution_type, resolution_type),
+     SET status             = p_target_status,
+         -- schema column is 'resolution', not 'resolution_type'
+         resolution         = COALESCE(p_resolution, resolution),
          suppression_reason = COALESCE(p_suppression_reason, suppression_reason),
-         resolved_at = CASE WHEN p_target_status IN ('resolved', 'suppressed') THEN now() ELSE resolved_at END,
+         -- Set the appropriate timestamp for this target status.
+         awaiting_approval_at = CASE
+           WHEN p_target_status = 'awaiting_approval' THEN now()
+           ELSE awaiting_approval_at
+         END,
+         approved_at = CASE
+           WHEN p_target_status = 'approved' THEN now()
+           ELSE approved_at
+         END,
+         sent_at = CASE
+           WHEN p_target_status = 'sent' THEN now()
+           ELSE sent_at
+         END,
+         monitoring_started_at = CASE
+           WHEN p_target_status = 'monitoring' THEN now()
+           ELSE monitoring_started_at
+         END,
+         failed_at = CASE
+           WHEN p_target_status = 'failed' THEN now()
+           ELSE failed_at
+         END,
+         resolved_at = CASE
+           WHEN p_target_status IN ('resolved', 'suppressed') THEN now()
+           ELSE resolved_at
+         END,
          updated_at = now()
    WHERE id = p_case_id
   RETURNING * INTO v_case;
