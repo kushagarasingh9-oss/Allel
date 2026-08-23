@@ -1602,23 +1602,35 @@ export function getAgentForPersona(
 
   const persona = getPersona(safeId)
   const eligibleToolNames = getAvailableToolNamesForPersona(safeId, options?.allowedToolNames, { channel })
-  const initialToolNames = options?.prompt
+
+  // ── Claude-style: ALL eligible tools are active from step 1 ────────────────
+  // selectRelevantToolsForPrompt is now used only to ORDER the tool list
+  // (highest-confidence tools appear first in the context window so the LLM
+  // picks them sooner), NOT to filter tools out.
+  // This matches Anthropic's approach: the model sees everything and decides.
+  const orderedToolNames = options?.prompt
     ? selectRelevantToolsForPrompt(options.prompt, eligibleToolNames, options?.historyMessages, { channel })
     : [...eligibleToolNames]
+  // Any eligible tool not captured by the scorer goes at the end
+  const eligibleSet = new Set(eligibleToolNames)
+  const orderedSet = new Set(orderedToolNames)
+  const initialToolNames = [
+    ...orderedToolNames,
+    ...eligibleToolNames.filter((t) => !orderedSet.has(t)),
+  ]
 
   const allowedToolNamesKey = options?.allowedToolNames
     ? [...new Set(options.allowedToolNames)].sort().join(',')
     : 'all'
-  const selectedToolNamesKey = [...new Set(initialToolNames)].sort().join(',')
-  const cacheKey = `${safeId}:${modelId}:${channel}:${runType}:${allowedToolNamesKey}:tools:${selectedToolNamesKey}`
+  // Cache key is now deterministic per persona+model+channel (tool ORDER may vary but set is fixed)
+  const cacheKey = `${safeId}:${modelId}:${channel}:${runType}:${allowedToolNamesKey}:all_tools`
 
   const cached = agentCache.get(cacheKey)
   if (cached) return cached
 
-  const eligibleToolSet = new Set(eligibleToolNames)
   const runtimeTools: Record<string, unknown> = Object.fromEntries(
     Object.entries(ALL_TOOLS)
-      .filter(([name]) => eligibleToolSet.has(name as AgentToolName))
+      .filter(([name]) => eligibleSet.has(name as AgentToolName))
       .map(([name, toolDef]) => {
         // Wrap approval-required tools in chat mode
         const approvalProtectedTool =
@@ -1641,6 +1653,7 @@ export function getAgentForPersona(
     runtimeTools.requestMoreTools = createRequestMoreToolsTool(eligibleToolNames)
   }
 
+  // All tools active from step 1 — ordered by relevance score, not filtered
   const initialActiveTools: string[] = isChat
     ? [...new Set([...initialToolNames, 'requestMoreTools'])]
     : [...initialToolNames]
