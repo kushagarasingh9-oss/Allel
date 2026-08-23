@@ -5552,3 +5552,301 @@ export const createGoogleDocTool = tool({
     }
   },
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recovery Pipeline Tools
+//
+// These tools connect the chat agent to the durable revenue-recovery pipeline.
+// Without them the agent can search Stripe/PostHog but cannot answer questions
+// about recovery cases, metrics, timelines, or outcomes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * List open or recent recovery cases for the workspace.
+ * Agent uses this to answer: "What accounts are at risk right now?"
+ * or "Show me all critical cases today."
+ */
+export const getRecoveryCases = tool({
+  description:
+    'Fetch a list of recovery cases from the Allel recovery pipeline. ' +
+    'Use this to answer questions like: "What accounts are at risk?", ' +
+    '"How many open cases do we have?", "Show me critical billing failures." ' +
+    'Returns cases ordered by severity and revenue priority.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    status: z
+      .enum(['open', 'analyzing', 'action_proposed', 'awaiting_approval', 'approved', 'sent', 'monitoring', 'resolved', 'suppressed', 'failed', 'all'])
+      .optional()
+      .default('all')
+      .describe('Filter by case status. Use "all" for all statuses.'),
+    severity: z
+      .enum(['critical', 'high', 'medium', 'low', 'all'])
+      .optional()
+      .default('all')
+      .describe('Filter by severity level.'),
+    limit: z.number().int().min(1).max(50).optional().default(20).describe('Max results to return.'),
+  }),
+  execute: async ({ workspaceId, status, severity, limit }) => {
+    const supabase = createServiceClient()
+    let query = supabase
+      .from('recovery_cases')
+      .select('id, case_key, status, severity, resolution, risk_score, score_confidence, mrr_baseline_cents, trigger_provider, trigger_event_type, action_type, action_reason, suppression_reason, opened_at, resolved_at, updated_at, customer_accounts(name, domain)')
+      .eq('workspace_id', workspaceId)
+      .order('opened_at', { ascending: false })
+      .limit(limit ?? 20)
+
+    if (status && status !== 'all') query = query.eq('status', status)
+    if (severity && severity !== 'all') query = query.eq('severity', severity)
+
+    const { data: cases, error } = await query
+    if (error) return { error: `Failed to fetch recovery cases: ${error.message}` }
+
+    const summary = (cases ?? []).map(c => ({
+      id: c.id,
+      account: (c.customer_accounts as { name?: string } | null)?.name ?? 'Unknown',
+      status: c.status,
+      severity: c.severity,
+      riskScore: c.risk_score,
+      confidence: Math.round(c.score_confidence * 100) + '%',
+      mrrAtRisk: '$' + ((c.mrr_baseline_cents ?? 0) / 100).toFixed(0),
+      trigger: `${c.trigger_provider} / ${c.trigger_event_type}`,
+      action: c.action_type,
+      resolution: c.resolution ?? null,
+      openedAt: c.opened_at,
+      updatedAt: c.updated_at,
+    }))
+
+    const critical = summary.filter(c => c.severity === 'critical' && !['resolved', 'suppressed'].includes(c.status))
+    const totalAtRiskCents = (cases ?? []).reduce((s, c) =>
+      !['resolved', 'suppressed'].includes(c.status) ? s + (c.mrr_baseline_cents ?? 0) : s, 0)
+
+    return {
+      totalCases: summary.length,
+      criticalCount: critical.length,
+      totalMrrAtRisk: '$' + (totalAtRiskCents / 100).toFixed(0),
+      cases: summary,
+    }
+  },
+})
+
+/**
+ * Get full detail of a single recovery case including its event timeline.
+ * Agent uses this to answer: "Walk me through what happened with Acme Corp."
+ * or "Why was this case suppressed?"
+ */
+export const getRecoveryCaseDetail = tool({
+  description:
+    'Get the full detail of a single recovery case including its complete event timeline, ' +
+    'draft, and outcome. Use this when the founder wants to understand the full story of ' +
+    'a specific account: what triggered it, what evidence was used, what draft was created, ' +
+    'who approved it, and what the outcome was.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    caseId: z.string().describe('The recovery case UUID'),
+  }),
+  execute: async ({ workspaceId, caseId }) => {
+    const supabase = createServiceClient()
+
+    const [caseRes, eventsRes, draftRes, outcomeRes] = await Promise.all([
+      supabase
+        .from('recovery_cases')
+        .select('*, customer_accounts(name, domain)')
+        .eq('id', caseId)
+        .eq('workspace_id', workspaceId)
+        .single(),
+      supabase
+        .from('recovery_case_events')
+        .select('event_type, from_status, to_status, actor_type, actor_id, detail, created_at')
+        .eq('recovery_case_id', caseId)
+        .eq('workspace_id', workspaceId)
+        .order('created_at', { ascending: true })
+        .limit(50),
+      supabase
+        .from('follow_up_drafts')
+        .select('id, subject, body_preview, status, content_hash, approved_at, sent_at, provider_message_id')
+        .eq('recovery_case_id', caseId)
+        .eq('workspace_id', workspaceId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('draft_outcomes')
+        .select('outcome_type, evidence_provider, occurred_at, strict_recovered_cents, protected_cents, attribution_rule')
+        .eq('recovery_case_id', caseId)
+        .eq('workspace_id', workspaceId)
+        .maybeSingle(),
+    ])
+
+    if (caseRes.error || !caseRes.data) {
+      return { error: `Recovery case not found: ${caseId}` }
+    }
+
+    const c = caseRes.data
+    return {
+      case: {
+        id: c.id,
+        account: (c.customer_accounts as { name?: string } | null)?.name ?? 'Unknown',
+        status: c.status,
+        severity: c.severity,
+        riskScore: c.risk_score,
+        confidence: Math.round(c.score_confidence * 100) + '%',
+        mrrBaseline: '$' + ((c.mrr_baseline_cents ?? 0) / 100).toFixed(0),
+        trigger: `${c.trigger_provider} / ${c.trigger_event_type}`,
+        action: c.action_type,
+        actionReason: c.action_reason,
+        suppressionReason: c.suppression_reason ?? null,
+        resolution: c.resolution ?? null,
+        openedAt: c.opened_at,
+        resolvedAt: c.resolved_at ?? null,
+      },
+      timeline: (eventsRes.data ?? []).map(e => ({
+        event: e.event_type,
+        transition: e.from_status && e.to_status ? `${e.from_status} → ${e.to_status}` : null,
+        actor: e.actor_type,
+        at: e.created_at,
+        detail: e.detail,
+      })),
+      draft: draftRes.data ? {
+        subject: draftRes.data.subject,
+        preview: draftRes.data.body_preview,
+        status: draftRes.data.status,
+        approvedAt: draftRes.data.approved_at ?? null,
+        sentAt: draftRes.data.sent_at ?? null,
+        gmailMessageId: draftRes.data.provider_message_id ?? null,
+      } : null,
+      outcome: outcomeRes.data ? {
+        type: outcomeRes.data.outcome_type,
+        provider: outcomeRes.data.evidence_provider,
+        occurredAt: outcomeRes.data.occurred_at,
+        strictRecovered: '$' + ((outcomeRes.data.strict_recovered_cents ?? 0) / 100).toFixed(0),
+        protected: '$' + ((outcomeRes.data.protected_cents ?? 0) / 100).toFixed(0),
+        attributionRule: outcomeRes.data.attribution_rule,
+      } : null,
+    }
+  },
+})
+
+/**
+ * Get strict revenue recovery metrics for the workspace.
+ * Agent uses this to answer: "How much revenue did we save this month?"
+ * or "What's our recovery rate?"
+ */
+export const getRecoveryMetrics = tool({
+  description:
+    'Fetch strict revenue recovery metrics for the workspace. ' +
+    'Use this to answer questions like: "How much revenue did we recover?", ' +
+    '"What\'s our MRR at risk?", "How many cases resolved this month?" ' +
+    'Returns strict recovered MRR (requires verified Stripe evidence), ' +
+    'protected MRR (cancellation intent reversed), and pipeline funnel stats. ' +
+    'IMPORTANT: Never conflate reply/engagement with recovered revenue.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    windowDays: z.number().int().min(1).max(365).optional().default(30).describe('Observation window in days'),
+  }),
+  execute: async ({ workspaceId, windowDays }) => {
+    const supabase = createServiceClient()
+    const since = new Date(Date.now() - (windowDays ?? 30) * 86400 * 1000).toISOString()
+
+    const [casesRes, outcomesRes] = await Promise.all([
+      supabase
+        .from('recovery_cases')
+        .select('id, status, severity, mrr_baseline_cents, resolution, opened_at')
+        .eq('workspace_id', workspaceId)
+        .gte('opened_at', since),
+      supabase
+        .from('draft_outcomes')
+        .select('outcome_type, strict_recovered_cents, protected_cents, occurred_at, is_test_mode')
+        .eq('workspace_id', workspaceId)
+        .gte('occurred_at', since),
+    ])
+
+    const cases = casesRes.data ?? []
+    const outcomes = outcomesRes.data ?? []
+
+    const strictRecovered = outcomes.reduce((s, o) => s + (o.strict_recovered_cents ?? 0), 0)
+    const protected_ = outcomes.reduce((s, o) => s + (o.protected_cents ?? 0), 0)
+    const atRisk = cases
+      .filter(c => !['resolved', 'suppressed'].includes(c.status))
+      .reduce((s, c) => s + (c.mrr_baseline_cents ?? 0), 0)
+
+    const byStatus = cases.reduce<Record<string, number>>((acc, c) => {
+      acc[c.status] = (acc[c.status] ?? 0) + 1
+      return acc
+    }, {})
+
+    const byOutcome = outcomes.reduce<Record<string, number>>((acc, o) => {
+      acc[o.outcome_type] = (acc[o.outcome_type] ?? 0) + 1
+      return acc
+    }, {})
+
+    const hasTestMode = outcomes.some(o => o.is_test_mode)
+
+    return {
+      disclosure: hasTestMode
+        ? 'Test-mode recovery simulation. No production customer funds are represented.'
+        : 'Live mode.',
+      windowDays: windowDays ?? 30,
+      mrrAtRisk: '$' + (atRisk / 100).toFixed(0),
+      strictRecoveredMrr: '$' + (strictRecovered / 100).toFixed(0),
+      protectedMrr: '$' + (protected_ / 100).toFixed(0),
+      totalCasesOpened: cases.length,
+      casesByStatus: byStatus,
+      outcomesByType: byOutcome,
+      note: 'strictRecoveredMrr requires verified Stripe billing restoration. protectedMrr means cancellation intent reversed before revenue loss. These are never combined.',
+    }
+  },
+})
+
+/**
+ * Get the active recovery case for a specific account.
+ * Agent uses this when a founder asks about one account:
+ * "What's happening with Acme Corp?" → fetches their active case instantly.
+ */
+export const getAccountRecoveryStatus = tool({
+  description:
+    'Get the current recovery status for a specific customer account. ' +
+    'Use this when a founder asks about one account: "What\'s the status with Acme Corp?", ' +
+    '"Is TechStartup in recovery?", "Did we send an email to FinCo?" ' +
+    'Returns the active recovery case, draft status, and latest outcome for that account.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    customerAccountId: z.string().describe('The customer account UUID'),
+  }),
+  execute: async ({ workspaceId, customerAccountId }) => {
+    const supabase = createServiceClient()
+
+    const { data: cases, error } = await supabase
+      .from('recovery_cases')
+      .select('id, status, severity, risk_score, score_confidence, mrr_baseline_cents, trigger_event_type, action_type, resolution, opened_at, resolved_at, sent_at, approved_at')
+      .eq('workspace_id', workspaceId)
+      .eq('customer_account_id', customerAccountId)
+      .order('opened_at', { ascending: false })
+      .limit(3)
+
+    if (error) return { error: `Failed to fetch account recovery status: ${error.message}` }
+    if (!cases || cases.length === 0) {
+      return { status: 'no_cases', message: 'No recovery cases found for this account. Account appears healthy or has not been evaluated yet.' }
+    }
+
+    const active = cases.find(c => !['resolved', 'suppressed'].includes(c.status))
+    const latest = cases[0]
+
+    return {
+      hasActiveCase: !!active,
+      activeCaseId: active?.id ?? null,
+      activeStatus: active?.status ?? null,
+      activeSeverity: active?.severity ?? null,
+      riskScore: active?.risk_score ?? null,
+      confidence: active ? Math.round(active.score_confidence * 100) + '%' : null,
+      mrrAtRisk: active ? '$' + ((active.mrr_baseline_cents ?? 0) / 100).toFixed(0) : null,
+      trigger: active?.trigger_event_type ?? null,
+      actionPlan: active?.action_type ?? null,
+      approvedAt: active?.approved_at ?? null,
+      sentAt: active?.sent_at ?? null,
+      lastResolution: latest?.resolution ?? null,
+      lastCaseOpenedAt: latest?.opened_at ?? null,
+      recentCaseCount: cases.length,
+    }
+  },
+})
+
