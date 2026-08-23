@@ -591,6 +591,34 @@ test('TC-2.7: two independent steps arrays produce independent active sets (no c
   assert.equal(runBActive.includes('getMyInbox'), false, 'Run B must NOT have Gmail')
 })
 
+test('TC-2.8: selectRelevantToolsForPrompt routes recovery tools on risk/metrics queries', () => {
+  const alexEligible = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+
+  const riskTools = selectRelevantToolsForPrompt('What accounts are at risk right now and what is the pipeline status?', alexEligible, undefined, { channel: 'chat' })
+  assert.ok(riskTools.includes('getRecoveryCases'), 'Risk query must route getRecoveryCases')
+  assert.ok(riskTools.includes('getAccountRecoveryStatus'), 'Risk query must route getAccountRecoveryStatus')
+
+  const metricTools = selectRelevantToolsForPrompt('How much revenue did we recover this month and what are the metrics?', alexEligible, undefined, { channel: 'chat' })
+  assert.ok(metricTools.includes('getRecoveryMetrics'), 'Metrics query must route getRecoveryMetrics')
+})
+
+test('TC-2.9: Sarah and Alex personas have access to all 4 recovery pipeline tools', () => {
+  const alexTools = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+  const sarahTools = getAvailableToolNamesForPersona('sarah', undefined, { channel: 'chat' })
+
+  const requiredRecoveryTools = [
+    'getRecoveryCases',
+    'getRecoveryCaseDetail',
+    'getRecoveryMetrics',
+    'getAccountRecoveryStatus',
+  ] as const
+
+  for (const t of requiredRecoveryTools) {
+    assert.ok(alexTools.includes(t), `Alex must have ${t}`)
+    assert.ok(sarahTools.includes(t), `Sarah must have ${t}`)
+  }
+})
+
 
 
 

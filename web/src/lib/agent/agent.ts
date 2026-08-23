@@ -179,6 +179,11 @@ import {
   updateAirtableRecordTool,
   deleteAirtableRecordTool,
   inspectIntegrationConnectionsTool,
+  // Recovery Pipeline tools
+  getRecoveryCases,
+  getRecoveryCaseDetail,
+  getRecoveryMetrics,
+  getAccountRecoveryStatus,
 } from './tools'
 import {
   webSearchTool,
@@ -363,6 +368,11 @@ export const ALL_TOOLS = {
   webExtractTool,
   webCrawlTool,
   webMapTool,
+  // Recovery Pipeline tools
+  getRecoveryCases,
+  getRecoveryCaseDetail,
+  getRecoveryMetrics,
+  getAccountRecoveryStatus,
 }
 
 export type AgentToolName = keyof typeof ALL_TOOLS
@@ -575,6 +585,7 @@ export const TOOL_DOMAINS = [
   'google_calendar',
   'gmail',
   'stripe',
+  'recovery',
   'slack',
   'notion',
   'posthog',
@@ -665,6 +676,18 @@ export const TOOL_DOMAIN_GROUPS: ReadonlyArray<ToolDomainGroup> = [
       'listStripeDisputesTool',
       'getStripeAccountState',
       'createRescueDiscountTool',
+    ],
+  },
+  {
+    domain: 'recovery',
+    provider: null,
+    regex: /\b(recovery|recover|recovered|case|cases|pipeline|at\s*risk|mrr\s*at\s*risk|churn\s*risk|revenue\s*at\s*risk|intervention|metric|metrics)\b/i,
+    fuzzyKeywords: ['recovery', 'cases', 'pipeline', 'risk', 'metrics', 'recovered', 'mrr'],
+    tools: [
+      'getRecoveryCases',
+      'getRecoveryCaseDetail',
+      'getRecoveryMetrics',
+      'getAccountRecoveryStatus',
     ],
   },
   {
