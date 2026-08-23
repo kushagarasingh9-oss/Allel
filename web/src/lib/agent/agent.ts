@@ -184,6 +184,13 @@ import {
   getRecoveryCaseDetail,
   getRecoveryMetrics,
   getAccountRecoveryStatus,
+  getRecoveryCaseTimeline,
+  getRecoveryCaseScoreBreakdown,
+  listRecoveryCaseDrafts,
+  getRecoveryCaseOutcomes,
+  listRecoveryCasesBySeverity,
+  suppressRecoveryCase,
+  updateRecoveryCaseNote,
 } from './tools'
 import {
   webSearchTool,
@@ -373,6 +380,13 @@ export const ALL_TOOLS = {
   getRecoveryCaseDetail,
   getRecoveryMetrics,
   getAccountRecoveryStatus,
+  getRecoveryCaseTimeline,
+  getRecoveryCaseScoreBreakdown,
+  listRecoveryCaseDrafts,
+  getRecoveryCaseOutcomes,
+  listRecoveryCasesBySeverity,
+  suppressRecoveryCase,
+  updateRecoveryCaseNote,
 }
 
 export type AgentToolName = keyof typeof ALL_TOOLS
@@ -681,13 +695,28 @@ export const TOOL_DOMAIN_GROUPS: ReadonlyArray<ToolDomainGroup> = [
   {
     domain: 'recovery',
     provider: null,
-    regex: /\b(recovery|recover|recovered|case|cases|pipeline|at\s*risk|mrr\s*at\s*risk|churn\s*risk|revenue\s*at\s*risk|intervention|metric|metrics)\b/i,
-    fuzzyKeywords: ['recovery', 'cases', 'pipeline', 'risk', 'metrics', 'recovered', 'mrr'],
+    regex: /\b(recovery|recover|recovered|case|cases|pipeline|at\s*risk|mrr\s*at\s*risk|churn\s*risk|revenue\s*at\s*risk|intervention|metric|metrics|timeline|audit|suppress|suppressed|outcome|outcomes|draft|drafts|score|scoring|severity|critical|high.risk|risk.score|churn.signal|attribution|attribution.gate|billing.failure|cancel.intent|usage.decline|compound|action.plan|root.cause|analysis)\b/i,
+    fuzzyKeywords: [
+      'recovery', 'recover', 'cases', 'pipeline', 'risk', 'metrics', 'recovered', 'mrr',
+      'timeline', 'audit', 'suppress', 'outcome', 'outcomes', 'scoring', 'severity',
+      'critical', 'attribution', 'churn', 'billing', 'cancel', 'usage', 'intervention',
+      'rootcause', 'analysis', 'draft', 'approve', 'suppressed', 'monitoring',
+    ],
     tools: [
       'getRecoveryCases',
       'getRecoveryCaseDetail',
       'getRecoveryMetrics',
       'getAccountRecoveryStatus',
+      'getRecoveryCaseTimeline',
+      'getRecoveryCaseScoreBreakdown',
+      'listRecoveryCaseDrafts',
+      'getRecoveryCaseOutcomes',
+      'listRecoveryCasesBySeverity',
+      'suppressRecoveryCase',
+      'updateRecoveryCaseNote',
+      // Web research — agent can look up customer context when analyzing a case
+      'webSearchTool',
+      'webExtractTool',
     ],
   },
   {

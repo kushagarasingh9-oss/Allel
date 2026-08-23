@@ -5798,6 +5798,326 @@ export const getRecoveryMetrics = tool({
 })
 
 /**
+ * Get the event timeline for a recovery case.
+ * Returns the immutable audit log of every status transition, actor, and detail.
+ */
+export const getRecoveryCaseTimeline = tool({
+  description:
+    'Get the full event timeline / audit log for a recovery case. ' +
+    'Use this when a founder asks: "What happened with this case?", "When was the email approved?", ' +
+    '"Who triggered recovery for Acme?", "Show me the history of case <id>." ' +
+    'Returns every state transition in chronological order with actor, timestamp, and detail.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    caseId: z.string().uuid().describe('The recovery case UUID'),
+  }),
+  execute: async ({ workspaceId, caseId }) => {
+    const supabase = createServiceClient()
+    const { data: events, error } = await supabase
+      .from('recovery_case_events')
+      .select('id, event_type, from_status, to_status, actor_type, actor_id, detail, created_at')
+      .eq('workspace_id', workspaceId)
+      .eq('recovery_case_id', caseId)
+      .order('created_at', { ascending: true })
+      .limit(50)
+
+    if (error) return { error: `Failed to fetch case timeline: ${error.message}` }
+    if (!events || events.length === 0) return { caseId, events: [], message: 'No events found for this case.' }
+
+    return {
+      caseId,
+      eventCount: events.length,
+      events: events.map(e => ({
+        type: e.event_type,
+        from: e.from_status ?? null,
+        to: e.to_status ?? null,
+        actor: `${e.actor_type}${e.actor_id ? ':' + e.actor_id : ''}`,
+        detail: e.detail,
+        at: e.created_at,
+      })),
+    }
+  },
+})
+
+/**
+ * Get the risk score breakdown for a recovery case.
+ * Returns per-component scores (billing, usage, engagement, sentiment)
+ * so the agent can explain WHY a case was opened at a given severity.
+ */
+export const getRecoveryCaseScoreBreakdown = tool({
+  description:
+    'Get the detailed risk score breakdown for a recovery case showing why it was scored at its current level. ' +
+    'Use this when asked: "Why is Acme scored critical?", "What drove the risk score?", ' +
+    '"Break down the churn signal for case <id>." ' +
+    'Returns billing, usage, engagement, sentiment component scores and the rule IDs that fired.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    caseId: z.string().uuid().describe('The recovery case UUID'),
+  }),
+  execute: async ({ workspaceId, caseId }) => {
+    const supabase = createServiceClient()
+    const { data: rc, error } = await supabase
+      .from('recovery_cases')
+      .select('id, risk_score, score_confidence, severity, evidence_snapshot, action_reason, root_cause_summary, trigger_event_type, trigger_provider, status, mrr_baseline_cents, opened_at')
+      .eq('workspace_id', workspaceId)
+      .eq('id', caseId)
+      .single()
+
+    if (error || !rc) return { error: `Case ${caseId} not found: ${error?.message}` }
+
+    return {
+      caseId,
+      severity: rc.severity,
+      riskScore: rc.risk_score,
+      confidence: Math.round(Number(rc.score_confidence) * 100) + '%',
+      trigger: rc.trigger_event_type,
+      triggerProvider: rc.trigger_provider,
+      mrrAtRisk: '$' + ((rc.mrr_baseline_cents ?? 0) / 100).toFixed(0),
+      rootCauseSummary: rc.root_cause_summary ?? 'Not yet analyzed',
+      actionReason: rc.action_reason ?? null,
+      evidenceItems: (rc.evidence_snapshot ?? []).slice(0, 10),
+      status: rc.status,
+      openedAt: rc.opened_at,
+      note: 'Risk score is deterministic — computed from billing, usage, engagement, and sentiment feature vectors.',
+    }
+  },
+})
+
+/**
+ * List recovery drafts for a specific case.
+ * Lets the agent inspect the draft content, approval state, and HMAC hash.
+ */
+export const listRecoveryCaseDrafts = tool({
+  description:
+    'List all drafts generated for a specific recovery case. ' +
+    'Use this when asked: "What draft was sent to Acme?", "Show me the email for case <id>", ' +
+    '"Was the recovery email approved?", "What did we send?" ' +
+    'Returns draft content preview, approval status, and who approved it.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    caseId: z.string().uuid().describe('The recovery case UUID'),
+  }),
+  execute: async ({ workspaceId, caseId }) => {
+    const supabase = createServiceClient()
+    const { data: drafts, error } = await supabase
+      .from('recovery_drafts')
+      .select('id, status, subject, body_preview, approved_by, approved_at, sent_at, created_at, scenario_id')
+      .eq('workspace_id', workspaceId)
+      .eq('recovery_case_id', caseId)
+      .order('created_at', { ascending: false })
+      .limit(5)
+
+    if (error) return { error: `Failed to fetch drafts: ${error.message}` }
+    if (!drafts || drafts.length === 0) return { caseId, drafts: [], message: 'No drafts generated for this case yet.' }
+
+    return {
+      caseId,
+      draftCount: drafts.length,
+      drafts: drafts.map(d => ({
+        id: d.id,
+        status: d.status,
+        subject: d.subject,
+        bodyPreview: typeof d.body_preview === 'string' ? d.body_preview.slice(0, 300) : null,
+        scenario: d.scenario_id,
+        approvedBy: d.approved_by ?? null,
+        approvedAt: d.approved_at ?? null,
+        sentAt: d.sent_at ?? null,
+        createdAt: d.created_at,
+      })),
+    }
+  },
+})
+
+/**
+ * Get outcome history for a recovery case.
+ * Returns every attribution event — payments received, cancellations reversed, etc.
+ */
+export const getRecoveryCaseOutcomes = tool({
+  description:
+    'Get the outcome attribution history for a recovery case. ' +
+    'Use this when asked: "Did Acme pay after we sent the email?", "What was recovered from case <id>?", ' +
+    '"Show me the attribution for this case." ' +
+    'Returns all attribution events: strict recovered MRR, protected MRR, outcome type, and timestamps.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    caseId: z.string().uuid().describe('The recovery case UUID'),
+  }),
+  execute: async ({ workspaceId, caseId }) => {
+    const supabase = createServiceClient()
+    const { data: outcomes, error } = await supabase
+      .from('draft_outcomes')
+      .select('id, outcome_type, strict_recovered_cents, protected_cents, stripe_event_id, is_test_mode, occurred_at, created_at')
+      .eq('workspace_id', workspaceId)
+      .eq('recovery_case_id', caseId)
+      .order('occurred_at', { ascending: true })
+
+    if (error) return { error: `Failed to fetch outcomes: ${error.message}` }
+    if (!outcomes || outcomes.length === 0) {
+      return { caseId, outcomes: [], totalRecovered: '$0', message: 'No outcome events attributed to this case yet.' }
+    }
+
+    const totalStrict = outcomes.reduce((s, o) => s + (o.strict_recovered_cents ?? 0), 0)
+    const totalProtected = outcomes.reduce((s, o) => s + (o.protected_cents ?? 0), 0)
+    const hasTestMode = outcomes.some(o => o.is_test_mode)
+
+    return {
+      caseId,
+      disclosure: hasTestMode ? 'Test-mode simulation. No real revenue.' : 'Live mode.',
+      totalStrictRecovered: '$' + (totalStrict / 100).toFixed(2),
+      totalProtected: '$' + (totalProtected / 100).toFixed(2),
+      outcomeCount: outcomes.length,
+      outcomes: outcomes.map(o => ({
+        type: o.outcome_type,
+        strictRecovered: '$' + ((o.strict_recovered_cents ?? 0) / 100).toFixed(2),
+        protected: '$' + ((o.protected_cents ?? 0) / 100).toFixed(2),
+        stripeEventId: o.stripe_event_id ?? null,
+        occurredAt: o.occurred_at,
+      })),
+      note: 'strictRecovered = verified Stripe payment after send. protected = cancel intent reversed before revenue loss. Never combined.',
+    }
+  },
+})
+
+/**
+ * List recovery cases filtered by severity.
+ * Lets the agent surface the most urgent cases: "Show me all critical cases."
+ */
+export const listRecoveryCasesBySeverity = tool({
+  description:
+    'List recovery cases filtered by severity level (critical, high, medium, low). ' +
+    'Use this when asked: "Show me all critical recovery cases", "Which high-severity cases are open?", ' +
+    '"What are our most urgent churn risks?", "List active cases by priority." ' +
+    'Returns cases sorted by MRR at risk descending.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    severity: z.enum(['critical', 'high', 'medium', 'low']).optional().describe('Filter by severity level'),
+    status: z.enum(['open', 'analyzing', 'action_proposed', 'awaiting_approval', 'approved', 'sent', 'monitoring', 'resolved', 'suppressed', 'failed']).optional().describe('Filter by case status'),
+    limit: z.number().int().min(1).max(50).default(20).describe('Max cases to return'),
+  }),
+  execute: async ({ workspaceId, severity, status, limit }) => {
+    const supabase = createServiceClient()
+    let query = supabase
+      .from('recovery_cases')
+      .select('id, case_key, customer_account_id, status, severity, risk_score, mrr_baseline_cents, action_type, trigger_event_type, opened_at, resolved_at')
+      .eq('workspace_id', workspaceId)
+      .order('mrr_baseline_cents', { ascending: false })
+      .limit(limit)
+
+    if (severity) query = query.eq('severity', severity)
+    if (status) query = query.eq('status', status)
+
+    const { data: cases, error } = await query
+    if (error) return { error: `Failed to list cases: ${error.message}` }
+    if (!cases || cases.length === 0) return { cases: [], message: 'No matching recovery cases found.' }
+
+    return {
+      count: cases.length,
+      filters: { severity: severity ?? 'all', status: status ?? 'all' },
+      cases: cases.map(c => ({
+        id: c.id,
+        caseKey: c.case_key,
+        accountId: c.customer_account_id,
+        status: c.status,
+        severity: c.severity,
+        riskScore: c.risk_score,
+        mrrAtRisk: '$' + ((c.mrr_baseline_cents ?? 0) / 100).toFixed(0),
+        trigger: c.trigger_event_type,
+        actionPlan: c.action_type,
+        openedAt: c.opened_at,
+        resolvedAt: c.resolved_at ?? null,
+      })),
+    }
+  },
+})
+
+/**
+ * Suppress a recovery case with a reason.
+ * Used when the agent or founder determines no action is warranted.
+ */
+export const suppressRecoveryCase = tool({
+  description:
+    'Suppress a recovery case — mark it as intentionally skipped with a reason. ' +
+    'Use this when asked: "Ignore the case for Acme, they\'re churning intentionally", ' +
+    '"Suppress case <id>, we already spoke to them", "Don\'t send recovery email to TechCorp." ' +
+    'IMPORTANT: This is a deterministic state transition — the AI may suggest but a human must confirm.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    caseId: z.string().uuid().describe('The recovery case UUID to suppress'),
+    suppressionReason: z.string().min(10).max(500).describe('Clear reason why this case is being suppressed'),
+    actorId: z.string().optional().describe('The user ID suppressing the case'),
+  }),
+  execute: async ({ workspaceId, caseId, suppressionReason, actorId }) => {
+    const supabase = createServiceClient()
+    const now = new Date().toISOString()
+
+    // Fetch current status first
+    const { data: current, error: fetchError } = await supabase
+      .from('recovery_cases')
+      .select('id, status, workspace_id')
+      .eq('id', caseId)
+      .eq('workspace_id', workspaceId)
+      .single()
+
+    if (fetchError || !current) return { error: `Case not found: ${fetchError?.message}` }
+
+    const terminalStatuses = ['resolved', 'suppressed', 'failed']
+    if (terminalStatuses.includes(current.status)) {
+      return { error: `Cannot suppress case in terminal status: ${current.status}` }
+    }
+
+    const { error: updateError } = await supabase
+      .from('recovery_cases')
+      .update({ status: 'suppressed', suppression_reason: suppressionReason, updated_at: now })
+      .eq('id', caseId)
+      .eq('workspace_id', workspaceId)
+
+    if (updateError) return { error: `Failed to suppress case: ${updateError.message}` }
+
+    await supabase.from('recovery_case_events').insert({
+      workspace_id: workspaceId,
+      recovery_case_id: caseId,
+      event_type: 'case_suppressed',
+      from_status: current.status,
+      to_status: 'suppressed',
+      actor_type: actorId ? 'user' : 'agent',
+      actor_id: actorId ?? 'agent',
+      detail: { suppressionReason },
+      created_at: now,
+    })
+
+    return { success: true, caseId, newStatus: 'suppressed', suppressionReason }
+  },
+})
+
+/**
+ * Update the root cause summary note on a recovery case.
+ * Lets the agent write its analysis back to the case record.
+ */
+export const updateRecoveryCaseNote = tool({
+  description:
+    'Update the root cause summary or analysis note on a recovery case. ' +
+    'Use this when the agent has finished analyzing a case and wants to persist its findings: ' +
+    '"Acme\'s churn risk is driven by 3 failed payments + 60% feature drop. Likely billing card issue." ' +
+    'This note is shown to the founder in the dashboard and informs the draft generation.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    caseId: z.string().uuid().describe('The recovery case UUID'),
+    rootCauseSummary: z.string().min(20).max(2000).describe('The agent\'s analysis of why this account is at risk and what action is recommended'),
+  }),
+  execute: async ({ workspaceId, caseId, rootCauseSummary }) => {
+    const supabase = createServiceClient()
+    const { error } = await supabase
+      .from('recovery_cases')
+      .update({ root_cause_summary: rootCauseSummary, updated_at: new Date().toISOString() })
+      .eq('id', caseId)
+      .eq('workspace_id', workspaceId)
+
+    if (error) return { error: `Failed to update case note: ${error.message}` }
+    return { success: true, caseId, rootCauseSummary }
+  },
+})
+
+/**
  * Get the active recovery case for a specific account.
  * Agent uses this when a founder asks about one account:
  * "What's happening with Acme Corp?" → fetches their active case instantly.

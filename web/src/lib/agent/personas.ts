@@ -158,11 +158,18 @@ export const PERSONAS: AgentPersona[] = [
       'listPostHogFeatureFlags',
       'togglePostHogFeatureFlag',
       'getPostHogAccountUsage',
-      // Recovery Pipeline — cases, metrics, timelines
+      // Recovery Pipeline — full case management
       'getRecoveryCases',
       'getRecoveryCaseDetail',
       'getRecoveryMetrics',
       'getAccountRecoveryStatus',
+      'getRecoveryCaseTimeline',
+      'getRecoveryCaseScoreBreakdown',
+      'listRecoveryCaseDrafts',
+      'getRecoveryCaseOutcomes',
+      'listRecoveryCasesBySeverity',
+      'suppressRecoveryCase',
+      'updateRecoveryCaseNote',
       // Account management — risk, signals, timeline
       'getAccountDetails',
       'getAccountMemory',
