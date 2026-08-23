@@ -9,7 +9,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { JobExecutionContext, JobExecutionResult } from '../types';
 import { transitionRecoveryCase } from '../../recovery/transitions';
-import { sendDraftWithGmail } from '../../drafts/send-draft';
+import { sendEmail } from '../../integrations/gmail';
 import { computeContentHash } from './generate-case-draft';
 
 export async function handleSendApprovedDraft(
@@ -159,15 +159,18 @@ export async function handleSendApprovedDraft(
     throw new Error(`Failed to persist send_idempotency_key: ${preSendError.message}`);
   }
 
-  // 3. Execute Send — §40.14: send body_full, not body_preview
-  const sendResult = await sendDraftWithGmail(supabase, draftId, {
-    actor: 'founder',
-    metadata: { via: 'recovery_job_queue' },
+  // 3. Execute Send — §40.14: use the EXACT recipient, subject, body_full
+  // that were loaded and verified above. Never re-fetch body_preview or
+  // replace recipient_email with whatever account contact is currently primary.
+  const result = await sendEmail(workspaceId, {
+    to: recipientEmail,
+    subject: draft.subject,
+    body: bodyFull,
   });
 
   // §40.14: Require the real Gmail message ID — never fabricate
-  const providerMessageId = sendResult.messageId;
-  const providerThreadId = sendResult.threadId;
+  const providerMessageId = result.messageId;
+  const providerThreadId = result.threadId;
 
   if (!providerMessageId) {
     // §40.14: Gmail returned uncertain result without ID — do not claim success

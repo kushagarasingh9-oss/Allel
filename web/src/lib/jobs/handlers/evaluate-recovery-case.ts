@@ -41,11 +41,19 @@ export async function handleEvaluateRecoveryCase(
     .eq('customer_account_id', customerAccountId)
     .maybeSingle();
 
+  // §40.10: Use identity confidence from payload (set by process-provider-event).
+  // Never hard-code 1.0 — a hard-coded perfect confidence bypasses the low-confidence
+  // founder-review gate in evaluateActionPolicy.
+  const identityConfidence: number =
+    typeof payload.identityConfidence === 'number'
+      ? Math.max(0, Math.min(1, payload.identityConfidence))
+      : 0.95; // conservative default when caller does not supply confidence
+
   // 3. Compute deterministic risk decision & action policy
-  const riskDecision = computeRiskDecision(features, 1.0, mrrBaselineCents);
+  const riskDecision = computeRiskDecision(features, identityConfidence, mrrBaselineCents);
   const actionDecision = evaluateActionPolicy({
     riskDecision,
-    identityConfidence: 1.0,
+    identityConfidence,
     contactPolicy: policyRow,
   });
 
@@ -132,7 +140,49 @@ export async function handleEvaluateRecoveryCase(
   });
 
   if (snapshotError) {
-    console.error('[evaluate] failed to insert score snapshot:', snapshotError.message);
+    // §40.10 invariant: a failed score snapshot blocks dependent workflow stages.
+    // Logging and continuing would allow a case to proceed without durable scoring evidence.
+    throw new Error(`Failed to insert score snapshot: ${snapshotError.message}`);
+  }
+
+  // §40.C6: Check whether this event is an outcome candidate.
+  // If so, dispatch classify_case_outcome instead of (or in addition to) analysis.
+  const outcomeEventTypes = new Set([
+    'invoice.paid',
+    'cancellation_reversed',
+    'subscription.updated', // may indicate reversal
+    'customer_reply',
+    'usage_rebound',
+  ]);
+
+  const isOutcomeCandidate =
+    payload.triggerEventType && outcomeEventTypes.has(payload.triggerEventType);
+
+  if (isOutcomeCandidate && recoveryCase) {
+    const outcomeIdempotencyKey =
+      `ws:${workspaceId}:account:${customerAccountId}:outcome:${payload.triggerEventType}:${payload.triggerEventId || 'noid'}`;
+
+    return {
+      success: true,
+      nextJob: {
+        jobType: 'classify_case_outcome',
+        idempotencyKey: outcomeIdempotencyKey,
+        workspaceId,
+        recoveryCaseId: recoveryCase.id,
+        payload: {
+          workspaceId,
+          customerAccountId,
+          recoveryCaseId: recoveryCase.id,
+          evidenceProvider: payload.triggerProvider || 'stripe',
+          evidenceEventType: payload.triggerEventType,
+          evidenceEventId: payload.triggerEventId || null,
+          occurredAt: payload.occurredAt || new Date().toISOString(),
+          isTestMode: payload.isTestMode ?? false,
+          stripeInvoiceId: payload.stripeInvoiceId || null,
+          stripeSubscriptionId: payload.stripeSubscriptionId || null,
+        },
+      },
+    };
   }
 
   // 6. If action requires draft and is allowed, enqueue analysis
