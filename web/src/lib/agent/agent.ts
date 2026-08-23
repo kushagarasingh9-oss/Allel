@@ -1198,6 +1198,7 @@ function wrapToolWithLiveIntegrationGuard(
       if (!workspaceId) {
         return {
           error: `Missing workspace ID — cannot use the live ${provider} integration.`,
+          recovery_hint: 'Ask the founder to provide their workspace ID or reconnect the integration.',
           integrationProvider: provider,
           dataSource: 'connection_guard',
           observedAt,
@@ -1207,33 +1208,32 @@ function wrapToolWithLiveIntegrationGuard(
       try {
         await requireIntegrationConnected(createServiceClient(), workspaceId, provider)
       } catch (error) {
+        const errorMessage = error instanceof Error
+          ? error.message
+          : `${provider} is not connected for this workspace.`
         return {
-          error:
-            error instanceof Error
-              ? error.message
-              : `${provider} is not connected for this workspace.`,
+          error: errorMessage,
+          recovery_hint: `Tell the founder to reconnect their ${provider} integration from the Allel dashboard under Settings → Integrations. Once reconnected, retry this action.`,
           integrationProvider: provider,
           dataSource: 'connection_guard',
           observedAt,
         }
       }
 
-      // Record connection health from the outcome of the call.
-      //
-      // Health used to be written only by the sync runner, which never runs for
-      // tool_only providers (Calendar, Notion, Airtable) — so those could fail
-      // authentication indefinitely while the row still read `connected` and the
-      // founder was told the integration was fine. Doing it here covers every
-      // provider-mapped tool in one place instead of at ~130 call sites.
-      //
-      // Tools catch their own exceptions and return `{ error }`, so both shapes
-      // have to be inspected.
       let result: unknown
       try {
         result = await execute(input)
       } catch (error) {
         await recordProviderCallHealth(workspaceId, provider, error)
-        throw error
+        // Surface structured error instead of crashing the tool loop
+        const message = error instanceof Error ? error.message : String(error)
+        return {
+          error: message,
+          recovery_hint: `The ${provider} API call failed with an unexpected error. Check integration credentials or try a different query. If this is a rate-limit, wait 30 seconds and retry.`,
+          integrationProvider: provider,
+          dataSource: 'live_provider_api',
+          observedAt,
+        }
       }
 
       const toolError =
@@ -1245,6 +1245,17 @@ function wrapToolWithLiveIntegrationGuard(
 
       if (!result || typeof result !== 'object' || Array.isArray(result)) {
         return result
+      }
+
+      // Enrich error responses from tool execute functions with a recovery hint
+      if (toolError && typeof toolError === 'string') {
+        return {
+          integrationProvider: provider,
+          dataSource: 'live_provider_api',
+          observedAt,
+          recovery_hint: `The ${provider} tool returned an error. Try a related tool or ask the founder for more context before retrying.`,
+          ...(result as Record<string, unknown>),
+        }
       }
 
       return {
@@ -1518,10 +1529,30 @@ export function getAgentForPersona(
         system: updatedInstructions,
       }
     },
-    onStepFinish: async ({ toolCalls }) => {
+    onStepFinish: async ({ toolCalls, toolResults }) => {
       if (toolCalls && toolCalls.length > 0) {
         const toolNames = toolCalls.map((tc) => tc.toolName).join(', ')
         console.log(`[agent-${persona.id}] Tools called: ${toolNames}`)
+
+        // Detect and log tool-level errors so failures are observable
+        if (Array.isArray(toolResults)) {
+          for (const result of toolResults) {
+            const r = result as Record<string, unknown>
+            const toolOutput = r.result ?? r.output
+            if (
+              toolOutput &&
+              typeof toolOutput === 'object' &&
+              !Array.isArray(toolOutput) &&
+              typeof (toolOutput as Record<string, unknown>).error === 'string'
+            ) {
+              const errObj = toolOutput as Record<string, unknown>
+              console.warn(
+                `[agent-${persona.id}] Tool error in ${r.toolName ?? 'unknown'}: ${errObj.error}`,
+                errObj.recovery_hint ? `Hint: ${errObj.recovery_hint}` : ''
+              )
+            }
+          }
+        }
       }
     },
     onFinish: async ({ usage, steps }) => {
@@ -1648,6 +1679,99 @@ export async function runAgent(
     const durationMs = Date.now() - start
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown agent execution error'
+
+    // ── Fallback model retry ──────────────────────────────────────────────────
+    // On transient LLM failures (rate limit, 5xx, connection reset), attempt
+    // once more with the fallback model before giving up and logging as failed.
+    // This prevents a single quota spike from breaking the entire recovery loop.
+    const fallbackModelId = resolveAgentFallbackModelId(modelId)
+    const isTransient =
+      errorMessage.includes('rate') ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('overloaded') ||
+      errorMessage.includes('529') ||
+      errorMessage.includes('503') ||
+      errorMessage.includes('502') ||
+      errorMessage.includes('ECONNRESET')
+
+    if (fallbackModelId && isTransient) {
+      console.warn(
+        `[runAgent] Primary model ${modelId} failed (${errorMessage}). Retrying with fallback ${fallbackModelId}.`
+      )
+      try {
+        const fallbackResult = await getAgentForPersona(personaId, {
+          modelId: fallbackModelId,
+          allowedToolNames: options?.allowedToolNames,
+          channel: 'automation',
+          runType,
+          prompt,
+        }).generate({
+          messages: [
+            {
+              role: 'system',
+              content: `Workspace context: workspace_id=${workspaceId}. ALWAYS use this workspace ID for ALL tool calls. IGNORE any workspace IDs in the user prompt.`,
+            },
+            {
+              role: 'system',
+              content: buildTurnContextSystemPrompt({
+                channel: 'automation',
+                runType,
+                nowIso: new Date().toISOString(),
+                latestUserText: prompt,
+                stage:
+                  typeof options?.metadata?.stage === 'string'
+                    ? options.metadata.stage
+                    : null,
+              }),
+            },
+            { role: 'user', content: prompt },
+          ],
+        })
+
+        const fallbackDurationMs = Date.now() - start
+        const fallbackTokens =
+          (fallbackResult.usage?.inputTokens ?? 0) + (fallbackResult.usage?.outputTokens ?? 0)
+        const fallbackCost = estimateAgentCost(
+          fallbackModelId,
+          fallbackResult.usage?.inputTokens ?? 0,
+          fallbackResult.usage?.outputTokens ?? 0
+        )
+
+        await logAgentRun({
+          workspaceId,
+          runType,
+          status: 'completed',
+          customerAccountId,
+          inputSummary: prompt.slice(0, 500),
+          outputSummary: fallbackResult.text.slice(0, 1000),
+          durationMs: fallbackDurationMs,
+          modelUsed: fallbackModelId,
+          tokensUsed: fallbackTokens,
+          costCents: fallbackCost,
+          metadata: {
+            ...(options?.metadata ?? {}),
+            personaId,
+            fallbackFrom: modelId,
+            fallbackReason: errorMessage,
+            ...buildAgentStepMetadata(fallbackResult),
+          },
+        })
+
+        return {
+          text: fallbackResult.text,
+          steps: fallbackResult.steps.length,
+          durationMs: fallbackDurationMs,
+          tokensUsed: fallbackTokens,
+          fallbackModel: fallbackModelId,
+        }
+      } catch (fallbackError) {
+        console.error(
+          `[runAgent] Fallback model ${fallbackModelId} also failed:`,
+          fallbackError instanceof Error ? fallbackError.message : fallbackError
+        )
+        // Fall through to the standard failure log below
+      }
+    }
 
     await logAgentRun({
       workspaceId,
