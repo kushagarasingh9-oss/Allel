@@ -358,6 +358,7 @@ test('Revenue metrics invariants: strict and protected MRR are strictly partitio
 
   assert.equal(strictRecovered, 240000, 'Strict recovered MRR matches verified payments only');
   assert.equal(protectedTotal, 120000, 'Protected MRR matches reversed intent only');
-  assert.ok(strictRecovered !== protectedTotal, 'Strict and protected totals are never merged');
+  assert.notEqual(strictRecovered, protectedTotal, 'Strict and protected totals are never merged');
 });
+
 
