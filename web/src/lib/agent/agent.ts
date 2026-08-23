@@ -919,6 +919,112 @@ export function textMatchesDomain(
   return false
 }
 
+/**
+ * Score a domain group against a piece of text.
+ * Returns a numeric score — higher means more confident match.
+ *
+ * Scoring rubric:
+ *  +10  regex match in latest prompt line
+ *   +5  fuzzy token match in latest prompt line
+ *   +2  regex match in prior history
+ *   +1  fuzzy token match in prior history
+ *
+ * Multiple fuzzy matches add up (e.g. 3 fuzzy tokens in the prompt = +15).
+ */
+export function scoreDomainMatch(
+  latestText: string,
+  historyText: string,
+  group: ToolDomainGroup
+): number {
+  let score = 0
+
+  // Regex matches — fast, high confidence
+  if (latestText && group.regex.test(latestText)) score += 10
+  if (historyText && group.regex.test(historyText)) score += 2
+
+  // Fuzzy token matches — slower, additive
+  if (latestText) {
+    const tokens = tokenizeForDomainRouting(latestText)
+    for (const token of tokens) {
+      if (token.length <= 3) continue
+      const limit = token.length <= 5 ? 1 : 2
+      for (const keyword of group.fuzzyKeywords) {
+        if (keyword.length <= 3) continue
+        if (levenshteinDistanceWithin(token, keyword, limit)) {
+          score += 5
+          break // only score each token once per group
+        }
+      }
+    }
+  }
+
+  if (historyText && score === 0) {
+    // Only check history fuzzy if no primary match found yet
+    const tokens = tokenizeForDomainRouting(historyText)
+    for (const token of tokens) {
+      if (token.length <= 3) continue
+      const limit = token.length <= 5 ? 1 : 2
+      for (const keyword of group.fuzzyKeywords) {
+        if (keyword.length <= 3) continue
+        if (levenshteinDistanceWithin(token, keyword, limit)) {
+          score += 1
+          break
+        }
+      }
+    }
+  }
+
+  return score
+}
+
+/**
+ * Cross-domain correlation matrix.
+ * When domain A is activated, these companion domains are also activated
+ * because real founder tasks almost always need both.
+ *
+ * Examples:
+ *  stripe  → recovery (billing failures open recovery cases)
+ *  recovery → stripe + posthog (case analysis needs both signals)
+ *  gmail  → accounts (email threads are linked to accounts)
+ */
+const DOMAIN_COMPANIONS: Partial<Record<ToolDomain, ToolDomain[]>> = {
+  stripe:   ['recovery', 'posthog'],
+  recovery: ['stripe', 'posthog'],
+  posthog:  ['recovery'],
+  gmail:    [],
+  slack:    [],
+}
+
+/**
+ * Intent verb → suggested core tools to pre-select.
+ * Detected from the prompt before full domain routing.
+ */
+const INTENT_CORE_TOOLS: Array<{
+  verbs: RegExp
+  tools: AgentToolName[]
+}> = [
+  {
+    verbs: /\b(show|list|get|fetch|find|search|look|display|what|who|which)\b/i,
+    tools: ['getAccountDetails', 'getAllAccounts', 'getRecentSignals'],
+  },
+  {
+    verbs: /\b(send|email|message|notify|draft|compose|reply)\b/i,
+    tools: ['getExistingDrafts', 'getMyInbox'],
+  },
+  {
+    verbs: /\b(recover|recovery|case|cases|risk|churn|at.risk|pipeline)\b/i,
+    tools: ['getRecoveryCases', 'getRecoveryMetrics'],
+  },
+  {
+    verbs: /\b(analyse|analyze|breakdown|score|why|reason|explain|diagnose)\b/i,
+    tools: ['getAccountMemory', 'getAccountTimeline', 'getChurnScoreHistory'],
+  },
+  {
+    verbs: /\b(sync|refresh|update|reconnect)\b/i,
+    tools: ['inspectIntegrationConnectionsTool'],
+  },
+]
+
 export function getEligibleToolsForDomains(
   eligibleToolNames: readonly AgentToolName[],
   domains: readonly ToolDomain[]
@@ -1049,31 +1155,82 @@ export function selectRelevantToolsForPrompt(
   const latestText = lines.length > 0 ? lines[lines.length - 1] : promptText
   const historyText = lines.length > 1 ? lines.slice(0, -1).join(' ') : ''
 
-  const primaryMatchedTools = new Set<AgentToolName>()
-  const secondaryMatchedTools = new Set<AgentToolName>()
-
+  // ── Phase 1: Score every domain group ─────────────────────────────────────
+  // Build (domain → score) map. Domains with score > 0 are candidates.
+  const domainScores = new Map<ToolDomain, number>()
   for (const group of TOOL_DOMAIN_GROUPS) {
-    if (textMatchesDomain(latestText, group)) {
-      group.tools.forEach((t) => {
-        if (availableToolNames.includes(t)) primaryMatchedTools.add(t)
-      })
-    } else if (historyText && textMatchesDomain(historyText, group)) {
-      group.tools.forEach((t) => {
-        if (availableToolNames.includes(t)) secondaryMatchedTools.add(t)
-      })
+    const score = scoreDomainMatch(latestText, historyText, group)
+    if (score > 0) domainScores.set(group.domain, score)
+  }
+
+  // ── Phase 2: Add companion domains (cross-domain correlation) ─────────────
+  // If stripe fires, also activate recovery; if recovery fires, activate stripe + posthog.
+  const companionDomains = new Set<ToolDomain>()
+  for (const [domain] of domainScores) {
+    const companions = DOMAIN_COMPANIONS[domain] ?? []
+    for (const companion of companions) {
+      if (!domainScores.has(companion)) {
+        companionDomains.add(companion)
+      }
+    }
+  }
+  // Companions get a lower base score (3) so primary domains still rank higher
+  for (const companion of companionDomains) {
+    domainScores.set(companion, 3)
+  }
+
+  // ── Phase 3: Sort domains by score descending ─────────────────────────────
+  const sortedDomains = [...domainScores.entries()]
+    .sort(([, a], [, b]) => b - a)
+    .map(([domain]) => domain)
+
+  // ── Phase 4: Collect tools in priority order ──────────────────────────────
+  const availableSet = new Set(availableToolNames)
+  const primaryToolNames: AgentToolName[] = []
+  const secondaryToolNames: AgentToolName[] = []
+
+  const isPrimary = (domain: ToolDomain) => (domainScores.get(domain) ?? 0) > 3
+
+  for (const domain of sortedDomains) {
+    const group = TOOL_DOMAIN_GROUPS.find((g) => g.domain === domain)
+    if (!group) continue
+    for (const toolName of group.tools) {
+      if (!availableSet.has(toolName as AgentToolName)) continue
+      const tName = toolName as AgentToolName
+      if (isPrimary(domain)) {
+        if (!primaryToolNames.includes(tName)) primaryToolNames.push(tName)
+      } else {
+        if (!primaryToolNames.includes(tName) && !secondaryToolNames.includes(tName)) {
+          secondaryToolNames.push(tName)
+        }
+      }
     }
   }
 
-  const domainMatchedTools = new Set<AgentToolName>([
-    ...primaryMatchedTools,
-    ...secondaryMatchedTools,
-  ])
+  // ── Phase 5: Intent-verb pre-selection ───────────────────────────────────
+  // Detect action verbs in the latest line and inject relevant starting tools
+  // at the top of the active set so the LLM starts with the right tool.
+  const intentTools: AgentToolName[] = []
+  for (const intent of INTENT_CORE_TOOLS) {
+    if (intent.verbs.test(latestText)) {
+      for (const t of intent.tools) {
+        if (availableSet.has(t) && !intentTools.includes(t)) {
+          intentTools.push(t)
+        }
+      }
+    }
+  }
 
+  // ── Phase 6: Carry forward tools from conversation history ────────────────
   const historyToolNames = extractToolNamesFromHistory(historyMessages).filter((t) =>
-    availableToolNames.includes(t)
+    availableSet.has(t)
   )
 
-  const hasRoutingSignal = domainMatchedTools.size > 0 || historyToolNames.length > 0
+  const hasRoutingSignal =
+    primaryToolNames.length > 0 ||
+    secondaryToolNames.length > 0 ||
+    historyToolNames.length > 0
+
   if (!hasRoutingSignal) {
     if (options?.channel === 'automation') {
       return [...availableToolNames]
@@ -1081,7 +1238,16 @@ export function selectRelevantToolsForPrompt(
     return [...availableCoreTools]
   }
 
-  return [...new Set([...availableCoreTools, ...domainMatchedTools, ...historyToolNames])]
+  // Final order: intent tools first, then primary domain, then secondary, then history, then core
+  return [
+    ...new Set([
+      ...intentTools,
+      ...primaryToolNames,
+      ...secondaryToolNames,
+      ...historyToolNames,
+      ...availableCoreTools,
+    ])
+  ]
 }
 
 /**
