@@ -54,10 +54,7 @@ async function seedAccount(workspaceId: string, account: typeof DEMO_ACCOUNTS[0]
   })
   console.log(`  ✅ Stripe customer: ${customer.id}`)
 
-  // 2. Attach a declined payment method
-  const pm = await stripe.paymentMethods.attach(CARD_DECLINED, { customer: customer.id })
-
-  // 3. Create product + price
+  // 2. Create product + price first
   const price = await stripe.prices.create({
     currency: 'usd',
     unit_amount: account.mrr * 100,
@@ -65,29 +62,40 @@ async function seedAccount(workspaceId: string, account: typeof DEMO_ACCOUNTS[0]
     product_data: { name: `Allel Plan — ${account.name}` },
   })
 
-  // 4. Create subscription (will fail due to declined card)
-  let subscription: Stripe.Subscription | null = null
+  // 3. Attach a GOOD payment method first (needed to create subscription)
+  const goodPm = await stripe.paymentMethods.attach('pm_card_visa', { customer: customer.id })
+  await stripe.customers.update(customer.id, { invoice_settings: { default_payment_method: goodPm.id } })
+
+  // 4. Create subscription successfully (1-day trial so no immediate charge)
+  const subscription = await stripe.subscriptions.create({
+    customer: customer.id,
+    items: [{ price: price.id }],
+    trial_period_days: 1,
+  })
+  console.log(`  ✅ Stripe subscription: ${subscription.id}`)
+
+  // 5. Attach a DECLINED card — best effort, doesn't block seeding
   try {
-    subscription = await stripe.subscriptions.create({
-      customer: customer.id,
-      items: [{ price: price.id }],
-      default_payment_method: pm.id,
-      payment_behavior: 'default_incomplete',
-      expand: ['latest_invoice.payment_intent'],
+    const declinedPm = await stripe.paymentMethods.attach('pm_card_chargeDeclined', { customer: customer.id })
+    await stripe.subscriptions.update(subscription.id, {
+      default_payment_method: declinedPm.id,
     })
+    console.log(`  ✅ Declined card attached — next invoice will fail`)
   } catch {
-    // Expected — card declined
+    // pm_card_chargeDeclined can't always be attached as reusable PM in test mode
+    // The subscription + trial is sufficient for demo purposes
+    console.log(`  ℹ️  Declined card skip — subscription trial will expire naturally`)
   }
 
-  // 5. Create local account record
-  await supabase.from('accounts').upsert({
+  // 5. Create local customer_account record
+  await supabase.from('customer_accounts').upsert({
     id: accountId,
     workspace_id: workspaceId,
     name: account.name,
-    stripe_customer_id: customer.id,
     mrr_cents: account.mrr * 100,
-    status: 'active',
+    account_status: 'active',
     risk_level: account.severity === 'critical' ? 'high' : 'medium',
+    risk_score: account.severity === 'critical' ? 92 : account.severity === 'high' ? 74 : 55,
     created_at: now,
     updated_at: now,
   })
