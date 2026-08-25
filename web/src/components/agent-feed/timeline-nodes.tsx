@@ -370,6 +370,9 @@ export function MonologueBlock({ text, label }: { text: string; label?: string }
     if (label) return label
     if (!text) return "Thinking"
     const low = text.toLowerCase()
+    if (low.includes('capacity') || low.includes('rate limit') || low.includes('retrying') || low.includes('queue')) {
+      return "AI capacity queue: auto-retrying in background"
+    }
     if (low.includes('calendar') || low.includes('schedule') || low.includes('meeting') || low.includes('event')) {
       return "Checking schedule & calendar"
     }

@@ -18,6 +18,7 @@ import {
   type UIMessage,
 } from 'ai'
 import { createClient } from '@/lib/supabase/server'
+import { retryContextStorage } from '@/lib/ai/ai'
 import {
   type AgentToolName,
   compactToolHistory,
@@ -495,8 +496,31 @@ Incorporate these emojis naturally into your status summaries and action recomme
         )
       }
 
+      const onStreamRetry = ({ attempt, waitSeconds }: { attempt: number; waitSeconds: number }) => {
+        try {
+          const chunkId = `retry-${Date.now()}-${attempt}`
+          writer.write({
+            type: 'reasoning-start',
+            id: chunkId,
+          })
+          writer.write({
+            type: 'reasoning-delta',
+            id: chunkId,
+            delta: `AI capacity limit reached — auto-retrying in ${waitSeconds}s (attempt ${attempt})...\n`,
+          })
+          writer.write({
+            type: 'reasoning-end',
+            id: chunkId,
+          })
+        } catch {
+          // Ignore writer closure
+        }
+      }
+
       try {
-        mergeAgentStream(await startAgentStream(agent))
+        await retryContextStorage.run(onStreamRetry, async () => {
+          mergeAgentStream(await startAgentStream(agent))
+        })
       } catch (streamError) {
         // The provider rejected the request outright (bad deployment, exhausted
         // quota, hard 5xx before the first token). `maxRetries` on the agent has
@@ -523,7 +547,9 @@ Incorporate these emojis naturally into your status summaries and action recomme
               historyMessages: enrichedMessages,
             })
             effectiveModelId = fallbackModelId
-            mergeAgentStream(await startAgentStream(fallbackAgent))
+            await retryContextStorage.run(onStreamRetry, async () => {
+              mergeAgentStream(await startAgentStream(fallbackAgent))
+            })
             return
           } catch (fallbackError) {
             console.error(

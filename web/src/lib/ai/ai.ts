@@ -7,8 +7,11 @@
 
 import { generateText as aiGenerateText, generateObject as aiGenerateObject } from 'ai'
 import { openai, createOpenAI } from '@ai-sdk/openai'
-import { createAzure } from '@ai-sdk/azure'
+import { AsyncLocalStorage } from 'async_hooks'
 import type { ZodSchema } from 'zod'
+
+export type StreamRetryListener = (info: { attempt: number; waitSeconds: number }) => void
+export const retryContextStorage = new AsyncLocalStorage<StreamRetryListener>()
 
 const MODEL_ID = process.env.OPENAI_MODEL_ID || 'gpt-4o'
 
@@ -104,10 +107,21 @@ async function fetchWithBackoff(
       ? Math.min(serverWaitMs + Math.floor(Math.random() * 400), 45_000) // add slight jitter
       : Math.min(delay + Math.floor(Math.random() * 600), 30_000)
 
+    const waitSeconds = Math.ceil(waitMs / 1000)
+
     console.warn(
       `[Azure AI fetch] ${response.status} (attempt ${attempt + 1}/${maxRetries}). ` +
       `Rate limit hit. Waiting ${waitMs}ms before retry...`
     )
+
+    try {
+      const listener = retryContextStorage.getStore()
+      if (listener) {
+        listener({ attempt: attempt + 1, waitSeconds })
+      }
+    } catch {
+      // Ignore listener error
+    }
 
     await new Promise((res) => setTimeout(res, waitMs))
     delay = Math.min(delay * 2, 16_000) // double delay each retry, cap at 16s
