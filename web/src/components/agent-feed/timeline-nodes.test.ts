@@ -28,11 +28,11 @@ test('B6: a genuine tool-free answer stays neutral', () => {
 test('B6: completed tool work reports its step count with correct pluralization', () => {
   assert.equal(
     describeReasoningBatch({ isExecuting: false, stepsCount: 1 }).text,
-    'Identifying user needs and intent (1 step)'
+    'Completed requested workflow (1 step)'
   )
   assert.equal(
     describeReasoningBatch({ isExecuting: false, stepsCount: 3 }).text,
-    'Identifying user needs and intent (3 steps)'
+    'Completed requested workflow (3 steps)'
   )
 })
 
@@ -46,5 +46,5 @@ test('B6: an in-flight turn is never labelled unfulfilled', () => {
   })
 
   assert.equal(label.isUnfulfilled, false)
-  assert.equal(label.text, 'Identifying user needs and intent')
+  assert.equal(label.text, 'Executing requested workflow')
 })

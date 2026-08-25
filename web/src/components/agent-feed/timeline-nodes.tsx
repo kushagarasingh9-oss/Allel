@@ -34,75 +34,137 @@ export type ReasoningBatchLabel = {
 
 export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boolean = false): string {
   const tools = new Set(toolNames)
+  const lowerTools = toolNames.map((t) => t.toLowerCase())
 
-  if (
-    tools.has('webSearchTool') ||
-    tools.has('webExtractTool') ||
-    tools.has('webCrawlTool') ||
-    tools.has('webMapTool')
-  ) {
-    return isExecuting ? "Searching web intelligence" : "Searched web intelligence"
-  }
   if (
     tools.has('listCalendarEventsTool') &&
     (tools.has('getMyInbox') || tools.has('getAllAccounts'))
   ) {
     return isExecuting ? "Preparing daily brief" : "Prepared daily brief"
   }
-  if (
-    tools.has('listCalendarEventsTool') ||
-    tools.has('createCalendarEventTool') ||
-    tools.has('updateCalendarEventTool') ||
-    tools.has('deleteCalendarEventTool') ||
-    tools.has('quickAddCalendarEventTool') ||
-    tools.has('getCalendarEventDetailTool') ||
-    tools.has('checkCalendarFreeBusy')
-  ) {
-    return isExecuting ? "Updating Google Calendar" : "Updated Google Calendar"
-  }
+
+  // Email replies & sending
   if (
     tools.has('sendGmailReply') ||
-    tools.has('composeNewEmail')
+    tools.has('composeNewEmail') ||
+    lowerTools.some((t) => t.includes('send') && (t.includes('mail') || t.includes('email'))) ||
+    lowerTools.some((t) => t.includes('reply') && (t.includes('mail') || t.includes('email') || t.includes('thread')))
   ) {
     return isExecuting ? "Sending email reply" : "Sent email reply"
   }
+
+  // Email inbox & reading
   if (
     tools.has('getMyInbox') ||
     tools.has('getGmailThreadsForAccount') ||
     tools.has('getGmailThreadDetailTool') ||
     tools.has('getExistingDrafts') ||
-    tools.has('generateFollowUpDraft')
+    tools.has('generateFollowUpDraft') ||
+    lowerTools.some((t) => t.includes('gmail') || t.includes('inbox') || t.includes('draft'))
   ) {
     return isExecuting ? "Checking inbox & communications" : "Reviewed inbox & communications"
   }
+
+  // Calendar event deletion
+  if (
+    tools.has('deleteCalendarEventTool') ||
+    lowerTools.some((t) => t.includes('delete') && t.includes('calendar'))
+  ) {
+    return isExecuting ? "Deleting Calendar event" : "Deleted Calendar event"
+  }
+
+  // Calendar event creation
+  if (
+    tools.has('createCalendarEventTool') ||
+    tools.has('quickAddCalendarEventTool') ||
+    lowerTools.some((t) => (t.includes('create') || t.includes('add')) && t.includes('calendar'))
+  ) {
+    return isExecuting ? "Creating Calendar event" : "Created Calendar event"
+  }
+
+  // Calendar general
+  if (
+    tools.has('listCalendarEventsTool') ||
+    tools.has('updateCalendarEventTool') ||
+    tools.has('getCalendarEventDetailTool') ||
+    tools.has('getCalendarEventTool') ||
+    tools.has('checkCalendarFreeBusy') ||
+    tools.has('queryFreeBusyTool') ||
+    tools.has('listCalendarsTool') ||
+    lowerTools.some((t) => t.includes('calendar') || t.includes('schedule') || t.includes('freebusy'))
+  ) {
+    return isExecuting ? "Updating Google Calendar" : "Updated Google Calendar"
+  }
+
+  // Web intelligence
+  if (
+    tools.has('webSearchTool') ||
+    tools.has('webExtractTool') ||
+    tools.has('webCrawlTool') ||
+    tools.has('webMapTool') ||
+    lowerTools.some((t) => t.includes('web') || t.includes('crawl') || t.includes('extract'))
+  ) {
+    return isExecuting ? "Searching web intelligence" : "Searched web intelligence"
+  }
+
+  // Billing & Stripe
   if (
     tools.has('getAllAccounts') ||
     tools.has('getStripeAccountState') ||
-    tools.has('getRecentSignals')
+    tools.has('getRecentSignals') ||
+    tools.has('getAccountDetails') ||
+    tools.has('createRescueDiscountTool') ||
+    lowerTools.some((t) => t.includes('stripe') || t.includes('billing') || t.includes('account') || t.includes('risk'))
   ) {
     return isExecuting ? "Scanning customer billing & risk" : "Analyzed customer billing & risk"
   }
-  if (tools.has('searchLinearIssuesTool') || tools.has('syncLinearWorkspaceTool')) {
+
+  // Linear
+  if (
+    tools.has('searchLinearIssuesTool') ||
+    tools.has('syncLinearWorkspaceTool') ||
+    lowerTools.some((t) => t.includes('linear'))
+  ) {
     return isExecuting ? "Searching Linear tickets" : "Checked Linear tickets"
   }
-  if (tools.has('listSentryIssuesTool') || tools.has('syncSentryWorkspaceTool')) {
+
+  // Sentry
+  if (
+    tools.has('listSentryIssuesTool') ||
+    tools.has('syncSentryWorkspaceTool') ||
+    lowerTools.some((t) => t.includes('sentry'))
+  ) {
     return isExecuting ? "Checking error logs" : "Checked error logs"
   }
-  if (tools.has('inspectIntegrationConnectionsTool')) {
-    return isExecuting ? "Verifying active connections" : "Verified active connections"
-  }
-  if (tools.has('searchNotionTool') || tools.has('listAirtableBasesTool')) {
-    return isExecuting ? "Searching workspace knowledge" : "Searched workspace knowledge"
-  }
+
+  // Slack
   if (
     tools.has('getSlackHistory') ||
     tools.has('sendSlackMessage') ||
-    tools.has('deliverSlackBriefTool')
+    tools.has('deliverSlackBriefTool') ||
+    lowerTools.some((t) => t.includes('slack'))
   ) {
     return isExecuting ? "Reviewing Slack context" : "Reviewed Slack context"
   }
 
-  return "Identifying user needs and intent"
+  // Notion / Airtable
+  if (
+    tools.has('searchNotionTool') ||
+    tools.has('listAirtableBasesTool') ||
+    lowerTools.some((t) => t.includes('notion') || t.includes('airtable'))
+  ) {
+    return isExecuting ? "Searching workspace knowledge" : "Searched workspace knowledge"
+  }
+
+  // Connections / sync
+  if (
+    tools.has('inspectIntegrationConnectionsTool') ||
+    lowerTools.some((t) => t.includes('sync') || t.includes('connection'))
+  ) {
+    return isExecuting ? "Verifying active connections" : "Verified active connections"
+  }
+
+  return isExecuting ? "Executing requested workflow" : "Completed requested workflow"
 }
 
 /**
