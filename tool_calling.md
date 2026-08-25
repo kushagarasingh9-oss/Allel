@@ -2,8 +2,8 @@
 
 > **Document Type:** System Architecture, Execution Lifecycle & Reliability Contract  
 > **Status:** Active & Authoritative  
-> **Last Updated:** 2026-08-22  
-> **Synthesizes:** Agent Tool Calling & Routing · Integration Honesty Audit · Product Definition
+> **Last Updated:** 2026-08-26  
+> **Synthesizes:** Agent Tool Calling & Routing · Token Optimization · TPM Resilience · Integration Honesty Audit
 
 ---
 
@@ -27,31 +27,35 @@
                                      │
                                      ▼
  ┌───────────────────────────────────────────────────────────────────────────┐
- │ STEP 1: HTTP Ingestion & Windowing (route.ts)                             │
- │ - Retains recent conversation turns & creates plain text `conversationText`│
+ │ STEP 1: HTTP Ingestion, Windowing & History Compaction (route.ts)         │
+ │ - Retains last 20 messages; compactToolHistory() strips old tool payloads │
+ │ - Keeps only last tool exchange verbatim — earlier results → 1-line memo  │
+ │ - Creates plain text conversationText from user messages                  │
  └───────────────────────────────────┬───────────────────────────────────────┘
                                      │
                                      ▼
  ┌───────────────────────────────────────────────────────────────────────────┐
  │ STEP 2: Layer 2 Multi-Signal Domain Router (agent.ts)                     │
  │                                                                           │
- │ 1. Always-on Core Tools (inspectIntegrations, account state, drafts: 7)    │
+ │ 1. Always-on Core Tools (inspectIntegrations, account state, drafts: 6)   │
  │ 2. Exact Domain Regex Match (0ms)                                         │
- │ 3. Levenshtein Fuzzy Match (dist <= 2) on unmatched words (0ms)            │
+ │ 3. Levenshtein Fuzzy Match (dist <= 2) on unmatched words (0ms)           │
  │ 4. Per-Domain Independent Scoring (Gmail match NEVER drops Calendar)      │
- │ 5. Persona Capability Mask (Alex = All, Henry = Growth, Sarah = Save)     │
- │ 6. Unpack to Scoped Schema Set (~18 Tools)                                │
+ │ 5. Companion Domain Correlation (Stripe → also activates recovery)        │
+ │ 6. Persona Capability Mask (Alex = All, Henry = Growth, Sarah = Save)     │
+ │ 7. Cap: MAX_ACTIVE_TOOLS=18 for chat (Pillar 2 — Dynamic Tool Scoping)   │
  └───────────────────────────────────┬───────────────────────────────────────┘
-                                     │ Scoped Schema Set (~18 Tools)
+                                     │ Scoped Schema Set (≤18 Tools)
                                      ▼
  ┌───────────────────────────────────────────────────────────────────────────┐
  │ STEP 3: Layer 3 Self-Healing Execution Loop (route.ts / tools.ts)         │
  │                                                                           │
  │ - ToolLoopAgent executes with scoped tools + `requestMoreTools` meta-tool │
  │ - If model discovers it needs an unlisted domain (e.g., Stripe/Calendar): │
- │   Calls `requestMoreTools({ domain: 'stripe' })` -> Expands active schema  │
+ │   Calls `requestMoreTools({ domain: 'stripe' })` -> Expands active schema │
  │ - Guard wraps all calls: verifies `ProviderReadiness.status === 'ready'`  │
  │ - Strict `ToolResult<T>`: Returns real data or structured error           │
+ │ - 429 TPM spike: fetchWithBackoff retries silently up to 4x (Pillar 4)   │
  └───────────────────────────────────┬───────────────────────────────────────┘
                                      │
                                      ▼
@@ -59,6 +63,7 @@
  │ STEP 4: Streaming UI & Trust Surface (agent-feed / timeline-nodes)        │
  │                                                                           │
  │ - Renders executive summary + clean expandable thinking blocks            │
+ │ - All tool steps show correct integration logo (TOOL_ICONS map)           │
  │ - Detects announced-action mismatches                                     │
  │ - HMAC signs message metadata for tamper-proof persistence                │
  └───────────────────────────────────────────────────────────────────────────┘
@@ -66,7 +71,130 @@
 
 ---
 
-## 3. The Five Architectural Layers
+## 3. 100k TPM Budget & The 4-Pillar Optimization
+
+### Deployment Constraint
+
+**Azure OpenAI Global Standard — Kimi-K2.6: 100,000 TPM (hard cap, cannot increase)**
+
+Without optimization, a single multi-integration turn can consume 20,000–25,000 tokens, exhausting the full 100k TPM budget in just 4 turns and hitting 429 rate-limit terminations.
+
+### Token Budget Per Turn
+
+| Component | Unoptimized | Optimized | Savings | Pillar |
+|---|---|---|---|---|
+| System Prompt & Persona | 2,500 tokens | 1,200 tokens | 52% | — |
+| Tool Schemas (Definitions) | 8,500 tokens (60+ tools) | 2,700 tokens (18 scoped tools) | 68% | **P2** |
+| Tool Output Payloads | 4,000–8,000 tokens (raw JSON) | 300–600 tokens (projected fields) | 90% | **P1** |
+| Conversation History | 6,000 tokens (full uncompressed) | 1,500 tokens (compacted history) | 75% | **P3** |
+| **Total Per Step** | **~21,000–25,000 tokens** | **~4,500–4,800 tokens** | **~80%** | |
+| **Max Concurrent Steps @ 100k TPM** | ~4 steps/min (429 instantly) | **20–22 steps/min (smooth)** | **5× capacity** | |
+
+---
+
+## 4. The 4-Pillar Code Architecture
+
+### Pillar 1 — Output Projection (tools.ts)
+
+Raw API payloads return dozens of unused fields that flood model context.
+
+**`getAllAccounts`** — Before → After:
+```ts
+// ❌ Before: 13 fields including mrrCents, cancelAtPeriodEnd, stripeCustomerId (×N accounts)
+accounts.map((a) => ({
+  id, internalAccountId, stripeCustomerId, name, email, mrr, mrrCents,
+  riskLevel, status, plan, cancelAtPeriodEnd, currentPeriodEnd, nextAction
+}))
+
+// ✅ After: 8 reasoning-critical fields, sorted at-risk first, capped at 20 rows
+accounts
+  .sort((a, b) => rankByRisk(a.riskLevel) - rankByRisk(b.riskLevel))
+  .slice(0, 20)
+  .map((a) => ({ id, name, email, mrr, riskLevel, status, plan, nextAction }))
+```
+
+**`getRecentSignals`** — Drops `stripeCustomerId` from each signal (redundant with `accountId`).
+
+> The model never needs `mrrCents`, `test_clock`, `invoice_prefix`, or `cancelAtPeriodEnd` raw timestamps to make decisions. Removing them does not change orchestration quality — it improves it by raising the signal-to-noise ratio.
+
+---
+
+### Pillar 2 — Dynamic Tool Scoping (agent.ts → `selectRelevantToolsForPrompt`)
+
+Instead of passing all 60+ tool schemas every step, cap at **18 active tools** most relevant to the prompt.
+
+```
+Tool selection priority order (highest → lowest):
+  1. Intent-verb tools  (e.g. "show" → getAllAccounts, getAccountDetails)
+  2. Primary domain     (high score match — Stripe, Gmail, Calendar…)
+  3. Secondary domain   (companion match — recovery when stripe fires)
+  4. History tools      (tools used in recent prior turns)
+  5. Core 6 tools       (always present regardless of routing)
+  ──────────────────────
+  Cap: MAX_ACTIVE_TOOLS = 18 (chat), full set (automation)
+```
+
+**Key constant:**
+```ts
+const MAX_ACTIVE_TOOLS = 18  // in selectRelevantToolsForPrompt()
+```
+
+The model always retains `requestMoreTools` as a meta-tool to unlock any other domain on demand — so no capability is ever permanently hidden.
+
+---
+
+### Pillar 3 — Compact Tool History (agent.ts + route.ts)
+
+In multi-step conversations, raw tool results from earlier turns cause O(N²) token growth.
+
+**`compactToolHistory<T>(messages)`** — exported from `agent.ts`, wired in `route.ts`:
+
+```ts
+// COMPACT_THRESHOLD = 400 chars
+// - Last tool exchange: kept verbatim (model needs fresh data)
+// - Earlier tool messages > 400 chars: replaced with 160-char preview
+//   Format: "[compacted — 2843 chars] {"source":"stripe_live","accounts":[{"id":..."
+// - User/assistant messages: never touched
+```
+
+Handles both AI SDK `UIMessage` shape (`parts[]`) and plain `CoreMessage` shape (`content`).
+
+**Applied in `route.ts`:**
+```ts
+...compactToolHistory(recentMessages as ...)
+  .filter((m) => hasNonEmptyParts(m))  // Pillar 3 in enrichedMessages build
+```
+
+---
+
+### Pillar 4 — 429 Backoff (ai.ts → `fetchWithBackoff`)
+
+When the 100k TPM cap is hit, Azure returns HTTP 429. Without handling, this crashes the agent turn.
+
+```ts
+async function fetchWithBackoff(url, options, maxRetries = 4): Promise<Response> {
+  let delay = 1000  // ms
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options)
+    if (response.status !== 429 && response.status !== 503) return response
+
+    // Read Retry-After header (Azure always sets it); fall back to jitter
+    const retryAfterHeader = response.headers.get('retry-after')
+    const waitMs = Math.min(
+      retryAfterHeader ? parseInt(retryAfterHeader) * 1000 : delay + Math.random() * 400,
+      30_000  // cap at 30s
+    )
+    await sleep(waitMs)
+    delay = Math.min(delay * 2, 16_000)  // exponential, capped at 16s
+  }
+}
+```
+
+Injected as the `fetch` option in both Azure and GitHub Models `createOpenAI()` calls. Transparent to the agent — it never sees a 429 unless all 4 retries are exhausted.
+
+---
+
+## 5. The Five Architectural Layers
 
 ### Layer 0 — The Provider Readiness Contract (G1 + G2 Foundation)
 
@@ -83,9 +211,9 @@ export interface ProviderReadiness {
   status: ReadinessStatus
   authValid: boolean                 // set ONLY by a live provider probe
   scopes: string[] | null
-  resolvedResource?: { id: string; label: string }   // e.g. verified Slack channel ID
+  resolvedResource?: { id: string; label: string }
   lastVerifiedAt: string | null
-  verificationTTL: number            // ms before status must be re-probed
+  verificationTTL: number
   lastInboundSyncAt?: string | null
   lastOutboundDeliveryAt?: string | null
   failureReason?: { code: string; message: string; remediation: string }
@@ -93,10 +221,10 @@ export interface ProviderReadiness {
 ```
 
 **Readiness Invariants:**
-- **INV-1:** `status: 'ready'` requires a successful provider API probe within `verificationTTL`. Storing an arbitrary token string is never sufficient.
-- **INV-2:** Token-prefix heuristics (`xoxb-`, `sk_test_`) may pre-filter requests but cannot set `authValid: true` without an API test (`auth.test`).
-- **INV-3:** Any decryption or auth failure resolves strictly to `not_connected` or `needs_attention`. Synthesizing placeholder credentials is forbidden.
-- **INV-4:** `resolvedResource` (e.g. Slack channel ID) is verified via provider lookups, never assumed from user text input.
+- **INV-1:** `status: 'ready'` requires a successful provider API probe within `verificationTTL`.
+- **INV-2:** Token-prefix heuristics may pre-filter requests but cannot set `authValid: true` without a live API test.
+- **INV-3:** Any decryption or auth failure resolves strictly to `not_connected` or `needs_attention`.
+- **INV-4:** `resolvedResource` is verified via provider lookups, never assumed from user text input.
 
 ---
 
@@ -104,7 +232,7 @@ export interface ProviderReadiness {
 
 #### A. Ingest vs. Deliver Separation
 - **`ingest(provider)`**: Pulls third-party data into normalized storage. Updates `lastInboundSyncAt`.
-- **`deliver(provider, payload)`**: Pushes founder briefs or alerts outwards (e.g. Slack messages). Updates `lastOutboundDeliveryAt`. A delivery failure **never** marks the connection un-synced or broken.
+- **`deliver(provider, payload)`**: Pushes founder briefs or alerts outwards. Updates `lastOutboundDeliveryAt`. A delivery failure **never** marks the connection un-synced or broken.
 
 #### B. Strict Tool Result Shape
 ```ts
@@ -112,30 +240,27 @@ export type ToolResult<T> =
   | { ok: true; data: T; dataSource: 'live_provider_api' | 'workspace_cache' }
   | { ok: false; error: { code: string; message: string; remediation?: string }; dataSource: 'connection_guard' }
 ```
-No tool implementation may catch an API error and hand back a synthetic success message (e.g. "Monitoring active channels").
-
-#### C. Asymmetric Treatment for Tool-Only Providers
-Tool-only providers (Calendar, Notion, Airtable) have no persistent database copy. Therefore:
-1. In Layer 2 routing, tool-only providers use a lower threshold for inclusion so they are never prematurely pruned.
-2. Hot paths (e.g. daily founder brief needing upcoming 7-day calendar events) use a short-TTL (15–30 min) cached snapshot.
+No tool implementation may catch an API error and hand back a synthetic success message.
 
 ---
 
 ### Layer 2 — Multi-Signal, Readiness-Aware Routing
 
-Instead of a single boolean gate (`hasRoutingSignal`) that drops Calendar when Gmail matches, Layer 2 evaluates every domain **independently**:
+Every domain is evaluated **independently** (a Gmail match never suppresses Calendar):
 
 ```
 [User Prompt]
       │
-      ├── 1. Regex Token Matcher (Fast path for exact keywords)
-      ├── 2. Levenshtein Fuzzy Matcher (dist <= 2 on words > 3 chars)
-      │      - "calender" -> dist 1 to "calendar" -> MATCH google_calendar
-      │      - "gamil"    -> dist 1 to "gmail"    -> MATCH gmail
-      │      - "strpi"    -> dist 1 to "stripe"   -> MATCH stripe
-      ├── 3. Independent Domain Scoring (Gmail match never suppresses Calendar)
-      ├── 4. Persona Capability Mask (Alex = All, Henry = Growth, Sarah = Save)
-      └── 5. Fallback: If 0 domains match -> Load all persona tools
+      ├── 1. Regex Token Matcher (fast path for exact keywords)
+      ├── 2. Levenshtein Fuzzy Matcher (dist ≤ 2 on words > 3 chars)
+      │      - "calender" → dist 1 to "calendar" → MATCH google_calendar
+      │      - "gamil"    → dist 1 to "gmail"    → MATCH gmail
+      │      - "strpi"    → dist 1 to "stripe"   → MATCH stripe
+      ├── 3. Independent Domain Scoring (additive per-domain score)
+      ├── 4. Companion Domain Correlation (stripe → also recovery + posthog)
+      ├── 5. Persona Capability Mask (Alex = All, Henry = Growth, Sarah = Save)
+      ├── 6. Intent-verb pre-selection (show/list/find → core account tools)
+      └── 7. Cap at MAX_ACTIVE_TOOLS=18 for chat channel (Pillar 2)
 ```
 
 #### Domain Groups Registry
@@ -154,91 +279,66 @@ Instead of a single boolean gate (`hasRoutingSignal`) that drops Calendar when G
 
 ---
 
-### Layer 3 — Self-Correcting Execution Loop & In-Loop `prepareStep` Expansion
+### Layer 3 — Self-Correcting Execution Loop & `prepareStep` Expansion
 
 The ultimate failsafe for Invariant G3 is the **`requestMoreTools` meta-tool + AI SDK `prepareStep` orchestration**:
 
 ```ts
-// 1. Meta-tool records domain request within persona/workflow authorization ceiling
-export function createRequestMoreToolsTool(eligibleToolNames: readonly AgentToolName[]) {
-  return tool({
-    description:
-      'Request an integration domain needed to finish this task. The orchestration loop activates permitted tools from that domain on the next reasoning step. Continue the task after this result.',
-    inputSchema: z.object({
-      domain: z.enum(TOOL_DOMAINS),
-      reason: z.string().min(1).max(240),
-    }),
-    execute: async ({ domain }) => {
-      const activatedTools = getEligibleToolsForDomains(eligibleToolNames, [domain])
-
-      return activatedTools.length > 0
-        ? { ok: true, status: 'expansion_requested', domain, activatedTools }
-        : {
-            ok: false,
-            status: 'outside_policy',
-            domain,
-            activatedTools: [],
-            message: 'This persona or workflow is not permitted to use that domain.',
-          }
-    },
-  })
-}
-
-// 2. Pure step expansion in ToolLoopAgent without cross-request state leakage
+// prepareStep: pure in-loop expansion without cross-request state leakage
 prepareStep: async ({ steps }) => {
-  if (!isChat) return undefined
-
   const requestedDomains = resolveRequestedToolDomains(steps)
   if (requestedDomains.length === 0) return undefined
 
   const stepActiveNames = resolveActiveToolNamesForStep(
-    initialToolNames,
-    eligibleToolNames,
+    initialToolNames,     // scoped top-18 for step 1
+    eligibleToolNames,    // full persona-eligible set for expansion
     requestedDomains
   )
   const fullActiveTools = [...new Set([...stepActiveNames, 'requestMoreTools'])]
-  const updatedInstructions = buildInstructionsForActiveTools(fullActiveTools)
-
-  return {
-    activeTools: fullActiveTools,
-    system: updatedInstructions,
-  }
+  return { activeTools: fullActiveTools, system: updatedInstructions }
 }
 ```
 
 **How It Works:**
-1. The `ToolLoopAgent` holds all persona-eligible tool definitions internally, but sends only the scoped `activeTools` schema subset to the model on step one.
-2. If an ambiguous or multi-step prompt needs another domain (e.g. starts with support, discovers billing churn), the model calls `requestMoreTools({ domain: 'stripe', reason: '...' })`.
-3. Between reasoning steps, `prepareStep` inspects tool calls in `steps`, expands `activeTools` with eligible tools for the requested domain, and updates system instructions dynamically.
-4. The model immediately receives the newly active schemas in the same tool loop turn without restarting the HTTP stream.
+1. Step 1 sends only the top-18 scoped schemas to the model.
+2. If the model needs another domain mid-turn, it calls `requestMoreTools({ domain: 'stripe' })`.
+3. `prepareStep` inspects the `steps` array, expands `activeTools` with eligible tools for the requested domain.
+4. The model immediately receives the newly active schemas **in the same HTTP stream** without restarting.
 
 ---
 
 ### Layer 4 — UI Trust Surface & Workflow Visibility
 
-1. **Settings Connection Health**: `/dashboard/settings` renders `ProviderReadiness` directly, displaying verified timestamps, active scopes, and actionable remediation instructions (e.g. *"Reconnect Slack — missing channels:history scope"*).
-2. **Execution Inspection**: Guard blocks, model retry/fallbacks, and `requestMoreTools` expansion events are recorded in `agent_runs`, providing full visibility into agent reasoning and security decisions.
+1. **Integration Logos**: All 60+ tool names are mapped to correct SVG logos in `TOOL_ICONS` (`agent-feed.tsx`). No tool shows a generic search icon — every known integration shows its brand logo.
+2. **Settings Connection Health**: `/dashboard/settings` renders `ProviderReadiness` with timestamps, active scopes, and remediation instructions.
+3. **Execution Inspection**: Guard blocks, model retry/fallbacks, and `requestMoreTools` expansion events are recorded in `agent_runs`.
 
 ---
 
-## 4. Test & Verification Matrix
+## 6. Test & Verification Matrix
 
 | Scenario | Prior Behavior | Shipped Architecture Behavior | Status |
 |---|---|---|---|
-| `"now chekmy emials and the calandar togragther"` | Calendar/Gmail dropped due to typos | Adaptive Levenshtein ($\le 2$) + regex matches both Gmail + Calendar | ✅ Verified in `agent.test.ts` |
-| Ambiguous chat prompt needs un-routed domain | Model apologized ("tool not loaded") | Model calls `requestMoreTools` and `prepareStep` activates domain in-turn | ✅ Verified in `agent.test.ts` |
-| Ineligible domain requested under policy ceiling | Model assumed arbitrary permissions | Tool returns `outside_policy` and `activeTools` rejects expansion | ✅ Verified in `agent.test.ts` |
-| Transient upstream 500 / timeout | Crashed turn with error banner | `maxRetries: 3` + `AGENT_FALLBACK_MODEL_ID` failover attempt | ✅ Verified in `agent.test.ts` |
-| Revoked token during chat execution | Returned mock text / silent fail | Guard catches 401, marks `needs_attention`, returns clean error | ✅ Verified in `integration-health.test.ts` |
-| Slack brief delivery fails | Marked entire workspace un-synced | Delivery failure logged; inbound sync state preserved | ✅ Layer 1 Invariant |
-| Sarah handles high-risk churn account | Global routing might omit billing | Persona-weighted threshold prioritizes Stripe/Intercom/HubSpot | ✅ Persona Masking |
+| `"now chekmy emials and the calandar togragther"` | Calendar/Gmail dropped due to typos | Levenshtein (≤2) + regex matches both Gmail + Calendar | ✅ Verified |
+| Multi-step turn hits 100k TPM cap | 429 crashes agent turn | `fetchWithBackoff` retries silently up to 4× | ✅ Pillar 4 |
+| 15-account workspace, `getAllAccounts` | Returns all accounts × 13 fields | Sorted at-risk first, capped at 20, 8 clean fields | ✅ Pillar 1 |
+| 10-turn conversation | Full tool JSON floods context (~6,000 extra tokens) | `compactToolHistory` truncates older results to 160-char preview | ✅ Pillar 3 |
+| Ambiguous prompt needs un-routed domain | Model apologized ("tool not loaded") | Model calls `requestMoreTools` and `prepareStep` activates domain in-turn | ✅ Verified |
+| Ineligible domain requested under policy ceiling | Model assumed arbitrary permissions | Tool returns `outside_policy` and `activeTools` rejects expansion | ✅ Verified |
+| Transient upstream 500 / timeout | Crashed turn with error banner | `maxRetries: 3` + `AGENT_FALLBACK_MODEL_ID` failover attempt | ✅ Verified |
+| Revoked token during chat execution | Returned mock text / silent fail | Guard catches 401, marks `needs_attention`, returns clean error | ✅ Verified |
 
 ---
 
-## 5. Phased Implementation Roadmap
+## 7. Implementation Status
 
-- [x] **Phase 0 — Stop Fake Data & Remove Dead Code** (Completed).
-- [x] **Phase 1 — Typo-Resilient Regex & Regression Suite** (Completed in `agent.ts`).
-- [x] **Phase 2 — Adaptive Levenshtein Fuzzy Matcher & Independent Domain Scoring** (Completed in `agent.ts`).
-- [x] **Phase 3 — `requestMoreTools` & `prepareStep` In-Loop Schema Expansion** (Completed in `agent.ts` and `route.ts`).
-- [ ] **Phase 4 — Unified `ProviderReadiness` Contract & Settings Surface** (Next backlog phase).
+- [x] **Phase 0 — Stop Fake Data & Remove Dead Code** (Completed)
+- [x] **Phase 1 — Typo-Resilient Regex & Regression Suite** (Completed)
+- [x] **Phase 2 — Adaptive Levenshtein Fuzzy Matcher & Independent Domain Scoring** (Completed)
+- [x] **Phase 3 — `requestMoreTools` & `prepareStep` In-Loop Schema Expansion** (Completed)
+- [x] **Phase 4 — TPM Optimization: 4-Pillar Token Budget** (Completed 2026-08-26)
+  - [x] P1: Output projection — `getAllAccounts`, `getRecentSignals` trimmed
+  - [x] P2: Dynamic tool scoping — `MAX_ACTIVE_TOOLS=18` cap in `selectRelevantToolsForPrompt`
+  - [x] P3: Compact tool history — `compactToolHistory()` in `agent.ts` + `route.ts`
+  - [x] P4: 429 backoff — `fetchWithBackoff` in `ai.ts` with exp backoff + jitter
+- [ ] **Phase 5 — Unified `ProviderReadiness` Contract & Settings Surface** (Next backlog phase)

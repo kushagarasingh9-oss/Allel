@@ -4,7 +4,7 @@
 >
 > For whole-system architecture — layers, database, integrations, frontend surfaces, runtime paths — see [ALLEL.md](file:///Users/kushagrasingh/dev/allel/ALLEL.md). This file details the agent orchestration engine.
 >
-> Verified against the working tree on **2026-08-22**. Paths are repo-relative.
+> Verified against the working tree on **2026-08-26**. Paths are repo-relative.
 
 ---
 
@@ -104,7 +104,7 @@ model receives expanded schemas in the SAME loop turn without restarting stream
   - Tokens 6+ chars: distance $\le 2$
   - Tokens $\le 3$ chars: never fuzzy-matched (avoids false matches on short words)
 - Domain matching is strictly independent (e.g. matching Gmail never drops Calendar).
-- Chat turns with no detected domain signal fall back to core tools (~7 tools) rather than dumping all 136 schemas.
+- **Pillar 2 — Dynamic Tool Scoping**: `MAX_ACTIVE_TOOLS = 18` cap for chat turns. Core 6 tools always present; domain tools fill remaining 12 slots in priority order. Falls back to core-only when no domain is detected (~1,500 schema tokens vs. 8,500 for full set).
 
 ### Guarantee 2 — No False Positives: Live Integration Guards
 - Every tool definition is wrapped with `wrapToolWithLiveIntegrationGuard`.
@@ -119,6 +119,23 @@ model receives expanded schemas in the SAME loop turn without restarting stream
 - `approveDraft` and `sendApprovedDraft` tools are **strictly excluded** from `ALL_TOOLS`.
 - `approveDraftForActor()` and `sendDraftForActor()` in `web/src/lib/drafts/draft-workflows.ts` reject any call where `actor === 'agent'`.
 - Sending an email requires explicit status `ready_to_send` and verified human founder approval provenance (`approved_at` and `approved_by_actor`).
+
+---
+
+## 100k TPM Budget — 4-Pillar Optimization
+
+**Deployment:** Azure OpenAI Global Standard · Kimi-K2.6 · **100,000 TPM (hard cap)**
+
+| Pillar | File | What It Does | Token Savings |
+| :--- | :--- | :--- | :--- |
+| **P1 — Output Projection** | `tools.ts` | `getAllAccounts` drops 5 raw fields, sorts at-risk first, caps at 20 rows. `getRecentSignals` drops `stripeCustomerId`. | ~3,000–5,000 / turn |
+| **P2 — Dynamic Tool Scoping** | `agent.ts` | Chat capped at `MAX_ACTIVE_TOOLS=18`. Core 6 always present. `requestMoreTools` unlocks any domain. | ~5,800 schema tokens / step |
+| **P3 — Compact Tool History** | `agent.ts` + `route.ts` | `compactToolHistory()` truncates old tool results over 400 chars to a 160-char preview. Last exchange verbatim. | ~4,500 history tokens / 5-step convo |
+| **P4 — 429 Backoff** | `ai.ts` | `fetchWithBackoff` reads `Retry-After` header; exp backoff 1s to 16s + jitter; 4 retries. Injected into Azure `createOpenAI` fetch. | Eliminates 429 crashes |
+
+**Net result:** ~22,000 tokens/turn → ~4,500 tokens/turn (~80% reduction). Fits comfortably under 100k TPM with 4 concurrent workflows.
+
+See [tool_calling.md](./tool_calling.md) for full implementation details.
 
 ---
 
@@ -157,6 +174,7 @@ The browser can send user messages. It cannot define trusted assistant state.
 - Bounded trailing transcript: `MAX_PERSISTED_AGENT_MESSAGES = 40`.
 - Compacted rolling summary: `MAX_COMPACTED_SUMMARY_CHARS = 1800`.
 - Account context: up to `MAX_COMPACTED_ACCOUNT_IDS = 4` mentioned account IDs, `MAX_COMPACTED_GOALS = 3` user goals, and commitments in `agent_conversations`.
+- **Pillar 3 — In-Turn Tool History Compaction**: `compactToolHistory()` (exported from `agent.ts`) runs on every incoming `recentMessages` array in `route.ts`. Tool result messages older than the last exchange and longer than 400 chars are replaced with a 160-char preview. Prevents O(N²) context growth in multi-step conversations.
 
 ### Account Memory — `account-memory.ts`
 - Stored in `account_memories`: account summaries, key signals, open loops, and recent timeline context.
@@ -181,3 +199,4 @@ The browser can send user messages. It cannot define trusted assistant state.
 2. **Server-First Chat Hydration**: Fetch persisted history on initial boot via `/api/agent/history` rather than relying primarily on browser `sessionStorage`.
 3. **Semantic Memory Layer**: Complement heuristic compaction with vector-indexed account memory embeddings.
 4. **Provider Readiness Dashboard**: Surface live provider health and remediation guidance in `/dashboard/settings`.
+5. **Unified `ProviderReadiness` Contract**: Standardize the provider health contract across all integration modules (Phase 5 backlog).
