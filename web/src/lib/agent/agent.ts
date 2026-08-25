@@ -625,8 +625,8 @@ export const TOOL_DOMAIN_GROUPS: ReadonlyArray<ToolDomainGroup> = [
   {
     domain: 'google_calendar',
     provider: 'google_calendar',
-    regex: /\b(calendar|calender|calndr|gcal|cal|meeting|meetings|schedule|schedules|schdule|schedual|event|events|cancel|delete|freebusy|free|busy|book|appointment|appointments|am|pm|tomorrow|today|agenda|slot|slots|availability|invite|invites|meet)\b/i,
-    fuzzyKeywords: ['calendar', 'meeting', 'meetings', 'schedule', 'schedules', 'appointment', 'appointments', 'agenda', 'availability'],
+    regex: /\b(calendar|calender|calndr|gcal|cal|meeting|meetings|meetin|meetng|schedule|schedules|schdule|schedual|scheduel|event|events|cancel|cancle|delete|delte|delt|freebusy|free|busy|book|appointment|appointments|am|pm|tomorrow|tomoirw|tomorow|tmrw|tmr|today|agenda|slot|slots|availability|invite|invites|meet)\b/i,
+    fuzzyKeywords: ['calendar', 'meeting', 'meetings', 'schedule', 'schedules', 'appointment', 'appointments', 'agenda', 'availability', 'delete', 'cancel'],
     tools: [
       'listCalendarEventsTool',
       'getCalendarEventTool',
@@ -850,7 +850,11 @@ export const TOOL_DOMAIN_GROUPS: ReadonlyArray<ToolDomainGroup> = [
 
 export function tokenizeForDomainRouting(text: string): string[] {
   if (!text) return []
-  return text.toLowerCase().match(/[a-z0-9]+/g) || []
+  // Split merged words like "meetingwhich" -> "meeting which", "calenderwith" -> "calender with"
+  const preprocessed = text
+    .toLowerCase()
+    .replace(/(calendar|calender|meeting|email|mail|stripe|linear|sentry|slack)(which|that|for|with|at|in|on|to|from|and|or|i|we|my|the)/g, '$1 $2')
+  return preprocessed.match(/[a-z0-9]+/g) || []
 }
 
 export function levenshteinDistanceWithin(

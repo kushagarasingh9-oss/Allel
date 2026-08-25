@@ -50,6 +50,17 @@ export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boole
     return isExecuting ? "Preparing daily brief" : "Prepared daily brief"
   }
   if (
+    tools.has('listCalendarEventsTool') ||
+    tools.has('createCalendarEventTool') ||
+    tools.has('updateCalendarEventTool') ||
+    tools.has('deleteCalendarEventTool') ||
+    tools.has('quickAddCalendarEventTool') ||
+    tools.has('getCalendarEventDetailTool') ||
+    tools.has('checkCalendarFreeBusy')
+  ) {
+    return isExecuting ? "Updating Google Calendar" : "Updated Google Calendar"
+  }
+  if (
     tools.has('getMyInbox') ||
     tools.has('getExistingDrafts') ||
     tools.has('generateFollowUpDraft')
@@ -289,9 +300,6 @@ export function MonologueBlock({ text, label }: { text: string; label?: string }
     if (label) return label
     if (!text) return "Thinking"
     const low = text.toLowerCase()
-    if (low.includes('search') || low.includes('google') || low.includes('web') || low.includes('tavily')) {
-      return "Formulating web search"
-    }
     if (low.includes('calendar') || low.includes('schedule') || low.includes('meeting') || low.includes('event')) {
       return "Checking schedule & calendar"
     }
@@ -303,6 +311,9 @@ export function MonologueBlock({ text, label }: { text: string; label?: string }
     }
     if (low.includes('brief') || low.includes('morning') || low.includes('daily') || low.includes('standup')) {
       return "Structuring daily executive brief"
+    }
+    if (low.includes('web') || low.includes('tavily') || low.includes('search the web') || low.includes('websearch') || low.includes('internet lookup')) {
+      return "Formulating web search"
     }
     if (low.includes('linear') || low.includes('ticket') || low.includes('issue') || low.includes('bug')) {
       return "Reviewing issue tracker"
