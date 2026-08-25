@@ -104,7 +104,7 @@ model receives expanded schemas in the SAME loop turn without restarting stream
   - Tokens 6+ chars: distance $\le 2$
   - Tokens $\le 3$ chars: never fuzzy-matched (avoids false matches on short words)
 - Domain matching is strictly independent (e.g. matching Gmail never drops Calendar).
-- **Pillar 2 — Dynamic Tool Scoping**: `MAX_ACTIVE_TOOLS = 18` cap for chat turns. Core 6 tools always present; domain tools fill remaining 12 slots in priority order. Falls back to core-only when no domain is detected (~1,500 schema tokens vs. 8,500 for full set).
+- **Pillar 2 — Relevance-Ordered Tool Provisioning**: All eligible tools are available from Step 1 with priority ordering (intent tools → primary domain → secondary companion → history → core). Broad requests (e.g. morning brief across Calendar, Inbox, Billing, Slack) have full concurrent tool access.
 
 ### Guarantee 2 — No False Positives: Live Integration Guards
 - Every tool definition is wrapped with `wrapToolWithLiveIntegrationGuard`.

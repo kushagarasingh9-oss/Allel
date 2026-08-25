@@ -1004,6 +1004,18 @@ const INTENT_CORE_TOOLS: Array<{
   tools: AgentToolName[]
 }> = [
   {
+    verbs: /\b(brief|daily|morning|today|overview|standup|summary)\b/i,
+    tools: [
+      'listCalendarEventsTool',
+      'getMyInbox',
+      'getAllAccounts',
+      'getSlackHistory',
+      'getRecentSignals',
+      'listSentryIssuesTool',
+      'searchLinearIssuesTool',
+    ],
+  },
+  {
     verbs: /\b(show|list|get|fetch|find|search|look|display|what|who|which)\b/i,
     tools: ['getAccountDetails', 'getAllAccounts', 'getRecentSignals'],
   },
@@ -1238,14 +1250,10 @@ export function selectRelevantToolsForPrompt(
     return [...availableCoreTools]
   }
 
-  // ── Phase 7: Cap active tool set (Pillar 2 — Dynamic Tool Scoping) ─────────
-  // Passing all 60+ tool schemas floods the context with ~8,500 tokens.
-  // Cap at MAX_ACTIVE_TOOLS: core tools are always present, domain tools fill
-  // the remaining budget in priority order (intent → primary → secondary → history).
-  const MAX_ACTIVE_TOOLS = 18
-
-  // Ordered merge: intent → primary → secondary → history → core
-  // Use a Set to deduplicate while preserving insertion order
+  // ── Phase 7: Order tools with high-priority first (All tools available) ────
+  // We prioritize high-confidence tools at the top of the schema list so the model
+  // finds and selects them quickly, while providing ALL eligible tools so broad
+  // requests (e.g. morning brief across Calendar, Gmail, Stripe, Slack) have full access.
   const orderedMerged = [
     ...new Set([
       ...intentTools,
@@ -1253,23 +1261,11 @@ export function selectRelevantToolsForPrompt(
       ...secondaryToolNames,
       ...historyToolNames,
       ...availableCoreTools,
+      ...availableToolNames,
     ])
   ]
 
-  // For automation channel, return full set (no API rate constraint there)
-  if (options?.channel === 'automation') {
-    return orderedMerged
-  }
-
-  // For chat: slice to budget — always keep core tools even if they push over
-  if (orderedMerged.length <= MAX_ACTIVE_TOOLS) {
-    return orderedMerged
-  }
-
-  const coreSet = new Set(availableCoreTools)
-  const nonCore = orderedMerged.filter((t) => !coreSet.has(t))
-  const budgetForDomain = MAX_ACTIVE_TOOLS - availableCoreTools.length
-  return [...nonCore.slice(0, Math.max(budgetForDomain, 0)), ...availableCoreTools]
+  return orderedMerged
 }
 
 /**
@@ -1706,11 +1702,10 @@ export function getAgentForPersona(
   const persona = getPersona(safeId)
   const eligibleToolNames = getAvailableToolNamesForPersona(safeId, options?.allowedToolNames, { channel })
 
-  // ── Pillar 2: Scope active tools — pass only top-N schemas to the model ──────
-  // Comment from original code noted that all eligible tools were passed.
-  // Now we actually filter: orderedToolNames IS the capped relevant set.
-  // For automation, selectRelevantToolsForPrompt returns full set (no cap applied).
-  // For chat, it caps at MAX_ACTIVE_TOOLS=18 — saving ~6,000 schema tokens/step.
+  // ── Full Tool Availability with Relevance Ordering ──────────────────────
+  // All eligible tools for the persona are available to the model from step 1,
+  // ordered with high-confidence tools first at the top of the schema list.
+  // This ensures broad requests (morning brief, multi-platform checks) have full tool access.
   const initialToolNames = options?.prompt
     ? selectRelevantToolsForPrompt(options.prompt, eligibleToolNames, options?.historyMessages, { channel })
     : [...eligibleToolNames]

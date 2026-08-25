@@ -119,27 +119,24 @@ accounts
 
 ---
 
-### Pillar 2 — Dynamic Tool Scoping (agent.ts → `selectRelevantToolsForPrompt`)
+### Pillar 2 — Relevance-Ordered Tool Provisioning (agent.ts)
 
-Instead of passing all 60+ tool schemas every step, cap at **18 active tools** most relevant to the prompt.
+Instead of arbitrarily cutting off tools with a rigid numerical limit, all eligible tools for the persona are provided from Step 1 with intelligent priority ordering:
 
 ```
-Tool selection priority order (highest → lowest):
-  1. Intent-verb tools  (e.g. "show" → getAllAccounts, getAccountDetails)
-  2. Primary domain     (high score match — Stripe, Gmail, Calendar…)
-  3. Secondary domain   (companion match — recovery when stripe fires)
-  4. History tools      (tools used in recent prior turns)
-  5. Core 6 tools       (always present regardless of routing)
-  ──────────────────────
-  Cap: MAX_ACTIVE_TOOLS = 18 (chat), full set (automation)
+Tool priority order in schema context (highest → lowest):
+  1. Intent-verb tools   (e.g. "morning brief" → Calendar, Inbox, Billing, Slack)
+  2. Primary domain      (high-score match — Stripe, Gmail, Calendar…)
+  3. Companion domain    (correlation — recovery when Stripe triggers)
+  4. History tools       (tools used in recent prior turns)
+  5. Core tools          (account details, profile, memory)
+  6. All eligible tools  (full capability suite available from Step 1)
 ```
 
-**Key constant:**
-```ts
-const MAX_ACTIVE_TOOLS = 18  // in selectRelevantToolsForPrompt()
-```
-
-The model always retains `requestMoreTools` as a meta-tool to unlock any other domain on demand — so no capability is ever permanently hidden.
+This guarantees:
+1. **Zero Missed Capabilities**: Broad requests (like morning briefs or cross-platform investigations) can freely call Calendar, Gmail, Stripe, and Slack in parallel without being artificially blocked.
+2. **Fast Selection**: The most relevant tools are at the top of the schema list where the model's attention mechanism attends first.
+3. **Safety via Pillars 1, 3, & 4**: Lean output payloads + compact history keep token usage under budget regardless of total tools.
 
 ---
 

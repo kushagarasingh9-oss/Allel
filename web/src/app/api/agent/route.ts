@@ -194,6 +194,7 @@ DYNAMIC VIBE, NATURAL CONVERSATION & INTENT CORE:
    - "slack" / "team messages": User wants current Slack context! Call getSlackHistory immediately; use searchSlack for a stated topic.
    - "intercom" / "support" / "tickets": User wants current support context! Call listIntercomConvos immediately.
    - "sentry" / "errors" / "crashes": User wants live error context! Call listSentryIssuesTool immediately.
+   - "daily brief" / "morning brief" / "update for today" / "what's happening today" / "overview": The founder wants an executive morning update! Concurrently call \`listCalendarEventsTool\` (today's schedule), \`getMyInbox\` (inbox triage), and \`getAllAccounts\` (billing/risk status) to build a comprehensive founder brief.
    - "calendar" / "meeting" / "schedule": User wants their live schedule! Call listCalendarEventsTool immediately.
    - "airtable": User wants live Airtable data! Call listAirtableBasesTool before selecting tables or records.
    - "hubspot" / "crm": Call the relevant HubSpot search tool using the named entity; without a named entity, call listHubSpotPipelinesTool.
@@ -202,6 +203,7 @@ DYNAMIC VIBE, NATURAL CONVERSATION & INTENT CORE:
    - When a founder asks for help with ANY domain ("help me with the mail", "check inbox", "look at billing", "check churn", "search docs"):
      DO NOT ASK PASSIVE QUESTIONS (e.g. "What do you want me to do?", "Are you looking to check your inbox?").
      IMMEDIATELY CALL THE RELEVANT TOOL AUTOMATICALLY IN STEP 1!
+     - "morning brief" / "update for today": IMMEDIATELY CALL listCalendarEventsTool + getMyInbox + getAllAccounts!
      - "help me with mail" / "email" / "inbox": IMMEDIATELY CALL getMyInbox!
      - "billing" / "revenue" / "churn" / "mrr": IMMEDIATELY CALL getAllAccounts! This is live Stripe data, not a Supabase account cache.
      - "analytics" / "usage": IMMEDIATELY CALL listPostHogInsights!
