@@ -39,15 +39,16 @@ async function fetchWithBackoff(
 
     const isRetryableStatus =
       response.status === 429 ||
-      response.status === 503 ||
+      response.status === 500 ||
       response.status === 502 ||
+      response.status === 503 ||
       response.status === 504
 
     let shouldRetry = isRetryableStatus
     let isPeakLoadSurge = false
 
-    // Check if 400/other status is an Azure peak-load capacity rejection
-    if (!shouldRetry && (response.status === 400 || response.status === 429) && attempt < maxRetries) {
+    // Check if 400 or any non-200 status is an Azure peak-load capacity rejection or temporary server error
+    if (!shouldRetry && attempt < maxRetries && !response.ok) {
       try {
         const cloned = response.clone()
         const text = await cloned.text()
@@ -56,7 +57,9 @@ async function fetchWithBackoff(
           text.includes('exceeds the maximum usage size allowed during peak load') ||
           text.includes('high demand') ||
           text.includes('Rate limit') ||
-          text.includes('rate_limit')
+          text.includes('rate_limit') ||
+          text.includes('Azure support request') ||
+          text.includes('The server had an error processing your request')
         ) {
           shouldRetry = true
           isPeakLoadSurge = true

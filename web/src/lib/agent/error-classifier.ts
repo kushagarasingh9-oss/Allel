@@ -64,6 +64,9 @@ const FAILURE_MATCHERS: ReadonlyArray<{ failureClass: ModelFailureClass; markers
       'service_unavailable',
       'service unavailable',
       'bad gateway',
+      'azure support request',
+      'an error processing your request',
+      'the server had an error processing your request',
     ],
   },
   {
