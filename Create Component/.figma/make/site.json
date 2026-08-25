@@ -1,0 +1,10 @@
+{
+  "description": "Create and customize UI components effortlessly with an intuitive tool designed for designers and developers to streamline their workflow.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
