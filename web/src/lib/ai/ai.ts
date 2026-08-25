@@ -17,6 +17,48 @@ function resolvedModel() {
   return getLanguageModel(MODEL_ID)
 }
 
+/**
+ * Fetch wrapper that transparently retries 429 (rate-limit) and 503/502
+ * (transient upstream) responses using exponential backoff + jitter.
+ *
+ * For Azure Kimi-K2.6 at 100k TPM: instead of crashing the agent turn,
+ * a TPM spike will silently pause for up to ~15s and retry 4 times.
+ * The Retry-After header is honoured when present.
+ */
+async function fetchWithBackoff(
+  url: RequestInfo | URL,
+  options?: RequestInit,
+  maxRetries = 4
+): Promise<Response> {
+  let attempt = 0
+  let delay = 1000 // ms — first back-off window
+
+  while (true) {
+    const response = await fetch(url, options)
+
+    const isRetryable = response.status === 429 || response.status === 503 || response.status === 502
+    if (!isRetryable || attempt >= maxRetries) {
+      return response
+    }
+
+    // Honour Retry-After (seconds) when the server sends it
+    const retryAfterHeader = response.headers.get('retry-after')
+    const retryAfterMs = retryAfterHeader
+      ? parseInt(retryAfterHeader, 10) * 1000
+      : delay + Math.floor(Math.random() * 400) // jitter ±400ms
+
+    const waitMs = Math.min(retryAfterMs, 30_000) // cap at 30s
+    console.warn(
+      `[AI fetch] ${response.status} on attempt ${attempt + 1}/${maxRetries}. ` +
+      `Backing off for ${waitMs}ms...`
+    )
+
+    await new Promise((res) => setTimeout(res, waitMs))
+    delay = Math.min(delay * 2, 16_000) // double delay each retry, cap at 16s
+    attempt++
+  }
+}
+
 export function getLanguageModel(modelIdOverride?: string) {
   const modelId = modelIdOverride || process.env.OPENAI_MODEL_ID || 'gpt-4o'
   const apiKey = process.env.AZURE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || ''
@@ -33,6 +75,9 @@ export function getLanguageModel(modelIdOverride?: string) {
     const azureOpenAI = createOpenAI({
       apiKey,
       baseURL,
+      // Inject the backoff-aware fetch for all calls to this Azure deployment.
+      // This prevents 429 TPM spikes from surfacing as hard errors to the agent.
+      fetch: fetchWithBackoff,
     })
     return azureOpenAI(modelId)
   }
@@ -41,6 +86,7 @@ export function getLanguageModel(modelIdOverride?: string) {
     const githubModels = createOpenAI({
       apiKey,
       baseURL: 'https://models.inference.ai.azure.com',
+      fetch: fetchWithBackoff,
     })
     return githubModels(modelId)
   }

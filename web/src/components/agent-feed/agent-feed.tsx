@@ -68,6 +68,27 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   searchSlack: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
   replyInSlackThread: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
   getSlackChannels: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
+  syncStripeWorkspaceTool: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  syncPostHogWorkspaceTool: <img src="/logos/posthog.svg" alt="PostHog" className="w-4 h-4 object-contain shrink-0" />,
+  syncGmailWorkspaceTool: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  syncIntercomWorkspaceTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  syncHubSpotWorkspaceTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
+  syncSentryWorkspaceTool: <img src="/logos/sentry-light.svg" alt="Sentry" className="w-4 h-4 object-contain shrink-0" />,
+  syncLinearWorkspaceTool: <img src="/logos/linear.svg" alt="Linear" className="w-4 h-4 object-contain shrink-0" />,
+
+  // Internal account/workspace tools — use Stripe as the data-source icon
+  // since account state is primarily driven by Stripe billing data
+  getAllAccounts: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  getAccountDetails: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  getRecentSignals: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  resolveAccountByContact: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  getChurnScoreHistory: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  getAccountTimeline: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  getAccountMemory: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+
+  addTimelineEvent: <Database className="w-4 h-4 text-neutral-500" />,
+  createSignal: <Zap className="w-4 h-4 text-neutral-500" />,
+  updateAccountRisk: <AlertCircle className="w-4 h-4 text-neutral-500" />,
 }
 
 // ─── Human-readable names for tools ──────────────────────────────────

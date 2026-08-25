@@ -453,26 +453,28 @@ export const getAllAccounts = tool({
         return true
       })
 
+      const MAX_ACCOUNTS = 20
       return {
         source: 'stripe_live',
         observedAt: new Date().toISOString(),
-        accounts: accounts.map((account) => ({
-          id: account.accountId ?? account.stripeCustomerId,
-          internalAccountId: account.accountId,
-          stripeCustomerId: account.stripeCustomerId,
-          name: account.name,
-          email: account.email,
-          mrr: formatLiveMrr(account.mrrCents),
-          mrrCents: account.mrrCents,
-          riskLevel: account.riskLevel,
-          status: account.status,
-          plan: account.plan,
-          cancelAtPeriodEnd: account.cancelAtPeriodEnd,
-          currentPeriodEnd: account.currentPeriodEnd,
-          nextAction: liveStripeNextAction(account),
-        })),
-        count: accounts.length,
-        totalMrrCents: accounts.reduce((total, account) => total + account.mrrCents, 0),
+        // Cap to 20 rows — if workspace has more, sort at-risk first
+        accounts: accounts
+          .sort((a, b) => {
+            const rank: Record<string, number> = { high: 0, medium: 1, low: 2, healthy: 3 }
+            return (rank[a.riskLevel] ?? 4) - (rank[b.riskLevel] ?? 4)
+          })
+          .slice(0, MAX_ACCOUNTS)
+          .map((account) => ({
+            id: account.accountId ?? account.stripeCustomerId,
+            name: account.name,
+            email: account.email,
+            mrr: formatLiveMrr(account.mrrCents),
+            riskLevel: account.riskLevel,
+            status: account.status,
+            plan: account.plan,
+            nextAction: liveStripeNextAction(account),
+          })),
+        count: accounts.length, // total before cap
         totalMrr: formatLiveMrr(
           accounts.reduce((total, account) => total + account.mrrCents, 0)
         ),
@@ -548,7 +550,13 @@ export const getRecentSignals = tool({
         })
         .slice(0, limit ?? 10)
 
-      return { source: 'stripe_live', observedAt, signals, count: signals.length }
+      return {
+        source: 'stripe_live',
+        observedAt,
+        // Only include accountId (UUID for look-ups) not stripeCustomerId — saves ~40 tokens/signal
+        signals: signals.map(({ stripeCustomerId: _dropped, ...s }) => s),
+        count: signals.length,
+      }
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Stripe API call failed' }
     }
