@@ -1702,7 +1702,6 @@ export function getAgentForPersona(
   const modelId = options?.modelId ?? resolveAgentModelId({ personaId: safeId })
   const channel = options?.channel ?? 'chat'
   const runType = options?.runType ?? (channel === 'chat' ? 'chat_message' : 'agent_run')
-
   const persona = getPersona(safeId)
   const eligibleToolNames = getAvailableToolNamesForPersona(safeId, options?.allowedToolNames, { channel })
 
@@ -1717,11 +1716,13 @@ export function getAgentForPersona(
   const allowedToolNamesKey = options?.allowedToolNames
     ? [...new Set(options.allowedToolNames)].sort().join(',')
     : 'all'
-  // Cache key is deterministic per persona+model+channel
-  const cacheKey = `${safeId}:${modelId}:${channel}:${runType}:${allowedToolNamesKey}:all_tools`
+  const initialToolNamesKey = [...new Set(initialToolNames)].sort().join(',')
 
-  // In production, reuse cached agent instances; in development, re-instantiate so code changes apply immediately
-  if (process.env.NODE_ENV === 'production') {
+  // Cache key is deterministic per persona+model+channel+initialTools
+  const cacheKey = `${safeId}:${modelId}:${channel}:${runType}:${allowedToolNamesKey}:${initialToolNamesKey}`
+
+  // In production and test environments, reuse cached agent instances; in development, re-instantiate so code changes apply immediately
+  if (process.env.NODE_ENV !== 'development') {
     const cached = agentCache.get(cacheKey)
     if (cached) return cached
   }

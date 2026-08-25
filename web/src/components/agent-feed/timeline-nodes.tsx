@@ -22,6 +22,8 @@ export type ReasoningBatchState = {
   stepsCount: number
   /** Server observation: the reply promised an action the turn never performed. */
   announcedActionMismatch?: boolean
+  /** List of tool names executed in this batch to build a contextual title. */
+  toolNames?: string[]
 }
 
 export type ReasoningBatchLabel = {
@@ -30,29 +32,86 @@ export type ReasoningBatchLabel = {
   isUnfulfilled: boolean
 }
 
+export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boolean = false): string {
+  const tools = new Set(toolNames)
+
+  if (
+    tools.has('webSearchTool') ||
+    tools.has('webExtractTool') ||
+    tools.has('webCrawlTool') ||
+    tools.has('webMapTool')
+  ) {
+    return isExecuting ? "Searching web intelligence" : "Searched web intelligence"
+  }
+  if (
+    tools.has('listCalendarEventsTool') &&
+    (tools.has('getMyInbox') || tools.has('getAllAccounts'))
+  ) {
+    return isExecuting ? "Preparing daily brief" : "Prepared daily brief"
+  }
+  if (
+    tools.has('getMyInbox') ||
+    tools.has('getExistingDrafts') ||
+    tools.has('generateFollowUpDraft')
+  ) {
+    return isExecuting ? "Checking inbox & communications" : "Reviewed inbox & communications"
+  }
+  if (
+    tools.has('getAllAccounts') ||
+    tools.has('getStripeAccountState') ||
+    tools.has('getRecentSignals')
+  ) {
+    return isExecuting ? "Scanning customer billing & risk" : "Analyzed customer billing & risk"
+  }
+  if (tools.has('searchLinearIssuesTool') || tools.has('syncLinearWorkspaceTool')) {
+    return isExecuting ? "Searching Linear tickets" : "Checked Linear tickets"
+  }
+  if (tools.has('listSentryIssuesTool') || tools.has('syncSentryWorkspaceTool')) {
+    return isExecuting ? "Checking error logs" : "Checked error logs"
+  }
+  if (tools.has('inspectIntegrationConnectionsTool')) {
+    return isExecuting ? "Verifying active connections" : "Verified active connections"
+  }
+  if (tools.has('searchNotionTool') || tools.has('listAirtableBasesTool')) {
+    return isExecuting ? "Searching workspace knowledge" : "Searched workspace knowledge"
+  }
+  if (
+    tools.has('getSlackHistory') ||
+    tools.has('sendSlackMessage') ||
+    tools.has('deliverSlackBriefTool')
+  ) {
+    return isExecuting ? "Reviewing Slack context" : "Reviewed Slack context"
+  }
+
+  return "Identifying user needs and intent"
+}
+
 /**
  * The batch header label.
  *
- * Extracted as a pure function so the decision is unit-testable — there is no
- * component test harness in this repo, and the distinction between "answered
- * without tools" and "promised an action and did nothing" is the whole point of
- * the label.
+ * Dynamically reflects the primary domain action being performed (e.g. web search,
+ * calendar, billing, inbox) with step counts when completed.
  */
 export function describeReasoningBatch(state: ReasoningBatchState): ReasoningBatchLabel {
   if (state.isExecuting) {
-    return { text: "Identifying user needs and intent", isUnfulfilled: false }
+    const baseTitle = getBatchActionTitle(state.toolNames, true)
+    return { text: baseTitle, isUnfulfilled: false }
   }
 
   if (state.announcedActionMismatch) {
     return { text: "Announced action was not executed", isUnfulfilled: true }
   }
 
+  const baseTitle = getBatchActionTitle(state.toolNames, false)
+
   if (state.stepsCount === 0) {
     return { text: "Direct response (no tools used)", isUnfulfilled: false }
   }
 
+  const stepSuffix = `(${state.stepsCount} step${state.stepsCount === 1 ? '' : 's'})`
+
   return {
-    text: `Identifying user needs and intent (${state.stepsCount} step${state.stepsCount === 1 ? '' : 's'})`,
+    text: `${baseTitle} ${stepSuffix}`,
     isUnfulfilled: false,
   }
 }
@@ -62,13 +121,15 @@ export function AgentReasoningBatch({
   stepsCount = 1,
   isExecuting = false,
   announcedActionMismatch = false,
+  toolNames,
 }: {
   children: React.ReactNode
   stepsCount?: number
   isExecuting?: boolean
   announcedActionMismatch?: boolean
+  toolNames?: string[]
 }) {
-  const label = describeReasoningBatch({ isExecuting, stepsCount, announcedActionMismatch })
+  const label = describeReasoningBatch({ isExecuting, stepsCount, announcedActionMismatch, toolNames })
   // Start open if it's currently executing, closed if it's a past message
   const [isOpen, setIsOpen] = React.useState(isExecuting)
 

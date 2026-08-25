@@ -149,9 +149,7 @@ export function sanitizeStoredPersonaMessages(
   return messages.filter((message): message is StoredUIMessage => {
     if (!isStoredUIMessage(message)) return false
     if (message.role === "user") return true
-    if (hasScopedTrustedHistory(message, options)) return true
-    // If it is a valid assistant message with parts, keep it rather than dropping
-    return Array.isArray(message.parts) && message.parts.length > 0
+    return hasScopedTrustedHistory(message, options)
   })
 }
 

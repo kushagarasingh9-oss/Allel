@@ -124,6 +124,7 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   createSignal: <Zap className="w-4 h-4 text-neutral-500" />,
   updateAccountRisk: <AlertCircle className="w-4 h-4 text-neutral-500" />,
   inspectIntegrationConnectionsTool: <Zap className="w-4 h-4 text-emerald-400" />,
+  requestMoreTools: <Zap className="w-4 h-4 text-emerald-400" />,
   webSearchTool: <Search className="w-4 h-4 text-neutral-400" />,
   webExtractTool: <Search className="w-4 h-4 text-neutral-400" />,
   webCrawlTool: <Search className="w-4 h-4 text-neutral-400" />,
@@ -132,6 +133,7 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
 
 // ─── Human-readable names for tools ──────────────────────────────────
 const TOOL_LABELS: Record<string, string> = {
+  requestMoreTools: "Expanding tool capabilities",
   webSearchTool: "Searching web intelligence",
   webExtractTool: "Extracting webpage content",
   webCrawlTool: "Crawling website domain",
@@ -582,6 +584,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
   const rendered: React.ReactNode[] = []
   let toolBatch: React.ReactNode[] = []
   let toolBatchCount = 0
+  let batchToolNames: string[] = []
 
   // Server observation attached in the chat route: the reply promised an action
   // the turn never performed, or served a different provider than it announced.
@@ -604,12 +607,14 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
           stepsCount={toolBatchCount}
           isExecuting={isExecuting}
           announcedActionMismatch={!isExecuting && announcedActionMismatch}
+          toolNames={[...batchToolNames]}
         >
           {toolBatch}
         </AgentReasoningBatch>
       )
       toolBatch = []
       toolBatchCount = 0
+      batchToolNames = []
     }
   }
 
@@ -644,6 +649,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
 
     if (isTool) {
       const toolName = extractToolName(rawPart)
+      batchToolNames.push(toolName)
       const label = TOOL_LABELS[toolName] ?? toolName
       const icon = TOOL_ICONS[toolName] ?? <Search className="w-3.5 h-3.5 text-neutral-500" />
       const state = String(rawPart.state ?? '')
