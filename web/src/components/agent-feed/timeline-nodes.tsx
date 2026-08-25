@@ -250,6 +250,37 @@ export function TimelineNode({
   )
 }
 
+export function sanitizeReasoningText(raw: string): string {
+  if (!raw) return ""
+
+  let clean = raw
+    // Strip raw tool function names and signatures
+    .replace(/\b(?:requestMoreTools|inspectIntegrationConnectionsTool|listCalendarEventsTool|getMyInbox|getAllAccounts|getStripeAccountState|getAccountDetails|getRecentSignals|getSlackHistory|searchLinearIssuesTool|listSentryIssuesTool|searchNotionTool|listAirtableBasesTool|createRescueDiscountTool)\s*\([^)]*\)/gi, '')
+    .replace(/\b(?:requestMoreTools|inspectIntegrationConnectionsTool|listCalendarEventsTool|getMyInbox|getAllAccounts|getStripeAccountState|getAccountDetails|getRecentSignals|getSlackHistory|searchLinearIssuesTool|listSentryIssuesTool|searchNotionTool|listAirtableBasesTool|createRescueDiscountTool)\b/g, (match) => {
+      if (match.includes('Calendar')) return 'Google Calendar'
+      if (match.includes('Inbox') || match.includes('Gmail')) return 'Inbox'
+      if (match.includes('Stripe') || match.includes('Account')) return 'customer accounts'
+      if (match.includes('Slack')) return 'Slack'
+      if (match.includes('Linear')) return 'Linear'
+      if (match.includes('Sentry')) return 'error logs'
+      if (match.includes('Search') || match.includes('web')) return 'web search'
+      return 'available tools'
+    })
+    // Strip raw JSON blobs, schemas, or credential fields
+    .replace(/\{[^{}]*(?:domain|workspaceId|apiKey|secret|userId|personaId)[^{}]*\}/gi, '')
+    .replace(/\b(?:workspace_id|user_id|persona_id|api_key|token|auth_token|client_secret)[\w\s:=]+(?:\n|$)/gi, '')
+    // Clean up excessive whitespace
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  // Keep it concise and clean (under 450 chars)
+  if (clean.length > 450) {
+    clean = `${clean.slice(0, 447).trimEnd()}...`
+  }
+
+  return clean || "Evaluating context and executing requested workflow."
+}
+
 export function MonologueBlock({ text, label }: { text: string; label?: string }) {
   const [expanded, setExpanded] = React.useState(false)
 
@@ -288,6 +319,8 @@ export function MonologueBlock({ text, label }: { text: string; label?: string }
     return "Analyzing request & context"
   }, [text, label])
 
+  const sanitizedText = React.useMemo(() => sanitizeReasoningText(text), [text])
+
   return (
     <div className="group text-[13px] text-neutral-400 font-normal leading-relaxed py-0.5">
       <button
@@ -301,8 +334,8 @@ export function MonologueBlock({ text, label }: { text: string; label?: string }
         <span className="font-medium text-neutral-400 select-none">{thinkingLabel}</span>
       </button>
       {expanded && (
-        <div className="pl-5 pt-1 text-neutral-400/90 whitespace-pre-wrap leading-relaxed">
-          {text}
+        <div className="pl-5 pt-1 text-neutral-400/90 whitespace-pre-wrap leading-relaxed text-[12px]">
+          {sanitizedText}
         </div>
       )}
     </div>

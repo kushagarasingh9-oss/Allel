@@ -649,6 +649,10 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
 
     if (isTool) {
       const toolName = extractToolName(rawPart)
+      // Internal orchestration meta-tools should not be rendered as separate user-facing nodes
+      if (toolName === 'requestMoreTools') {
+        continue
+      }
       batchToolNames.push(toolName)
       const label = TOOL_LABELS[toolName] ?? toolName
       const icon = TOOL_ICONS[toolName] ?? <Search className="w-3.5 h-3.5 text-neutral-500" />
