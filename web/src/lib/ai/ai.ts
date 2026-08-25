@@ -67,16 +67,35 @@ async function fetchWithBackoff(
       return response
     }
 
-    // Honour Retry-After (seconds) when the server sends it
+    // Parse Azure OpenAI & OpenAI standard rate-limit reset headers
     const retryAfterHeader = response.headers.get('retry-after')
-    const retryAfterMs = retryAfterHeader
-      ? parseInt(retryAfterHeader, 10) * 1000
-      : delay + Math.floor(Math.random() * 500) // jitter ±500ms
+    const retryAfterMsHeader = response.headers.get('retry-after-ms')
+    const resetTokensHeader = response.headers.get('x-ratelimit-reset-tokens')
+    const resetRequestsHeader = response.headers.get('x-ratelimit-reset-requests')
 
-    const waitMs = Math.min(retryAfterMs, 30_000) // cap at 30s
+    let serverWaitMs: number | null = null
+    if (retryAfterMsHeader) {
+      const parsed = parseInt(retryAfterMsHeader, 10)
+      if (!isNaN(parsed) && parsed > 0) serverWaitMs = parsed
+    } else if (retryAfterHeader) {
+      const parsed = parseInt(retryAfterHeader, 10)
+      if (!isNaN(parsed) && parsed > 0) serverWaitMs = parsed * 1000
+    } else if (resetTokensHeader) {
+      // Azure format: "24s" or "24" or "12.5s"
+      const seconds = parseFloat(resetTokensHeader.replace(/[^0-9.]/g, ''))
+      if (!isNaN(seconds) && seconds > 0) serverWaitMs = Math.ceil(seconds * 1000)
+    } else if (resetRequestsHeader) {
+      const seconds = parseFloat(resetRequestsHeader.replace(/[^0-9.]/g, ''))
+      if (!isNaN(seconds) && seconds > 0) serverWaitMs = Math.ceil(seconds * 1000)
+    }
+
+    const waitMs = serverWaitMs !== null
+      ? Math.min(serverWaitMs + Math.floor(Math.random() * 400), 45_000) // add slight jitter
+      : Math.min(delay + Math.floor(Math.random() * 600), 30_000)
+
     console.warn(
       `[Azure AI fetch] ${response.status} (attempt ${attempt + 1}/${maxRetries}). ` +
-      `Throttled under load. Backing off for ${waitMs}ms before retry...`
+      `Rate limit hit. Waiting ${waitMs}ms before retry...`
     )
 
     await new Promise((res) => setTimeout(res, waitMs))
