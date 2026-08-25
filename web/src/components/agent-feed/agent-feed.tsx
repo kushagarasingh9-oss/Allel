@@ -1072,10 +1072,25 @@ export function AgentFeed() {
   const feedRef = React.useRef<HTMLDivElement>(null)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
 
-  // Filter out temporary garbage test artifacts while preserving all live user & assistant messages
+  // Filter out temporary test artifacts and deduplicate identical repeated messages
   const displayMessages = React.useMemo(() => {
-    const liveMessages = messages.filter((m) => {
-      if (m.role === "assistant") return true
+    const seenIds = new Set<string>()
+    const liveMessages = messages.filter((m, idx) => {
+      if (m.id && seenIds.has(m.id)) return false
+      if (m.id) seenIds.add(m.id)
+
+      if (m.role === "assistant") {
+        const prev = messages[idx - 1]
+        if (prev && prev.role === "assistant") {
+          const prevText = prev.parts?.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim()
+          const currText = m.parts?.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim()
+          if (prevText && currText && prevText === currText) {
+            return false
+          }
+        }
+        return true
+      }
+
       const text = m.parts
         ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
         .map((p) => p.text)

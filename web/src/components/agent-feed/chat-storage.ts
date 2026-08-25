@@ -169,7 +169,7 @@ export function sanitizeStoredPersonaMessages(
  *
  * Pure, so the merge is testable without React.
  */
-export function reconcileConversationHistory<T extends { id?: string }>(
+export function reconcileConversationHistory<T extends { id?: string; role?: string; parts?: unknown[]; content?: unknown }>(
   localMessages: readonly T[],
   serverMessages: readonly T[]
 ): T[] {
@@ -182,11 +182,39 @@ export function reconcileConversationHistory<T extends { id?: string }>(
       .filter((id): id is string => typeof id === "string" && id.length > 0)
   )
 
-  // A local message with no id cannot be matched, so it is treated as local-only
-  // rather than silently dropped.
-  const localOnly = localMessages.filter(
-    (message) => !(typeof message.id === "string" && serverIds.has(message.id))
+  const getMessageText = (m: T): string => {
+    if (Array.isArray(m.parts)) {
+      return (m.parts as Array<{ type?: string; text?: string }>)
+        .filter((p) => p.type === "text" && typeof p.text === "string")
+        .map((p) => p.text)
+        .join(" ")
+        .trim()
+    }
+    if (typeof m.content === "string") return m.content.trim()
+    return ""
+  }
+
+  const serverAssistantTexts = new Set(
+    serverMessages
+      .filter((m) => m.role === "assistant")
+      .map((m) => getMessageText(m))
+      .filter((t) => t.length > 0)
   )
+
+  // A local message with no id cannot be matched, so it is treated as local-only
+  // rather than silently dropped, unless it's an assistant message whose text is already in server record.
+  const localOnly = localMessages.filter((message) => {
+    if (typeof message.id === "string" && serverIds.has(message.id)) {
+      return false
+    }
+    if (message.role === "assistant") {
+      const text = getMessageText(message)
+      if (text.length > 0 && serverAssistantTexts.has(text)) {
+        return false
+      }
+    }
+    return true
+  })
 
   return [...serverMessages, ...localOnly]
 }
