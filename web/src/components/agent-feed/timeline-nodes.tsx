@@ -250,8 +250,43 @@ export function TimelineNode({
   )
 }
 
-export function MonologueBlock({ text }: { text: string }) {
+export function MonologueBlock({ text, label }: { text: string; label?: string }) {
   const [expanded, setExpanded] = React.useState(false)
+
+  // Derive dynamic thinking label from the reasoning content
+  const thinkingLabel = React.useMemo(() => {
+    if (label) return label
+    if (!text) return "Thinking"
+    const low = text.toLowerCase()
+    if (low.includes('search') || low.includes('google') || low.includes('web') || low.includes('tavily')) {
+      return "Formulating web search"
+    }
+    if (low.includes('calendar') || low.includes('schedule') || low.includes('meeting') || low.includes('event')) {
+      return "Checking schedule & calendar"
+    }
+    if (low.includes('inbox') || low.includes('email') || low.includes('mail') || low.includes('thread') || low.includes('draft')) {
+      return "Triaging inbox communications"
+    }
+    if (low.includes('stripe') || low.includes('billing') || low.includes('revenue') || low.includes('mrr') || low.includes('churn') || low.includes('account')) {
+      return "Analyzing customer & billing health"
+    }
+    if (low.includes('brief') || low.includes('morning') || low.includes('daily') || low.includes('standup')) {
+      return "Structuring daily executive brief"
+    }
+    if (low.includes('linear') || low.includes('ticket') || low.includes('issue') || low.includes('bug')) {
+      return "Reviewing issue tracker"
+    }
+    if (low.includes('sentry') || low.includes('error') || low.includes('crash') || low.includes('exception')) {
+      return "Diagnosing error signals"
+    }
+    if (low.includes('slack') || low.includes('channel') || low.includes('message')) {
+      return "Analyzing Slack context"
+    }
+    if (low.includes('tool') || low.includes('expand') || low.includes('request')) {
+      return "Selecting optimal toolset"
+    }
+    return "Analyzing request & context"
+  }, [text, label])
 
   return (
     <div className="group text-[13px] text-neutral-400 font-normal leading-relaxed py-0.5">
@@ -263,7 +298,7 @@ export function MonologueBlock({ text }: { text: string }) {
         <ChevronRight
           className={`w-3.5 h-3.5 shrink-0 text-neutral-500 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
         />
-        <span className="font-medium text-neutral-400 select-none">Thinking</span>
+        <span className="font-medium text-neutral-400 select-none">{thinkingLabel}</span>
       </button>
       {expanded && (
         <div className="pl-5 pt-1 text-neutral-400/90 whitespace-pre-wrap leading-relaxed">
