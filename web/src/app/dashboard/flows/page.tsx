@@ -161,69 +161,86 @@ export default function FlowsPage() {
   };
 
   return (
-    <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0a0a0f 0%,#0f0f1a 100%)',color:'#e2e8f0',fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div className="min-h-screen bg-neutral-50 dark:bg-[#0a0a0f] text-neutral-900 dark:text-[#e2e8f0] font-sans">
       {/* Header */}
-      <div style={{borderBottom:'1px solid #ffffff0a',padding:'20px 28px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div className="border-b border-neutral-200 dark:border-white/10 px-7 py-5 flex items-center justify-between">
         <div>
-          <h1 style={{margin:0,fontSize:20,fontWeight:700,color:'#f0f0f0'}}>Recovery Workflows</h1>
-          <p style={{margin:'4px 0 0',fontSize:12,color:'#6b7280'}}>Live pipeline · polls every 4s{lastUpdated&&<> · Updated {fmtTs(lastUpdated.toISOString())}</>}</p>
+          <h1 className="m-0 text-xl font-bold text-neutral-900 dark:text-[#f0f0f0]">Recovery Workflows</h1>
+          <p className="mt-1 mb-0 text-xs text-neutral-500 dark:text-neutral-400">Live pipeline · polls every 4s{lastUpdated&&<> · Updated {fmtTs(lastUpdated.toISOString())}</>}</p>
         </div>
-        <div style={{background:'#f59e0b15',border:'1px solid #f59e0b44',color:'#f59e0b',borderRadius:8,padding:'6px 12px',fontSize:12,fontWeight:600}}>
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-lg px-3 py-1.5 text-xs font-semibold">
           ⚡ Test Mode Simulation — No real customer funds represented
         </div>
       </div>
 
       {/* Stats bar */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:1,background:'#ffffff08',borderBottom:'1px solid #ffffff0a'}}>
+      <div className="grid grid-cols-5 gap-px bg-neutral-200 dark:bg-white/[0.08] border-b border-neutral-200 dark:border-white/10">
         {[{l:'Total Cases',v:stats.total,c:'#6366f1'},{l:'Active',v:stats.active,c:'#3b82f6'},{l:'Critical',v:stats.critical,c:'#ef4444'},{l:'Resolved',v:stats.resolved,c:'#22c55e'},{l:'MRR at Risk',v:fmtMrr(stats.atRisk),c:'#a78bfa'}].map(s=>(
-          <div key={s.l} style={{padding:'16px 24px',background:'#0a0a0f'}}>
-            <div style={{fontSize:22,fontWeight:800,color:s.c}}>{s.v}</div>
-            <div style={{fontSize:11,color:'#6b7280',marginTop:2,letterSpacing:'0.04em'}}>{s.l}</div>
+          <div key={s.l} className="px-6 py-4 bg-white dark:bg-[#0a0a0f]">
+            <div className="text-[22px] font-extrabold" style={{color:s.c}}>{s.v}</div>
+            <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 tracking-wider">{s.l}</div>
           </div>
         ))}
       </div>
 
-      <div style={{display:'flex',height:'calc(100vh - 172px)'}}>
+      <div className="flex h-[calc(100vh-172px)]">
         {/* Cases list */}
-        <div style={{flex:selected?'0 0 55%':'1',borderRight:selected?'1px solid #ffffff0a':'none',overflow:'auto',transition:'flex 0.2s'}}>
+        <div className={`overflow-auto transition-all ${selected ? 'flex-[0_0_55%] border-r border-neutral-200 dark:border-white/10' : 'flex-1'}`}>
           {/* Filter tabs */}
-          <div style={{display:'flex',borderBottom:'1px solid #ffffff0a',padding:'0 18px'}}>
+          <div className="flex border-b border-neutral-200 dark:border-white/10 px-4">
             {(['all','active','resolved','failed'] as const).map(f=>(
-              <button key={f} id={`flow-filter-${f}`} onClick={()=>setFilter(f)} style={{background:'none',border:'none',cursor:'pointer',padding:'12px 16px',fontSize:13,fontWeight:500,color:filter===f?'#6366f1':'#6b7280',borderBottom:`2px solid ${filter===f?'#6366f1':'transparent'}`,transition:'color 0.15s'}}>
-                {f[0].toUpperCase()+f.slice(1)} <span style={{opacity:0.6,fontSize:11}}>({f==='all'?cases.length:f==='active'?stats.active:f==='resolved'?stats.resolved:cases.filter(c=>c.status==='failed').length})</span>
+              <button
+                key={f}
+                id={`flow-filter-${f}`}
+                onClick={()=>setFilter(f)}
+                className={`bg-transparent border-0 cursor-pointer px-4 py-3 text-[13px] font-medium border-b-2 transition-colors ${
+                  filter === f
+                    ? 'text-indigo-600 dark:text-[#6366f1] border-indigo-600 dark:border-[#6366f1]'
+                    : 'text-neutral-500 dark:text-neutral-400 border-transparent hover:text-neutral-900 dark:hover:text-white'
+                }`}
+              >
+                {f[0].toUpperCase()+f.slice(1)} <span className="opacity-60 text-[11px]">({f==='all'?cases.length:f==='active'?stats.active:f==='resolved'?stats.resolved:cases.filter(c=>c.status==='failed').length})</span>
               </button>
             ))}
           </div>
 
           {/* Column headers */}
-          <div style={{display:'grid',gridTemplateColumns:'180px 100px 80px 80px 1fr 80px 60px',gap:12,padding:'8px 18px',fontSize:10,color:'#6b7280',letterSpacing:'0.08em',fontWeight:600,textTransform:'uppercase',borderBottom:'1px solid #ffffff08'}}>
-            <div>Account</div><div>Status</div><div>Severity</div><div>MRR</div><div>Progress</div><div style={{textAlign:'right'}}>Elapsed</div><div>Mode</div>
+          <div className="grid grid-cols-[180px_100px_80px_80px_1fr_80px_60px] gap-3 px-4 py-2 text-[10px] text-neutral-400 dark:text-neutral-500 tracking-wider font-semibold uppercase border-b border-neutral-200/80 dark:border-white/[0.08]">
+            <div>Account</div><div>Status</div><div>Severity</div><div>MRR</div><div>Progress</div><div className="text-right">Elapsed</div><div>Mode</div>
           </div>
 
-          {loading&&<div style={{padding:48,textAlign:'center',color:'#6b7280',fontSize:14}}>Loading recovery cases…</div>}
+          {loading&&<div className="p-12 text-center text-neutral-400 dark:text-neutral-500 text-sm">Loading recovery cases…</div>}
 
           {!loading&&displayed.length===0&&(
-            <div style={{padding:48,textAlign:'center'}}>
-              <div style={{fontSize:40,marginBottom:12}}>🎯</div>
-              <div style={{color:'#6b7280',fontSize:14}}>{filter==='all'?'No recovery cases yet. Trigger a Stripe test event to begin.':`No ${filter} cases.`}</div>
+            <div className="p-12 text-center">
+              <div className="text-4xl mb-3">🎯</div>
+              <div className="text-neutral-500 dark:text-neutral-400 text-sm">{filter==='all'?'No recovery cases yet. Trigger a Stripe test event to begin.':`No ${filter} cases.`}</div>
             </div>
           )}
 
           {displayed.map(c=>{
             const acct=c.customer_accounts?.name??c.case_key.split(':')[1]?.slice(0,8)??'Unknown';
             return (
-              <div key={c.id} role="button" tabIndex={0} onClick={()=>setSelectedId(selectedId===c.id?null:c.id)} onKeyDown={e=>e.key==='Enter'&&setSelectedId(selectedId===c.id?null:c.id)}
-                style={{display:'grid',gridTemplateColumns:'180px 100px 80px 80px 1fr 80px 60px',alignItems:'center',gap:12,padding:'12px 18px',cursor:'pointer',borderBottom:'1px solid #ffffff08',background:selectedId===c.id?'#6366f115':'transparent',transition:'background 0.15s'}}>
-                <div style={{overflow:'hidden'}}>
-                  <div style={{fontWeight:600,fontSize:13,color:'#f0f0f0',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct}</div>
-                  <div style={{fontSize:11,color:'#6b7280',marginTop:2}}>{c.trigger_provider} · {c.trigger_event_type.replace(/_/g,' ')}</div>
+              <div
+                key={c.id}
+                role="button"
+                tabIndex={0}
+                onClick={()=>setSelectedId(selectedId===c.id?null:c.id)}
+                onKeyDown={e=>e.key==='Enter'&&setSelectedId(selectedId===c.id?null:c.id)}
+                className={`grid grid-cols-[180px_100px_80px_80px_1fr_80px_60px] items-center gap-3 px-4 py-3 cursor-pointer border-b border-neutral-200/60 dark:border-white/[0.08] transition-colors ${
+                  selectedId === c.id ? 'bg-indigo-500/10' : 'hover:bg-neutral-100/80 dark:hover:bg-white/[0.03]'
+                }`}
+              >
+                <div className="overflow-hidden">
+                  <div className="font-semibold text-[13px] text-neutral-900 dark:text-[#f0f0f0] truncate">{acct}</div>
+                  <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">{c.trigger_provider} · {c.trigger_event_type.replace(/_/g,' ')}</div>
                 </div>
                 <StatusBadge status={c.status}/>
                 <SevBadge s={c.severity}/>
-                <div style={{fontSize:12,fontWeight:700,color:'#a78bfa'}}>{fmtMrr(c.mrr_baseline_cents)}</div>
-                <div style={{display:'flex',alignItems:'center',gap:8}}><StageBar status={c.status}/><span style={{fontSize:11,color:'#6b7280',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{c.action_type.replace(/_/g,' ')}</span></div>
-                <div style={{fontSize:11,color:'#6b7280',textAlign:'right'}}>{fmtElapsed(c.opened_at,['resolved','suppressed'].includes(c.status)?c.resolved_at:undefined)}</div>
-                {c.scenario_id?<span style={{fontSize:10,background:'#f59e0b22',color:'#f59e0b',border:'1px solid #f59e0b44',borderRadius:4,padding:'1px 5px',textAlign:'center'}}>TEST</span>:<div/>}
+                <div className="text-xs font-bold text-indigo-600 dark:text-[#a78bfa]">{fmtMrr(c.mrr_baseline_cents)}</div>
+                <div className="flex items-center gap-2"><StageBar status={c.status}/><span className="text-[11px] text-neutral-500 dark:text-neutral-400 truncate">{c.action_type.replace(/_/g,' ')}</span></div>
+                <div className="text-[11px] text-neutral-500 dark:text-neutral-400 text-right">{fmtElapsed(c.opened_at,['resolved','suppressed'].includes(c.status)?c.resolved_at:undefined)}</div>
+                {c.scenario_id?<span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded px-1.5 py-0.5 text-center">TEST</span>:<div/>}
               </div>
             );
           })}
@@ -231,19 +248,19 @@ export default function FlowsPage() {
 
         {/* Detail panel */}
         {selected&&(
-          <div style={{flex:'0 0 45%',overflow:'auto',background:'#0a0a0f'}}>
-            <div style={{padding:'16px 20px',borderBottom:'1px solid #ffffff0a',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div className="flex-[0_0_45%] overflow-auto bg-white dark:bg-[#0a0a0f] border-l border-neutral-200 dark:border-white/10">
+            <div className="p-4 px-5 border-b border-neutral-200 dark:border-white/10 flex items-center justify-between">
               <div>
-                <div style={{fontSize:14,fontWeight:700,color:'#f0f0f0'}}>{selected.customer_accounts?.name??'Case'} — Timeline</div>
-                <div style={{fontSize:11,color:'#6b7280',marginTop:2}}>{selected.id.slice(0,8)} · Score {selected.risk_score} · Confidence {Math.round(selected.score_confidence*100)}%</div>
+                <div className="text-sm font-bold text-neutral-900 dark:text-[#f0f0f0]">{selected.customer_accounts?.name??'Case'} — Timeline</div>
+                <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">{selected.id.slice(0,8)} · Score {selected.risk_score} · Confidence {Math.round(selected.score_confidence*100)}%</div>
               </div>
-              <button id="flow-close-detail" onClick={()=>setSelectedId(null)} style={{background:'none',border:'none',cursor:'pointer',color:'#6b7280',fontSize:18,padding:4}} aria-label="Close detail panel">×</button>
+              <button id="flow-close-detail" onClick={()=>setSelectedId(null)} className="bg-transparent border-0 cursor-pointer text-neutral-400 hover:text-neutral-900 dark:hover:text-white text-lg p-1" aria-label="Close detail panel">×</button>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,padding:'14px 20px',borderBottom:'1px solid #ffffff0a'}}>
+            <div className="grid grid-cols-2 gap-3 p-4 px-5 border-b border-neutral-200 dark:border-white/10">
               {[
                 ['Status',<StatusBadge key="s" status={selected.status}/>],
                 ['Severity',<SevBadge key="sv" s={selected.severity}/>],
-                ['MRR Baseline',<span key="m" style={{color:'#a78bfa',fontWeight:700}}>{fmtMrr(selected.mrr_baseline_cents)}</span>],
+                ['MRR Baseline',<span key="m" className="text-indigo-600 dark:text-[#a78bfa] font-bold">{fmtMrr(selected.mrr_baseline_cents)}</span>],
                 ['Action',selected.action_type.replace(/_/g,' ')],
                 ['Opened',fmtTs(selected.opened_at)],
                 ['Elapsed',fmtElapsed(selected.opened_at,selected.resolved_at)],
@@ -251,13 +268,13 @@ export default function FlowsPage() {
                 ['Trigger',selected.trigger_event_type],
               ].map(([l,v])=>(
                 <div key={String(l)}>
-                  <div style={{fontSize:10,color:'#6b7280',letterSpacing:'0.06em',fontWeight:600,textTransform:'uppercase',marginBottom:4}}>{l}</div>
-                  <div style={{fontSize:13,color:'#e2e8f0'}}>{v}</div>
+                  <div className="text-[10px] text-neutral-400 dark:text-neutral-500 tracking-wider font-semibold uppercase mb-1">{l}</div>
+                  <div className="text-[13px] text-neutral-900 dark:text-[#e2e8f0]">{v}</div>
                 </div>
               ))}
             </div>
-            <div style={{padding:'12px 0'}}>
-              <div style={{padding:'8px 20px',fontSize:11,color:'#6b7280',letterSpacing:'0.08em',fontWeight:600,textTransform:'uppercase'}}>Case Events</div>
+            <div className="py-3">
+              <div className="px-5 py-2 text-[11px] text-neutral-400 dark:text-neutral-500 tracking-wider font-semibold uppercase">Case Events</div>
               <EventTimeline caseId={selected.id}/>
             </div>
           </div>
