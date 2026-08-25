@@ -1788,11 +1788,9 @@ export function getAgentForPersona(
     activeTools: initialActiveTools as any,
     maxOutputTokens: 4096,
     temperature: 0.3,
-    // Transient upstream failures (5xx, timeout, reset) are common enough on
-    // quota-capped deployments that a single attempt makes the product feel
-    // broken. The SDK backs off between attempts; deterministic failures
-    // (auth, context limit, content filter) are not retried by the provider.
-    maxRetries: 3,
+    // Transient upstream failures (5xx, timeout, reset, rate limit) are retried
+    // automatically with exponential backoff so turns complete smoothly without terminating.
+    maxRetries: 10,
     stopWhen: stepCountIs(25),
     prepareStep: async ({ steps }) => {
       if (!isChat) return undefined
