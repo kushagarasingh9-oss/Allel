@@ -1667,7 +1667,7 @@ export const getMyInbox = tool({
       const ignoredDigestCount = classifiedThreads.filter(
         (thread) => thread.category === 'marketing_digest'
       ).length
-      const MAX_INBOX_THREADS = 20
+      const MAX_INBOX_THREADS = 6
       const threads = (includeLowPriority
         ? classifiedThreads
         : classifiedThreads.filter((thread) => thread.needsReply || thread.priority !== 'low'))
@@ -3834,11 +3834,11 @@ export const listCalendarEventsTool = tool({
   execute: async ({ workspaceId, timeMin, timeMax, maxResults }) => {
     try {
       return await executeWithCalendarAccessToken(workspaceId, async (accessToken) => {
-        const MAX_CAL_EVENTS = 15
+        const MAX_CAL_EVENTS = 6
         const events = await listCalendarEventsFn(accessToken, 'primary', {
           timeMin: timeMin ?? new Date().toISOString(),
           timeMax,
-          maxResults: Math.min(maxResults ?? 15, MAX_CAL_EVENTS),
+          maxResults: Math.min(maxResults ?? 6, MAX_CAL_EVENTS),
         })
         return {
           source: 'google_calendar_live',
