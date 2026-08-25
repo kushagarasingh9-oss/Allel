@@ -29,10 +29,10 @@ function resolvedModel() {
 async function fetchWithBackoff(
   url: RequestInfo | URL,
   options?: RequestInit,
-  maxRetries = 4
+  maxRetries = 6
 ): Promise<Response> {
   let attempt = 0
-  let delay = 1200 // ms — first back-off window
+  let delay = 1500 // ms — first back-off window
 
   while (true) {
     const response = await fetch(url, options)
