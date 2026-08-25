@@ -39,6 +39,35 @@ import {
   SiGmail
 } from '@icons-pack/react-simple-icons'
 
+function WebFavicon({ url, fallbackFavicon }: { url?: string; fallbackFavicon?: string }) {
+  const [hasError, setHasError] = React.useState(false)
+
+  const domain = React.useMemo(() => {
+    if (!url) return ''
+    try {
+      return new URL(url).hostname.replace(/^www\./, '')
+    } catch {
+      return ''
+    }
+  }, [url])
+
+  const faviconSrc = fallbackFavicon || (domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=64` : null)
+
+  if (!faviconSrc || hasError) {
+    return <Search className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+  }
+
+  return (
+    <img
+      src={faviconSrc}
+      alt={domain || 'Web'}
+      className="w-3.5 h-3.5 rounded-sm object-contain shrink-0 bg-neutral-800/80"
+      onError={() => setHasError(true)}
+      loading="lazy"
+    />
+  )
+}
+
 // ─── Tool → Icon mapping (Only official SVG logos for connected integrations) ────────────────────────────────────────────
 const TOOL_ICONS: Record<string, React.ReactNode> = {
   getExistingDrafts: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
@@ -68,15 +97,20 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   searchSlack: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
   replyInSlackThread: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
   getSlackChannels: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
-  syncStripeWorkspaceTool: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
-  syncPostHogWorkspaceTool: <img src="/logos/posthog.svg" alt="PostHog" className="w-4 h-4 object-contain shrink-0" />,
-  syncGmailWorkspaceTool: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
-  syncIntercomWorkspaceTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
-  syncHubSpotWorkspaceTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
-  syncSentryWorkspaceTool: <img src="/logos/sentry-light.svg" alt="Sentry" className="w-4 h-4 object-contain shrink-0" />,
-  syncLinearWorkspaceTool: <img src="/logos/linear.svg" alt="Linear" className="w-4 h-4 object-contain shrink-0" />,
+  syncWorkspaceTool: <Zap className="w-4 h-4 text-neutral-500" />,
+  triggerStripeSync: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  triggerGmailSync: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  triggerSlackSync: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
+  triggerPosthogSync: <img src="/logos/posthog.svg" alt="PostHog" className="w-4 h-4 object-contain shrink-0" />,
+  triggerHubspotSync: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
+  triggerLinearSync: <img src="/logos/linear.svg" alt="Linear" className="w-4 h-4 object-contain shrink-0" />,
+  triggerIntercomSync: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  triggerSentrySync: <img src="/logos/sentry-light.svg" alt="Sentry" className="w-4 h-4 object-contain shrink-0" />,
+  triggerAirtableSync: <img src="/logos/airtable.svg" alt="Airtable" className="w-4 h-4 object-contain shrink-0" />,
+  triggerNotionSync: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
+  triggerCalendarSync: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
 
-  // Internal account/workspace tools — use Stripe as the data-source icon
+  // Account tools — use the Stripe logo (or a dedicated CRM icon)
   // since account state is primarily driven by Stripe billing data
   getAllAccounts: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   getAccountDetails: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
@@ -90,10 +124,10 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   createSignal: <Zap className="w-4 h-4 text-neutral-500" />,
   updateAccountRisk: <AlertCircle className="w-4 h-4 text-neutral-500" />,
   inspectIntegrationConnectionsTool: <Zap className="w-4 h-4 text-emerald-400" />,
-  webSearchTool: <Globe className="w-4 h-4 text-sky-400" />,
-  webExtractTool: <Globe className="w-4 h-4 text-sky-400" />,
-  webCrawlTool: <Globe className="w-4 h-4 text-sky-400" />,
-  webMapTool: <Globe className="w-4 h-4 text-sky-400" />,
+  webSearchTool: <Search className="w-4 h-4 text-neutral-400" />,
+  webExtractTool: <Search className="w-4 h-4 text-neutral-400" />,
+  webCrawlTool: <Search className="w-4 h-4 text-neutral-400" />,
+  webMapTool: <Search className="w-4 h-4 text-neutral-400" />,
 }
 
 // ─── Human-readable names for tools ──────────────────────────────────
@@ -452,14 +486,36 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
     const results = data.results as Array<Record<string, unknown>>
     return (
       <div className="flex flex-col gap-1 mb-2">
-        {results.slice(0, 3).map((item, i) => (
-          <MiniResultCard
-            key={i}
-            icon={<Globe className="w-4 h-4 text-sky-400" />}
-            title={<span className="text-white">{String(item.title ?? 'Web result')}</span>}
-            subtitle={String(item.snippet || item.url || '')}
-          />
-        ))}
+        {results.slice(0, 3).map((item, i) => {
+          const url = String(item.url || '')
+          const domain = url ? (function() {
+            try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '' }
+          })() : ''
+          return (
+            <a
+              key={i}
+              href={url || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block group"
+            >
+              <MiniResultCard
+                icon={<WebFavicon url={url} fallbackFavicon={item.favicon as string | undefined} />}
+                title={
+                  <span className="text-neutral-200 group-hover:text-white transition-colors">
+                    {String(item.title ?? 'Web result')}
+                  </span>
+                }
+                subtitle={
+                  <span className="text-neutral-500 group-hover:text-neutral-400 transition-colors flex items-center gap-1.5">
+                    {domain && <span className="font-mono text-[10.5px] text-neutral-400 shrink-0">{domain}</span>}
+                    <span className="truncate">{String(item.content || item.snippet || url)}</span>
+                  </span>
+                }
+              />
+            </a>
+          )
+        })}
       </div>
     )
   }
