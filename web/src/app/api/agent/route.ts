@@ -20,6 +20,7 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import {
   type AgentToolName,
+  compactToolHistory,
   getAgentForPersona,
   getIntegrationProviderForTool,
   isAgentConfigured,
@@ -265,8 +266,15 @@ Incorporate these emojis naturally into your status summaries and action recomme
           parts: [{ type: 'text' as const, text: memoryPrompt }],
         }]
       : []),
-    ...recentMessages.filter((m) => Array.isArray(m.parts) && m.parts.length > 0),
+    // Pillar 3: Compact old tool results in history to prevent O(N²) token growth.
+    // Keeps the last tool exchange verbatim; earlier large payloads are truncated to
+    // a 1-line preview + char count. User/assistant messages are never touched.
+    // Double-cast via unknown[] — compactToolHistory returns same objects at runtime.
+    ...(compactToolHistory(recentMessages as unknown as Array<{ role: string; parts?: Array<{ type: string; text?: string }>; [key: string]: unknown }>)
+      .filter((m) => Array.isArray(m.parts) && (m.parts?.length ?? 0) > 0) as unknown as AgentChatMessage[]),
+
   ]
+
 
   // Build conversation context from ALL user messages in the window,
   // not just the latest one. This ensures follow-ups like "yeah reply"

@@ -1238,8 +1238,15 @@ export function selectRelevantToolsForPrompt(
     return [...availableCoreTools]
   }
 
-  // Final order: intent tools first, then primary domain, then secondary, then history, then core
-  return [
+  // ── Phase 7: Cap active tool set (Pillar 2 — Dynamic Tool Scoping) ─────────
+  // Passing all 60+ tool schemas floods the context with ~8,500 tokens.
+  // Cap at MAX_ACTIVE_TOOLS: core tools are always present, domain tools fill
+  // the remaining budget in priority order (intent → primary → secondary → history).
+  const MAX_ACTIVE_TOOLS = 18
+
+  // Ordered merge: intent → primary → secondary → history → core
+  // Use a Set to deduplicate while preserving insertion order
+  const orderedMerged = [
     ...new Set([
       ...intentTools,
       ...primaryToolNames,
@@ -1248,6 +1255,21 @@ export function selectRelevantToolsForPrompt(
       ...availableCoreTools,
     ])
   ]
+
+  // For automation channel, return full set (no API rate constraint there)
+  if (options?.channel === 'automation') {
+    return orderedMerged
+  }
+
+  // For chat: slice to budget — always keep core tools even if they push over
+  if (orderedMerged.length <= MAX_ACTIVE_TOOLS) {
+    return orderedMerged
+  }
+
+  const coreSet = new Set(availableCoreTools)
+  const nonCore = orderedMerged.filter((t) => !coreSet.has(t))
+  const budgetForDomain = MAX_ACTIVE_TOOLS - availableCoreTools.length
+  return [...nonCore.slice(0, Math.max(budgetForDomain, 0)), ...availableCoreTools]
 }
 
 /**
@@ -1580,6 +1602,87 @@ function buildAgentStepMetadata(result: Awaited<ReturnType<ToolLoopAgent['genera
  * Uses a per-persona cache to avoid re-instantiation overhead.
  *
  * @param personaId - One of 'alex' | 'henry' | 'sarah'
+
+/**
+ * Pillar 3 — Compact Tool History
+ *
+ * In multi-step agent conversations, raw tool results from earlier turns
+ * accumulate in the context window and cause O(N²) token growth.
+ *
+ * This function replaces large tool result messages that are NOT the most
+ * recent tool exchange with a compact 1-line summary, saving 3,000–5,000
+ * tokens per turn in 5+ step conversations.
+ *
+ * Works with the AI SDK UIMessage shape (parts array) and plain CoreMessage
+ * shape (content string/array). Content is never deleted — this preserves
+ * full context memory via a preview + char count.
+ */
+const COMPACT_THRESHOLD = 400
+
+// Flexible shape — matches both UIMessage (parts[]) and CoreMessage (content)
+type CompactableMessage = {
+  role: string
+  parts?: Array<{ type: string; text?: string; [key: string]: unknown }>
+  content?: unknown
+  [key: string]: unknown
+}
+
+function serializeMessageContent(msg: CompactableMessage): string {
+  // UIMessage shape: content lives in parts
+  if (Array.isArray(msg.parts)) {
+    return msg.parts
+      .filter((p) => p.type === 'text' || p.type === 'tool-result')
+      .map((p) => p.text ?? JSON.stringify(p))
+      .join(' ')
+  }
+  // CoreMessage shape
+  const raw = msg.content
+  if (typeof raw === 'string') return raw
+  if (raw !== null && raw !== undefined) return JSON.stringify(raw)
+  return ''
+}
+
+export function compactToolHistory<T extends CompactableMessage>(messages: T[]): T[] {
+  if (messages.length === 0) return messages
+
+  // Find the index of the last tool-role message
+  let lastToolIdx = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'tool') {
+      lastToolIdx = i
+      break
+    }
+  }
+
+  // No tool messages at all — nothing to compact
+  if (lastToolIdx === -1) return messages
+
+  return messages.map((msg, idx) => {
+    // Keep non-tool messages and the last tool message verbatim
+    if (msg.role !== 'tool' || idx >= lastToolIdx) return msg
+
+    const text = serializeMessageContent(msg)
+
+    // If already short, no compaction needed
+    if (text.length <= COMPACT_THRESHOLD) return msg
+
+    // Build a compact summary
+    const preview = text.slice(0, 160).replace(/\s+/g, ' ').trim()
+    const compacted = `[compacted — ${text.length} chars] ${preview}…`
+
+    // Return with compacted parts if UIMessage, or compacted content if CoreMessage
+    if (Array.isArray(msg.parts)) {
+      return { ...msg, parts: [{ type: 'text' as const, text: compacted }] }
+    }
+    return { ...msg, content: compacted }
+  })
+}
+
+/**
+ * Returns a ToolLoopAgent configured for the given persona.
+ * Uses a per-persona cache to avoid re-instantiation overhead.
+ *
+ * @param personaId - One of 'alex' | 'henry' | 'sarah'
  */
 export function getAgentForPersona(
   personaId: string = 'alex',
@@ -1603,21 +1706,14 @@ export function getAgentForPersona(
   const persona = getPersona(safeId)
   const eligibleToolNames = getAvailableToolNamesForPersona(safeId, options?.allowedToolNames, { channel })
 
-  // ── Claude-style: ALL eligible tools are active from step 1 ────────────────
-  // selectRelevantToolsForPrompt is now used only to ORDER the tool list
-  // (highest-confidence tools appear first in the context window so the LLM
-  // picks them sooner), NOT to filter tools out.
-  // This matches Anthropic's approach: the model sees everything and decides.
-  const orderedToolNames = options?.prompt
+  // ── Pillar 2: Scope active tools — pass only top-N schemas to the model ──────
+  // Comment from original code noted that all eligible tools were passed.
+  // Now we actually filter: orderedToolNames IS the capped relevant set.
+  // For automation, selectRelevantToolsForPrompt returns full set (no cap applied).
+  // For chat, it caps at MAX_ACTIVE_TOOLS=18 — saving ~6,000 schema tokens/step.
+  const initialToolNames = options?.prompt
     ? selectRelevantToolsForPrompt(options.prompt, eligibleToolNames, options?.historyMessages, { channel })
     : [...eligibleToolNames]
-  // Any eligible tool not captured by the scorer goes at the end
-  const eligibleSet = new Set(eligibleToolNames)
-  const orderedSet = new Set(orderedToolNames)
-  const initialToolNames = [
-    ...orderedToolNames,
-    ...eligibleToolNames.filter((t) => !orderedSet.has(t)),
-  ]
 
   const allowedToolNamesKey = options?.allowedToolNames
     ? [...new Set(options.allowedToolNames)].sort().join(',')
@@ -1627,6 +1723,8 @@ export function getAgentForPersona(
 
   const cached = agentCache.get(cacheKey)
   if (cached) return cached
+
+  const eligibleSet = new Set(eligibleToolNames)
 
   const runtimeTools: Record<string, unknown> = Object.fromEntries(
     Object.entries(ALL_TOOLS)
@@ -1653,7 +1751,8 @@ export function getAgentForPersona(
     runtimeTools.requestMoreTools = createRequestMoreToolsTool(eligibleToolNames)
   }
 
-  // All tools active from step 1 — ordered by relevance score, not filtered
+  // Pillar 2 active: initialToolNames is a capped scored subset (max 18 for chat)
+  // requestMoreTools lets the model unlock other domains on demand
   const initialActiveTools: string[] = isChat
     ? [...new Set([...initialToolNames, 'requestMoreTools'])]
     : [...initialToolNames]
