@@ -89,10 +89,12 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   addTimelineEvent: <Database className="w-4 h-4 text-neutral-500" />,
   createSignal: <Zap className="w-4 h-4 text-neutral-500" />,
   updateAccountRisk: <AlertCircle className="w-4 h-4 text-neutral-500" />,
+  inspectIntegrationConnectionsTool: <Zap className="w-4 h-4 text-emerald-400" />,
 }
 
 // ─── Human-readable names for tools ──────────────────────────────────
 const TOOL_LABELS: Record<string, string> = {
+  inspectIntegrationConnectionsTool: "Verifying active connections",
   getAccountDetails: "Reading account profile",
   getAllAccounts: "Scanning customer accounts",
   getRecentSignals: "Analyzing workspace signals & activity",
@@ -551,18 +553,27 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
     }
   }
 
+  let initialReasoningText = ""
+  let hasRenderedInitialReasoning = false
+
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]
 
     if (part.type === "text" && part.text.trim()) {
       flushToolBatch()
       rendered.push(<AgentSpeechBlock key={`text-${i}`} text={part.text} />)
+      initialReasoningText = ""
+      hasRenderedInitialReasoning = false
     }
 
     if (part.type === "reasoning" && typeof part.text === 'string' && part.text.trim()) {
-      toolBatch.push(
-        <MonologueBlock key={`reasoning-${i}`} text={part.text} />
-      )
+      if (!hasRenderedInitialReasoning) {
+        initialReasoningText = part.text
+        hasRenderedInitialReasoning = true
+        toolBatch.push(
+          <MonologueBlock key={`reasoning-${i}`} text={part.text} />
+        )
+      }
     }
 
     // Tool parts: in AI SDK v6, tool types are `tool-${NAME}` or `dynamic-tool`
