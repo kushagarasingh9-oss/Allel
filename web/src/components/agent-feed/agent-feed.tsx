@@ -75,6 +75,9 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   getPostHogAccountUsage: <img src="/logos/posthog.svg" alt="PostHog" className="w-4 h-4 object-contain shrink-0" />,
   getGmailThreadsForAccount: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
   getMyInbox: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  getGmailThreadDetailTool: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  sendGmailReply: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  composeNewEmail: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
   generateFollowUpDraft: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
   deliverSlackBriefTool: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
   buildDailyBriefFromLiveState: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
@@ -87,9 +90,13 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   searchIntercomConvosTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
   listCalendarEventsTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   getCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  getCalendarEventDetailTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   createCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   updateCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   deleteCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  searchCalendarEventsTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  quickAddCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  checkCalendarFreeBusy: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   queryFreeBusyTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   listCalendarsTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   getSlackHistory: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
@@ -146,6 +153,9 @@ const TOOL_LABELS: Record<string, string> = {
   getStripeAccountState: "Querying Stripe billing state",
   getPostHogAccountUsage: "Analyzing product engagement",
   getGmailThreadsForAccount: "Searching Gmail communications",
+  getGmailThreadDetailTool: "Reading email thread",
+  sendGmailReply: "Sending email reply",
+  composeNewEmail: "Composing email",
   getMyInbox: "Reading your inbox",
   generateFollowUpDraft: "Drafting follow-up response",
   createSignal: "Recording workspace signal",
@@ -166,9 +176,13 @@ const TOOL_LABELS: Record<string, string> = {
   createRescueDiscountTool: "Creating rescue discount",
   listCalendarEventsTool: "Checking Google Calendar",
   getCalendarEventTool: "Fetching Calendar event",
+  getCalendarEventDetailTool: "Reading Calendar event",
   createCalendarEventTool: "Creating Calendar event",
   updateCalendarEventTool: "Updating Calendar event",
   deleteCalendarEventTool: "Deleting Calendar event",
+  searchCalendarEventsTool: "Searching Calendar events",
+  quickAddCalendarEventTool: "Scheduling Calendar event",
+  checkCalendarFreeBusy: "Checking Calendar availability",
   queryFreeBusyTool: "Checking Calendar availability",
   listCalendarsTool: "Listing Google Calendars",
   getSlackHistory: "Scanning Slack channels",
@@ -518,6 +532,60 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
             </a>
           )
         })}
+      </div>
+    )
+  }
+
+  // Gmail Send / Reply result
+  if ((toolName === 'sendGmailReply' || toolName === 'composeNewEmail') && (data.success || data.messageId || data.threadId || data.status === 'sent')) {
+    const to = String(data.recipientEmail ?? data.to ?? 'Recipient')
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        <MiniResultCard
+          icon={<img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          title={<span className="text-white">Email sent</span>}
+          subtitle={to ? `Delivered to ${to}` : 'Sent via Gmail'}
+        />
+      </div>
+    )
+  }
+
+  // Gmail Thread Detail result
+  if (toolName === 'getGmailThreadDetailTool' && (data.thread || data.subject)) {
+    const thread = (data.thread ?? data) as Record<string, unknown>
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        <MiniResultCard
+          icon={<img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          title={<span className="text-white">{String(thread.subject ?? 'Email thread details')}</span>}
+          subtitle={`From: ${String(thread.from ?? thread.lastSenderEmail ?? 'Sender')}`}
+        />
+      </div>
+    )
+  }
+
+  // Calendar Event Create / Delete
+  if ((toolName === 'createCalendarEventTool' || toolName === 'quickAddCalendarEventTool') && (data.event || data.success)) {
+    const ev = (data.event ?? data) as Record<string, unknown>
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        <MiniResultCard
+          icon={<img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          title={<span className="text-white">{String(ev.summary ?? 'Event created')}</span>}
+          subtitle={ev.start ? `Scheduled for ${new Date(String(ev.start)).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}` : 'Added to Google Calendar'}
+        />
+      </div>
+    )
+  }
+
+  if (toolName === 'deleteCalendarEventTool' && (data.success || data.deleted)) {
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        <MiniResultCard
+          icon={<img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          title={<span className="text-white">Event removed</span>}
+          subtitle="Deleted from Google Calendar"
+        />
       </div>
     )
   }

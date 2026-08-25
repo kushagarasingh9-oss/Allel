@@ -61,7 +61,15 @@ export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boole
     return isExecuting ? "Updating Google Calendar" : "Updated Google Calendar"
   }
   if (
+    tools.has('sendGmailReply') ||
+    tools.has('composeNewEmail')
+  ) {
+    return isExecuting ? "Sending email reply" : "Sent email reply"
+  }
+  if (
     tools.has('getMyInbox') ||
+    tools.has('getGmailThreadsForAccount') ||
+    tools.has('getGmailThreadDetailTool') ||
     tools.has('getExistingDrafts') ||
     tools.has('generateFollowUpDraft')
   ) {
