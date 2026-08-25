@@ -32,68 +32,110 @@ html.light {
   color: #09090b;
 }
 
-/* 1. Main Workspace Center Canvas */
-html.light main {
-  background-color: #f4f5f7 !important;
-  border-color: #e5e7eb !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+/* 1. Unified App Shell & Left Sidebar */
+html.light body,
+html.light .bg-\[\#0A0A0C\] {
+  background-color: #f1f3f6 !important;
 }
 
-/* 2. Right Home Agent Panel Container */
+html.light aside {
+  background-color: #f1f3f6 !important;
+  color: #18181b !important;
+}
+
+html.light aside svg {
+  color: #18181b !important;
+}
+
+html.light aside a.bg-white\/\[0\.08\] {
+  background-color: #ffffff !important;
+  color: #09090b !important;
+  border: 1px solid #d4d6db !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.light aside a {
+  color: #64748b !important;
+}
+
+html.light aside a:hover {
+  color: #09090b !important;
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* 2. Main Workspace Center Canvas */
+html.light main {
+  background-color: #f8f9fa !important;
+  border-color: #e2e4e8 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* 3. Right Home Agent Panel Container */
 html.light .bg-\[\#0B0B0D\]\/95 {
   background-color: #ffffff !important;
-  border-color: #e5e7eb !important;
+  border-color: #e2e4e8 !important;
   box-shadow: -4px 0 20px rgba(0, 0, 0, 0.03) !important;
 }
 
-/* 3. Tab Header & Footer Bar */
+/* 4. Tab Header & Footer Bar */
 html.light .bg-\[\#0B0B0D\] {
-  background-color: #fafafa !important;
-  border-color: #e5e7eb !important;
+  background-color: #f8f9fa !important;
+  border-color: #e2e4e8 !important;
 }
 
-/* 4. Active Tab Button */
+/* 5. Active Tab Button */
 html.light .bg-\[\#1C1C22\] {
   background-color: #ffffff !important;
   color: #09090b !important;
-  border-color: #d4d4d8 !important;
+  border-color: #d4d6db !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
 }
 
-/* 5. Tooltips & Dark Badges */
+/* 6. Tooltips & Badges */
 html.light .bg-\[\#1C1C24\] {
-  background-color: #18181b !important;
-  color: #ffffff !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  background-color: #e2e8f0 !important;
+  color: #64748b !important;
+  border-color: #cbd5e1 !important;
 }
 
-/* 6. Process Tab Bar */
+/* 7. Process Tab Bar */
 html.light .bg-\[\#16161C\] {
-  background-color: #f4f4f5 !important;
-  border-color: #e4e4e7 !important;
-  color: #52525b !important;
+  background-color: #f1f3f6 !important;
+  border-color: #e2e4e8 !important;
+  color: #475569 !important;
 }
 
-/* 7. Chat Input Container */
+/* 8. Chat Input Container */
 html.light .bg-\[\#121216\],
 html.light .bg-\[\#121216\]\/95 {
   background-color: #ffffff !important;
-  border-color: #d4d4d8 !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  border-color: #d4d6db !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
   color: #09090b !important;
 }
 
-/* 8. Profile & Settings Popover */
+/* 9. Active Send Button in Light Mode */
+html.light button.bg-white {
+  background-color: #18181b !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12) !important;
+}
+
+html.light button.bg-white:hover {
+  background-color: #27272a !important;
+}
+
+/* 10. Profile & Settings Popover */
 html.light .bg-\[\#141418\],
 html.light .bg-\[\#141418\]\/95,
 html.light .bg-\[\#141418\]\/80 {
   background-color: #ffffff !important;
-  border-color: #e4e4e7 !important;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12) !important;
+  border-color: #e2e4e8 !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.1) !important;
   color: #18181b !important;
 }
 
-/* 9. High-Contrast Typography & Subtle Borders */
+/* 11. High-Contrast Typography & Subtle Borders */
 html.light .text-white {
   color: #09090b !important;
 }
@@ -104,24 +146,24 @@ html.light .text-neutral-300 {
 }
 
 html.light .text-neutral-400 {
-  color: #52525b !important;
+  color: #64748b !important;
 }
 
 html.light .text-neutral-500 {
-  color: #71717a !important;
+  color: #94a3b8 !important;
 }
 
 html.light .border-white\/20,
 html.light .border-white\/15,
 html.light .border-white\/10,
 html.light .border-white\/5 {
-  border-color: #e5e7eb !important;
+  border-color: #e2e4e8 !important;
 }
 
 html.light .hover\:bg-white\/\[0\.04\]:hover,
 html.light .hover\:bg-white\/\[0\.06\]:hover,
 html.light .hover\:bg-white\/\[0\.08\]:hover {
-  background-color: #f4f4f5 !important;
+  background-color: #f1f3f6 !important;
 }
 
 html.light input,
@@ -131,7 +173,7 @@ html.light textarea {
 
 html.light input::placeholder,
 html.light textarea::placeholder {
-  color: #a1a1aa !important;
+  color: #94a3b8 !important;
 }
 
 html.light .focus-within\:border-white\/40:focus-within {
