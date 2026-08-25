@@ -29,10 +29,10 @@ function resolvedModel() {
 async function fetchWithBackoff(
   url: RequestInfo | URL,
   options?: RequestInit,
-  maxRetries = 8
+  maxRetries = 10
 ): Promise<Response> {
   let attempt = 0
-  let delay = 2500 // ms — first back-off window
+  let delay = 3000 // ms — first back-off window
 
   while (true) {
     const response = await fetch(url, options)
@@ -70,9 +70,9 @@ async function fetchWithBackoff(
       return response
     }
 
-    // Peak load surges on Azure need at least 3.5s to clear the token queue
-    if (isPeakLoadSurge && delay < 3500) {
-      delay = 3500
+    // Peak load surges on Azure need at least 4.0s to clear the token queue
+    if (isPeakLoadSurge && delay < 4000) {
+      delay = 4000
     }
 
     // Parse Azure OpenAI & OpenAI standard rate-limit reset headers

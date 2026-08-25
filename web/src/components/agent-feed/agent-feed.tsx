@@ -1100,61 +1100,23 @@ export function AgentFeed() {
           return isThinkingActive ? <AgentThinking /> : null
         })()}
 
-        {error && (() => {
-          const isCapacityOrRateLimit =
-            error.message?.toLowerCase().includes('rate limit') ||
-            error.message?.toLowerCase().includes('high demand') ||
-            error.message?.toLowerCase().includes('provisioned throughput') ||
-            error.message?.toLowerCase().includes('peak load') ||
-            error.message?.includes('429')
-
-          if (isCapacityOrRateLimit) {
-            return (
-              <div className="w-full flex justify-center mt-2 mb-4">
-                <div className="w-full bg-amber-500/10 border border-amber-500/20 rounded-xl p-3.5 flex items-center justify-between gap-3 shadow-md">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-5 h-5 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
-                      <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                      <h4 className="text-[12px] font-semibold text-amber-300 mb-0.5">
-                        High Demand on AI Cluster
-                      </h4>
-                      <p className="text-[12px] text-amber-200/80 leading-relaxed font-sans">
-                        Temporary capacity surge on the cloud model. Resuming workflow automatically...
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => sendMessage({ text: "continue" })}
-                    className="px-3 py-1 text-[12px] font-medium bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-lg transition-colors shrink-0 cursor-pointer"
-                  >
-                    Resume
-                  </button>
-                </div>
+        {error && !isLoading && !error.message?.toLowerCase().includes('rate limit') && !error.message?.toLowerCase().includes('high demand') && !error.message?.toLowerCase().includes('peak load') && (
+          <div className="w-full flex justify-center mt-2 mb-4">
+            <div className="w-full bg-red-500/10 border border-red-500/20 rounded-xl p-3.5 flex gap-2.5 shadow-md">
+              <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                <AlertCircle className="w-3.5 h-3.5 text-red-400" />
               </div>
-            )
-          }
-
-          return (
-            <div className="w-full flex justify-center mt-2 mb-4">
-              <div className="w-full bg-red-500/10 border border-red-500/20 rounded-xl p-3.5 flex gap-2.5 shadow-md">
-                <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                  <AlertCircle className="w-3.5 h-3.5 text-red-400" />
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <h4 className="text-[12px] font-semibold text-red-400 mb-0.5">
-                    Execution Notice
-                  </h4>
-                  <p className="text-[12px] text-red-200/90 leading-relaxed font-sans break-words whitespace-pre-wrap">
-                    {formatCleanErrorMessage(error.message || "The agent encountered an error.")}
-                  </p>
-                </div>
+              <div className="flex flex-col min-w-0">
+                <h4 className="text-[12px] font-semibold text-red-400 mb-0.5">
+                  Execution Notice
+                </h4>
+                <p className="text-[12px] text-red-200/90 leading-relaxed font-sans break-words whitespace-pre-wrap">
+                  {formatCleanErrorMessage(error.message || "The agent encountered an error.")}
+                </p>
               </div>
             </div>
-          )
-        })()}
+          </div>
+        )}
       </div>
     </div>
   )
