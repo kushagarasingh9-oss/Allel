@@ -33,7 +33,18 @@ export type ModelFailureRecovery = 'retry' | 'fallback' | 'surface'
 const FAILURE_MATCHERS: ReadonlyArray<{ failureClass: ModelFailureClass; markers: readonly string[] }> = [
   {
     failureClass: 'rate_limit',
-    markers: ['rate_limit', 'rate limit', '429', 'tpm', 'rpm', 'quota'],
+    markers: [
+      'rate_limit',
+      'rate limit',
+      '429',
+      'tpm',
+      'rpm',
+      'quota',
+      'provisioned throughput',
+      'peak load',
+      'high demand',
+      'exceeds the maximum usage size',
+    ],
   },
   {
     failureClass: 'transient_upstream',

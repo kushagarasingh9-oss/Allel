@@ -18,12 +18,13 @@ function resolvedModel() {
 }
 
 /**
- * Fetch wrapper that transparently retries 429 (rate-limit) and 503/502
- * (transient upstream) responses using exponential backoff + jitter.
+ * Fetch wrapper that transparently retries 429 (rate-limit), 503/502/504
+ * (transient upstream), and peak-load surge capacity rejections using
+ * exponential backoff + jitter.
  *
  * For Azure Kimi-K2.6 at 100k TPM: instead of crashing the agent turn,
- * a TPM spike will silently pause for up to ~15s and retry 4 times.
- * The Retry-After header is honoured when present.
+ * a TPM spike or peak-load capacity surge will silently pause for up to ~15s
+ * and retry up to 4 times.
  */
 async function fetchWithBackoff(
   url: RequestInfo | URL,
@@ -31,13 +32,38 @@ async function fetchWithBackoff(
   maxRetries = 4
 ): Promise<Response> {
   let attempt = 0
-  let delay = 1000 // ms — first back-off window
+  let delay = 1200 // ms — first back-off window
 
   while (true) {
     const response = await fetch(url, options)
 
-    const isRetryable = response.status === 429 || response.status === 503 || response.status === 502
-    if (!isRetryable || attempt >= maxRetries) {
+    const isRetryableStatus =
+      response.status === 429 ||
+      response.status === 503 ||
+      response.status === 502 ||
+      response.status === 504
+
+    let shouldRetry = isRetryableStatus
+
+    // Check if 400/other status is an Azure peak-load capacity rejection
+    if (!shouldRetry && response.status === 400 && attempt < maxRetries) {
+      try {
+        const cloned = response.clone()
+        const text = await cloned.text()
+        if (
+          text.includes('Provisioned Throughput') ||
+          text.includes('exceeds the maximum usage size allowed during peak load') ||
+          text.includes('high demand') ||
+          text.includes('Rate limit')
+        ) {
+          shouldRetry = true
+        }
+      } catch {
+        // Ignore clone errors
+      }
+    }
+
+    if (!shouldRetry || attempt >= maxRetries) {
       return response
     }
 
@@ -45,12 +71,12 @@ async function fetchWithBackoff(
     const retryAfterHeader = response.headers.get('retry-after')
     const retryAfterMs = retryAfterHeader
       ? parseInt(retryAfterHeader, 10) * 1000
-      : delay + Math.floor(Math.random() * 400) // jitter ±400ms
+      : delay + Math.floor(Math.random() * 500) // jitter ±500ms
 
     const waitMs = Math.min(retryAfterMs, 30_000) // cap at 30s
     console.warn(
-      `[AI fetch] ${response.status} on attempt ${attempt + 1}/${maxRetries}. ` +
-      `Backing off for ${waitMs}ms...`
+      `[Azure AI fetch] ${response.status} (attempt ${attempt + 1}/${maxRetries}). ` +
+      `Throttled under load. Backing off for ${waitMs}ms before retry...`
     )
 
     await new Promise((res) => setTimeout(res, waitMs))

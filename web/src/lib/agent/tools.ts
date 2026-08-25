@@ -1667,22 +1667,33 @@ export const getMyInbox = tool({
       const ignoredDigestCount = classifiedThreads.filter(
         (thread) => thread.category === 'marketing_digest'
       ).length
-      const threads = includeLowPriority
+      const MAX_INBOX_THREADS = 10
+      const threads = (includeLowPriority
         ? classifiedThreads
-        : classifiedThreads.filter((thread) => thread.needsReply || thread.priority !== 'low')
+        : classifiedThreads.filter((thread) => thread.needsReply || thread.priority !== 'low'))
+        .slice(0, MAX_INBOX_THREADS)
+        .map((t) => ({
+          threadId: t.threadId,
+          subject: t.subject,
+          from: t.from,
+          lastMessageAt: t.lastMessageAt,
+          snippet: t.snippet.slice(0, 100),
+          category: t.category,
+          priority: t.priority,
+          needsReply: t.needsReply,
+        }))
 
       return {
         source: 'gmail_live',
         observedAt: new Date().toISOString(),
         ownerEmail: profile.emailAddress,
-        threadCount: classifiedThreads.length,
+        totalThreads: classifiedThreads.length,
         triage: {
           replyCount: replyThreads.length,
           reviewCount: reviewThreads.length,
           ignoredDigestCount,
-          visibleThreadCount: threads.length,
+          showingTop: threads.length,
         },
-        contentSafety: getExternalContentSafetyMeta('gmail'),
         threads,
       }
     } catch (err) {
@@ -3823,21 +3834,21 @@ export const listCalendarEventsTool = tool({
   execute: async ({ workspaceId, timeMin, timeMax, maxResults }) => {
     try {
       return await executeWithCalendarAccessToken(workspaceId, async (accessToken) => {
+        const MAX_CAL_EVENTS = 10
         const events = await listCalendarEventsFn(accessToken, 'primary', {
           timeMin: timeMin ?? new Date().toISOString(),
           timeMax,
-          maxResults: maxResults ?? 15,
+          maxResults: Math.min(maxResults ?? 10, MAX_CAL_EVENTS),
         })
         return {
-          events: events.map((e) => ({
+          source: 'google_calendar_live',
+          events: events.slice(0, MAX_CAL_EVENTS).map((e) => ({
             id: e.id,
-            summary: e.summary,
+            summary: e.summary || '(No title)',
             start: e.start.dateTime ?? e.start.date,
             end: e.end.dateTime ?? e.end.date,
-            location: e.location,
-            attendees: e.attendees?.map((a) => ({ email: a.email, status: a.responseStatus })) ?? [],
+            location: e.location || null,
             meetLink: e.conferenceData?.entryPoints?.find((ep) => ep.entryPointType === 'video')?.uri ?? null,
-            htmlLink: e.htmlLink,
           })),
           count: events.length,
         }
