@@ -12,17 +12,28 @@ import {
   Settings,
   LogOut,
   User,
+  Sun,
+  Moon,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 
 export function AppSidebarContainer({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("kushagara singh");
   const [userEmail, setUserEmail] = useState<string>("kushagrasingh175@g...");
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const currentTheme = mounted ? (theme ?? resolvedTheme ?? "dark") : "dark";
 
   useEffect(() => {
     async function loadUser() {
@@ -170,6 +181,24 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
               </div>
 
               <div className="h-px bg-white/10 my-1" />
+
+              <button
+                type="button"
+                onClick={() => setTheme(currentTheme === "dark" ? "light" : "dark")}
+                className="flex items-center justify-between w-full px-2.5 py-2 rounded-lg text-xs text-neutral-300 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  {currentTheme === "light" ? (
+                    <Sun className="w-4 h-4 text-amber-400" />
+                  ) : (
+                    <Moon className="w-4 h-4 text-neutral-400" />
+                  )}
+                  <span>Theme</span>
+                </div>
+                <div className="flex items-center gap-1.5 bg-white/[0.08] hover:bg-white/[0.12] border border-white/10 px-2 py-0.5 rounded-md text-[11px] font-medium text-neutral-200">
+                  <span className="capitalize">{currentTheme === "light" ? "Light" : "Dark"}</span>
+                </div>
+              </button>
 
               <Link
                 href="/dashboard/settings"

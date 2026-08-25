@@ -1,44 +1,89 @@
-/* Force all Framer component & section color tokens to dark mode */
-:root,
-html,
-body,
-#main,
-[data-framer-generated-page],
-div,
-section,
-main,
-nav,
-footer {
-  color-scheme: dark !important;
-  --token-42377e4c-6aff-45af-80cf-861971d3bff6: #0b0b0a !important;
-  --token-10e74244-94d1-431e-87d0-281bc16f26b9: #141413 !important;
-  --token-fc3e2144-81ca-48e6-9365-4417af9831c9: #282825 !important;
-  --token-ead5ee04-8072-43a8-8b63-6c52f5667fd6: #2c2c28 !important;
-  --token-4b5c2631-4675-4701-82c8-51d44ba443f5: #edede8 !important;
-  --token-a858697d-e879-4ab9-8f8f-ff96d21fdb35: #8b8b83 !important;
-  --token-4e477fa6-3a4a-4dca-ae8d-06a59b9bf0d6: #7ba0ff !important;
-  --token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0: #edede8 !important;
-  --token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7: #121211 !important;
-  --token-839f404f-2485-4df4-989d-84c9778f6e7d: #333330 !important;
+/* Global Theme Color Tokens */
+html.dark {
+  color-scheme: dark;
+  --token-42377e4c-6aff-45af-80cf-861971d3bff6: #0b0b0a;
+  --token-10e74244-94d1-431e-87d0-281bc16f26b9: #141413;
+  --token-fc3e2144-81ca-48e6-9365-4417af9831c9: #282825;
+  --token-ead5ee04-8072-43a8-8b63-6c52f5667fd6: #2c2c28;
+  --token-4b5c2631-4675-4701-82c8-51d44ba443f5: #edede8;
+  --token-a858697d-e879-4ab9-8f8f-ff96d21fdb35: #8b8b83;
+  --token-4e477fa6-3a4a-4dca-ae8d-06a59b9bf0d6: #7ba0ff;
+  --token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0: #edede8;
+  --token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7: #121211;
+  --token-839f404f-2485-4df4-989d-84c9778f6e7d: #333330;
+  background-color: #0b0b0a;
+  color: #edede8;
 }
 
-/* Force Dark Theme everywhere regardless of device system light/dark preference */
-:root,
-html,
-body {
-  color-scheme: dark !important;
-  --token-42377e4c-6aff-45af-80cf-861971d3bff6: #0b0b0a !important;
-  --token-10e74244-94d1-431e-87d0-281bc16f26b9: #141413 !important;
-  --token-fc3e2144-81ca-48e6-9365-4417af9831c9: #282825 !important;
-  --token-ead5ee04-8072-43a8-8b63-6c52f5667fd6: #2c2c28 !important;
-  --token-4b5c2631-4675-4701-82c8-51d44ba443f5: #edede8 !important;
-  --token-a858697d-e879-4ab9-8f8f-ff96d21fdb35: #8b8b83 !important;
-  --token-4e477fa6-3a4a-4dca-ae8d-06a59b9bf0d6: #7ba0ff !important;
-  --token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0: #edede8 !important;
-  --token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7: #121211 !important;
-  --token-839f404f-2485-4df4-989d-84c9778f6e7d: #333330 !important;
-  background-color: #0b0b0a !important;
-  color: #edede8 !important;
+html.light {
+  color-scheme: light;
+  --token-42377e4c-6aff-45af-80cf-861971d3bff6: #f4f4f5;
+  --token-10e74244-94d1-431e-87d0-281bc16f26b9: #ffffff;
+  --token-fc3e2144-81ca-48e6-9365-4417af9831c9: #e4e4e7;
+  --token-ead5ee04-8072-43a8-8b63-6c52f5667fd6: #d4d4d8;
+  --token-4b5c2631-4675-4701-82c8-51d44ba443f5: #18181b;
+  --token-a858697d-e879-4ab9-8f8f-ff96d21fdb35: #71717a;
+  --token-4e477fa6-3a4a-4dca-ae8d-06a59b9bf0d6: #3b82f6;
+  --token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0: #18181b;
+  --token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7: #f8fafc;
+  --token-839f404f-2485-4df4-989d-84c9778f6e7d: #e2e8f0;
+  background-color: #f8f9fa;
+  color: #09090b;
+}
+
+/* Light Theme Component Overrides for executive soft aesthetics */
+html.light .bg-\[\#0B0B0D\],
+html.light .bg-\[\#0B0B0D\]\/95,
+html.light .bg-\[\#0E0E12\],
+html.light .bg-\[\#141418\],
+html.light .bg-\[\#141418\]\/95,
+html.light .bg-\[\#141418\]\/80,
+html.light .bg-\[\#121216\],
+html.light .bg-\[\#121216\]\/95,
+html.light .bg-\[\#16161C\],
+html.light .bg-\[\#1C1C22\],
+html.light .bg-\[\#1C1C24\],
+html.light .bg-neutral-900,
+html.light .bg-neutral-950 {
+  background-color: #ffffff !important;
+  color: #18181b !important;
+}
+
+html.light .border-white\/20,
+html.light .border-white\/15,
+html.light .border-white\/10,
+html.light .border-white\/5 {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.light .text-white {
+  color: #09090b !important;
+}
+
+html.light .text-neutral-200,
+html.light .text-neutral-300,
+html.light .text-neutral-400 {
+  color: #52525b !important;
+}
+
+html.light .text-neutral-500 {
+  color: #71717a !important;
+}
+
+html.light .hover\:bg-white\/\[0\.04\]:hover,
+html.light .hover\:bg-white\/\[0\.06\]:hover,
+html.light .hover\:bg-white\/\[0\.08\]:hover {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+html.light input,
+html.light textarea {
+  color: #09090b !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #a1a1aa !important;
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap');
