@@ -2043,6 +2043,9 @@ export const inspectIntegrationConnectionsTool = tool({
     workspaceId: z.string().describe('The workspace ID'),
   }),
   execute: async ({ workspaceId }) => {
+    if (!/^[0-9a-f-]{36}$/i.test(workspaceId)) {
+      return { error: 'Invalid workspace ID format. Use the authenticated workspace ID.' }
+    }
     const supabase = createServiceClient()
     const { data: connections, error } = await supabase
       .from('integration_connections')

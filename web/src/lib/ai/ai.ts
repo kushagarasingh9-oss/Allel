@@ -123,7 +123,23 @@ async function fetchWithBackoff(
       // Ignore listener error
     }
 
-    await new Promise((res) => setTimeout(res, waitMs))
+    // Tick every 1 second to keep SSE streaming socket alive and provide countdown updates
+    let remainingMs = waitMs
+    const listener = retryContextStorage.getStore()
+    while (remainingMs > 0) {
+      const tick = Math.min(1000, remainingMs)
+      await new Promise((res) => setTimeout(res, tick))
+      remainingMs -= tick
+      const remainingSec = Math.ceil(remainingMs / 1000)
+      if (remainingSec > 0 && remainingSec % 2 === 0 && listener) {
+        try {
+          listener({ attempt: attempt + 1, waitSeconds: remainingSec })
+        } catch {
+          // Ignore listener closure
+        }
+      }
+    }
+
     delay = Math.min(delay * 2, 16_000) // double delay each retry, cap at 16s
     attempt++
   }
