@@ -229,14 +229,18 @@ export function sanitizeClientUiMessagesWithOutcome(
 
     if (candidate.role === "user") return true
 
-    if (!context) {
+    if (candidate.role === "assistant") {
+      if (!context) {
+        rejectedAssistantCount += 1
+        return false
+      }
+
+      if (hasValidTrustedMetadata(candidate, context)) return true
+
       rejectedAssistantCount += 1
       return false
     }
 
-    if (hasValidTrustedMetadata(candidate, context)) return true
-
-    rejectedAssistantCount += 1
     return false
   })
 

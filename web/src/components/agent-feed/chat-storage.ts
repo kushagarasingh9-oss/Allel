@@ -50,9 +50,10 @@ function hasScopedTrustedHistory(
   }
 ) {
   const trustedHistory = message.metadata?.trustedHistory
+  if (!trustedHistory) return false
 
   return (
-    trustedHistory?.version === 1 &&
+    trustedHistory.version === 1 &&
     trustedHistory.workspaceId === options.workspaceId &&
     trustedHistory.personaId === options.personaId &&
     typeof trustedHistory.contentSha256 === "string" &&
