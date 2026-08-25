@@ -1183,20 +1183,33 @@ export function AgentFeed() {
           return isThinkingActive ? <AgentThinking /> : null
         })()}
 
-        {error && !isLoading && !error.message?.toLowerCase().includes('rate limit') && !error.message?.toLowerCase().includes('high demand') && !error.message?.toLowerCase().includes('peak load') && (
+        {error && !isLoading && (
           <div className="w-full flex justify-center mt-2 mb-4">
-            <div className="w-full bg-red-500/10 border border-red-500/20 rounded-xl p-3.5 flex gap-2.5 shadow-md">
-              <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+            <div className="w-full bg-red-500/10 border border-red-500/20 rounded-xl p-3.5 flex items-start justify-between gap-3 shadow-md">
+              <div className="flex gap-2.5 min-w-0">
+                <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <h4 className="text-[12px] font-semibold text-red-400 mb-0.5">
+                    Execution Notice
+                  </h4>
+                  <p className="text-[12px] text-red-200/90 leading-relaxed font-sans break-words whitespace-pre-wrap">
+                    {formatCleanErrorMessage(error.message || "The agent encountered an error.")}
+                  </p>
+                </div>
               </div>
-              <div className="flex flex-col min-w-0">
-                <h4 className="text-[12px] font-semibold text-red-400 mb-0.5">
-                  Execution Notice
-                </h4>
-                <p className="text-[12px] text-red-200/90 leading-relaxed font-sans break-words whitespace-pre-wrap">
-                  {formatCleanErrorMessage(error.message || "The agent encountered an error.")}
-                </p>
-              </div>
+              <button
+                onClick={() => {
+                  const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
+                  const text = lastUserMsg?.parts?.find((p) => p.type === "text" && "text" in p && typeof p.text === "string")
+                  const prompt = (text && "text" in text ? text.text : "Please summarize the tool findings.") as string
+                  sendMessage({ role: "user", parts: [{ type: "text", text: prompt }] } as any)
+                }}
+                className="shrink-0 px-2.5 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-red-300 hover:text-white text-[11.5px] font-medium transition-colors"
+              >
+                Retry
+              </button>
             </div>
           </div>
         )}
