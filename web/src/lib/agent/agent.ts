@@ -1713,11 +1713,14 @@ export function getAgentForPersona(
   const allowedToolNamesKey = options?.allowedToolNames
     ? [...new Set(options.allowedToolNames)].sort().join(',')
     : 'all'
-  // Cache key is now deterministic per persona+model+channel (tool ORDER may vary but set is fixed)
+  // Cache key is deterministic per persona+model+channel
   const cacheKey = `${safeId}:${modelId}:${channel}:${runType}:${allowedToolNamesKey}:all_tools`
 
-  const cached = agentCache.get(cacheKey)
-  if (cached) return cached
+  // In production, reuse cached agent instances; in development, re-instantiate so code changes apply immediately
+  if (process.env.NODE_ENV === 'production') {
+    const cached = agentCache.get(cacheKey)
+    if (cached) return cached
+  }
 
   const eligibleSet = new Set(eligibleToolNames)
 
@@ -1746,8 +1749,7 @@ export function getAgentForPersona(
     runtimeTools.requestMoreTools = createRequestMoreToolsTool(eligibleToolNames)
   }
 
-  // Pillar 2 active: initialToolNames is a capped scored subset (max 18 for chat)
-  // requestMoreTools lets the model unlock other domains on demand
+  // Full active tools: initialToolNames contains all eligible tools ordered by priority
   const initialActiveTools: string[] = isChat
     ? [...new Set([...initialToolNames, 'requestMoreTools'])]
     : [...initialToolNames]

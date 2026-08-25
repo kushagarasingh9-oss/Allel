@@ -117,7 +117,11 @@ export function getLanguageModel(modelIdOverride?: string) {
     return githubModels(modelId)
   }
 
-  return openai(modelId)
+  const standardOpenAI = createOpenAI({
+    apiKey,
+    fetch: fetchWithBackoff,
+  })
+  return standardOpenAI(modelId)
 }
 
 export function isAIConfigured() {
