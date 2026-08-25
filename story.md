@@ -1,7 +1,3 @@
-# Allel: The 5-Line Journey
+# TOKEN OPTIMISATION AND MULTI-TOOL CALLING
 
-1. **The Challenge:** While building Allel's autonomous AI Co-founder, multi-step tool calls initially exhausted Azure's 100k TPM quota within seconds because each step re-sent 136 unpruned schemas (**63,700 tokens in 8 seconds**).
-2. **Schema Scoping:** We introduced dynamic domain tool scoping, reducing schema payload from 8.5k down to **1.8k tokens** and eliminating 26,000 tokens of redundant definitions.
-3. **Payload Pruning:** We whitelisted only decision-critical fields on Calendar, Gmail, and Stripe, stripping raw MIME headers and SIP pins to drop **85% of return payload weight**.
-4. **Single-Step Execution & Resilience:** We consolidated sequential loops into **1 unified parallel thinking & execution step**, backed by Azure reset-header jitter retries to eliminate 429 crashes.
-5. **The Outcome:** Slashed token consumption by **92%** (`63,700` ➔ `4,750 tokens`), letting 20+ workflows run concurrently with persistent, zero-loss chat history.
+While building Allel's autonomous AI Co-founder, we hit a massive wall: multi-step tool execution was burning through Azure’s 100k TPM rate limit in just 8 seconds by repeatedly re-sending 136 unpruned tool schemas—costing over 63,000 tokens for a single turn. To solve this, we introduced dynamic domain tool scoping to load only the active tools needed, and aggressively pruned API return payloads from Google Calendar, Gmail, and Stripe to keep only decision-critical data. We then consolidated sequential reasoning loops into a single parallel execution step, backed by Azure rate-limit header parsing with jitter retries. This dropped our token footprint by 92%—from 63,700 tokens down to just 4,750—allowing 20+ live co-founder workflows to run concurrently with zero rate-limit crashes and seamless chat history persistence.
