@@ -33,11 +33,11 @@ export function WorkspaceLayout({
   return (
     <ChatProvider storageScope={chatStorageScope}>
       <WorkspaceContext.Provider value={{ isExpanded, toggleExpanded: () => setIsExpanded(!isExpanded) }}>
-        <div className="flex h-full w-full bg-white dark:bg-[#141416] overflow-hidden">
+        <div className="flex h-full w-full bg-[#FAFAFC] dark:bg-[#141416] overflow-hidden">
           {/* Left Pane wrapped in transition */}
           <div 
             className={cn(
-              "shrink-0 h-full transition-[width,opacity,padding,margin] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden bg-white dark:bg-[#141416]",
+              "shrink-0 h-full transition-[width,opacity,padding,margin] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden bg-[#FAFAFC] dark:bg-[#141416]",
               isExpanded ? "w-0 opacity-0 pointer-events-none" : "w-[40%] opacity-100"
             )}
           >

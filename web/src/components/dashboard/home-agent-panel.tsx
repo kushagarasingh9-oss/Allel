@@ -73,7 +73,7 @@ export function HomeAgentPanel() {
   return (
     <div
       style={{ width: `${panelWidth}px` }}
-      className="relative shrink-0 h-full flex flex-col rounded-lg overflow-hidden font-sans bg-[#0B0B0D]/95 backdrop-blur-xl border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.8),_0_0_20px_rgba(255,255,255,0.02)] max-w-[calc(100vw-60px)] min-w-[450px]"
+      className="relative shrink-0 h-full flex flex-col rounded-lg overflow-hidden font-sans bg-white dark:bg-[#0B0B0D]/95 backdrop-blur-xl border border-black/[0.08] dark:border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.8),_0_0_20px_rgba(255,255,255,0.02)] max-w-[calc(100vw-60px)] min-w-[450px]"
     >
       {/* Interactive Drag-to-Resize Left Border Handle */}
       <div
@@ -81,11 +81,11 @@ export function HomeAgentPanel() {
         className="absolute left-0 top-0 bottom-0 w-3 -ml-1.5 cursor-col-resize z-50 flex items-center justify-center group"
         title="Drag to resize panel width"
       >
-        <div className="w-[3px] h-14 rounded-full bg-white/20 group-hover:bg-white/70 group-hover:w-[4px] group-hover:h-20 group-hover:shadow-[0_0_12px_rgba(255,255,255,0.5)] transition-all duration-200" />
+        <div className="w-[3px] h-14 rounded-full bg-neutral-300 dark:bg-white/20 group-hover:bg-neutral-500 dark:group-hover:bg-white/70 group-hover:w-[4px] group-hover:h-20 transition-all duration-200" />
       </div>
 
-      {/* Tab Header Bar — deep obsidian shade */}
-      <div className="bg-[#0B0B0D] px-4 pt-3.5 pb-1 shrink-0">
+      {/* Tab Header Bar — distinct soft header */}
+      <div className="bg-[#F4F4F6] dark:bg-[#0B0B0D] px-4 pt-3.5 pb-1 shrink-0 border-b border-black/[0.04] dark:border-transparent">
         <div className="flex items-center justify-between text-[13px]">
           <div className="flex items-center gap-1.5">
             {tabs.map((tab) => (
@@ -97,8 +97,8 @@ export function HomeAgentPanel() {
                 }}
                 className={`px-3.5 py-1.5 rounded-md font-medium transition-all duration-150 ${
                   activeTab === tab && !isHistoryOpen
-                    ? "bg-[#1C1C22] text-white border border-white/15 shadow-sm"
-                    : "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
+                    ? "bg-white text-neutral-950 border border-black/[0.08] shadow-sm dark:bg-[#1C1C22] dark:text-white dark:border-white/15"
+                    : "text-neutral-500 hover:text-neutral-900 hover:bg-black/[0.04] dark:text-neutral-400 dark:hover:text-white dark:hover:bg-white/[0.04]"
                 }`}
               >
                 <span>{tab}</span>
@@ -147,18 +147,18 @@ export function HomeAgentPanel() {
       </div>
 
       {/* Inner Content Panel */}
-      <div className="flex-1 flex flex-col bg-[#0B0B0D]/95 backdrop-blur-lg rounded-t-lg border-t border-x border-white/20 mt-3 overflow-hidden shadow-[0_-6px_24px_rgba(0,0,0,0.6)]">
+      <div className="flex-1 flex flex-col bg-white dark:bg-[#0B0B0D]/95 backdrop-blur-lg rounded-t-lg border-t border-x border-black/[0.06] dark:border-white/20 mt-3 overflow-hidden shadow-[0_-4px_20px_rgba(0,0,0,0.03)] dark:shadow-[0_-6px_24px_rgba(0,0,0,0.6)]">
         {isHistoryOpen ? (
           /* Recent History Panel Overlay View */
           <div className="flex-1 flex flex-col p-5 overflow-y-auto">
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
-              <h3 className="text-[14px] font-medium text-white flex items-center gap-2">
-                <History className="w-4 h-4 text-neutral-400" />
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-black/10 dark:border-white/10">
+              <h3 className="text-[14px] font-medium text-neutral-900 dark:text-white flex items-center gap-2">
+                <History className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
                 Recent Conversations
               </h3>
               <button
                 onClick={() => setIsHistoryOpen(false)}
-                className="text-neutral-400 hover:text-white text-xs px-2 py-1 rounded bg-white/5 hover:bg-white/10 transition-colors"
+                className="text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white text-xs px-2 py-1 rounded bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 transition-colors"
               >
                 ✕ Close
               </button>
@@ -167,66 +167,53 @@ export function HomeAgentPanel() {
             {/* Session Cards List */}
             {savedSessions.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-8 rounded-xl my-4">
-                <MessageSquare className="w-8 h-8 text-neutral-600 mb-2" />
-                <p className="text-xs text-neutral-400 mb-4">No recent conversations yet.</p>
+                <MessageSquare className="w-8 h-8 text-neutral-400 dark:text-neutral-600 mb-2" />
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-4">No recent conversations yet.</p>
                 <button
                   onClick={() => {
                     startNewChat();
                     setIsHistoryOpen(false);
                     setActiveTab("Home");
                   }}
-                  className="px-3.5 py-1.5 rounded-md text-xs font-medium bg-white text-black hover:bg-neutral-200 transition-all flex items-center gap-1.5"
+                  className="px-3.5 py-1.5 rounded-md text-xs font-medium bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200 transition-all flex items-center gap-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Start New Session</span>
+                  Start a new thread
                 </button>
               </div>
             ) : (
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col">
-                  <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase px-2 mb-1.5">
-                    Today
-                  </div>
-                  <div className="flex flex-col divide-y divide-white/5">
-                    {savedSessions.map((session) => (
-                      <div
-                        key={session.id}
-                        className="group py-2.5 px-2 rounded-md hover:bg-white/[0.04] flex items-center justify-between transition-all"
-                      >
-                        <div className="flex-1 min-w-0 pr-3">
-                          <h4 className="text-[13px] font-medium text-neutral-200 group-hover:text-white truncate mb-0.5 transition-colors">
-                            {session.title}
-                          </h4>
-                          <p className="text-[11px] text-neutral-500">
-                            {session.createdAt}
-                          </p>
-                        </div>
+              <div className="flex flex-col gap-2">
+                {savedSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    onClick={() => {
+                      loadChatSession(session);
+                      setIsHistoryOpen(false);
+                      setActiveTab("Home");
+                    }}
+                    className="p-3 rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.02] hover:bg-black/[0.05] dark:bg-white/[0.02] dark:hover:bg-white/[0.06] transition-all cursor-pointer group flex items-center justify-between"
+                  >
+                    <div className="flex flex-col min-w-0 pr-3">
+                      <span className="text-xs font-medium text-neutral-900 dark:text-neutral-200 truncate group-hover:text-black dark:group-hover:text-white">
+                        {session.title || "Untitled Conversation"}
+                      </span>
+                      <span className="text-[10.5px] text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">
+                        {(session as any).preview || "No message preview"}
+                      </span>
+                    </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => {
-                              loadChatSession(session);
-                              setIsHistoryOpen(false);
-                              setActiveTab("Home");
-                            }}
-                            className="px-2.5 py-1 rounded text-[11.5px] font-medium text-neutral-300 hover:text-white hover:bg-white/10 transition-all flex items-center gap-1"
-                          >
-                            <span>Open</span>
-                            <ArrowRight className="w-3 h-3 text-neutral-400" />
-                          </button>
-
-                          <button
-                            onClick={() => deleteChatSession(session.id)}
-                            className="p-1 rounded text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                            title="Delete chat history item"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteChatSession(session.id);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded text-neutral-400 hover:text-red-500 hover:bg-red-500/10 transition-all shrink-0"
+                      title="Delete conversation"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                </div>
+                ))}
               </div>
             )}
           </div>
@@ -239,16 +226,16 @@ export function HomeAgentPanel() {
 
             {/* Emerging Process Status Tab */}
             <div className="px-4 shrink-0 -mb-1 relative z-10">
-              <div className="mx-2 bg-[#16161C] border-t border-x border-white/20 rounded-t-lg px-3.5 py-1.5 flex items-center justify-between text-[12px] font-medium text-neutral-300 shadow-md transition-all">
+              <div className="mx-2 bg-[#EAEBED] dark:bg-[#16161C] border-t border-x border-black/[0.08] dark:border-white/20 rounded-t-lg px-3.5 py-1.5 flex items-center justify-between text-[12px] font-medium text-neutral-700 dark:text-neutral-300 shadow-sm dark:shadow-md transition-all">
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${isLoading ? "bg-amber-400 animate-pulse" : "bg-neutral-500"}`} />
-                  <span className="text-neutral-300 text-[12px] tracking-tight">
+                  <div className={`w-2 h-2 rounded-full ${isLoading ? "bg-amber-500 animate-pulse" : "bg-neutral-400 dark:bg-neutral-500"}`} />
+                  <span className="text-neutral-700 dark:text-neutral-300 text-[12px] tracking-tight">
                     {isLoading ? "Processing AI query..." : "0 workflows running"}
                   </span>
                 </div>
                 <button
                   onClick={() => setIsProcessExpanded(!isProcessExpanded)}
-                  className="text-neutral-400 hover:text-white transition-colors p-0.5"
+                  className="text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors p-0.5"
                 >
                   {isProcessExpanded ? (
                     <ChevronDown className="w-3.5 h-3.5" />
@@ -259,10 +246,10 @@ export function HomeAgentPanel() {
               </div>
 
               {isProcessExpanded && (
-                <div className="mx-2 bg-[#121216] border-x border-white/20 p-3 flex flex-col gap-2 text-xs text-neutral-300 animate-in slide-in-from-bottom-2 duration-150">
+                <div className="mx-2 bg-white dark:bg-[#121216] border-x border-black/[0.08] dark:border-white/20 p-3 flex flex-col gap-2 text-xs text-neutral-700 dark:text-neutral-300 animate-in slide-in-from-bottom-2 duration-150">
                   {isLoading ? (
                     <div className="flex items-center gap-2">
-                      <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" />
+                      <Loader2 className="w-3.5 h-3.5 text-amber-500 animate-spin shrink-0" />
                       <span>Agent is thinking and generating response...</span>
                     </div>
                   ) : (
@@ -274,20 +261,20 @@ export function HomeAgentPanel() {
               )}
             </div>
 
-            {/* Bottom Pinned Glassy Obsidian Chat Input Box */}
-            <div className="p-4 pt-0 shrink-0 bg-[#0B0B0D] relative z-20">
-              <div className="bg-[#121216]/95 backdrop-blur-md border border-white/20 rounded-lg p-3.5 shadow-xl flex flex-col gap-2.5 focus-within:border-white/40 focus-within:ring-1 focus-within:ring-white/10 transition-all w-full">
+            {/* Bottom Pinned Chat Input Box */}
+            <div className="p-4 pt-0 shrink-0 bg-white dark:bg-[#0B0B0D] relative z-20">
+              <div className="bg-[#F4F4F6] dark:bg-[#121216]/95 backdrop-blur-md border border-black/[0.08] dark:border-white/20 rounded-lg p-3.5 shadow-sm dark:shadow-xl flex flex-col gap-2.5 focus-within:border-black/30 dark:focus-within:border-white/40 focus-within:ring-1 focus-within:ring-black/5 dark:focus-within:ring-white/10 transition-all w-full">
                 <textarea
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask anything about your company..."
                   rows={2}
-                  className="w-full bg-transparent text-sm text-white placeholder-neutral-500 focus:outline-none resize-none leading-relaxed"
+                  className="w-full bg-transparent text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none resize-none leading-relaxed"
                 />
 
                 <div className="flex items-center justify-between pt-1">
-                  <button className="text-neutral-400 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/10">
+                  <button className="text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10">
                     <Plus className="w-4 h-4" />
                   </button>
 
@@ -296,8 +283,8 @@ export function HomeAgentPanel() {
                     disabled={!inputText.trim() || isLoading}
                     className={`w-9 h-9 rounded-xl transition-all duration-200 flex items-center justify-center ${
                       inputText.trim() && !isLoading
-                        ? "bg-white text-black hover:bg-neutral-200 cursor-pointer shadow-md"
-                        : "bg-[#1C1C24] text-neutral-500 cursor-not-allowed border border-white/5"
+                        ? "bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200 cursor-pointer shadow-md"
+                        : "bg-neutral-200 text-neutral-400 dark:bg-[#1C1C24] dark:text-neutral-500 cursor-not-allowed border border-transparent dark:border-white/5"
                     }`}
                   >
                     <ArrowUp className="w-4 h-4" />

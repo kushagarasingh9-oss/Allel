@@ -101,17 +101,17 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   ];
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#0A0A0C] text-white p-2 gap-2">
+    <div className="flex h-screen w-full overflow-hidden bg-[#EAEBED] dark:bg-[#0A0A0C] text-neutral-900 dark:text-white p-2 gap-2">
       {/* Sidebar Pane — Base background */}
       <aside
         className={cn(
-          "flex flex-col justify-between h-full bg-[#0A0A0C] transition-all duration-300 ease-in-out shrink-0 py-2 px-3 relative",
+          "flex flex-col justify-between h-full bg-[#EAEBED] dark:bg-[#0A0A0C] transition-all duration-300 ease-in-out shrink-0 py-2 px-3 relative",
           collapsed ? "w-[60px]" : "w-[220px]"
         )}
       >
         {/* Top Section: Logo & Links */}
         <div className="flex flex-col gap-6">
-          {/* Logo Mark (Image 2 geometry) */}
+          {/* Logo Mark */}
           <div className="flex items-center px-2 pt-2 pb-1">
             <div className="flex items-center gap-2">
               <svg
@@ -119,7 +119,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 height="24"
                 viewBox="0 0 24 24"
                 fill="currentColor"
-                className="text-white shrink-0"
+                className="text-neutral-900 dark:text-white shrink-0"
               >
                 <path fillRule="evenodd" clipRule="evenodd" d="M12 3a6.5 6.5 0 0 0-6.5 6.5V12h13V9.5A6.5 6.5 0 0 0 12 3zm-6.5 11a3.5 3.5 0 0 0-3.5 3.5V19h7v-5H5.5zm9 0v5h7v-1.5a3.5 3.5 0 0 0-3.5-3.5h-3.5z" />
               </svg>
@@ -141,8 +141,8 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 font-medium",
                     isActive
-                      ? "bg-[#222226] text-white shadow-sm"
-                      : "text-neutral-400 hover:text-neutral-200 hover:bg-[#18181C]"
+                      ? "bg-white text-neutral-950 shadow-sm border border-black/[0.06] dark:border-transparent dark:bg-[#222226] dark:text-white"
+                      : "text-neutral-600 hover:text-neutral-950 hover:bg-black/[0.04] dark:text-neutral-400 dark:hover:text-neutral-200 dark:hover:bg-[#18181C]"
                   )}
                 >
                   <IconComponent className="w-4 h-4 shrink-0" />
