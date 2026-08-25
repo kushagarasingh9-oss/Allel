@@ -4,7 +4,17 @@
 
 ---
 
-## 📜 Prologue: Building an AI Co-founder is Not for the Faint of Heart
+## ⚡ The 5-Line Executive Recap
+
+1. **The Bug:** The agent hit Azure's 100k TPM limit instantly because every step re-sent 136 tool schemas + unpruned raw payloads (**63,700 tokens in 8 seconds**).
+2. **The Schema Scoping:** Scoped schemas by active domain from 8.5k tokens down to **1.8k tokens**, wiping out 26,000 tokens of redundant definitions.
+3. **The Thinking & Batching Fix:** Replaced sequential multi-step loops with **1 single parallel thinking & execution step** (Calendar + Gmail + Stripe called together).
+4. **The Payload Pruning:** Stripped raw MIME headers, HTML links, and SIP pins (dropped **85% of return payload weight**).
+5. **The Outcome:** Slashed TPM cost by **92%** (`63,700` ➔ `4,750 tokens`), letting 20+ workflows run concurrently with zero 429 crashes.
+
+---
+
+## 📜 Full War Chronicles
 
 Building **Allel** wasn’t just stitching APIs together. It was a chaotic battle against token limits, rogue agent loops, invisible database vampires, and Azure quota governors.
 
