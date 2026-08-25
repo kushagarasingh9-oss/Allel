@@ -183,20 +183,19 @@ The browser can send user messages. It cannot define trusted assistant state.
 
 ---
 
-## What Is Genuinely Agentic
-
 - Dynamic self-correcting tool expansion in-loop via `requestMoreTools` + `prepareStep`.
-- Multi-step reasoning loops up to 25 steps per run.
+- Multi-step reasoning loops up to 25 steps per run with parallel batching.
+- Live real-time web research and market intelligence via Tavily AI (`webSearchTool`, `webExtractTool`, `webCrawlTool`, `webMapTool`).
 - Multi-context execution across chat, cron, and webhook events.
 - Hard persona isolation and staged workflow security allowlists.
-- Durable context carryover through live account state and dual-memory synthesis.
+- Durable context carryover through live account state, dual-memory synthesis, and persistent zero-loss chat session history.
+- 92% TPM token budget optimization (`63,700` ➔ `4,750` tokens per turn) under Azure's 100k TPM rate limit.
 
 ---
 
 ## Known Gaps & Next Priorities
 
 1. **Workflow Run Inspection UI**: Build the founder UI on `/dashboard/flows` consuming the live `/api/agent/runs` endpoints.
-2. **Server-First Chat Hydration**: Fetch persisted history on initial boot via `/api/agent/history` rather than relying primarily on browser `sessionStorage`.
-3. **Semantic Memory Layer**: Complement heuristic compaction with vector-indexed account memory embeddings.
-4. **Provider Readiness Dashboard**: Surface live provider health and remediation guidance in `/dashboard/settings`.
-5. **Unified `ProviderReadiness` Contract**: Standardize the provider health contract across all integration modules (Phase 5 backlog).
+2. **Semantic Memory Layer**: Complement heuristic compaction with vector-indexed account memory embeddings.
+3. **Provider Readiness Dashboard**: Surface live provider health and remediation guidance in `/dashboard/settings`.
+4. **Unified `ProviderReadiness` Contract**: Standardize the provider health contract across all integration modules (Phase 5 backlog).

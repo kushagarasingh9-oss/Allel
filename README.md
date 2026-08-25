@@ -145,16 +145,37 @@ Fix: Fallback model retry — if primary fails on transient error, automatically
 
 ---
 
+## Key Capabilities
+
+* 🌐 **Real-Time Web Intelligence & Market Research (Tavily AI)**  
+  Performs live internet searches, competitor teardowns, and SaaS industry benchmark lookups via `webSearchTool` and `webExtractTool`.
+
+* ⚡ **Autonomous Parallel Tool Orchestration (136 Tools)**  
+  Specialized integration tool calling across Stripe, PostHog, Gmail, Google Calendar, Linear, Slack, Sentry, HubSpot, Intercom, Notion, and Airtable.
+
+* 📉 **92% Token & TPM Optimization (4 Pillars)**  
+  Dynamic domain tool scoping, lean output projection, rolling in-loop history compaction, and Azure reset-header jitter backoff (slashing per-turn cost from `63,700` to `4,750` tokens).
+
+* 💾 **Persistent Chat History & Session Recovery**  
+  Zero-loss conversation persistence across reloads, browser restarts, and new tabs with rolling executive memory compaction.
+
+* 🎨 **Platform SVG Brand Badging**  
+  Crisp native integration logos on every timeline execution node and summary section.
+
+---
+
 ## Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Framework | Next.js 15.5 App Router |
 | Database | Supabase (Postgres + RLS + RPC) |
-| AI | OpenAI via Vercel AI SDK 6 (`ToolLoopAgent`) |
+| AI Agent Runtime | Vercel AI SDK 6 (`ToolLoopAgent`) + Kimi-K2.6 / Azure OpenAI |
+| Web Intelligence | Tavily AI (`@tavily/core`) |
 | Billing | Stripe (webhooks, subscriptions, charges) |
 | Analytics | PostHog (usage signals, event definitions) |
-| Email | Gmail API + Resend |
+| Communications | Gmail API + Google Calendar API + Slack SDK + Resend |
+| Work Tracking | Linear + Sentry + HubSpot + Intercom + Notion + Airtable |
 | Auth | Supabase Auth + Google OAuth |
 | Tests | Node test runner — **137/137 passing** |
 | Types | TypeScript — **0 errors** |
