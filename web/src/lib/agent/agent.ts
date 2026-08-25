@@ -1008,7 +1008,7 @@ const INTENT_CORE_TOOLS: Array<{
   tools: AgentToolName[]
 }> = [
   {
-    verbs: /\b(brief|daily|morning|today|overview|standup|summary)\b/i,
+    verbs: /\b(brief|daily|morning|today|overview|standup|summary|updated?|update|what'?s (up|new|happening))\b/i,
     tools: [
       'listCalendarEventsTool',
       'getMyInbox',
