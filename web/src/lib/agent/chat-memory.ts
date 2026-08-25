@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import {
   getMessageTextContent,
   sanitizeClientUiMessages,
+  sanitizePersistedDatabaseMessages,
   type TrustedMessageMetadata,
 } from './ui-message-utils'
 import type { PersonaId } from './personas'
@@ -396,10 +397,7 @@ export async function getPersistedConversationHistory(
     throw error
   }
 
-  return sanitizeClientUiMessages(data?.message_history ?? [], {
-    workspaceId: options.workspaceId,
-    personaId: options.personaId,
-  })
+  return sanitizePersistedDatabaseMessages(data?.message_history ?? [])
 }
 
 export async function getPersistedConversationMemory(

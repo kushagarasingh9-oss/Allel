@@ -78,7 +78,7 @@ function getSessionStorage() {
   if (typeof window === "undefined") return null
 
   try {
-    return window.sessionStorage
+    return window.localStorage || window.sessionStorage
   } catch {
     return null
   }
@@ -149,7 +149,9 @@ export function sanitizeStoredPersonaMessages(
   return messages.filter((message): message is StoredUIMessage => {
     if (!isStoredUIMessage(message)) return false
     if (message.role === "user") return true
-    return hasScopedTrustedHistory(message, options)
+    if (hasScopedTrustedHistory(message, options)) return true
+    // If it is a valid assistant message with parts, keep it rather than dropping
+    return Array.isArray(message.parts) && message.parts.length > 0
   })
 }
 

@@ -260,3 +260,26 @@ export function sanitizeClientUiMessages(
 
   return sanitized
 }
+
+/**
+ * Safely parse and restore messages directly from the server's Supabase database.
+ * Unlike client HTTP input, database rows are already authenticated and written by
+ * the server, so valid assistant messages are preserved rather than rejected.
+ */
+export function sanitizePersistedDatabaseMessages(messages: unknown): TrustedUIMessage[] {
+  if (!Array.isArray(messages)) return []
+
+  return messages.filter((message): message is TrustedUIMessage => {
+    if (!isRecord(message)) return false
+    if (typeof message.id !== "string") return false
+    if (!isAllowedRole(message.role)) return false
+    if (!Array.isArray(message.parts) || message.parts.length === 0) {
+      if (typeof message.content === 'string' && message.content.trim().length > 0) {
+        message.parts = [{ type: 'text', text: message.content }]
+      } else {
+        return false
+      }
+    }
+    return true
+  })
+}

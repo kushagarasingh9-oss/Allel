@@ -357,14 +357,14 @@ export function ChatProvider({
   // ── Saved Chat History Management ──
   const [savedSessions, setSavedSessions] = React.useState<SavedChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = React.useState<string>(() => {
-    // Restore session ID from sessionStorage to prevent duplicate history entries on re-mount
+    // Restore session ID from localStorage to prevent resetting history on reload
     if (typeof window !== "undefined") {
-      const stored = window.sessionStorage.getItem("allel.current-session-id")
+      const stored = window.localStorage.getItem("allel.current-session-id") || window.sessionStorage.getItem("allel.current-session-id")
       if (stored) return stored
     }
     const fresh = `session-${Date.now()}`
     if (typeof window !== "undefined") {
-      window.sessionStorage.setItem("allel.current-session-id", fresh)
+      window.localStorage.setItem("allel.current-session-id", fresh)
     }
     return fresh
   })
