@@ -29,10 +29,10 @@ function resolvedModel() {
 async function fetchWithBackoff(
   url: RequestInfo | URL,
   options?: RequestInit,
-  maxRetries = 6
+  maxRetries = 8
 ): Promise<Response> {
   let attempt = 0
-  let delay = 1500 // ms — first back-off window
+  let delay = 2500 // ms — first back-off window
 
   while (true) {
     const response = await fetch(url, options)
@@ -44,9 +44,10 @@ async function fetchWithBackoff(
       response.status === 504
 
     let shouldRetry = isRetryableStatus
+    let isPeakLoadSurge = false
 
     // Check if 400/other status is an Azure peak-load capacity rejection
-    if (!shouldRetry && response.status === 400 && attempt < maxRetries) {
+    if (!shouldRetry && (response.status === 400 || response.status === 429) && attempt < maxRetries) {
       try {
         const cloned = response.clone()
         const text = await cloned.text()
@@ -54,9 +55,11 @@ async function fetchWithBackoff(
           text.includes('Provisioned Throughput') ||
           text.includes('exceeds the maximum usage size allowed during peak load') ||
           text.includes('high demand') ||
-          text.includes('Rate limit')
+          text.includes('Rate limit') ||
+          text.includes('rate_limit')
         ) {
           shouldRetry = true
+          isPeakLoadSurge = true
         }
       } catch {
         // Ignore clone errors
@@ -65,6 +68,11 @@ async function fetchWithBackoff(
 
     if (!shouldRetry || attempt >= maxRetries) {
       return response
+    }
+
+    // Peak load surges on Azure need at least 3.5s to clear the token queue
+    if (isPeakLoadSurge && delay < 3500) {
+      delay = 3500
     }
 
     // Parse Azure OpenAI & OpenAI standard rate-limit reset headers
