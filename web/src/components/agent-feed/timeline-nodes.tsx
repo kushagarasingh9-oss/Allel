@@ -249,8 +249,8 @@ export function AgentReasoningBatch({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            {/* Thin vertical timeline thread as shown in Screenshot 2 */}
-            <div className="mt-2 ml-2 pl-4 border-l border-neutral-800/80 flex flex-col gap-3 py-1">
+            {/* Thin vertical timeline thread */}
+            <div className="mt-2 ml-2 pl-4 border-l border-neutral-300 dark:border-neutral-800/80 flex flex-col gap-3 py-1">
               {children}
             </div>
           </motion.div>
@@ -289,22 +289,22 @@ export function TimelineNode({
       >
         {isLoading ? (
           <div className="relative flex items-center justify-center w-4 h-4 shrink-0">
-            <Loader2 className="w-3.5 h-3.5 text-neutral-400 animate-spin" />
+            <Loader2 className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400 animate-spin" />
           </div>
         ) : icon ? (
-          <div className="relative flex items-center justify-center w-4 h-4 shrink-0 text-neutral-300">
+          <div className="relative flex items-center justify-center w-4 h-4 shrink-0 text-neutral-600 dark:text-neutral-300">
             {icon}
           </div>
         ) : null}
 
-        <span className="text-[13px] font-medium text-neutral-300 group-hover/btn:text-white transition-colors flex items-center gap-1.5">
+        <span className="text-[13px] font-medium text-neutral-700 dark:text-neutral-300 group-hover/btn:text-neutral-950 dark:group-hover/btn:text-white transition-colors flex items-center gap-1.5">
           {title}
         </span>
 
         {children && (
           <ChevronRight
             className={cn(
-              "w-3.5 h-3.5 text-neutral-500 group-hover/btn:text-neutral-300 transition-transform duration-200 ml-0.5",
+              "w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500 group-hover/btn:text-neutral-700 dark:group-hover/btn:text-neutral-300 transition-transform duration-200 ml-0.5",
               isOpen && "rotate-90"
             )}
           />
@@ -716,12 +716,12 @@ export function MiniResultCard({
         delay: index * 0.05, // Fast 50ms stagger per item — Railway agentic process speed
         ease: [0.16, 1, 0.3, 1],
       }}
-      className="flex items-center gap-2.5 py-1 px-1.5 rounded-sm hover:bg-white/[0.04] transition-colors max-w-xl my-0.5"
+      className="flex items-center gap-2.5 py-1 px-1.5 rounded-sm hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors max-w-xl my-0.5"
     >
-      {icon && <div className="shrink-0 text-neutral-400 mt-0.5">{icon}</div>}
+      {icon && <div className="shrink-0 text-neutral-500 dark:text-neutral-400 mt-0.5">{icon}</div>}
       <div className="flex flex-col min-w-0">
-        <div className="text-[13px] font-medium text-neutral-200 truncate leading-snug">{title}</div>
-        {subtitle && <div className="text-[11.5px] text-neutral-400 truncate leading-tight">{subtitle}</div>}
+        <div className="text-[13px] font-medium text-neutral-800 dark:text-neutral-200 truncate leading-snug">{title}</div>
+        {subtitle && <div className="text-[11.5px] text-neutral-500 dark:text-neutral-400 truncate leading-tight">{subtitle}</div>}
       </div>
     </motion.div>
   )

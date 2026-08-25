@@ -15,10 +15,10 @@ html.dark {
   color: #edede8;
 }
 
-/* Light Theme Distinct Multi-Depth Panel Hierarchy */
+/* Light Theme: Layered Executive Tonal Hierarchy */
 html.light {
   color-scheme: light;
-  --token-42377e4c-6aff-45af-80cf-861971d3bff6: #eaebed;
+  --token-42377e4c-6aff-45af-80cf-861971d3bff6: #f4f5f7;
   --token-10e74244-94d1-431e-87d0-281bc16f26b9: #ffffff;
   --token-fc3e2144-81ca-48e6-9365-4417af9831c9: #e4e4e7;
   --token-ead5ee04-8072-43a8-8b63-6c52f5667fd6: #d4d4d8;
@@ -28,87 +28,81 @@ html.light {
   --token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0: #18181b;
   --token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7: #f8fafc;
   --token-839f404f-2485-4df4-989d-84c9778f6e7d: #e2e8f0;
-  background-color: #eaebed;
+  background-color: #f4f5f7;
   color: #09090b;
 }
 
-/* 1. Outer Frame & Left Sidebar: #EAEBED (soft architectural gray) */
-html.light .bg-\[\#0A0A0C\],
-html.light .bg-\[\#0A0A0C\]\/95 {
-  background-color: #eaebed !important;
-  color: #18181b !important;
+/* 1. Main Workspace Center Canvas */
+html.light main {
+  background-color: #f4f5f7 !important;
+  border-color: #e5e7eb !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04) !important;
 }
 
-/* 2. Main Workspace Center Canvas: #FAFAFC (soft bright canvas) */
-html.light .bg-\[\#0E0E12\],
-html.light .bg-\[\#0E0E12\]\/95 {
-  background-color: #fafafc !important;
-  color: #18181b !important;
-}
-
-/* 3. Floating Agent Right Panel Body: #FFFFFF */
+/* 2. Right Home Agent Panel Container */
 html.light .bg-\[\#0B0B0D\]\/95 {
   background-color: #ffffff !important;
-  color: #18181b !important;
+  border-color: #e5e7eb !important;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.03) !important;
 }
 
-/* 4. Tab Bar Header: #F4F4F6 */
+/* 3. Tab Header & Footer Bar */
 html.light .bg-\[\#0B0B0D\] {
-  background-color: #f4f4f6 !important;
-  color: #18181b !important;
+  background-color: #fafafa !important;
+  border-color: #e5e7eb !important;
 }
 
-/* 5. Prompt Input Card & Tool Badges: #F4F4F6 */
+/* 4. Active Tab Button */
+html.light .bg-\[\#1C1C22\] {
+  background-color: #ffffff !important;
+  color: #09090b !important;
+  border-color: #d4d4d8 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* 5. Tooltips & Dark Badges */
+html.light .bg-\[\#1C1C24\] {
+  background-color: #18181b !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* 6. Process Tab Bar */
+html.light .bg-\[\#16161C\] {
+  background-color: #f4f4f5 !important;
+  border-color: #e4e4e7 !important;
+  color: #52525b !important;
+}
+
+/* 7. Chat Input Container */
 html.light .bg-\[\#121216\],
 html.light .bg-\[\#121216\]\/95 {
-  background-color: #f4f4f6 !important;
-  color: #18181b !important;
+  background-color: #ffffff !important;
+  border-color: #d4d4d8 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  color: #09090b !important;
 }
 
-/* 6. Settings Popover & Menus: #FFFFFF */
+/* 8. Profile & Settings Popover */
 html.light .bg-\[\#141418\],
 html.light .bg-\[\#141418\]\/95,
 html.light .bg-\[\#141418\]\/80 {
   background-color: #ffffff !important;
+  border-color: #e4e4e7 !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12) !important;
   color: #18181b !important;
 }
 
-/* 7. Active Tab/Nav Pills: #FFFFFF with subtle shadow */
-html.light .bg-\[\#1C1C22\],
-html.light .bg-\[\#1C1C24\],
-html.light .bg-\[\#222226\] {
-  background-color: #ffffff !important;
-  color: #09090b !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
-  border-color: rgba(0, 0, 0, 0.08) !important;
-}
-
-html.light .bg-\[\#18181C\] {
-  background-color: rgba(0, 0, 0, 0.04) !important;
-}
-
-html.light .bg-\[\#16161C\] {
-  background-color: #e4e4e7 !important;
-  color: #3f3f46 !important;
-}
-
-html.light .border-white\/20,
-html.light .border-white\/15,
-html.light .border-white\/10,
-html.light .border-white\/5 {
-  border-color: rgba(0, 0, 0, 0.08) !important;
-}
-
+/* 9. High-Contrast Typography & Subtle Borders */
 html.light .text-white {
   color: #09090b !important;
 }
 
-html.light svg.text-white {
-  color: #18181b !important;
+html.light .text-neutral-200,
+html.light .text-neutral-300 {
+  color: #27272a !important;
 }
 
-html.light .text-neutral-200,
-html.light .text-neutral-300,
 html.light .text-neutral-400 {
   color: #52525b !important;
 }
@@ -117,10 +111,17 @@ html.light .text-neutral-500 {
   color: #71717a !important;
 }
 
+html.light .border-white\/20,
+html.light .border-white\/15,
+html.light .border-white\/10,
+html.light .border-white\/5 {
+  border-color: #e5e7eb !important;
+}
+
 html.light .hover\:bg-white\/\[0\.04\]:hover,
 html.light .hover\:bg-white\/\[0\.06\]:hover,
 html.light .hover\:bg-white\/\[0\.08\]:hover {
-  background-color: rgba(0, 0, 0, 0.04) !important;
+  background-color: #f4f4f5 !important;
 }
 
 html.light input,
@@ -133,8 +134,8 @@ html.light textarea::placeholder {
   color: #a1a1aa !important;
 }
 
-html.light .shadow-\[0_8px_32px_rgba\(0\,0\,0\,0\.8\)\,_0_0_20px_rgba\(255\,255\,255\,0\.02\)\] {
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06) !important;
+html.light .focus-within\:border-white\/40:focus-within {
+  border-color: #18181b !important;
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap');
