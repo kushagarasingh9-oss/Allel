@@ -3848,6 +3848,9 @@ export const listCalendarEventsTool = tool({
             start: e.start.dateTime ?? e.start.date,
             end: e.end.dateTime ?? e.end.date,
             location: e.location || null,
+            attendees: e.attendees
+              ? e.attendees.map((a) => a.displayName || a.email).filter((v): v is string => Boolean(v)).slice(0, 5)
+              : [],
             meetLink: e.conferenceData?.entryPoints?.find((ep) => ep.entryPointType === 'video')?.uri ?? null,
           })),
           count: events.length,
