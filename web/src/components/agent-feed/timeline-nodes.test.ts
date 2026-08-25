@@ -22,7 +22,7 @@ test('B6: a genuine tool-free answer stays neutral', () => {
   const label = describeReasoningBatch({ isExecuting: false, stepsCount: 0 })
 
   assert.equal(label.isUnfulfilled, false)
-  assert.equal(label.text, 'Direct response (no tools used)')
+  assert.equal(label.text, 'Executive reasoning & analysis')
 })
 
 test('B6: completed tool work reports its step count with correct pluralization', () => {

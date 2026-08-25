@@ -105,7 +105,7 @@ export function describeReasoningBatch(state: ReasoningBatchState): ReasoningBat
   const baseTitle = getBatchActionTitle(state.toolNames, false)
 
   if (state.stepsCount === 0) {
-    return { text: "Direct response (no tools used)", isUnfulfilled: false }
+    return { text: "Executive reasoning & analysis", isUnfulfilled: false }
   }
 
   const stepSuffix = `(${state.stepsCount} step${state.stepsCount === 1 ? '' : 's'})`
