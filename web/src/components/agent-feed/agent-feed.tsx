@@ -90,10 +90,18 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   createSignal: <Zap className="w-4 h-4 text-neutral-500" />,
   updateAccountRisk: <AlertCircle className="w-4 h-4 text-neutral-500" />,
   inspectIntegrationConnectionsTool: <Zap className="w-4 h-4 text-emerald-400" />,
+  webSearchTool: <Globe className="w-4 h-4 text-sky-400" />,
+  webExtractTool: <Globe className="w-4 h-4 text-sky-400" />,
+  webCrawlTool: <Globe className="w-4 h-4 text-sky-400" />,
+  webMapTool: <Globe className="w-4 h-4 text-sky-400" />,
 }
 
 // ─── Human-readable names for tools ──────────────────────────────────
 const TOOL_LABELS: Record<string, string> = {
+  webSearchTool: "Searching web intelligence",
+  webExtractTool: "Extracting webpage content",
+  webCrawlTool: "Crawling website domain",
+  webMapTool: "Mapping site structure",
   inspectIntegrationConnectionsTool: "Verifying active connections",
   getAccountDetails: "Reading account profile",
   getAllAccounts: "Scanning customer accounts",
@@ -120,10 +128,6 @@ const TOOL_LABELS: Record<string, string> = {
   deliverSlackBriefTool: "Delivering brief to Slack",
   buildDailyBriefFromLiveState: "Building executive brief",
   createRescueDiscountTool: "Creating rescue discount",
-  webSearchTool: "Searching web intelligence",
-  webExtractTool: "Extracting webpage data",
-  webCrawlTool: "Crawling website domain",
-  webMapTool: "Indexing sitemap",
   listCalendarEventsTool: "Checking Google Calendar",
   getCalendarEventTool: "Fetching Calendar event",
   createCalendarEventTool: "Creating Calendar event",

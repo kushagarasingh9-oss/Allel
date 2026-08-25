@@ -842,8 +842,8 @@ export const TOOL_DOMAIN_GROUPS: ReadonlyArray<ToolDomainGroup> = [
   {
     domain: 'web_research',
     provider: null,
-    regex: /\b(search|web|google|pricing|competitor|url|http|https|crawl|scrape)\b/i,
-    fuzzyKeywords: ['search', 'google', 'pricing', 'competitor', 'crawl', 'scrape'],
+    regex: /\b(search|web|google|pricing|competitor|competitors|url|http|https|crawl|scrape|research|internet|online|browse|trends|industry|news|lookup)\b/i,
+    fuzzyKeywords: ['search', 'google', 'pricing', 'competitor', 'crawl', 'scrape', 'research', 'internet', 'online'],
     tools: ['webSearchTool', 'webExtractTool', 'webCrawlTool', 'webMapTool'],
   },
 ]
@@ -1016,7 +1016,11 @@ const INTENT_CORE_TOOLS: Array<{
     ],
   },
   {
-    verbs: /\b(show|list|get|fetch|find|search|look|display|what|who|which)\b/i,
+    verbs: /\b(research|google|internet|browse|competitor|competitors|online|trends|news|lookup)\b/i,
+    tools: ['webSearchTool', 'webExtractTool'],
+  },
+  {
+    verbs: /\b(show|list|get|fetch|find|look|display|what|who|which)\b/i,
     tools: ['getAccountDetails', 'getAllAccounts', 'getRecentSignals'],
   },
   {
