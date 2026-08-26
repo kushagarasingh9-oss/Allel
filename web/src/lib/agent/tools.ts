@@ -453,11 +453,11 @@ export const getAllAccounts = tool({
         return true
       })
 
-      const MAX_ACCOUNTS = 8
+      const MAX_ACCOUNTS = 15
       return {
         source: 'stripe_live',
         observedAt: new Date().toISOString(),
-        // Cap to top 8 rows — if workspace has more, sort at-risk first
+        // Cap to top 15 rows — if workspace has more, sort at-risk first
         accounts: accounts
           .sort((a, b) => {
             const rank: Record<string, number> = { high: 0, medium: 1, low: 2, healthy: 3 }
@@ -1667,7 +1667,7 @@ export const getMyInbox = tool({
       const ignoredDigestCount = classifiedThreads.filter(
         (thread) => thread.category === 'marketing_digest'
       ).length
-      const MAX_INBOX_THREADS = 6
+      const MAX_INBOX_THREADS = 15
       const threads = (includeLowPriority
         ? classifiedThreads
         : classifiedThreads.filter((thread) => thread.needsReply || thread.priority !== 'low'))
@@ -1677,7 +1677,7 @@ export const getMyInbox = tool({
           subject: t.subject,
           from: t.from,
           lastMessageAt: t.lastMessageAt,
-          snippet: t.snippet.slice(0, 100),
+          snippet: t.snippet.slice(0, 90),
           category: t.category,
           priority: t.priority,
           needsReply: t.needsReply,
@@ -3837,11 +3837,11 @@ export const listCalendarEventsTool = tool({
   execute: async ({ workspaceId, timeMin, timeMax, maxResults }) => {
     try {
       return await executeWithCalendarAccessToken(workspaceId, async (accessToken) => {
-        const MAX_CAL_EVENTS = 6
+        const MAX_CAL_EVENTS = 15
         const events = await listCalendarEventsFn(accessToken, 'primary', {
           timeMin: timeMin ?? new Date().toISOString(),
           timeMax,
-          maxResults: Math.min(maxResults ?? 6, MAX_CAL_EVENTS),
+          maxResults: Math.min(maxResults ?? 15, MAX_CAL_EVENTS),
         })
         return {
           source: 'google_calendar_live',
