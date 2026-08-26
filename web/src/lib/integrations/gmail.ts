@@ -273,6 +273,17 @@ const AUTOMATED_SENDER_MARKERS = [
   'digest',
   'marketing',
   'mailer-daemon',
+  'notifications@',
+  'notification@',
+  'news@',
+  'updates@',
+  'offers@',
+  'promotions@',
+  'info@',
+  'jobs@',
+  'perks@',
+  'support@mail.',
+  'hello@',
 ]
 
 const AUTOMATED_BRAND_MARKERS = [
@@ -286,10 +297,26 @@ const AUTOMATED_BRAND_MARKERS = [
   'facebook',
   'wispr',
   'notion',
+  'adobe',
+  'udemy',
+  'ajio',
+  'parallels',
+  'founderpass',
+  'lottiefiles',
+  'henry labs',
+  'wellfound',
+  'sloan',
+  'gucci',
+  'phil rosen',
+  'opening bell',
 ]
 
 const MARKETING_CONTENT_MARKERS = [
   'unsubscribe',
+  'opt out',
+  'manage preferences',
+  'view in browser',
+  'view online',
   'weekly market recap',
   'market recap',
   'short squeeze',
@@ -303,6 +330,19 @@ const MARKETING_CONTENT_MARKERS = [
   'unicoin',
   "defining crypto's place",
   'product update',
+  'special offer',
+  '% off',
+  'perks',
+  'new collection',
+  'intern at',
+  'job alert',
+  'jobs for you',
+  'daily newsletter',
+  'weekly newsletter',
+  'daily digest',
+  'complete your registration',
+  'welcome to',
+  'learning opportunity',
 ]
 
 function includesAny(value: string, markers: readonly string[]) {
@@ -364,16 +404,13 @@ export function scoreEmailThread(thread: {
     score -= 35
   }
 
-  // Weak negative signal for brand domain alone (only if accompanied by automated sender marker)
+  // Weak negative signal for brand domain alone
   const isBrandDomain = includesAny(from, AUTOMATED_BRAND_MARKERS)
-  const isNoReply = includesAny(from, AUTOMATED_SENDER_MARKERS) || includesAny(from, ['hello@', 'info@', 'news@', 'updates@'])
-  if (isBrandDomain && isNoReply) {
-    score -= 15
-  } else if (isBrandDomain) {
-    score -= 5
+  if (isBrandDomain) {
+    score -= 20
   }
 
-  return score
+  return Math.max(10, score)
 }
 
 /**
@@ -398,6 +435,21 @@ export function classifyEmailThread(
       priority: 'medium',
       score: 50,
       personName: extractLinkedInInvitePerson(thread.subject ?? '', thread.snippet ?? ''),
+    }
+  }
+
+  const isCalendarInvite =
+    from.includes('calendar-notification@google.com') ||
+    subject.startsWith('invitation:') ||
+    subject.startsWith('meeting invitation:') ||
+    subject.startsWith('updated invitation:') ||
+    subject.startsWith('canceled invitation:')
+  if (isCalendarInvite) {
+    return {
+      category: 'marketing_digest',
+      needsReply: false,
+      priority: 'low',
+      score: 30,
     }
   }
 
@@ -431,10 +483,10 @@ export function classifyEmailThread(
   const isStrictlyAutomatedMarketing =
     includesAny(from, AUTOMATED_SENDER_MARKERS) ||
     includesAny(content, MARKETING_CONTENT_MARKERS) ||
-    (includesAny(from, AUTOMATED_BRAND_MARKERS) && includesAny(from, ['hello@', 'info@', 'news@', 'updates@', 'digest@']))
+    includesAny(from, AUTOMATED_BRAND_MARKERS)
 
   if (isStrictlyAutomatedMarketing) {
-    return { category: 'marketing_digest', needsReply: false, priority: 'low', score }
+    return { category: 'marketing_digest', needsReply: false, priority: 'low', score: Math.min(30, score) }
   }
 
   const reportsProductProblem = includesAny(content, [
