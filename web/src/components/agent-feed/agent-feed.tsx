@@ -734,54 +734,124 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       if (toolName === 'requestMoreTools') {
         continue
       }
-      batchToolNames.push(toolName)
-      const label = TOOL_LABELS[toolName] ?? toolName
-      const icon = TOOL_ICONS[toolName] ?? <Search className="w-3.5 h-3.5 text-neutral-500" />
-      const state = String(rawPart.state ?? '')
-      // AI SDK may store input as 'input', 'args', or nested — try all
-      const toolInput = rawPart.input ?? rawPart.args ?? rawPart.toolInput ?? null
 
-      if (state === "input-streaming" || state === "input-available") {
-        const isStillLoading = isChatStreaming
+      // Collect consecutive tool parts with the same toolName into a single grouped node
+      const group: Array<{ index: number; part: Record<string, unknown> }> = [{ index: i, part: rawPart }]
+      while (i + 1 < parts.length) {
+        const nextRaw = parts[i + 1] as Record<string, unknown>
+        const nextType = String(nextRaw.type ?? '')
+        if ((nextType.startsWith('tool-') || nextType === 'dynamic-tool') && extractToolName(nextRaw) === toolName) {
+          group.push({ index: i + 1, part: nextRaw })
+          i++
+        } else {
+          break
+        }
+      }
+
+      batchToolNames.push(toolName)
+      const baseLabel = TOOL_LABELS[toolName] ?? toolName
+      const icon = TOOL_ICONS[toolName] ?? <Search className="w-3.5 h-3.5 text-neutral-500" />
+
+      const allCompleted = group.every(g => String(g.part.state ?? '') === 'output-available')
+      const hasError = group.some(g => String(g.part.state ?? '') === 'output-error')
+      const anyStreaming = group.some(g => {
+        const s = String(g.part.state ?? '')
+        return s === 'input-streaming' || s === 'input-available'
+      })
+
+      const isStillLoading = anyStreaming && isChatStreaming
+      const isCompleted = !isStillLoading && !hasError
+
+      // Pluralized title when multiple actions happen under one tool
+      let displayTitle = baseLabel
+      if (group.length > 1) {
+        if (toolName === 'deleteCalendarEventTool') {
+          displayTitle = isCompleted ? `Deleted ${group.length} Calendar events` : `Deleting ${group.length} Calendar events`
+        } else if (toolName === 'createCalendarEventTool') {
+          displayTitle = isCompleted ? `Created ${group.length} Calendar events` : `Creating ${group.length} Calendar events`
+        } else if (toolName === 'resolveSignal') {
+          displayTitle = isCompleted ? `Resolved ${group.length} workspace signals` : `Resolving ${group.length} workspace signals`
+        } else if (toolName === 'archiveAccount') {
+          displayTitle = isCompleted ? `Archived ${group.length} accounts` : `Archiving ${group.length} accounts`
+        } else if (toolName === 'updateAccountRisk') {
+          displayTitle = isCompleted ? `Updated ${group.length} account risk assessments` : `Updating ${group.length} account risks`
+        } else if (toolName === 'sendGmailReply' || toolName === 'composeNewEmail') {
+          displayTitle = isCompleted ? `Sent ${group.length} emails` : `Sending ${group.length} emails`
+        } else {
+          displayTitle = `${baseLabel} (${group.length} actions)`
+        }
+      }
+
+      if (group.length === 1) {
+        const single = group[0]
+        const state = String(single.part.state ?? '')
+        const toolInput = single.part.input ?? single.part.args ?? single.part.toolInput ?? null
+
+        if (state === "input-streaming" || state === "input-available") {
+          toolBatch.push(
+            <TimelineNode
+              key={`tool-${single.index}`}
+              title={baseLabel}
+              icon={icon}
+              isLoading={isStillLoading}
+              isCompleted={!isStillLoading}
+            >
+              <ToolThinkingSummary toolName={toolName} input={toolInput} />
+            </TimelineNode>
+          )
+          toolBatchCount++
+        } else if (state === "output-available") {
+          toolBatch.push(
+            <TimelineNode
+              key={`tool-${single.index}`}
+              title={baseLabel}
+              icon={icon}
+              isCompleted={true}
+              isCollapsible={true}
+            >
+              <ToolThinkingSummary toolName={toolName} input={toolInput} />
+              <ToolResultSummary toolName={toolName} result={single.part.output} />
+            </TimelineNode>
+          )
+          toolBatchCount++
+        } else if (state === "output-error") {
+          toolBatch.push(
+            <TimelineNode
+              key={`tool-${single.index}`}
+              title={baseLabel}
+              icon={icon}
+              isCompleted={true}
+            >
+              <UnconnectedIntegrationBadge toolName={toolName} errorText={String(single.part.errorText ?? 'Integration not connected for this workspace')} />
+            </TimelineNode>
+          )
+          toolBatchCount++
+        }
+      } else {
+        // Grouped multi-action TimelineNode
         toolBatch.push(
           <TimelineNode
-            key={`tool-${i}`}
-            title={label}
+            key={`grouped-tool-${group[0].index}`}
+            title={displayTitle}
             icon={icon}
             isLoading={isStillLoading}
-            isCompleted={!isStillLoading}
-          >
-            <ToolThinkingSummary toolName={toolName} input={toolInput} />
-          </TimelineNode>
-        )
-        toolBatchCount++
-      } else if (state === "output-available") {
-        toolBatch.push(
-          <TimelineNode
-            key={`tool-${i}`}
-            title={label}
-            icon={icon}
-            isCompleted={true}
+            isCompleted={isCompleted}
             isCollapsible={true}
           >
-            <ToolThinkingSummary toolName={toolName} input={toolInput} />
-            <ToolResultSummary toolName={toolName} result={rawPart.output} />
+            <div className="flex flex-col gap-1.5 py-1">
+              {group.map((item) => {
+                const toolInput = item.part.input ?? item.part.args ?? item.part.toolInput ?? null
+                return (
+                  <div key={item.index} className="flex flex-col gap-0.5 border-l border-white/10 pl-2.5 my-0.5">
+                    <ToolThinkingSummary toolName={toolName} input={toolInput} />
+                    {item.part.output ? <ToolResultSummary toolName={toolName} result={item.part.output} /> : null}
+                  </div>
+                )
+              })}
+            </div>
           </TimelineNode>
         )
-        toolBatchCount++
-      } else if (state === "output-error") {
-        // Tool failed — show clean error alert badge with Connect [Provider] button
-        toolBatch.push(
-          <TimelineNode
-            key={`tool-${i}`}
-            title={label}
-            icon={icon}
-            isCompleted={true}
-          >
-            <UnconnectedIntegrationBadge toolName={toolName} errorText={String(rawPart.errorText ?? 'Integration not connected for this workspace')} />
-          </TimelineNode>
-        )
-        toolBatchCount++
+        toolBatchCount += group.length
       }
     }
   }

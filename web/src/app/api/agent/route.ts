@@ -70,6 +70,15 @@ function buildFallbackSynthesisForTools(calledToolNames: string[]): string {
   const tools = new Set(calledToolNames)
   const bullets: string[] = []
 
+  if (tools.has('deleteCalendarEventTool')) {
+    const deleteCount = calledToolNames.filter((t) => t === 'deleteCalendarEventTool').length
+    return `![Google Calendar](/logos/google-calendar.svg) **Calendar**: Successfully cancelled and removed ${deleteCount > 1 ? `${deleteCount} meetings` : 'the requested meeting'} from your schedule.`
+  }
+
+  if (tools.has('createCalendarEventTool')) {
+    return `![Google Calendar](/logos/google-calendar.svg) **Calendar**: Successfully scheduled the requested event on your calendar.`
+  }
+
   if (tools.has('listCalendarEventsTool') || tools.has('getMyInbox') || tools.has('getAllAccounts') || tools.has('getStripeAccountState')) {
     if (tools.has('listCalendarEventsTool')) {
       bullets.push('• **Schedule**: Scanned today\'s calendar events and commitments.')
