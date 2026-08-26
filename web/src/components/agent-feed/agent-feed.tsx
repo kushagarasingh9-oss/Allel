@@ -344,17 +344,29 @@ function ToolThinkingSummary({ toolName, input }: { toolName: string; input: unk
     const url = data.url as string
     summary = url ? `Reading ${url.slice(0, 40)}…` : 'Extracting webpage'
   }
-  // Account tools
+  // Account & Integration tools
   else if (toolName === 'getAccountDetails') {
     summary = 'Pulling account details'
   } else if (toolName === 'getAllAccounts') {
-    summary = 'Listing all accounts'
+    summary = 'Scanning Stripe customer accounts'
+  } else if (toolName === 'getStripeAccountState') {
+    summary = 'Checking Stripe subscription state'
+  } else if (toolName === 'inspectIntegrationConnectionsTool') {
+    summary = 'Verifying active integration status'
   } else if (toolName === 'getAccountTimeline') {
     summary = 'Checking account history'
+  } else if (toolName === 'listSentryIssuesTool') {
+    summary = 'Scanning active error signals'
+  } else if (toolName === 'searchLinearIssuesTool') {
+    summary = 'Searching Linear issue tracker'
+  } else if (toolName === 'listPostHogInsights' || toolName === 'getPostHogAccountUsage') {
+    summary = 'Analyzing product engagement analytics'
+  } else if (toolName === 'listIntercomConvos') {
+    summary = 'Scanning Intercom support conversations'
   }
   // Generic — use the TOOL_LABELS display name
   else {
-    summary = 'Processing…'
+    summary = TOOL_LABELS[toolName] ? `${TOOL_LABELS[toolName]}…` : 'Processing…'
   }
 
   return (
@@ -616,7 +628,8 @@ function extractToolName(part: Record<string, unknown>): string {
 // ─── Single Message Renderer ─────────────────────────────────────────
 
 function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatarUrl: string | null }) {
-  const { sendMessage } = useChatContext()
+  const { sendMessage, status } = useChatContext()
+  const isChatStreaming = status === "streaming" || status === "submitted"
   if (message.role === "user") {
     // User prompt bubble (right-aligned like the mock)
     const textContent = message.parts
@@ -729,12 +742,14 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       const toolInput = rawPart.input ?? rawPart.args ?? rawPart.toolInput ?? null
 
       if (state === "input-streaming" || state === "input-available") {
+        const isStillLoading = isChatStreaming
         toolBatch.push(
           <TimelineNode
             key={`tool-${i}`}
             title={label}
             icon={icon}
-            isLoading={true}
+            isLoading={isStillLoading}
+            isCompleted={!isStillLoading}
           >
             <ToolThinkingSummary toolName={toolName} input={toolInput} />
           </TimelineNode>
@@ -1183,20 +1198,33 @@ export function AgentFeed() {
           return isThinkingActive ? <AgentThinking /> : null
         })()}
 
-        {error && !isLoading && !error.message?.toLowerCase().includes('rate limit') && !error.message?.toLowerCase().includes('high demand') && !error.message?.toLowerCase().includes('peak load') && (
+        {error && !isLoading && (
           <div className="w-full flex justify-center mt-2 mb-4">
-            <div className="w-full bg-red-500/10 border border-red-500/20 rounded-xl p-3.5 flex gap-2.5 shadow-md">
-              <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+            <div className="w-full bg-red-500/10 border border-red-500/20 rounded-xl p-3.5 flex items-start justify-between gap-3 shadow-md">
+              <div className="flex gap-2.5 min-w-0">
+                <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <h4 className="text-[12px] font-semibold text-red-400 mb-0.5">
+                    Execution Notice
+                  </h4>
+                  <p className="text-[12px] text-red-200/90 leading-relaxed font-sans break-words whitespace-pre-wrap">
+                    {formatCleanErrorMessage(error.message || "The agent encountered an error.")}
+                  </p>
+                </div>
               </div>
-              <div className="flex flex-col min-w-0">
-                <h4 className="text-[12px] font-semibold text-red-400 mb-0.5">
-                  Execution Notice
-                </h4>
-                <p className="text-[12px] text-red-200/90 leading-relaxed font-sans break-words whitespace-pre-wrap">
-                  {formatCleanErrorMessage(error.message || "The agent encountered an error.")}
-                </p>
-              </div>
+              <button
+                onClick={() => {
+                  const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
+                  const text = lastUserMsg?.parts?.find((p) => p.type === "text" && "text" in p && typeof p.text === "string")
+                  const prompt = (text && "text" in text ? text.text : "Please complete the analysis.") as string
+                  sendMessage({ role: "user", parts: [{ type: "text", text: prompt }] } as any)
+                }}
+                className="shrink-0 px-2.5 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-red-300 hover:text-white text-[11.5px] font-medium transition-colors cursor-pointer"
+              >
+                Retry
+              </button>
             </div>
           </div>
         )}
