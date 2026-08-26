@@ -44,9 +44,9 @@ function isStoredUIMessage(value: unknown): value is StoredUIMessage {
 
 function hasScopedTrustedHistory(
   message: StoredUIMessage,
-  options: {
-    workspaceId: string
-    personaId: PersonaId
+  options?: {
+    workspaceId?: string
+    personaId?: PersonaId
   }
 ) {
   const trustedHistory = message.metadata?.trustedHistory
@@ -54,8 +54,8 @@ function hasScopedTrustedHistory(
 
   return (
     trustedHistory.version === 1 &&
-    trustedHistory.workspaceId === options.workspaceId &&
-    trustedHistory.personaId === options.personaId &&
+    (!options?.workspaceId || trustedHistory.workspaceId === options.workspaceId) &&
+    (!options?.personaId || trustedHistory.personaId === options.personaId) &&
     typeof trustedHistory.contentSha256 === "string" &&
     trustedHistory.contentSha256.length > 0 &&
     typeof trustedHistory.signature === "string" &&
@@ -138,9 +138,9 @@ export function buildPersonaThreadChatId(
 
 export function sanitizeStoredPersonaMessages(
   messages: unknown,
-  options: {
-    workspaceId: string
-    personaId: PersonaId
+  options?: {
+    workspaceId?: string
+    personaId?: PersonaId
   }
 ) {
   if (!Array.isArray(messages)) {
@@ -195,6 +195,13 @@ export function reconcileConversationHistory<T extends { id?: string; role?: str
     return ""
   }
 
+  const serverUserTexts = new Set(
+    serverMessages
+      .filter((m) => m.role === "user")
+      .map((m) => getMessageText(m))
+      .filter((t) => t.length > 0)
+  )
+
   const serverAssistantTexts = new Set(
     serverMessages
       .filter((m) => m.role === "assistant")
@@ -203,14 +210,17 @@ export function reconcileConversationHistory<T extends { id?: string; role?: str
   )
 
   // A local message with no id cannot be matched, so it is treated as local-only
-  // rather than silently dropped, unless it's an assistant message whose text is already in server record.
+  // rather than silently dropped, unless its text is already in server record.
   const localOnly = localMessages.filter((message) => {
     if (typeof message.id === "string" && serverIds.has(message.id)) {
       return false
     }
-    if (message.role === "assistant") {
-      const text = getMessageText(message)
-      if (text.length > 0 && serverAssistantTexts.has(text)) {
+    const text = getMessageText(message)
+    if (text.length > 0) {
+      if (message.role === "assistant" && serverAssistantTexts.has(text)) {
+        return false
+      }
+      if (message.role === "user" && serverUserTexts.has(text)) {
         return false
       }
     }

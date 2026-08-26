@@ -15,7 +15,7 @@ import { Chat, useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import type { UIMessage } from "ai"
 import type { PersonaId } from "@/lib/agent/personas"
-import { buildAgentChatStorageScope } from "@/lib/agent/chat-session"
+import { buildAgentChatStorageScope, AGENT_CHAT_STORAGE_VERSION } from "@/lib/agent/chat-session"
 import {
   buildPersonaThreadChatId,
   buildPersonaThreadStorageKey,
@@ -173,22 +173,6 @@ export function ChatProvider({
   }
   const [hydrationStatus, setHydrationStatus] = React.useState<HydrationStatus>("idle")
 
-  const persistThread = React.useCallback(() => {
-    if (typeof window === "undefined" || !resolvedStorageScope) return
-
-    const sanitized = sanitizeStoredPersonaMessages(chat.messages, {
-      workspaceId: resolvedStorageScope.workspaceId,
-      personaId: AGENT_ID,
-    })
-
-    // Store under the same key format for backward compatibility
-    const payload = { alex: sanitized, henry: [], sarah: [] }
-    window.sessionStorage.setItem(
-      buildPersonaThreadStorageKey(resolvedStorageScope),
-      JSON.stringify(payload)
-    )
-  }, [chat, resolvedStorageScope])
-
   const {
     messages,
     sendMessage,
@@ -200,6 +184,30 @@ export function ChatProvider({
   } = useChat({
     chat,
   })
+
+  const persistThread = React.useCallback(() => {
+    if (typeof window === "undefined" || !resolvedStorageScope) return
+
+    const messagesToPersist = messages && messages.length > 0 ? messages : chat.messages
+    const sanitized = sanitizeStoredPersonaMessages(messagesToPersist, {
+      workspaceId: resolvedStorageScope.workspaceId,
+      personaId: AGENT_ID,
+    })
+
+    // Store under the same key format for backward compatibility
+    const payload = { alex: sanitized, henry: [], sarah: [] }
+    window.sessionStorage.setItem(
+      buildPersonaThreadStorageKey(resolvedStorageScope),
+      JSON.stringify(payload)
+    )
+  }, [chat.messages, messages, resolvedStorageScope])
+
+  // Automatically persist messages whenever stream finishes or updates
+  React.useEffect(() => {
+    if (messages.length > 0 && status === "ready") {
+      persistThread()
+    }
+  }, [messages, status, persistThread])
 
   // Build a single-entry threadStateByAgent for backward compatibility
   const threadState = React.useMemo(() => {
@@ -488,7 +496,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
       if (storageUserId && storageWorkspaceId) {
         try {
           window.sessionStorage.setItem(
-            `allel.chat-session.v2:${storageUserId}:${storageWorkspaceId}`,
+            `allel.chat-session.${AGENT_CHAT_STORAGE_VERSION}:${storageUserId}:${storageWorkspaceId}`,
             newSessionId
           )
         } catch {
@@ -510,7 +518,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
       if (storageUserId && storageWorkspaceId) {
         try {
           window.sessionStorage.setItem(
-            `allel.chat-session.v2:${storageUserId}:${storageWorkspaceId}`,
+            `allel.chat-session.${AGENT_CHAT_STORAGE_VERSION}:${storageUserId}:${storageWorkspaceId}`,
             session.id
           )
         } catch {
