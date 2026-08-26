@@ -1621,7 +1621,7 @@ function buildAgentStepMetadata(result: Awaited<ReturnType<ToolLoopAgent['genera
  * shape (content string/array). Content is never deleted — this preserves
  * full context memory via a preview + char count.
  */
-const COMPACT_THRESHOLD = 400
+const COMPACT_THRESHOLD = 200
 
 // Flexible shape — matches both UIMessage (parts[]) and CoreMessage (content)
 type CompactableMessage = {
