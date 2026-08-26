@@ -90,18 +90,33 @@ export function resolveChatStorageScope(
 ): ResolvedChatStorageScope | null {
   if (!scope) return null
 
-  const storage = getSessionStorage()
+  const storageKey = buildChatSessionStorageKey(scope)
+  let existingSessionId: string | null = null
 
-  if (!storage) {
-    return buildAgentChatStorageScope(scope, LEGACY_AGENT_CHAT_SESSION_ID)
+  if (typeof window !== "undefined") {
+    try {
+      existingSessionId = sanitizeAgentChatSessionId(
+        window.sessionStorage?.getItem(storageKey) ||
+        window.localStorage?.getItem(storageKey) ||
+        window.sessionStorage?.getItem("allel.current-session-id") ||
+        window.localStorage?.getItem("allel.current-session-id")
+      )
+    } catch {
+      // ignore
+    }
   }
 
-  const storageKey = buildChatSessionStorageKey(scope)
-  const existingSessionId = sanitizeAgentChatSessionId(storage.getItem(storageKey))
   const sessionId = existingSessionId ?? getFallbackSessionId()
 
-  if (!existingSessionId) {
-    storage.setItem(storageKey, sessionId)
+  if (typeof window !== "undefined") {
+    try {
+      window.sessionStorage?.setItem(storageKey, sessionId)
+      window.localStorage?.setItem(storageKey, sessionId)
+      window.sessionStorage?.setItem("allel.current-session-id", sessionId)
+      window.localStorage?.setItem("allel.current-session-id", sessionId)
+    } catch {
+      // ignore
+    }
   }
 
   return buildAgentChatStorageScope(scope, sessionId)

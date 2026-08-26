@@ -1176,6 +1176,17 @@ export function AgentFeed() {
         return true
       }
 
+      if (m.role === "user") {
+        const prev = messages[idx - 1]
+        if (prev && prev.role === "user") {
+          const prevText = prev.parts?.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim()
+          const currText = m.parts?.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim()
+          if (prevText && currText && prevText === currText) {
+            return false
+          }
+        }
+      }
+
       const text = m.parts
         ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
         .map((p) => p.text)

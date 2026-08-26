@@ -493,12 +493,12 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     const newSessionId = `session-${Date.now()}`
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem("allel.current-session-id", newSessionId)
+      window.localStorage.setItem("allel.current-session-id", newSessionId)
       if (storageUserId && storageWorkspaceId) {
+        const storageKey = `allel.chat-session.${AGENT_CHAT_STORAGE_VERSION}:${storageUserId}:${storageWorkspaceId}`
         try {
-          window.sessionStorage.setItem(
-            `allel.chat-session.${AGENT_CHAT_STORAGE_VERSION}:${storageUserId}:${storageWorkspaceId}`,
-            newSessionId
-          )
+          window.sessionStorage.setItem(storageKey, newSessionId)
+          window.localStorage.setItem(storageKey, newSessionId)
         } catch {
           // Ignore storage write error
         }
@@ -515,12 +515,12 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     clearError()
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem("allel.current-session-id", session.id)
+      window.localStorage.setItem("allel.current-session-id", session.id)
       if (storageUserId && storageWorkspaceId) {
+        const storageKey = `allel.chat-session.${AGENT_CHAT_STORAGE_VERSION}:${storageUserId}:${storageWorkspaceId}`
         try {
-          window.sessionStorage.setItem(
-            `allel.chat-session.${AGENT_CHAT_STORAGE_VERSION}:${storageUserId}:${storageWorkspaceId}`,
-            session.id
-          )
+          window.sessionStorage.setItem(storageKey, session.id)
+          window.localStorage.setItem(storageKey, session.id)
         } catch {
           // Ignore storage write error
         }
@@ -535,7 +535,8 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     setMessages(session.messages)
   }, [clearError, setMessages, stop, storageUserId, storageWorkspaceId])
 
-  const deleteChatSession = React.useCallback((id: string) => {
+  const deleteChatSession = React.useCallback(async (id: string) => {
+    // 1. Remove from local history list
     setSavedSessions((prev) => {
       const updated = prev.filter((s) => s.id !== id)
       try {
@@ -545,7 +546,23 @@ function generateRefinedTitle(messages: UIMessage[]): string {
       }
       return updated
     })
-  }, [])
+
+    // 2. Delete database record in Supabase
+    try {
+      await fetch(`/api/agent?agentId=${AGENT_ID}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: id }),
+      })
+    } catch (dbErr) {
+      console.error("[chat-provider] Failed to delete conversation from DB", dbErr)
+    }
+
+    // 3. If currently open session was deleted, start clean fresh chat
+    if (id === currentSessionId) {
+      startNewChat()
+    }
+  }, [currentSessionId, startNewChat])
 
   const contextValue = React.useMemo<ChatContextType>(
     () => ({
