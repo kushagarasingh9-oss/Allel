@@ -373,11 +373,12 @@ export function MonologueBlock({ text, label }: { text: string; label?: string }
     if (low.includes('capacity') || low.includes('rate limit') || low.includes('retrying') || low.includes('queue')) {
       return "AI capacity queue: auto-retrying in background"
     }
-    if (low.includes('calendar') || low.includes('schedule') || low.includes('meeting') || low.includes('event')) {
-      return "Checking schedule & calendar"
-    }
-    if (low.includes('inbox') || low.includes('email') || low.includes('mail') || low.includes('thread') || low.includes('draft')) {
+    // High-priority domain checks (inbox/email before generic meeting/event words)
+    if (low.includes('inbox') || low.includes('email') || low.includes('mail') || low.includes('gmail') || low.includes('thread') || low.includes('draft')) {
       return "Triaging inbox communications"
+    }
+    if (low.includes('calendar') || low.includes('schedule') || low.includes('reschedule') || (low.includes('meeting') && !low.includes('mail') && !low.includes('inbox'))) {
+      return "Checking schedule & calendar"
     }
     if (low.includes('stripe') || low.includes('billing') || low.includes('revenue') || low.includes('mrr') || low.includes('churn') || low.includes('account')) {
       return "Analyzing customer & billing health"
