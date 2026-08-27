@@ -100,15 +100,15 @@ export function buildTurnContextSystemPrompt(options: TurnContextOptions) {
 
   if (options.latestUserText?.trim()) {
     lines.push(
-      `Newest founder request, for prioritization only: ${options.latestUserText
+      `ACTIVE TURN GOAL (Focus and act ONLY on this): "${options.latestUserText
         .replace(/\s+/g, ' ')
         .trim()
-        .slice(0, 500)}`
+        .slice(0, 500)}"`
     )
   }
 
   lines.push(
-    'Prioritize this newest request over older chat memory unless the founder explicitly asks to continue an earlier task.'
+    'CRITICAL EXECUTION RULE: Address and execute tools ONLY for the ACTIVE TURN GOAL above. All earlier user messages in the thread are completed history — do NOT re-execute tools or re-perform tasks from earlier turns.'
   )
 
   return lines.join('\n')
