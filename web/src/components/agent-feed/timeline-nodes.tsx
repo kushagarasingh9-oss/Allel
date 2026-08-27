@@ -119,7 +119,17 @@ export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boole
     tools.has('searchPostHogPersons') ||
     lowerTools.some((t) => t.includes('posthog'))
   ) {
-    return isExecuting ? "Searching across PostHog analytics" : "Searched PostHog analytics"
+    if (isExecuting) {
+      const activeTool = toolNames?.[toolNames.length - 1]
+      if (activeTool === 'getPostHogEventDefinitions') return "Searching PostHog: Reading event catalog..."
+      if (activeTool === 'listPostHogInsights') return "Searching PostHog: Pulling analytics charts..."
+      if (activeTool === 'listPostHogCohorts') return "Searching PostHog: Reading user cohorts..."
+      if (activeTool === 'getPostHogAccountUsage') return "Searching PostHog: Checking usage trends..."
+      if (activeTool === 'getPostHogEvents') return "Searching PostHog: Inspecting user events..."
+      if (activeTool === 'searchPostHogPersons') return "Searching PostHog: Inspecting user profiles..."
+      return "Searching across PostHog analytics..."
+    }
+    return "Searched PostHog analytics"
   }
 
   // Billing & Stripe
@@ -131,7 +141,15 @@ export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boole
     tools.has('createRescueDiscountTool') ||
     lowerTools.some((t) => t.includes('stripe') || t.includes('billing') || t.includes('account') || t.includes('risk'))
   ) {
-    return isExecuting ? "Scanning customer billing & risk" : "Analyzed customer billing & risk"
+    if (isExecuting) {
+      const activeTool = toolNames?.[toolNames.length - 1]
+      if (activeTool === 'getAllAccounts') return "Scanning Stripe: Fetching customer accounts..."
+      if (activeTool === 'getStripeAccountState') return "Scanning Stripe: Checking subscription state..."
+      if (activeTool === 'getAccountDetails') return "Scanning Stripe: Pulling billing details..."
+      if (activeTool === 'getRecentSignals') return "Scanning Stripe: Evaluating risk signals..."
+      return "Scanning customer billing & risk..."
+    }
+    return "Analyzed customer billing & risk"
   }
 
   // Linear
@@ -140,7 +158,7 @@ export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boole
     tools.has('syncLinearWorkspaceTool') ||
     lowerTools.some((t) => t.includes('linear'))
   ) {
-    return isExecuting ? "Searching Linear tickets" : "Checked Linear tickets"
+    return isExecuting ? "Searching Linear tickets..." : "Checked Linear tickets"
   }
 
   // Sentry
@@ -149,7 +167,7 @@ export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boole
     tools.has('syncSentryWorkspaceTool') ||
     lowerTools.some((t) => t.includes('sentry'))
   ) {
-    return isExecuting ? "Checking error logs" : "Checked error logs"
+    return isExecuting ? "Checking error logs..." : "Checked error logs"
   }
 
   // Slack
@@ -159,7 +177,7 @@ export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boole
     tools.has('deliverSlackBriefTool') ||
     lowerTools.some((t) => t.includes('slack'))
   ) {
-    return isExecuting ? "Reviewing Slack context" : "Reviewed Slack context"
+    return isExecuting ? "Reviewing Slack context..." : "Reviewed Slack context"
   }
 
   // Notion / Airtable
@@ -168,7 +186,7 @@ export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boole
     tools.has('listAirtableBasesTool') ||
     lowerTools.some((t) => t.includes('notion') || t.includes('airtable'))
   ) {
-    return isExecuting ? "Searching workspace knowledge" : "Searched workspace knowledge"
+    return isExecuting ? "Searching workspace knowledge..." : "Searched workspace knowledge"
   }
 
   // Connections / sync
@@ -176,10 +194,10 @@ export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boole
     tools.has('inspectIntegrationConnectionsTool') ||
     lowerTools.some((t) => t.includes('sync') || t.includes('connection'))
   ) {
-    return isExecuting ? "Verifying active connections" : "Verified active connections"
+    return isExecuting ? "Verifying active connections..." : "Verified active connections"
   }
 
-  return isExecuting ? "Executing requested workflow" : "Completed requested workflow"
+  return isExecuting ? "Executing requested workflow..." : "Completed requested workflow"
 }
 
 /**

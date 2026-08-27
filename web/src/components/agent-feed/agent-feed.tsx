@@ -962,8 +962,17 @@ export function formatCleanErrorMessage(rawMsg: string): string {
     if (low.includes("401") || low.includes("unauthorized") || low.includes("invalid_api_key")) {
       return "PostHog API authentication failed. Please update your Personal API Key in Settings."
     }
-    if (low.includes("timeout") || low.includes("timed out")) {
+    if (low.includes("403") || low.includes("forbidden")) {
+      return "PostHog project permission denied. Check your project ID and API key permissions in Settings."
+    }
+    if (low.includes("404") || low.includes("not found")) {
+      return "PostHog resource or project ID not found. Verify your project ID in Settings."
+    }
+    if (low.includes("timeout") || low.includes("timed out") || low.includes("504")) {
       return "PostHog analytics API request timed out. Please try again."
+    }
+    if (low.includes("500") || low.includes("502") || low.includes("503")) {
+      return "PostHog analytics API service is temporarily unavailable. Please try again shortly."
     }
     return msg
   }
@@ -971,6 +980,12 @@ export function formatCleanErrorMessage(rawMsg: string): string {
   if (low.includes("stripe")) {
     if (low.includes("401") || low.includes("unauthorized") || low.includes("invalid_api_key")) {
       return "Stripe API authentication failed. Please update your Secret Key in Settings."
+    }
+    if (low.includes("timeout") || low.includes("timed out")) {
+      return "Stripe API request timed out. Please try again."
+    }
+    if (low.includes("500") || low.includes("502") || low.includes("503")) {
+      return "Stripe API service is temporarily unavailable. Please try again shortly."
     }
     return msg
   }
