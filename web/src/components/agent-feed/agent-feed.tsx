@@ -13,6 +13,8 @@
  */
 
 import * as React from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { cn } from "@/lib/utils"
 import { useChatContext } from "./chat-provider"
 import { createClient } from "@/lib/supabase/client"
 import type { UIMessage } from "ai"
