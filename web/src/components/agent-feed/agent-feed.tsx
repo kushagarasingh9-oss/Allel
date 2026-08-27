@@ -903,7 +903,6 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       if (rawText) {
         rendered.push(<AgentSpeechBlock key={`text-${i}`} text={rawText} />)
       }
-      initialReasoningText = ""
       hasRenderedInitialReasoning = false
     }
 
