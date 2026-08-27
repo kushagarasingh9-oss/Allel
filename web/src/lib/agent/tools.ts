@@ -3102,12 +3102,13 @@ export const getPostHogEvents = tool({
   }),
   execute: async ({ workspaceId, event, distinctId, limit }) => {
     try {
-      const { apiKey, projectId } = await getPostHogCredentials(workspaceId)
+      const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
+      const host = apiHost || 'https://us.posthog.com'
       const events = await getPostHogRecentEvents(apiKey, projectId, {
         event,
         distinctId,
         limit: limit ?? 20,
-      })
+      }, host)
       return {
         events: events.map((e) => ({
           event: e.event,
@@ -3134,8 +3135,9 @@ export const listPostHogInsights = tool({
   }),
   execute: async ({ workspaceId, limit }) => {
     try {
-      const { apiKey, projectId } = await getPostHogCredentials(workspaceId)
-      const insights = await listInsights(apiKey, projectId, limit ?? 15)
+      const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
+      const host = apiHost || 'https://us.posthog.com'
+      const insights = await listInsights(apiKey, projectId, limit ?? 15, host)
       return {
         insights: insights.map((i) => ({
           id: i.id,
@@ -3162,8 +3164,9 @@ export const listPostHogCohorts = tool({
   }),
   execute: async ({ workspaceId }) => {
     try {
-      const { apiKey, projectId } = await getPostHogCredentials(workspaceId)
-      const cohorts = await listCohorts(apiKey, projectId)
+      const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
+      const host = apiHost || 'https://us.posthog.com'
+      const cohorts = await listCohorts(apiKey, projectId, host)
       return {
         cohorts: cohorts.map((c) => ({
           id: c.id,
@@ -3189,8 +3192,9 @@ export const getPostHogEventDefinitions = tool({
   }),
   execute: async ({ workspaceId }) => {
     try {
-      const { apiKey, projectId } = await getPostHogCredentials(workspaceId)
-      const defs = await listEventDefinitions(apiKey, projectId)
+      const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
+      const host = apiHost || 'https://us.posthog.com'
+      const defs = await listEventDefinitions(apiKey, projectId, host)
       return {
         events: defs
           .filter((d) => !d.name.startsWith('$'))  // Filter out PostHog internal events by default

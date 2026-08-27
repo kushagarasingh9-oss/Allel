@@ -484,7 +484,8 @@ export type PostHogEvent = {
 export async function getRecentEvents(
   apiKey: string,
   projectId: string,
-  params?: { event?: string; distinctId?: string; limit?: number; after?: string }
+  params?: { event?: string; distinctId?: string; limit?: number; after?: string },
+  host: string = 'https://us.posthog.com'
 ): Promise<PostHogEvent[]> {
   const queryParams: Record<string, string> = {
     limit: String(params?.limit ?? 50),
@@ -495,7 +496,7 @@ export async function getRecentEvents(
   if (params?.after) queryParams.after = params.after
 
   const data = await posthogGet<{ results: PostHogEvent[] }>(
-    apiKey, projectId, 'events/', queryParams
+    apiKey, projectId, 'events/', queryParams, host
   )
   return data.results ?? []
 }
@@ -519,10 +520,11 @@ export type PostHogInsight = {
 export async function listInsights(
   apiKey: string,
   projectId: string,
-  limit: number = 20
+  limit: number = 20,
+  host: string = 'https://us.posthog.com'
 ): Promise<PostHogInsight[]> {
   const data = await posthogGet<{ results: PostHogInsight[] }>(
-    apiKey, projectId, 'insights/', { limit: String(limit) }
+    apiKey, projectId, 'insights/', { limit: String(limit) }, host
   )
   return data.results ?? []
 }
@@ -531,9 +533,10 @@ export async function listInsights(
 export async function getInsight(
   apiKey: string,
   projectId: string,
-  insightId: number
+  insightId: number,
+  host: string = 'https://us.posthog.com'
 ): Promise<PostHogInsight> {
-  return posthogGet<PostHogInsight>(apiKey, projectId, `insights/${insightId}/`)
+  return posthogGet<PostHogInsight>(apiKey, projectId, `insights/${insightId}/`, undefined, host)
 }
 
 // ============================================================
@@ -552,10 +555,11 @@ export type PostHogCohort = {
 /** List all cohorts */
 export async function listCohorts(
   apiKey: string,
-  projectId: string
+  projectId: string,
+  host: string = 'https://us.posthog.com'
 ): Promise<PostHogCohort[]> {
   const data = await posthogGet<{ results: PostHogCohort[] }>(
-    apiKey, projectId, 'cohorts/'
+    apiKey, projectId, 'cohorts/', undefined, host
   )
   return data.results ?? []
 }
@@ -574,10 +578,11 @@ export type PostHogEventDefinition = {
 /** List event definitions (what events are tracked) */
 export async function listEventDefinitions(
   apiKey: string,
-  projectId: string
+  projectId: string,
+  host: string = 'https://us.posthog.com'
 ): Promise<PostHogEventDefinition[]> {
   const data = await posthogGet<{ results: PostHogEventDefinition[] }>(
-    apiKey, projectId, 'event_definitions/', { limit: '200' }
+    apiKey, projectId, 'event_definitions/', { limit: '200' }, host
   )
   return data.results ?? []
 }
@@ -597,10 +602,11 @@ export type PostHogAction = {
 /** List all actions */
 export async function listActions(
   apiKey: string,
-  projectId: string
+  projectId: string,
+  host: string = 'https://us.posthog.com'
 ): Promise<PostHogAction[]> {
   const data = await posthogGet<{ results: PostHogAction[] }>(
-    apiKey, projectId, 'actions/', { limit: '200' }
+    apiKey, projectId, 'actions/', { limit: '200' }, host
   )
   return data.results ?? []
 }
@@ -620,10 +626,11 @@ export type PostHogDashboard = {
 /** List all dashboards */
 export async function listDashboards(
   apiKey: string,
-  projectId: string
+  projectId: string,
+  host: string = 'https://us.posthog.com'
 ): Promise<PostHogDashboard[]> {
   const data = await posthogGet<{ results: PostHogDashboard[] }>(
-    apiKey, projectId, 'dashboards/', { limit: '100' }
+    apiKey, projectId, 'dashboards/', { limit: '100' }, host
   )
   return data.results ?? []
 }
