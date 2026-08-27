@@ -856,13 +856,12 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
     }
 
     if (part.type === "reasoning" && typeof part.text === 'string' && part.text.trim()) {
-      const isRetryPart = part.text.toLowerCase().includes('capacity') || part.text.toLowerCase().includes('retry')
-      if (isRetryPart || !hasRenderedInitialReasoning) {
-        if (!isRetryPart) hasRenderedInitialReasoning = true
-        toolBatch.push(
-          <MonologueBlock key={`reasoning-${i}`} text={part.text} />
-        )
-      }
+      flushToolBatch()
+      rendered.push(
+        <div key={`reasoning-${i}`} className="mb-2">
+          <MonologueBlock text={part.text} />
+        </div>
+      )
     }
 
     // Tool parts: in AI SDK v6, tool types are `tool-${NAME}` or `dynamic-tool`
