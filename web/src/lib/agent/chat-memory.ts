@@ -361,21 +361,9 @@ export function mergeConversationHistory(options: {
     persistedMessages.map((message) => message.id)
   )
 
-  const persistedUserTexts = new Set(
-    persistedMessages
-      .filter((m) => m.role === 'user')
-      .map((m) => getMessageTextContent(m).trim())
-      .filter((t) => t.length > 0)
+  const newIncoming = incomingMessages.filter(
+    (message) => !persistedIds.has(message.id)
   )
-
-  const newIncoming = incomingMessages.filter((message) => {
-    if (persistedIds.has(message.id)) return false
-    const text = getMessageTextContent(message).trim()
-    if (text.length > 0 && message.role === 'user' && persistedUserTexts.has(text)) {
-      return false
-    }
-    return true
-  })
 
   const merged = [...persistedMessages, ...newIncoming]
 

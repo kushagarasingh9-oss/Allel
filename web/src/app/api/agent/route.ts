@@ -45,7 +45,7 @@ import { resolveAgentConversationSessionId } from '@/lib/agent/chat-session'
 import {
   buildTrustedMessageMetadata,
   getMessageTextContent,
-  sanitizePersistedDatabaseMessages,
+  sanitizeClientUiMessages,
   type TrustedMessageMetadata,
 } from '@/lib/agent/ui-message-utils'
 import { ensureWorkspaceForUser } from '@/lib/workspaces/ensure-workspace'
@@ -181,7 +181,7 @@ export async function POST(request: Request) {
       sessionId,
     }),
   ])
-  const uiMessages = sanitizePersistedDatabaseMessages(body.messages)
+  const uiMessages = sanitizeClientUiMessages(body.messages)
   const mergedMessages = mergeConversationHistory({
     persistedMessages,
     incomingMessages: uiMessages,

@@ -230,7 +230,12 @@ export function sanitizeClientUiMessagesWithOutcome(
     if (candidate.role === "user") return true
 
     if (candidate.role === "assistant") {
-      if (context && candidate.metadata?.trustedHistory) {
+      // When no HMAC context is provided, trust the message — the
+      // server-first merge in mergeConversationHistory will override
+      // client history with canonical DB data anyway.
+      if (!context) return true
+
+      if (candidate.metadata?.trustedHistory) {
         if (hasValidTrustedMetadata(candidate, context)) return true
       }
 
