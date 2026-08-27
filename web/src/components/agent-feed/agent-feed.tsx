@@ -856,7 +856,11 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       const finalToolBatch = [...toolBatch]
       if (!hasRenderedInitialReasoning && batchToolNames.length > 0) {
         finalToolBatch.unshift(
-          <MonologueBlock key="batch-plan-auto" text={buildDynamicPlanForTools(batchToolNames)} />
+          <MonologueBlock
+            key="batch-plan-auto"
+            text={buildDynamicPlanForTools(batchToolNames)}
+            isExecuting={isChatStreaming}
+          />
         )
       }
 
@@ -893,7 +897,11 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
         const thinkContent = thinkMatch[1].trim()
         if (thinkContent) {
           toolBatch.push(
-            <MonologueBlock key={`think-match-${i}`} text={thinkContent} />
+            <MonologueBlock
+              key={`think-match-${i}`}
+              text={thinkContent}
+              isExecuting={isChatStreaming}
+            />
           )
         }
         rawText = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim()
@@ -911,7 +919,11 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       if (isRetryPart || !hasRenderedInitialReasoning) {
         if (!isRetryPart) hasRenderedInitialReasoning = true
         toolBatch.push(
-          <MonologueBlock key={`reasoning-${i}`} text={part.text} />
+          <MonologueBlock
+            key={`reasoning-${i}`}
+            text={part.text}
+            isExecuting={isChatStreaming}
+          />
         )
       }
     }

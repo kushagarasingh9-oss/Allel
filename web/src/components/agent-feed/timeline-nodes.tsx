@@ -378,8 +378,30 @@ function sanitizeReasoningText(raw: string): string {
   return clean || "Evaluating context and executing requested workflow."
 }
 
-export function MonologueBlock({ text, label }: { text: string; label?: string }) {
-  const [expanded, setExpanded] = React.useState(true)
+export function MonologueBlock({
+  text,
+  label,
+  isExecuting = false,
+}: {
+  text: string
+  label?: string
+  isExecuting?: boolean
+}) {
+  // Start open while executing, smoothly collapse when completed
+  const [expanded, setExpanded] = React.useState(isExecuting)
+  const hasAutoCollapsedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (isExecuting) {
+      setExpanded(true)
+      hasAutoCollapsedRef.current = false
+    } else if (!hasAutoCollapsedRef.current) {
+      hasAutoCollapsedRef.current = true
+      // Smoothly auto-collapse thinking monologue 1.2s after turn completion
+      const timer = setTimeout(() => setExpanded(false), 1200)
+      return () => clearTimeout(timer)
+    }
+  }, [isExecuting])
 
   // Derive dynamic thinking label from the reasoning content
   const thinkingLabel = React.useMemo(() => {
@@ -427,18 +449,29 @@ export function MonologueBlock({ text, label }: { text: string; label?: string }
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex items-center gap-2 text-left w-full cursor-pointer hover:text-neutral-300 transition-colors py-0.5"
+        className="flex items-center gap-2 text-left w-full cursor-pointer hover:text-neutral-300 transition-colors py-0.5 select-none"
       >
         <ChevronRight
-          className={`w-3.5 h-3.5 shrink-0 text-neutral-500 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
+          className={cn(
+            "w-3.5 h-3.5 shrink-0 text-neutral-500 transition-transform duration-200",
+            expanded && "rotate-90"
+          )}
         />
-        <span className="font-medium text-neutral-400 select-none">{thinkingLabel}</span>
+        <span className="font-medium text-neutral-400">{thinkingLabel}</span>
       </button>
-      {expanded && (
-        <div className="pl-5 pt-1 text-neutral-400/90 whitespace-pre-wrap leading-relaxed text-[12px]">
-          {sanitizedText}
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: "easeInOut" }}
+            className="overflow-hidden pl-5 pt-1 text-neutral-400/90 whitespace-pre-wrap leading-relaxed text-[12px]"
+          >
+            {sanitizedText}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
