@@ -776,6 +776,69 @@ function extractToolName(part: Record<string, unknown>): string {
   return 'unknown'
 }
 
+function buildDynamicOperationalThought(toolNames: string[], messageParts: Array<Record<string, unknown>>): string {
+  // Check if any tool input has specific details (e.g. title, subject, recipient)
+  const calendarEvent = messageParts.find(p => {
+    const name = extractToolName(p).toLowerCase()
+    return name.includes('calendar')
+  })
+  if (calendarEvent) {
+    const input = ((calendarEvent.input ?? calendarEvent.args ?? {}) as Record<string, unknown>)
+    const title = input.title || input.summary || input.eventTitle
+    if (typeof title === 'string' && title.trim()) {
+      return `Formulating calendar scheduling operation for "${title.trim()}" and confirming availability.`
+    }
+    const name = extractToolName(calendarEvent).toLowerCase()
+    if (name.includes('delete')) return 'Scanning schedule to identify and delete the requested calendar meeting.'
+    if (name.includes('create')) return 'Setting up requested calendar meeting and confirming availability.'
+    return 'Querying Google Calendar schedule for upcoming events and commitments.'
+  }
+
+  const emailTool = messageParts.find(p => {
+    const name = extractToolName(p).toLowerCase()
+    return name.includes('gmail') || name.includes('email') || name.includes('inbox')
+  })
+  if (emailTool) {
+    const input = ((emailTool.input ?? emailTool.args ?? {}) as Record<string, unknown>)
+    const to = input.to || input.recipient
+    if (typeof to === 'string' && to.trim()) {
+      return `Composing email reply to ${to.trim()} and verifying thread history.`
+    }
+    return 'Scanning active inbox communications and triaging direct customer threads.'
+  }
+
+  const billingTool = messageParts.find(p => {
+    const name = extractToolName(p).toLowerCase()
+    return name.includes('stripe') || name.includes('account') || name.includes('billing')
+  })
+  if (billingTool) {
+    return 'Evaluating Stripe billing telemetry, payment states, and account churn risks.'
+  }
+
+  const posthogTool = messageParts.find(p => {
+    const name = extractToolName(p).toLowerCase()
+    return name.includes('posthog') || name.includes('event')
+  })
+  if (posthogTool) {
+    return 'Querying product telemetry and active user feature adoption metrics.'
+  }
+
+  const searchTool = messageParts.find(p => {
+    const name = extractToolName(p).toLowerCase()
+    return name.includes('search') || name.includes('tavily')
+  })
+  if (searchTool) {
+    return 'Conducting real-time web research to cross-reference authoritative sources.'
+  }
+
+  if (toolNames.length > 0) {
+    const formattedTools = toolNames.map(t => TOOL_LABELS[t] || t).slice(0, 2).join(', ')
+    return `Formulating execution plan and running operational integration (${formattedTools}).`
+  }
+
+  return 'Analyzing request context and formulating executive co-founder response.'
+}
+
 // ─── Single Message Renderer ─────────────────────────────────────────
 
 function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatarUrl: string | null }) {
@@ -1038,12 +1101,11 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
     ...intermediateObservations
   ].filter(Boolean).join('\n\n').trim()
 
-  if (modelThoughts.length > 0 || hasTools) {
-    const finalThinkingText = modelThoughts || (
-      hasTools
-        ? `Evaluating workspace data sources and executing ${toolBatchCount > 1 ? `${toolBatchCount} operational steps` : 'integration step'}.`
-        : ''
-    )
+  const shouldRenderThinking = modelThoughts.length > 0 || hasTools || (isChatStreaming && finalSpeechParts.length === 0)
+
+  if (shouldRenderThinking) {
+    const dynamicThought = buildDynamicOperationalThought(batchToolNames, parts as Array<Record<string, unknown>>)
+    const finalThinkingText = modelThoughts || dynamicThought
 
     if (finalThinkingText.trim().length > 0) {
       rendered.push(
