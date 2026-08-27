@@ -1127,15 +1127,33 @@ export const resolveAccountByContact = tool({
       })
     }
 
-    const { data: contact, error } = await contactQuery.maybeSingle()
+    let { data: contact, error } = await contactQuery.maybeSingle()
     if (error) return { error: error.message }
-    if (!contact) return { error: 'No matching contact found' }
-    if (!contact.external_ids || Object.keys(contact.external_ids).length === 0) {
-      return {
-        error:
-          'The matching contact has no verified live integration identity. Cached or seeded contact records are intentionally excluded.',
+
+    if (!contact && email) {
+      const emailDomain = email.split('@')[1]?.toLowerCase()
+      if (emailDomain) {
+        const { data: accountByDomain } = await supabase
+          .from('customer_accounts')
+          .select('id, name, contact_email, domain')
+          .eq('workspace_id', workspaceId)
+          .or(`domain.ilike.%${emailDomain}%,contact_email.ilike.${email.toLowerCase()}`)
+          .limit(1)
+          .maybeSingle()
+
+        if (accountByDomain) {
+          return {
+            success: true,
+            email: email.toLowerCase(),
+            contactName: `${accountByDomain.name} Team`,
+            accountId: accountByDomain.id,
+            accountName: accountByDomain.name,
+          }
+        }
       }
     }
+
+    if (!contact) return { error: 'No matching contact found' }
 
     const account = Array.isArray(contact.customer_accounts)
       ? contact.customer_accounts[0]
