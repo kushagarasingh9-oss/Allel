@@ -16,10 +16,9 @@ import {
   createUIMessageStreamResponse,
   type InferUIMessageChunk,
   type UIMessage,
-  streamText,
 } from 'ai'
 import { createClient } from '@/lib/supabase/server'
-import { retryContextStorage, getLanguageModel } from '@/lib/ai/ai'
+import { retryContextStorage } from '@/lib/ai/ai'
 import {
   type AgentToolName,
   compactToolHistory,
