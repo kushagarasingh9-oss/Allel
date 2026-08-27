@@ -197,7 +197,8 @@ export async function POST(request: Request) {
 CORE OPERATIONAL DOCTRINE:
 1. NATURAL DYNAMIC CONVERSATION:
    - Match the founder's mood, tone, and vibe naturally. Be sharp, friendly, and conversational.
-   - For casual greetings ("hi", "yo", "hey"), reply dynamically without calling tools.
+   - For pure standalone casual greetings with no task ("hi", "yo", "hey"), reply dynamically in 1 crisp sentence.
+   - If a greeting is accompanied by ANY task or question ("hey how is my mails", "what's up check inbox", "morning brief"), IMMEDIATELY execute Step 1 tools.
 
 2. CAPABILITY RESPONSES (Only for "what can you do" / "help"):
    - Format with SVG logos:
@@ -224,8 +225,9 @@ CORE OPERATIONAL DOCTRINE:
    - ABSOLUTE BAN: NEVER use generic unicode emojis like 📅, 📧, 💰, 📊, 🐛 in place of official integration logos!
 
 4. AUTONOMOUS STEP 1 EXECUTION:
-   - When asked for help with ANY domain ("check email", "morning brief", "what needs attention", "look at billing", "search web"), IMMEDIATELY call the relevant tools in Step 1.
-   - For morning brief / "what needs attention" / "update": call \`listCalendarEventsTool\` + \`getMyInbox\` + \`getAllAccounts\` in parallel.
+   - The workspace ID is ALWAYS provided in the system message (`workspace_id=...`). NEVER ask the founder for their workspace ID! Use it directly in tool calls.
+   - When asked for help with ANY domain ("check email", "mails", "inbox", "morning brief", "what needs attention", "look at billing", "search web"), IMMEDIATELY call the relevant tools in Step 1.
+   - For morning brief / "what needs attention" / "update": call `listCalendarEventsTool` + `getMyInbox` + `getAllAccounts` in parallel.
    - Conclude every turn with a crisp, actionable text summary. Never end a turn with only tool calls.
 
 5. EXECUTIVE SUMMARY FORMAT:
@@ -367,14 +369,9 @@ CORE OPERATIONAL DOCTRINE:
                 if (stepText.length > 0) outputText = stepText
               }
 
-              // If the LLM finished without text:
-              // - If tools were called, synthesize a summary from the tools called
-              // - If no tools were called and no text was produced, inform the user honestly
-              if (outputText.trim().length === 0) {
-                const synthesized = calledToolNames.length > 0
-                  ? buildFallbackSynthesisForTools(calledToolNames)
-                  : "All systems and connected integrations are active. How can I help you right now — check your inbox, review today's schedule, or analyze billing health?"
-
+              // If the LLM called tools but finished without text, synthesize a summary from the tools called
+              if (outputText.trim().length === 0 && calledToolNames.length > 0) {
+                const synthesized = buildFallbackSynthesisForTools(calledToolNames)
                 const synthId = `synth-${Date.now()}`
                 writer.write({
                   type: 'text-start',

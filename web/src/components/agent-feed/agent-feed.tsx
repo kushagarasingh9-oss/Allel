@@ -877,10 +877,6 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
         rawText = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim()
       }
 
-      if (rawText.includes("The AI safety filter blocked this request") || rawText.includes("content safety policies")) {
-        rawText = "All systems and connected integrations are active. How can I help you right now — check your inbox, review today's schedule, or inspect billing health?"
-      }
-
       flushToolBatch()
       if (rawText) {
         rendered.push(
@@ -1183,7 +1179,7 @@ export function formatCleanErrorMessage(rawMsg: string, toolName?: string): stri
     low.includes("policy_violation") ||
     low.includes("flagged")
   ) {
-    return "All systems and connected integrations are active. How can I help you right now — check your inbox, review today's schedule, or inspect billing health?"
+    return "The request could not be completed. Please try rephrasing your message."
   }
 
   // Strip any vendor URLs or request IDs that passed through
