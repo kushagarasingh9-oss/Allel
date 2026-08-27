@@ -178,18 +178,19 @@ export async function connectStripe(apiKey: string) {
       redirect(buildSettingsRedirect({ error: 'Sign in again to connect Stripe.' }))
     }
 
-    if (!apiKey.startsWith('sk_')) {
-      redirect(buildSettingsRedirect({ error: 'Stripe API key format looks invalid.' }))
+    const cleanKey = apiKey.trim()
+    if (!cleanKey.startsWith('sk_') && !cleanKey.startsWith('rk_')) {
+      redirect(buildSettingsRedirect({ error: 'Stripe API key format looks invalid (must start with sk_ or rk_).' }))
     }
 
     const { workspaceId } = await getWorkspaceIdForUser(user)
 
-    const isValid = await validateStripeKey(apiKey)
+    const isValid = await validateStripeKey(cleanKey)
     if (!isValid) {
       redirect(buildSettingsRedirect({ error: 'Stripe rejected that API key.' }))
     }
 
-    await saveEncryptedToken({ supabase, workspaceId, provider: 'stripe', value: apiKey })
+    await saveEncryptedToken({ supabase, workspaceId, provider: 'stripe', value: cleanKey })
     await upsertConnection({
       supabase,
       workspaceId,
@@ -679,22 +680,24 @@ export async function connectNotion(apiKey: string) {
     }
 
     const { workspaceId } = await getWorkspaceIdForUser(user)
+    const cleanKey = apiKey.trim()
 
     // Validate the token by attempting a search
     const response = await fetch('https://api.notion.com/v1/search', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${cleanKey}`,
         'Notion-Version': '2022-06-28',
         'Content-Type': 'application/json',
       },
+      signal: AbortSignal.timeout(10000),
       body: JSON.stringify({ page_size: 1 }),
     })
     if (!response.ok) {
       redirect(buildSettingsRedirect({ error: 'Notion rejected that integration token.' }))
     }
 
-    await saveEncryptedToken({ supabase, workspaceId, provider: 'notion', value: apiKey })
+    await saveEncryptedToken({ supabase, workspaceId, provider: 'notion', value: cleanKey })
     await upsertConnection({
       supabase,
       workspaceId,
@@ -729,13 +732,14 @@ export async function connectAirtable(apiKey: string) {
     }
 
     const { workspaceId } = await getWorkspaceIdForUser(user)
+    const cleanKey = apiKey.trim()
 
-    const isValid = await validateAirtableToken(apiKey)
+    const isValid = await validateAirtableToken(cleanKey)
     if (!isValid) {
       redirect(buildSettingsRedirect({ error: 'Airtable rejected that API token.' }))
     }
 
-    await saveEncryptedToken({ supabase, workspaceId, provider: 'airtable', value: apiKey })
+    await saveEncryptedToken({ supabase, workspaceId, provider: 'airtable', value: cleanKey })
     await upsertConnection({
       supabase,
       workspaceId,
