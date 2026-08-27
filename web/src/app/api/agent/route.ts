@@ -361,10 +361,19 @@ CORE OPERATIONAL DOCTRINE:
                   ? buildFallbackSynthesisForTools(calledToolNames)
                   : "I'm on it. I've reviewed your latest update and am ready to proceed with your integrations and workflows."
 
+                const synthId = `synth-${Date.now()}`
+                writer.write({
+                  type: 'text-start',
+                  id: synthId,
+                })
                 writer.write({
                   type: 'text-delta',
-                  id: `synth-${Date.now()}`,
+                  id: synthId,
                   delta: synthesized,
+                })
+                writer.write({
+                  type: 'text-end',
+                  id: synthId,
                 })
                 outputText = synthesized
                 if (Array.isArray(responseMessage.parts)) {
