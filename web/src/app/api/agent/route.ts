@@ -16,9 +16,10 @@ import {
   createUIMessageStreamResponse,
   type InferUIMessageChunk,
   type UIMessage,
+  streamText,
 } from 'ai'
 import { createClient } from '@/lib/supabase/server'
-import { retryContextStorage } from '@/lib/ai/ai'
+import { retryContextStorage, getLanguageModel } from '@/lib/ai/ai'
 import {
   type AgentToolName,
   compactToolHistory,
@@ -509,6 +510,38 @@ CORE OPERATIONAL DOCTRINE:
           })
         } catch {
           // Ignore writer closure
+        }
+      }
+
+      // Generate live operational thought from the AI model so the user sees the real-time thought process
+      if (latestUserText) {
+        try {
+          const liveThoughtId = `thought-${Date.now()}`
+          writer.write({
+            type: 'reasoning-start',
+            id: liveThoughtId,
+          })
+
+          const thoughtStream = streamText({
+            model: getLanguageModel(effectiveModelId) as any,
+            system: `You are an AI co-founder. In 1 to 2 direct, analytical sentences, state what you are analyzing and how you plan to investigate or handle the founder's prompt. Be concise, sharp, and focused.`,
+            prompt: latestUserText,
+          })
+
+          for await (const delta of thoughtStream.textStream) {
+            writer.write({
+              type: 'reasoning-delta',
+              id: liveThoughtId,
+              delta,
+            })
+          }
+
+          writer.write({
+            type: 'reasoning-end',
+            id: liveThoughtId,
+          })
+        } catch (thoughtError) {
+          console.warn('[agent-route] Live thought generation failed, continuing to agent stream:', thoughtError)
         }
       }
 
