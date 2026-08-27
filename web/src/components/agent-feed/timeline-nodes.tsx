@@ -411,11 +411,31 @@ export function MonologueBlock({
   label?: string
   isExecuting?: boolean
 }) {
-  // Keep open by default so the founder can inspect the AI thought process
-  const [expanded, setExpanded] = React.useState(true)
+  const [expanded, setExpanded] = React.useState(isExecuting)
+  const prevExecutingRef = React.useRef(isExecuting)
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null)
   const startTimeRef = React.useRef(Date.now())
   const [elapsedSeconds, setElapsedSeconds] = React.useState(0)
   const [durationSeconds, setDurationSeconds] = React.useState<number | null>(null)
+
+  // Auto-scroll internally inside the thinking box as new tokens stream in
+  React.useEffect(() => {
+    if (expanded && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+    }
+  }, [text, expanded])
+
+  // When execution finishes (isExecuting goes from true -> false), smoothly auto-collapse the drawer
+  React.useEffect(() => {
+    if (prevExecutingRef.current && !isExecuting) {
+      // Completed! Auto-collapse the drawer after a brief pause so it doesn't disturb other nodes
+      const timer = setTimeout(() => {
+        setExpanded(false)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+    prevExecutingRef.current = isExecuting
+  }, [isExecuting])
 
   React.useEffect(() => {
     if (isExecuting) {
@@ -469,9 +489,14 @@ export function MonologueBlock({
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.22, ease: "easeInOut" }}
-            className="overflow-hidden pl-5 pt-1 text-neutral-400/90 whitespace-pre-wrap leading-relaxed text-[12px]"
+            className="overflow-hidden pl-5 pt-1.5"
           >
-            {sanitizedText}
+            <div
+              ref={scrollContainerRef}
+              className="max-h-[110px] overflow-y-auto custom-scrollbar pr-2 text-neutral-400/90 whitespace-pre-wrap leading-relaxed text-[12px] border-l border-white/10 pl-2.5"
+            >
+              {sanitizedText}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

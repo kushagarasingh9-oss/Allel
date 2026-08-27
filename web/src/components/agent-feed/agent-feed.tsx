@@ -1599,32 +1599,53 @@ export function AgentFeed() {
     }
   }, [displayMessages])
 
-  // Track DOM mutations and size changes during streaming/rendering to auto-scroll smoothly
+  // Track DOM mutations and size changes during streaming/rendering to auto-scroll smoothly without jitter
   React.useEffect(() => {
     const container = feedRef.current
     if (!container) return
 
-    scrollToBottom(isLoading ? 'smooth' : 'auto')
+    let rafId: number | null = null
+    const scheduleScroll = (behavior: ScrollBehavior = 'auto') => {
+      if (rafId) return
+      rafId = requestAnimationFrame(() => {
+        if (container) {
+          if (displayMessages === DEMO_SEED_MESSAGES) {
+            container.scrollTop = 0
+          } else {
+            const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+            if (distanceFromBottom < 250 || isLoading) {
+              container.scrollTo({
+                top: container.scrollHeight,
+                behavior,
+              })
+            }
+          }
+        }
+        rafId = null
+      })
+    }
+
+    scheduleScroll(isLoading ? 'smooth' : 'auto')
 
     const resizeObserver = new ResizeObserver(() => {
-      scrollToBottom('smooth')
+      scheduleScroll('auto')
     })
     resizeObserver.observe(container)
 
     const mutationObserver = new MutationObserver(() => {
-      scrollToBottom('smooth')
+      scheduleScroll('auto')
     })
     mutationObserver.observe(container, {
       childList: true,
       subtree: true,
-      characterData: true,
     })
 
     return () => {
+      if (rafId) cancelAnimationFrame(rafId)
       resizeObserver.disconnect()
       mutationObserver.disconnect()
     }
-  }, [displayMessages, status, isLoading, scrollToBottom])
+  }, [displayMessages, status, isLoading])
 
   // Show loading state during server hydration
   if (hydrationStatus === "loading") {
