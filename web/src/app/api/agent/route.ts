@@ -475,8 +475,8 @@ CORE OPERATIONAL DOCTRINE:
           },
         })
 
-      const mergeAgentStream = (agentStream: unknown) => {
-        writer.merge(
+      const mergeAgentStream = async (agentStream: unknown) => {
+        await writer.merge(
           agentStream as AsyncIterableStream<InferUIMessageChunk<AgentChatMessage>>
         )
       }
@@ -504,7 +504,7 @@ CORE OPERATIONAL DOCTRINE:
 
       try {
         await retryContextStorage.run(onStreamRetry, async () => {
-          mergeAgentStream(await startAgentStream(agent))
+          await mergeAgentStream(await startAgentStream(agent))
         })
       } catch (streamError) {
         // The provider rejected the request outright (bad deployment, exhausted
@@ -533,7 +533,7 @@ CORE OPERATIONAL DOCTRINE:
             })
             effectiveModelId = fallbackModelId
             await retryContextStorage.run(onStreamRetry, async () => {
-              mergeAgentStream(await startAgentStream(fallbackAgent))
+              await mergeAgentStream(await startAgentStream(fallbackAgent))
             })
             return
           } catch (fallbackError) {
