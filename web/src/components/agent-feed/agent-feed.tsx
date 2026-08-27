@@ -28,7 +28,7 @@ import {
 } from "./timeline-nodes"
 import { DotmSquare12 } from "@/components/ui/dotm-square-12"
 import { USER_EMOJI_PALETTE } from "@/lib/emoji-palette"
-import { Search, Loader2, Zap, Database, Mail, CreditCard, MessageSquare, Calendar, User, Globe, AlertCircle, ChevronRight } from "lucide-react"
+import { Search, Loader2, Zap, Database, Mail, CreditCard, MessageSquare, Calendar, User, Globe, AlertCircle, ChevronRight, Check } from "lucide-react"
 import {
   SiIntercom,
   SiLinear,
@@ -155,7 +155,7 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   addTimelineEvent: <Database className="w-4 h-4 text-neutral-500" />,
   createSignal: <Zap className="w-4 h-4 text-neutral-500" />,
   updateAccountRisk: <AlertCircle className="w-4 h-4 text-neutral-500" />,
-  inspectIntegrationConnectionsTool: <Zap className="w-4 h-4 text-emerald-400" />,
+  inspectIntegrationConnectionsTool: <Check className="w-3.5 h-3.5 text-neutral-400 shrink-0" />,
   requestMoreTools: <Search className="w-4 h-4 text-neutral-400" />,
   webSearchTool: <Search className="w-4 h-4 text-neutral-400" />,
   webExtractTool: <Search className="w-4 h-4 text-neutral-400" />,
