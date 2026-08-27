@@ -363,13 +363,13 @@ CORE OPERATIONAL DOCTRINE:
                 if (stepText.length > 0) outputText = stepText
               }
 
-              // Guarantee that the assistant turn ALWAYS produces a visible output.
-              // If the LLM finished without text (e.g. tool loop termination or capacity edge case),
-              // synthesize the executive brief directly so the user is never left with an empty output.
+              // If the LLM finished without text:
+              // - If tools were called, synthesize a summary from the tools called
+              // - If no tools were called and no text was produced, inform the user honestly
               if (outputText.trim().length === 0) {
                 const synthesized = calledToolNames.length > 0
                   ? buildFallbackSynthesisForTools(calledToolNames)
-                  : "I'm on it. I've reviewed your latest update and am ready to proceed with your integrations and workflows."
+                  : "The model returned an empty response. Please retry your request."
 
                 const synthId = `synth-${Date.now()}`
                 writer.write({
