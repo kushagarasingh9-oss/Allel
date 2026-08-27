@@ -244,8 +244,8 @@ export function AgentReasoningBatch({
   toolNames?: string[]
 }) {
   const label = describeReasoningBatch({ isExecuting, stepsCount, announcedActionMismatch, toolNames })
-  // Start open if it's currently executing, closed if it's a past message
-  const [isOpen, setIsOpen] = React.useState(isExecuting)
+  // Always open — thinking and tool summary should remain visible
+  const [isOpen, setIsOpen] = React.useState(true)
 
   React.useEffect(() => {
     if (isExecuting && !isOpen) setIsOpen(true)
