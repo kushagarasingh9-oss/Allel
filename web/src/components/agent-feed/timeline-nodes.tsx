@@ -423,7 +423,19 @@ export function MonologueBlock({
     if (low.includes('capacity') || low.includes('rate limit') || low.includes('retrying') || low.includes('queue')) {
       return "AI capacity queue: auto-retrying in background"
     }
-    // High-priority domain checks (inbox/email before generic meeting/event words)
+    if (
+      low.includes('brief') ||
+      low.includes('morning') ||
+      low.includes('daily') ||
+      low.includes('standup') ||
+      low.includes('executive update') ||
+      low.includes('scan across') ||
+      (low.includes('calendar') && (low.includes('inbox') || low.includes('billing') || low.includes('mrr'))) ||
+      (low.includes('inbox') && (low.includes('stripe') || low.includes('account') || low.includes('billing')))
+    ) {
+      return "Structuring daily executive brief"
+    }
+    // Single-domain checks
     if (low.includes('inbox') || low.includes('email') || low.includes('mail') || low.includes('gmail') || low.includes('thread') || low.includes('draft')) {
       return "Triaging inbox communications"
     }
@@ -432,9 +444,6 @@ export function MonologueBlock({
     }
     if (low.includes('stripe') || low.includes('billing') || low.includes('revenue') || low.includes('mrr') || low.includes('churn') || low.includes('account')) {
       return "Analyzing customer & billing health"
-    }
-    if (low.includes('brief') || low.includes('morning') || low.includes('daily') || low.includes('standup')) {
-      return "Structuring daily executive brief"
     }
     if (low.includes('web') || low.includes('tavily') || low.includes('search the web') || low.includes('websearch') || low.includes('internet lookup')) {
       return "Formulating web search"

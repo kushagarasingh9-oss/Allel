@@ -779,6 +779,33 @@ function extractToolName(part: Record<string, unknown>): string {
 
 function buildDynamicPlanForTools(toolNames: string[]): string {
   const tools = new Set(toolNames)
+
+  const hasCalendar = tools.has('listCalendarEventsTool') || tools.has('getCalendarEventTool') || tools.has('createCalendarEventTool') || tools.has('deleteCalendarEventTool')
+  const hasInbox = tools.has('getMyInbox') || tools.has('getGmailThreadsForAccount')
+  const hasAccounts = tools.has('getAllAccounts') || tools.has('getStripeAccountState') || tools.has('getAccountDetails') || tools.has('getRecentSignals')
+  const hasSlack = tools.has('getSlackHistory') || tools.has('sendSlackMessage') || tools.has('searchSlack')
+  const hasPostHog = tools.has('getPostHogEvents') || tools.has('listPostHogInsights') || tools.has('listPostHogCohorts')
+  const hasWeb = tools.has('webSearchTool') || tools.has('webExtractTool')
+  const hasSentry = tools.has('listSentryIssuesTool')
+  const hasLinear = tools.has('searchLinearIssuesTool')
+
+  const countDomains = [hasCalendar, hasInbox, hasAccounts, hasSlack, hasPostHog, hasWeb, hasSentry, hasLinear].filter(Boolean).length
+
+  // Multi-domain update or executive morning brief
+  if (countDomains > 1) {
+    const steps: string[] = []
+    if (hasCalendar) steps.push('Inspect Google Calendar for today’s scheduled commitments and conflicts')
+    if (hasInbox) steps.push('Scan Gmail inbox for priority threads requiring reply')
+    if (hasAccounts) steps.push('Query Stripe customer accounts, active subscriptions, and MRR health')
+    if (hasSlack) steps.push('Review recent Slack channel messages and team updates')
+    if (hasSentry) steps.push('Check Sentry for unresolved production error signals')
+    if (hasLinear) steps.push('Inspect Linear for high-priority issue blockers')
+    if (hasPostHog) steps.push('Analyze PostHog product telemetry and user engagement')
+    if (hasWeb) steps.push('Search live web intelligence for external context')
+
+    return `The founder requested an executive update. I will scan across all connected systems in parallel:\n\nExecution Plan:\n${steps.map((step, idx) => `${idx + 1}. ${step}`).join('\n')}\n\nExecuting tools now to synthesize an actionable briefing.`
+  }
+
   if (tools.has('getMyInbox') || tools.has('getGmailThreadsForAccount')) {
     return `The user wants me to check their inbox and find what needs attention. I should immediately call getMyInbox to fetch their Gmail data. No need to ask clarifying questions - just execute.\n\nI need to:\n1. Call getMyInbox with workspaceId\n2. Analyze the results\n3. Present a concise, actionable summary without key-value dumps\n\nLet me call getMyInbox now.`
   }
