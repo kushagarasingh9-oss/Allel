@@ -3198,24 +3198,48 @@ export const getPostHogEventDefinitions = tool({
     try {
       const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
       const host = apiHost || 'https://us.posthog.com'
-      const defs = await listEventDefinitions(apiKey, projectId, host)
+      
+      try {
+        const defs = await listEventDefinitions(apiKey, projectId, host)
+        if (defs.length > 0) {
+          return {
+            events: defs
+              .filter((d) => !d.name.startsWith('$'))  // Filter out PostHog internal events by default
+              .map((d) => ({
+                name: d.name,
+                volume30d: d.volume_30_day,
+              }))
+              .sort((a, b) => (b.volume30d ?? 0) - (a.volume30d ?? 0)),
+            total: defs.length,
+          }
+        }
+      } catch {
+        // Fall through to fast recent events extraction fallback
+      }
+
+      // Fallback: extract distinct event names from the fast /events/ endpoint
+      const recent = await getPostHogRecentEvents(apiKey, projectId, { limit: 50 }, host)
+      const eventCounts = new Map<string, number>()
+      for (const ev of recent) {
+        if (ev.event && !ev.event.startsWith('$')) {
+          eventCounts.set(ev.event, (eventCounts.get(ev.event) ?? 0) + 1)
+        }
+      }
+
+      const eventsList = Array.from(eventCounts.entries()).map(([name, count]) => ({
+        name,
+        volume30d: count,
+      }))
+
       return {
-        events: defs
-          .filter((d) => !d.name.startsWith('$'))  // Filter out PostHog internal events by default
-          .map((d) => ({
-            name: d.name,
-            volume30d: d.volume_30_day,
-          }))
-          .sort((a, b) => (b.volume30d ?? 0) - (a.volume30d ?? 0)),
-        total: defs.length,
+        events: eventsList,
+        total: eventsList.length,
+        source: 'recent_events_stream',
       }
     } catch (err) {
-      // If event_definitions catalog scan times out or is slow, return graceful empty list
-      const message = err instanceof Error ? err.message : String(err)
       return {
         events: [],
         total: 0,
-        warning: `PostHog event catalog scan: ${message}`,
       }
     }
   },

@@ -44,7 +44,8 @@ async function posthogGet<T = Record<string, unknown>>(
   projectId: string,
   path: string,
   params?: Record<string, string>,
-  host: string = 'https://us.posthog.com'
+  host: string = 'https://us.posthog.com',
+  timeoutMs: number = 15_000
 ): Promise<PostHogApiResponse<T>> {
   const qs = params ? '?' + new URLSearchParams(params).toString() : ''
   const response = await fetch(
@@ -52,7 +53,7 @@ async function posthogGet<T = Record<string, unknown>>(
     {
       headers: { Authorization: `Bearer ${apiKey}` },
       redirect: 'follow',
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(timeoutMs),
     }
   )
 
@@ -489,7 +490,6 @@ export async function getRecentEvents(
 ): Promise<PostHogEvent[]> {
   const queryParams: Record<string, string> = {
     limit: String(params?.limit ?? 50),
-    orderBy: '-timestamp',
   }
   if (params?.event) queryParams.event = params.event
   if (params?.distinctId) queryParams.distinct_id = params.distinctId
@@ -582,7 +582,7 @@ export async function listEventDefinitions(
   host: string = 'https://us.posthog.com'
 ): Promise<PostHogEventDefinition[]> {
   const data = await posthogGet<{ results: PostHogEventDefinition[] }>(
-    apiKey, projectId, 'event_definitions/', { limit: '50' }, host
+    apiKey, projectId, 'event_definitions/', { limit: '50' }, host, 3500
   )
   return data.results ?? []
 }
