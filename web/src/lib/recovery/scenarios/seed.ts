@@ -10,50 +10,86 @@ export async function seedScenarios(
   const accountIds: Record<string, string> = {};
 
   for (const def of SCENARIO_MANIFEST_V1) {
-    // 1. Upsert customer_account
-    const { data: account, error: accError } = await supabase
-      .from('customer_accounts')
-      .upsert(
-        {
-          workspace_id: workspaceId,
-          name: def.accountName,
-          account_status: def.featuresPatch.billingStatus === 'cancelled' ? 'cancelled' : def.featuresPatch.billingStatus === 'past_due' ? 'past_due' : 'active',
-          mrr_cents: def.featuresPatch.currentMrrCents ?? def.initialMrrCents,
-          risk_score: def.expectedRisk ? (def.expectedSeverity === 'critical' ? 95 : 75) : 20,
-          risk_level: def.expectedSeverity,
-          domain: `${def.scenarioId.toLowerCase()}.example.com`,
-          contact_email: def.contactEmail,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'workspace_id,domain' }
-      )
-      .select('id')
-      .single();
+    const domain = `${def.scenarioId.toLowerCase()}.example.com`;
 
-    if (accError || !account) {
-      throw new Error(`Failed to seed account ${def.accountName}: ${accError?.message}`);
+    // 1. Find existing account by domain or name
+    const { data: existingAccount } = await supabase
+      .from('customer_accounts')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .or(`domain.eq.${domain},name.eq.${def.accountName}`)
+      .limit(1)
+      .maybeSingle();
+
+    const accountPayload = {
+      workspace_id: workspaceId,
+      name: def.accountName,
+      account_status: def.featuresPatch.billingStatus === 'cancelled' ? 'cancelled' : def.featuresPatch.billingStatus === 'past_due' ? 'past_due' : 'active',
+      mrr_cents: def.featuresPatch.currentMrrCents ?? def.initialMrrCents,
+      risk_score: def.expectedRisk ? (def.expectedSeverity === 'critical' ? 95 : 75) : 20,
+      risk_level: def.expectedSeverity === 'critical' ? 'high' : def.expectedSeverity,
+      domain,
+      contact_email: def.contactEmail,
+      updated_at: new Date().toISOString(),
+    };
+
+    let accountId: string;
+    if (existingAccount?.id) {
+      const { error: updateError } = await supabase
+        .from('customer_accounts')
+        .update(accountPayload)
+        .eq('id', existingAccount.id);
+      if (updateError) {
+        throw new Error(`Failed to update account ${def.accountName}: ${updateError.message}`);
+      }
+      accountId = existingAccount.id;
+    } else {
+      const { data: newAcc, error: insertError } = await supabase
+        .from('customer_accounts')
+        .insert(accountPayload)
+        .select('id')
+        .single();
+      if (insertError || !newAcc) {
+        throw new Error(`Failed to insert account ${def.accountName}: ${insertError?.message}`);
+      }
+      accountId = newAcc.id;
     }
 
-    const accountId = account.id;
     accountIds[def.scenarioId] = accountId;
 
     // 2. Upsert account_contact
-    await supabase.from('account_contacts').upsert(
-      {
-        workspace_id: workspaceId,
-        customer_account_id: accountId,
-        name: `${def.accountName} Primary`,
-        email: def.contactEmail.toLowerCase(),
-        role: 'Owner',
-        is_primary: true,
-        external_ids: {
-          stripe_customer_id: def.stripeCustomerId,
-          posthog_distinct_ids: [def.posthogDistinctId],
-        },
-        updated_at: new Date().toISOString(),
+    const { data: existingContact } = await supabase
+      .from('account_contacts')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .eq('email', def.contactEmail.toLowerCase())
+      .limit(1)
+      .maybeSingle();
+
+    const contactPayload = {
+      workspace_id: workspaceId,
+      customer_account_id: accountId,
+      name: `${def.accountName} Primary`,
+      email: def.contactEmail.toLowerCase(),
+      role: 'Owner',
+      is_primary: true,
+      external_ids: {
+        stripe_customer_id: def.stripeCustomerId,
+        posthog_distinct_ids: [def.posthogDistinctId],
       },
-      { onConflict: 'workspace_id,email' }
-    );
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existingContact?.id) {
+      await supabase
+        .from('account_contacts')
+        .update(contactPayload)
+        .eq('id', existingContact.id);
+    } else {
+      await supabase
+        .from('account_contacts')
+        .insert(contactPayload);
+    }
 
     // 3. Upsert provider identities
     await upsertProviderIdentity(supabase, {
