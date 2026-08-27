@@ -149,8 +149,8 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   createPostHogAnnotation: <img src="/logos/posthog.svg" alt="PostHog" className="w-4 h-4 object-contain shrink-0" />,
 
   // Recovery pipeline tools
-  getRecoveryCases: <Zap className="w-4 h-4 text-amber-400" />,
-  getRecoveryCaseDetail: <Zap className="w-4 h-4 text-amber-400" />,
+  getRecoveryCases: <Search className="w-4 h-4 text-neutral-400" />,
+  getRecoveryCaseDetail: <Search className="w-4 h-4 text-neutral-400" />,
 
   addTimelineEvent: <Database className="w-4 h-4 text-neutral-500" />,
   createSignal: <Zap className="w-4 h-4 text-neutral-500" />,

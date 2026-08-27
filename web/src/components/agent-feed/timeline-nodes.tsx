@@ -107,6 +107,21 @@ export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boole
     return isExecuting ? "Searching web intelligence" : "Searched web intelligence"
   }
 
+  // PostHog / Product Analytics
+  if (
+    tools.has('getPostHogEvents') ||
+    tools.has('getPostHogEventDefinitions') ||
+    tools.has('listPostHogInsights') ||
+    tools.has('getPostHogAccountUsage') ||
+    tools.has('listPostHogCohorts') ||
+    tools.has('listPostHogFeatureFlags') ||
+    tools.has('togglePostHogFeatureFlag') ||
+    tools.has('searchPostHogPersons') ||
+    lowerTools.some((t) => t.includes('posthog'))
+  ) {
+    return isExecuting ? "Searching across PostHog analytics" : "Searched PostHog analytics"
+  }
+
   // Billing & Stripe
   if (
     tools.has('getAllAccounts') ||
