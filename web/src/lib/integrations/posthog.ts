@@ -52,7 +52,7 @@ async function posthogGet<T = Record<string, unknown>>(
     {
       headers: { Authorization: `Bearer ${apiKey}` },
       redirect: 'follow',
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(15_000),
     }
   )
 
@@ -582,7 +582,7 @@ export async function listEventDefinitions(
   host: string = 'https://us.posthog.com'
 ): Promise<PostHogEventDefinition[]> {
   const data = await posthogGet<{ results: PostHogEventDefinition[] }>(
-    apiKey, projectId, 'event_definitions/', { limit: '200' }, host
+    apiKey, projectId, 'event_definitions/', { limit: '50' }, host
   )
   return data.results ?? []
 }
