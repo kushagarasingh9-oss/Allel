@@ -1248,6 +1248,7 @@ export function selectRelevantToolsForPrompt(
   )
 
   const hasRoutingSignal =
+    intentTools.length > 0 ||
     primaryToolNames.length > 0 ||
     secondaryToolNames.length > 0 ||
     historyToolNames.length > 0
