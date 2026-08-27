@@ -178,9 +178,10 @@ function buildUsageNextAction(scoreRisk: 'high' | 'medium' | 'low', cancelVisits
 
 async function fetchAllPersons(
   apiKey: string,
-  projectId: string
+  projectId: string,
+  apiHost: string = 'https://us.posthog.com'
 ): Promise<PostHogPerson[]> {
-  let nextUrl: string | null = `https://app.posthog.com/api/projects/${projectId}/persons/?limit=200`
+  let nextUrl: string | null = `${apiHost}/api/projects/${projectId}/persons/?limit=200`
   const people: PostHogPerson[] = []
 
   while (nextUrl) {
@@ -189,6 +190,8 @@ async function fetchAllPersons(
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(15_000),
     })
 
     if (!response.ok) {
@@ -210,9 +213,10 @@ async function fetchAllPersons(
 async function fetchRecentEvents(
   apiKey: string,
   projectId: string,
-  afterIso: string
+  afterIso: string,
+  apiHost: string = 'https://us.posthog.com'
 ): Promise<PostHogEvent[]> {
-  let nextUrl: string | null = `https://app.posthog.com/api/projects/${projectId}/events/?limit=1000&after=${encodeURIComponent(
+  let nextUrl: string | null = `${apiHost}/api/projects/${projectId}/events/?limit=1000&after=${encodeURIComponent(
     afterIso
   )}`
   const events: PostHogEvent[] = []
@@ -223,6 +227,8 @@ async function fetchRecentEvents(
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(15_000),
     })
 
     if (!response.ok) {
@@ -246,14 +252,14 @@ export async function syncPostHogWorkspace(
   options?: { refreshBrief?: boolean }
 ): Promise<PostHogWorkspaceSyncResult> {
   const supabase = createServiceClient()
-  const { apiKey, projectId } = await getPostHogCredentials(workspaceId)
+  const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
 
   if (!projectId) {
     throw new Error('PostHog project ID is missing for this workspace')
   }
 
   const [people, existingAccountsRes, existingContactsRes] = await Promise.all([
-    fetchAllPersons(apiKey, projectId),
+    fetchAllPersons(apiKey, projectId, apiHost),
     supabase
       .from('customer_accounts')
       .select(
@@ -266,31 +272,34 @@ export async function syncPostHogWorkspace(
       .eq('workspace_id', workspaceId),
   ])
 
-  if (existingAccountsRes.error) throw existingAccountsRes.error
-  if (existingContactsRes.error) throw existingContactsRes.error
+  const existingAccounts: ExistingAccount[] = existingAccountsRes.data ?? []
+  const existingContacts: ExistingContact[] = existingContactsRes.data ?? []
 
-  const existingAccounts = (existingAccountsRes.data as ExistingAccount[] | null) ?? []
-  const existingContacts = (existingContactsRes.data as ExistingContact[] | null) ?? []
-
-  const contactsByEmail = new Map(existingContacts.map((contact) => [contact.email.toLowerCase(), contact]))
-  const accountsByName = new Map(existingAccounts.map((account) => [normalizeName(account.name), account]))
   const accountsById = new Map(existingAccounts.map((account) => [account.id, account]))
+  const accountsByName = new Map(
+    existingAccounts.map((account) => [normalizeName(account.name), account])
+  )
+  const contactsByEmail = new Map(
+    existingContacts.map((contact) => [contact.email.toLowerCase(), contact])
+  )
   const distinctIdToAccountId = new Map<string, string>()
 
   existingContacts.forEach((contact) => {
-    const externalIds = contact.external_ids ?? {}
-    const posthogDistinctIds = externalIds.posthog_distinct_ids
-    if (Array.isArray(posthogDistinctIds)) {
-      posthogDistinctIds.forEach((value) => {
-        if (typeof value === 'string') {
-          distinctIdToAccountId.set(value, contact.customer_account_id)
-        }
-      })
+    const externalIds = contact.external_ids
+    if (externalIds && typeof externalIds === 'object') {
+      const posthogDistinctIds = (externalIds as Record<string, unknown>).posthog_distinct_ids
+      if (Array.isArray(posthogDistinctIds)) {
+        posthogDistinctIds.forEach((value) => {
+          if (typeof value === 'string') {
+            distinctIdToAccountId.set(value, contact.customer_account_id)
+          }
+        })
+      }
     }
   })
 
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
-  const recentEvents = await fetchRecentEvents(apiKey, projectId, fourteenDaysAgo)
+  const recentEvents = await fetchRecentEvents(apiKey, projectId, fourteenDaysAgo, apiHost)
 
   const personEmailByDistinctId = new Map<string, string>()
   const aggregates = new Map<string, AccountAggregate>()
