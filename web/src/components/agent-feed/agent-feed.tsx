@@ -875,6 +875,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       ?.announcedActionMismatch
   )
 
+  const rendered: React.ReactNode[] = []
   const thinkingParts: string[] = []
   const intermediateObservations: string[] = []
   const finalSpeechParts: string[] = []
