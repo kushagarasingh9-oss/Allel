@@ -481,7 +481,7 @@ export function MonologueBlock({
           )}
         />
         {isExecuting && (
-          <Loader2 className="w-3 h-3 animate-spin text-amber-500/80 shrink-0" />
+          <Loader2 className="w-3 h-3 animate-spin text-neutral-400 shrink-0" />
         )}
         <span className="font-medium text-neutral-400">{thinkingLabel}</span>
       </button>
@@ -501,9 +501,9 @@ export function MonologueBlock({
               {sanitizedText ? (
                 sanitizedText
               ) : (
-                <div className="flex items-center gap-2 text-neutral-500 text-[11.5px] italic py-1">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-ping shrink-0" />
-                  <span>Formulating thoughts...</span>
+                <div className="flex items-center gap-2 text-neutral-400 text-[12px] py-1">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400 shrink-0" />
+                  <span className="text-neutral-400">Thinking...</span>
                 </div>
               )}
             </div>
