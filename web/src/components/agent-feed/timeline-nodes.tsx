@@ -93,7 +93,11 @@ export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boole
     tools.has('listCalendarsTool') ||
     lowerTools.some((t) => t.includes('calendar') || t.includes('schedule') || t.includes('freebusy'))
   ) {
-    return isExecuting ? "Updating Google Calendar" : "Updated Google Calendar"
+    const isWrite = tools.has('updateCalendarEventTool')
+    if (isWrite) {
+      return isExecuting ? "Updating Google Calendar" : "Updated Google Calendar"
+    }
+    return isExecuting ? "Checking Google Calendar" : "Checked Google Calendar"
   }
 
   // Web intelligence

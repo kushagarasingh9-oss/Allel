@@ -854,49 +854,41 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
   )
 
   // Group sequential tool calls into reasoning batches
-  const rendered: React.ReactNode[] = []
-  let toolBatch: React.ReactNode[] = []
-  let toolBatchCount = 0
-  let batchToolNames: string[] = []
+  // Check if this turn executed any tools, and find the index of the last tool part
+  const isToolPart = (p: unknown): boolean => {
+    const raw = p as Record<string, unknown>
+    const t = String(raw?.type ?? '')
+    return (t.startsWith('tool-') || t === 'dynamic-tool') && extractToolName(raw) !== 'requestMoreTools'
+  }
 
-  // Server observation attached in the chat route: the reply promised an action
-  // the turn never performed, or served a different provider than it announced.
-  // Without this the turn renders as ordinary completed work.
+  let lastToolIdx = -1
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (isToolPart(parts[i])) {
+      lastToolIdx = i
+      break
+    }
+  }
+  const hasTools = lastToolIdx !== -1
+
   const announcedActionMismatch = Boolean(
     (message.metadata as { announcedActionMismatch?: unknown } | undefined)
       ?.announcedActionMismatch
   )
 
-  let hasRenderedThinking = false
-
-  const flushToolBatch = () => {
-    if (toolBatch.length > 0) {
-      const finalToolBatch = [...toolBatch]
-
-      // Check if any tool in this batch is still executing (input-streaming or input-available)
-      const isExecuting = finalToolBatch.some(node =>
-        React.isValidElement(node) && (node.props as { isLoading?: boolean }).isLoading
-      )
-
-      rendered.push(
-        <AgentReasoningBatch
-          key={`batch-${rendered.length}`}
-          stepsCount={toolBatchCount}
-          isExecuting={isExecuting}
-          announcedActionMismatch={!isExecuting && announcedActionMismatch}
-          toolNames={[...batchToolNames]}
-        >
-          {finalToolBatch}
-        </AgentReasoningBatch>
-      )
-      toolBatch = []
-      toolBatchCount = 0
-      batchToolNames = []
-    }
-  }
+  const thinkingParts: string[] = []
+  const intermediateObservations: string[] = []
+  const finalSpeechParts: string[] = []
+  const toolBatch: React.ReactNode[] = []
+  let toolBatchCount = 0
+  const batchToolNames: string[] = []
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]
+
+    if (part.type === "reasoning" && typeof part.text === 'string' && part.text.trim()) {
+      thinkingParts.push(part.text.trim())
+      continue
+    }
 
     if (part.type === "text" && typeof part.text === 'string' && part.text.length > 0) {
       let rawText = part.text
@@ -904,41 +896,21 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       if (thinkMatch) {
         const thinkContent = thinkMatch[1].trim()
         if (thinkContent) {
-          flushToolBatch()
-          rendered.push(
-            <MonologueBlock
-              key={`think-match-${i}`}
-              text={thinkContent}
-              isExecuting={isChatStreaming}
-            />
-          )
-          hasRenderedThinking = true
+          thinkingParts.push(thinkContent)
         }
         rawText = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim()
       }
 
-      flushToolBatch()
       if (rawText.length > 0) {
-        rendered.push(
-          <AgentSpeechBlock
-            key={`text-${i}`}
-            text={rawText}
-            isStreaming={isChatStreaming && i === parts.length - 1}
-          />
-        )
+        if (hasTools && i < lastToolIdx) {
+          // Intermediate model monologue / thought between tool executions
+          intermediateObservations.push(rawText)
+        } else {
+          // Final speech block to founder
+          finalSpeechParts.push(rawText)
+        }
       }
-    }
-
-    if (part.type === "reasoning" && typeof part.text === 'string' && part.text.trim()) {
-      flushToolBatch()
-      rendered.push(
-        <MonologueBlock
-          key={`reasoning-${i}`}
-          text={part.text}
-          isExecuting={isChatStreaming}
-        />
-      )
-      hasRenderedThinking = true
+      continue
     }
 
     // Tool parts: in AI SDK v6, tool types are `tool-${NAME}` or `dynamic-tool`
@@ -952,19 +924,6 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       // Internal orchestration meta-tools should not be rendered as separate user-facing nodes
       if (toolName === 'requestMoreTools') {
         continue
-      }
-
-      // Ensure thinking dropdown is ALWAYS displayed before any task or tool executes
-      if (!hasRenderedThinking) {
-        const structuredThinking = getStructuredTaskThinking([toolName])
-        rendered.push(
-          <MonologueBlock
-            key={`task-thinking-${message.id}`}
-            text={structuredThinking}
-            isExecuting={isChatStreaming && !hasAssistantText}
-          />
-        )
-        hasRenderedThinking = true
       }
 
       // Collect consecutive tool parts with the same toolName into a single grouped node
@@ -1101,7 +1060,57 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
     }
   }
 
-  flushToolBatch()
+  // 1. Render Top-Level Thinking Monologue
+  const structuredTaskThinking = hasTools && thinkingParts.length === 0
+    ? getStructuredTaskThinking(batchToolNames)
+    : ''
+
+  const allThinking = [
+    structuredTaskThinking,
+    ...thinkingParts,
+    ...(intermediateObservations.length > 0
+      ? [`Interim analysis & plan:\n${intermediateObservations.join('\n\n')}`]
+      : [])
+  ].filter(Boolean).join('\n\n')
+
+  if (allThinking.trim().length > 0) {
+    rendered.push(
+      <MonologueBlock
+        key={`thinking-${message.id}`}
+        text={allThinking}
+        isExecuting={isChatStreaming && finalSpeechParts.length === 0}
+      />
+    )
+  }
+
+  // 2. Render Single Unified Tool Execution Batch (all tool calls unified into one clean node)
+  if (toolBatch.length > 0) {
+    const isExecuting = toolBatch.some(node =>
+      React.isValidElement(node) && (node.props as { isLoading?: boolean }).isLoading
+    )
+    rendered.push(
+      <AgentReasoningBatch
+        key={`batch-${message.id}`}
+        stepsCount={toolBatchCount}
+        isExecuting={isExecuting}
+        announcedActionMismatch={!isExecuting && announcedActionMismatch}
+        toolNames={[...batchToolNames]}
+      >
+        {toolBatch}
+      </AgentReasoningBatch>
+    )
+  }
+
+  // 3. Render Final Speech Block (executive summary answering the founder)
+  if (finalSpeechParts.length > 0) {
+    rendered.push(
+      <AgentSpeechBlock
+        key={`speech-${message.id}`}
+        text={finalSpeechParts.join('\n\n')}
+        isStreaming={isChatStreaming}
+      />
+    )
+  }
 
   if (rendered.length === 0) {
     if (isChatStreaming) return null
