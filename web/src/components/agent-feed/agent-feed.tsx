@@ -947,6 +947,23 @@ export function formatCleanErrorMessage(rawMsg: string): string {
 
   const low = msg.toLowerCase()
 
+  if (low.includes("posthog")) {
+    if (low.includes("401") || low.includes("unauthorized") || low.includes("invalid_api_key")) {
+      return "PostHog API authentication failed. Please update your Personal API Key in Settings."
+    }
+    if (low.includes("timeout") || low.includes("timed out")) {
+      return "PostHog analytics API request timed out. Please try again."
+    }
+    return msg
+  }
+
+  if (low.includes("stripe")) {
+    if (low.includes("401") || low.includes("unauthorized") || low.includes("invalid_api_key")) {
+      return "Stripe API authentication failed. Please update your Secret Key in Settings."
+    }
+    return msg
+  }
+
   if (low.includes("rate_limit") || low.includes("429") || low.includes("tpm") || low.includes("rpm")) {
     return "OpenAI API rate limit reached. Please wait a few moments before trying again or check your OpenAI plan quota."
   }
