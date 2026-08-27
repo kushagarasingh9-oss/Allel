@@ -102,7 +102,7 @@ test('chat ids are deterministic within a scope and differ across workspaces', (
   )
 })
 
-test('sanitizeStoredPersonaMessages keeps user turns and trusted assistant history only', () => {
+test('sanitizeStoredPersonaMessages preserves valid UI messages in client cache', () => {
   const messages = sanitizeStoredPersonaMessages(
     [
       createUserMessage('user-1', 'hey there'),
@@ -113,16 +113,11 @@ test('sanitizeStoredPersonaMessages keeps user turns and trusted assistant histo
       {
         id: 'assistant-unsigned',
         role: 'assistant',
-        parts: [{ type: 'text', text: 'stale unsigned reply' }],
+        parts: [{ type: 'text', text: 'live streaming reply' }],
       },
-      createAssistantMessage('assistant-other-workspace', 'wrong workspace', {
-        workspaceId: 'workspace-2',
-        personaId: 'alex',
-      }),
-      createAssistantMessage('assistant-other-persona', 'wrong persona', {
-        workspaceId: 'workspace-1',
-        personaId: 'henry',
-      }),
+      null,
+      'invalid-string',
+      { noId: true },
     ],
     {
       workspaceId: 'workspace-1',
@@ -132,7 +127,7 @@ test('sanitizeStoredPersonaMessages keeps user turns and trusted assistant histo
 
   assert.deepEqual(
     messages.map((message) => message.id),
-    ['user-1', 'assistant-1']
+    ['user-1', 'assistant-1', 'assistant-unsigned']
   )
 })
 

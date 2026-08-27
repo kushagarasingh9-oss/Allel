@@ -453,11 +453,11 @@ export const getAllAccounts = tool({
         return true
       })
 
-      const MAX_ACCOUNTS = 15
+      const MAX_ACCOUNTS = 30
       return {
         source: 'stripe_live',
         observedAt: new Date().toISOString(),
-        // Cap to top 15 rows — if workspace has more, sort at-risk first
+        // Cap to top 30 rows — if workspace has more, sort at-risk first
         accounts: accounts
           .sort((a, b) => {
             const rank: Record<string, number> = { high: 0, medium: 1, low: 2, healthy: 3 }
@@ -1422,7 +1422,7 @@ export const getPostHogAccountUsage = tool({
       // Check the live PostHog connection before looking up a local account
       // mapping. This prevents a disconnected workspace from receiving a
       // misleading "no contacts" result based on seed rows.
-      const { apiKey, projectId } = await getPostHogCredentials(workspaceId)
+      const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
       if (!projectId) return { error: 'PostHog project ID is missing' }
 
       const supabase = createServiceClient()
@@ -1457,13 +1457,16 @@ export const getPostHogAccountUsage = tool({
       let events30d = 0
       let lastSeen: string | null = null
 
+      const host = apiHost || 'https://us.posthog.com'
       for (const distinctId of distinctIds.slice(0, 5)) {
-        const url = `https://app.posthog.com/api/projects/${projectId}/events/?distinct_id=${encodeURIComponent(distinctId)}&limit=100&after=${encodeURIComponent(thirtyDaysAgo)}`
+        const url = `${host}/api/projects/${projectId}/events/?distinct_id=${encodeURIComponent(distinctId)}&limit=100&after=${encodeURIComponent(thirtyDaysAgo)}`
         const response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
+          redirect: 'follow',
+          signal: AbortSignal.timeout(10_000),
         })
 
         if (!response.ok) {
