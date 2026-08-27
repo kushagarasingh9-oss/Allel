@@ -10,7 +10,6 @@
 
 import { ToolLoopAgent, stepCountIs, tool } from 'ai'
 import { z } from 'zod'
-import { openai } from '@ai-sdk/openai'
 import { AGENT_INSTRUCTIONS } from './instructions'
 import {
   buildRuntimeInstructionBlock,
@@ -200,10 +199,6 @@ import {
 } from '@/lib/integrations/web-research'
 
 const DEFAULT_AGENT_MODEL_ID = process.env.OPENAI_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.6'
-const DEFAULT_AGENT_CHAT_MODEL_ID =
-  process.env.OPENAI_MODEL_ID ?? process.env.AGENT_CHAT_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.6'
-const DEFAULT_AGENT_AUTOMATION_MODEL_ID =
-  process.env.OPENAI_MODEL_ID ?? process.env.AGENT_AUTOMATION_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.6'
 const MODEL_PRICING_CENTS_PER_MILLION = [
   { prefixes: ['Kimi-K2'], input: 95, output: 400 },
   { prefixes: ['gpt-5.6'], input: 600, output: 3500 },
@@ -548,7 +543,6 @@ export function getAvailableToolNamesForPersona(
     (persona.activeTools ?? ALL_TOOL_NAMES) as readonly AgentToolName[]
   )
   const allowedToolNamesSet = allowedToolNames ? new Set(allowedToolNames) : null
-  const channel = options?.channel ?? 'automation'
 
   return ALL_TOOL_NAMES.filter((toolName) => {
     if (!personaToolNames.has(toolName)) return false
