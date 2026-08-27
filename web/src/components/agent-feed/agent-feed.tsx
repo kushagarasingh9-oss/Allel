@@ -1038,19 +1038,23 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
     ...intermediateObservations
   ].filter(Boolean).join('\n\n').trim()
 
-  const defaultThought = hasTools
-    ? "Analyzed request context, determined required integrations, and executed operational query."
-    : "Analyzed request context, evaluated relevant workspace signals, and formulated executive response."
+  if (modelThoughts.length > 0 || hasTools) {
+    const finalThinkingText = modelThoughts || (
+      hasTools
+        ? `Evaluating workspace data sources and executing ${toolBatchCount > 1 ? `${toolBatchCount} operational steps` : 'integration step'}.`
+        : ''
+    )
 
-  const finalThinkingText = modelThoughts || defaultThought
-
-  rendered.push(
-    <MonologueBlock
-      key={`thinking-${message.id}`}
-      text={finalThinkingText}
-      isExecuting={isChatStreaming && finalSpeechParts.length === 0}
-    />
-  )
+    if (finalThinkingText.trim().length > 0) {
+      rendered.push(
+        <MonologueBlock
+          key={`thinking-${message.id}`}
+          text={finalThinkingText}
+          isExecuting={isChatStreaming && finalSpeechParts.length === 0}
+        />
+      )
+    }
+  }
 
   // 2. Render Single Unified Tool Execution Batch (all tool calls unified into one clean node)
   if (toolBatch.length > 0) {
