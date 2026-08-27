@@ -1066,10 +1066,36 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
 
 // ─── Loading Indicator ───────────────────────────────────────────────
 function AgentThinking() {
+  const [expanded, setExpanded] = React.useState(true)
   return (
-    <div className="w-full flex items-center gap-2.5 mt-2 mb-3 py-1">
-      <DotmSquare12 size={16} dotSize={2.5} speed={1.2} bloom />
-      <span className="text-[13px] font-medium text-neutral-400 tracking-tight">Thinking...</span>
+    <div className="w-full mt-2 mb-3 py-0.5">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex items-center gap-2 text-[13px] font-medium text-neutral-400 hover:text-neutral-200 transition-colors group select-none py-1 cursor-pointer"
+      >
+        <ChevronRight
+          className={cn(
+            "w-3.5 h-3.5 shrink-0 text-neutral-500 group-hover:text-neutral-300 transition-transform duration-200",
+            expanded && "rotate-90"
+          )}
+        />
+        <DotmSquare12 size={14} dotSize={2.2} speed={1.2} bloom />
+        <span>Thinking</span>
+      </button>
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden pl-5 pt-1 text-neutral-500 text-[12px] leading-relaxed font-normal"
+          >
+            Evaluating request & analyzing integration context...
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
