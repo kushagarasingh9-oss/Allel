@@ -83,6 +83,28 @@ function dedupeMessages(messages: TrustedUIMessage[]) {
 
   for (const message of messages) {
     if (seenIds.has(message.id)) continue
+
+    // Drop consecutive same-role messages with identical text content.
+    // These arise when the fallback synthesis duplicates a response that
+    // was also streamed by the model in the same turn.
+    if (deduped.length > 0) {
+      const prev = deduped[deduped.length - 1]
+      if (prev.role === message.role) {
+        const prevText = getMessageTextContent(prev).trim()
+        const curText = getMessageTextContent(message).trim()
+        if (prevText.length > 0 && prevText === curText) {
+          // Keep the one with more parts (tool results, etc.)
+          const prevParts = prev.parts?.length ?? 0
+          const curParts = message.parts?.length ?? 0
+          if (curParts > prevParts) {
+            deduped[deduped.length - 1] = message
+          }
+          seenIds.add(message.id)
+          continue
+        }
+      }
+    }
+
     deduped.push(message)
     seenIds.add(message.id)
   }

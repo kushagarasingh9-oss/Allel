@@ -353,6 +353,16 @@ CORE OPERATIONAL DOCTRINE:
               let outputText = getMessageTextContent(responseMessage as AgentChatMessage)
               const calledToolNames = stepTrace.flatMap((step) => step.toolNames)
 
+              // Also check step trace: the model may have streamed text that
+              // hasn't been committed to responseMessage.parts yet.
+              if (outputText.trim().length === 0) {
+                const stepText = stepTrace
+                  .map((s) => s.textPreview?.trim() ?? '')
+                  .filter(Boolean)
+                  .join('\n')
+                if (stepText.length > 0) outputText = stepText
+              }
+
               // Guarantee that the assistant turn ALWAYS produces a visible output.
               // If the LLM finished without text (e.g. tool loop termination or capacity edge case),
               // synthesize the executive brief directly so the user is never left with an empty output.
