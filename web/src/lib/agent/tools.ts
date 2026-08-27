@@ -853,7 +853,7 @@ export const generateFollowUpDraft = tool({
       },
     })
 
-    await refreshAccountMemory(workspaceId, accountId)
+    await refreshAccountMemory(workspaceId, resolvedAccountId)
 
     return {
       success: true,

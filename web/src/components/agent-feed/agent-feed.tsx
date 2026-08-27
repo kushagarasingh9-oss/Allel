@@ -71,8 +71,7 @@ function WebFavicon({ url, fallbackFavicon }: { url?: string; fallbackFavicon?: 
 // ─── Tool → Icon mapping (Only official SVG logos for connected integrations) ────────────────────────────────────────────
 const TOOL_ICONS: Record<string, React.ReactNode> = {
   getExistingDrafts: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
-  getStripeAccountState: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
-  getPostHogAccountUsage: <img src="/logos/posthog.svg" alt="PostHog" className="w-4 h-4 object-contain shrink-0" />,
+
   getGmailThreadsForAccount: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
   getMyInbox: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
   getGmailThreadDetailTool: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
