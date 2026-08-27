@@ -777,61 +777,7 @@ function extractToolName(part: Record<string, unknown>): string {
 
 // ─── Single Message Renderer ─────────────────────────────────────────
 
-function buildDynamicPlanForTools(toolNames: string[]): string {
-  const tools = new Set(toolNames)
 
-  const hasCalendar = tools.has('listCalendarEventsTool') || tools.has('getCalendarEventTool') || tools.has('createCalendarEventTool') || tools.has('deleteCalendarEventTool')
-  const hasInbox = tools.has('getMyInbox') || tools.has('getGmailThreadsForAccount')
-  const hasAccounts = tools.has('getAllAccounts') || tools.has('getStripeAccountState') || tools.has('getAccountDetails') || tools.has('getRecentSignals')
-  const hasSlack = tools.has('getSlackHistory') || tools.has('sendSlackMessage') || tools.has('searchSlack')
-  const hasPostHog = tools.has('getPostHogEvents') || tools.has('listPostHogInsights') || tools.has('listPostHogCohorts')
-  const hasWeb = tools.has('webSearchTool') || tools.has('webExtractTool')
-  const hasSentry = tools.has('listSentryIssuesTool')
-  const hasLinear = tools.has('searchLinearIssuesTool')
-
-  const countDomains = [hasCalendar, hasInbox, hasAccounts, hasSlack, hasPostHog, hasWeb, hasSentry, hasLinear].filter(Boolean).length
-
-  // Multi-domain update or executive morning brief
-  if (countDomains > 1) {
-    const steps: string[] = []
-    if (hasCalendar) steps.push('Inspect Google Calendar for today’s scheduled commitments and conflicts')
-    if (hasInbox) steps.push('Scan Gmail inbox for priority threads requiring reply')
-    if (hasAccounts) steps.push('Query Stripe customer accounts, active subscriptions, and MRR health')
-    if (hasSlack) steps.push('Review recent Slack channel messages and team updates')
-    if (hasSentry) steps.push('Check Sentry for unresolved production error signals')
-    if (hasLinear) steps.push('Inspect Linear for high-priority issue blockers')
-    if (hasPostHog) steps.push('Analyze PostHog product telemetry and user engagement')
-    if (hasWeb) steps.push('Search live web intelligence for external context')
-
-    return `The founder requested an executive update. I will scan across all connected systems in parallel:\n\nExecution Plan:\n${steps.map((step, idx) => `${idx + 1}. ${step}`).join('\n')}\n\nExecuting tools now to synthesize an actionable briefing.`
-  }
-
-  if (tools.has('getMyInbox') || tools.has('getGmailThreadsForAccount')) {
-    return `The user wants me to check their inbox and find what needs attention. I should immediately call getMyInbox to fetch their Gmail data. No need to ask clarifying questions - just execute.\n\nI need to:\n1. Call getMyInbox with workspaceId\n2. Analyze the results\n3. Present a concise, actionable summary without key-value dumps\n\nLet me call getMyInbox now.`
-  }
-  if (tools.has('createCalendarEventTool') || tools.has('quickAddCalendarEventTool')) {
-    return `The user wants to schedule a calendar meeting. I will execute the calendar tool with the requested title, date, and time.\n\nI need to:\n1. Call createCalendarEventTool with event parameters\n2. Verify the scheduled timestamp and timezone\n3. Provide immediate confirmation with a direct calendar link`
-  }
-  if (tools.has('deleteCalendarEventTool')) {
-    return `The user wants to remove or cancel a calendar meeting. I will look up the event and execute the deletion.\n\nI need to:\n1. Call deleteCalendarEventTool to remove the scheduled meeting\n2. Confirm the calendar update with executive confidence`
-  }
-  if (tools.has('listCalendarEventsTool') || tools.has('checkCalendarFreeBusy') || tools.has('queryFreeBusyTool')) {
-    return `The user wants to check their schedule and upcoming events. I will query Google Calendar to retrieve active calendar events.\n\nI need to:\n1. Call listCalendarEventsTool to inspect scheduled commitments\n2. Triage today's agenda and highlight conflicts\n3. Present an executive summary of upcoming meetings`
-  }
-  if (tools.has('getAllAccounts') || tools.has('getStripeAccountState') || tools.has('getRecentSignals') || tools.has('getAccountDetails')) {
-    return `The user wants to analyze account risk, billing, and retention health. I will query customer accounts and live billing signals.\n\nI need to:\n1. Query customer accounts and Stripe subscription metrics\n2. Identify accounts with churn risk, past-due payments, or usage drops\n3. Formulate high-leverage intervention recommendations`
-  }
-  if (tools.has('getPostHogEvents') || tools.has('listPostHogInsights') || tools.has('listPostHogCohorts') || tools.has('getPostHogAccountUsage') || tools.has('getPostHogEventDefinitions')) {
-    return `The user wants to review product analytics and user engagement. I will query PostHog analytics data.\n\nI need to:\n1. Query active PostHog event definitions and user activity trends\n2. Identify drops in usage or feature adoption\n3. Synthesize findings into clear executive insights`
-  }
-  if (tools.has('webSearchTool') || tools.has('webExtractTool') || tools.has('webCrawlTool')) {
-    return `The user requested live web intelligence. I will search the web and extract relevant information.\n\nI need to:\n1. Formulate targeted search queries\n2. Extract and verify external intelligence\n3. Summarize key findings with verified citations`
-  }
-  if (tools.has('getSlackHistory') || tools.has('sendSlackMessage') || tools.has('searchSlack')) {
-    return `The user wants to inspect Slack communications. I will search and analyze channel messages.\n\nI need to:\n1. Query Slack channel history\n2. Triage unread threads and action items\n3. Deliver a concise briefing`
-  }
-  return `The user requested a workflow execution. I will call the required integration tools in parallel.\n\nI need to:\n1. Execute the relevant tools with validated parameters\n2. Process the results and verify operational status\n3. Conclude with a crisp executive summary`
-}
 
 function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatarUrl: string | null }) {
   const { sendMessage, status } = useChatContext()
@@ -885,18 +831,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
 
   const flushToolBatch = () => {
     if (toolBatch.length > 0) {
-      // If the model did not emit a separate reasoning part before running tools,
-      // prepend the agent's dynamic thinking plan so "Thinking" is always visible
       const finalToolBatch = [...toolBatch]
-      if (!hasRenderedInitialReasoning && batchToolNames.length > 0) {
-        finalToolBatch.unshift(
-          <MonologueBlock
-            key="batch-plan-auto"
-            text={buildDynamicPlanForTools(batchToolNames)}
-            isExecuting={isChatStreaming}
-          />
-        )
-      }
 
       // Check if any tool in this batch is still executing (input-streaming or input-available)
       const isExecuting = finalToolBatch.some(node =>
@@ -937,6 +872,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
               isExecuting={isChatStreaming}
             />
           )
+          hasRenderedInitialReasoning = true
         }
         rawText = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim()
       }

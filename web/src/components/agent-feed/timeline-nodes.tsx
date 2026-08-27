@@ -371,18 +371,26 @@ function sanitizeReasoningText(raw: string): string {
   if (!raw) return ""
 
   let clean = raw
-    // Strip tool call signatures (e.g. `requestMoreTools(...)`, `getAllAccounts(...)`)
+    // Strip API keys, tokens, and secrets
+    .replace(/\b(?:sk|rk|pk|tvly|phc|phx|whsec)_[a-zA-Z0-9_\-]{8,}\b/gi, '[REDACTED_KEY]')
+    .replace(/\bBearer\s+[a-zA-Z0-9_\-\.]{16,}\b/gi, 'Bearer [REDACTED]')
+    .replace(/ghp_[a-zA-Z0-9]{36}/g, '[REDACTED_TOKEN]')
+    .replace(/ey[a-zA-Z0-9_-]{10,}\.ey[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}/g, '[REDACTED_JWT]')
+    // Strip database URLs or connection strings
+    .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, '[DATABASE_URI]')
+    // Strip tool call signatures with raw parameters (e.g. `requestMoreTools(...)`, `getMyInbox(...)`)
+    .replace(/\b[a-zA-Z0-9_]+Tool\s*\([^)]*\)/gi, 'requested tool')
     .replace(/\b(?:requestMoreTools|getAllAccounts|getMyInbox|getGmailThreadsForAccount|getStripeAccountState|getPostHogEvents|getAccountDetails|listCalendarEventsTool|createCalendarEventTool)\s*\([^)]*\)/gi, (match) => {
       if (match.includes('Calendar')) return 'calendar schedule'
       if (match.includes('Inbox') || match.includes('Gmail')) return 'email inbox'
       if (match.includes('Stripe') || match.includes('Account')) return 'billing data'
       if (match.includes('PostHog')) return 'product analytics'
       if (match.includes('Search') || match.includes('web')) return 'web search'
-      return 'available tools'
+      return 'connected tools'
     })
     // Strip raw JSON blobs, schemas, or credential fields
-    .replace(/\{[^{}]*(?:domain|workspaceId|apiKey|secret|userId|personaId)[^{}]*\}/gi, '')
-    .replace(/\b(?:workspace_id|user_id|persona_id|api_key|token|auth_token|client_secret)[\w\s:=]+(?:\n|$)/gi, '')
+    .replace(/\{[^{}]*(?:domain|workspaceId|apiKey|secret|userId|personaId|client_secret|password)[^{}]*\}/gi, '')
+    .replace(/\b(?:workspace_id|user_id|persona_id|api_key|token|auth_token|client_secret|database_url)[\w\s:=]+(?:\n|$)/gi, '')
     // Clean up excessive whitespace
     .replace(/\n{3,}/g, '\n\n')
     .trim()
