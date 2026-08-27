@@ -689,7 +689,9 @@ export const generateFollowUpDraft = tool({
   description:
     'Generate an AI-written follow-up email draft for a CUSTOMER ACCOUNT. Requires a valid customer_account UUID from getAllAccounts or getAccountDetails. Do NOT use this for the founder\'s own emails — this is only for writing outreach TO customers. The draft is saved with "needs_review" status — the founder must approve before sending.',
   inputSchema: z.object({
-    accountId: z.string().uuid().describe('The customer account UUID'),
+    accountId: z.string().optional().describe('The customer account UUID (if known)'),
+    accountName: z.string().optional().describe('The customer account or company name (e.g. "BuildFast Ltd")'),
+    contactEmail: z.string().optional().describe('The customer contact email'),
     workspaceId: z.string().describe('The workspace ID'),
     draftType: z
       .string()
@@ -706,30 +708,61 @@ export const generateFollowUpDraft = tool({
       .optional()
       .describe('How urgent is this draft'),
   }),
-  execute: async ({ accountId, workspaceId, draftType, context, urgency }) => {
+  execute: async ({ accountId, accountName, contactEmail, workspaceId, draftType, context, urgency }) => {
     const supabase = createServiceClient()
 
-    // Get account details for personalization
-    const { data: account } = await supabase
-      .from('customer_accounts')
-      .select('name, mrr_cents, risk_level')
-      .eq('id', accountId)
-      .single()
+    // Resolve account by ID, name, or email
+    let account: { id: string; name: string; mrr_cents: number; risk_level: string } | null = null
+
+    if (accountId) {
+      const { data } = await supabase
+        .from('customer_accounts')
+        .select('id, name, mrr_cents, risk_level')
+        .eq('id', accountId)
+        .maybeSingle()
+      account = data
+    }
+
+    if (!account && accountName) {
+      const { data } = await supabase
+        .from('customer_accounts')
+        .select('id, name, mrr_cents, risk_level')
+        .eq('workspace_id', workspaceId)
+        .ilike('name', `%${accountName.trim()}%`)
+        .limit(1)
+        .maybeSingle()
+      account = data
+    }
+
+    if (!account && contactEmail) {
+      const { data: contactRow } = await supabase
+        .from('account_contacts')
+        .select('customer_account_id, customer_accounts(id, name, mrr_cents, risk_level)')
+        .eq('workspace_id', workspaceId)
+        .eq('email', contactEmail.toLowerCase())
+        .maybeSingle()
+      if (contactRow) {
+        account = Array.isArray(contactRow.customer_accounts)
+          ? contactRow.customer_accounts[0]
+          : (contactRow.customer_accounts as any)
+      }
+    }
 
     if (!account) return { error: 'Account not found' }
+    const resolvedAccountId = account.id
 
     // Get primary contact
     const { data: contact } = await supabase
       .from('account_contacts')
       .select('name, email')
-      .eq('customer_account_id', accountId)
+      .eq('customer_account_id', resolvedAccountId)
       .eq('is_primary', true)
       .maybeSingle()
 
     const { data: recentSignals } = await supabase
       .from('account_signals')
       .select('headline, detail, signal_type, event_at')
-      .eq('customer_account_id', accountId)
+      .eq('customer_account_id', resolvedAccountId)
       .order('event_at', { ascending: false })
       .limit(3)
 
@@ -737,7 +770,7 @@ export const generateFollowUpDraft = tool({
     const { data: existingDraft } = await supabase
       .from('follow_up_drafts')
       .select('id, subject')
-      .eq('customer_account_id', accountId)
+      .eq('customer_account_id', resolvedAccountId)
       .in('status', ['needs_review', 'ready_to_send'])
       .maybeSingle()
 
@@ -785,7 +818,7 @@ export const generateFollowUpDraft = tool({
     // Insert draft
     await supabase.from('follow_up_drafts').insert({
       workspace_id: workspaceId,
-      customer_account_id: accountId,
+      customer_account_id: resolvedAccountId,
       draft_type: draftType,
       subject: draft.subject,
       body_preview: draft.body,
@@ -796,7 +829,7 @@ export const generateFollowUpDraft = tool({
     // Log
     await supabase.from('account_timeline').insert({
       workspace_id: workspaceId,
-      customer_account_id: accountId,
+      customer_account_id: resolvedAccountId,
       event_type: 'draft_created',
       headline: `Draft generated: ${draftType}`,
       detail: draft.subject,
@@ -805,7 +838,7 @@ export const generateFollowUpDraft = tool({
 
     await logAgentRun({
       workspaceId,
-      customerAccountId: accountId,
+      customerAccountId: resolvedAccountId,
       runType: 'draft_generated',
       status: 'completed',
       inputSummary: `${draftType} for ${account.name}`,
