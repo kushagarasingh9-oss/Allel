@@ -813,7 +813,15 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
   }
 
   // Assistant message — render parts sequentially
-  const parts = message.parts ?? []
+  let parts = Array.isArray(message.parts) ? [...message.parts] : []
+  if (parts.length === 0) {
+    const rawContent =
+      (message as unknown as { content?: string; text?: string }).content ??
+      (message as unknown as { text?: string }).text
+    if (typeof rawContent === 'string' && rawContent.trim().length > 0) {
+      parts = [{ type: 'text', text: rawContent }] as any
+    }
+  }
 
   // Group sequential tool calls into reasoning batches
   const rendered: React.ReactNode[] = []

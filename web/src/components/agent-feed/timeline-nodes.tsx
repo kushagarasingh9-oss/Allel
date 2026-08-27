@@ -578,7 +578,7 @@ export function AgentSpeechBlock({
     }
   }, [text, isStreaming])
 
-  const currentText = isStreaming ? text.slice(0, displayedLength) : text
+  const currentText = isStreaming ? (displayedLength > 0 ? text.slice(0, displayedLength) : text) : text
 
   const detectMissingIntegrations = React.useMemo(() => {
     const low = text.toLowerCase()
