@@ -3123,7 +3123,7 @@ export const getPostHogEvents = tool({
         count: events.length,
       }
     } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Failed to get events' }
+      return { error: err instanceof Error ? `PostHog API: ${err.message}` : 'PostHog API: Failed to get events' }
     }
   },
 })
@@ -3210,7 +3210,13 @@ export const getPostHogEventDefinitions = tool({
         total: defs.length,
       }
     } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Failed to get event definitions' }
+      // If event_definitions catalog scan times out or is slow, return graceful empty list
+      const message = err instanceof Error ? err.message : String(err)
+      return {
+        events: [],
+        total: 0,
+        warning: `PostHog event catalog scan: ${message}`,
+      }
     }
   },
 })

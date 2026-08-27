@@ -277,7 +277,7 @@ export function UnconnectedIntegrationBadge({
   errorText: string
 }) {
   const provider = getProviderFromTool(toolName, errorText)
-  const cleanMsg = formatCleanErrorMessage(errorText)
+  const cleanMsg = formatCleanErrorMessage(errorText, toolName)
 
   return (
     <div className="flex items-center gap-2.5 text-[12px] text-neutral-400 font-normal py-0.5 mt-0.5">
@@ -475,7 +475,7 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
     // Generic error (Bad Request, etc.) — show as plain text, no misleading Connect button
     return (
       <div className="text-[12px] text-red-400/80 font-normal py-0.5 mt-0.5">
-        {formatCleanErrorMessage(String(data.error))}
+        {formatCleanErrorMessage(String(data.error), toolName)}
       </div>
     )
   }
@@ -936,7 +936,7 @@ function AgentThinking() {
 }
 
 // ─── Error Message Formatter ──────────────────────────────────────────
-export function formatCleanErrorMessage(rawMsg: string): string {
+export function formatCleanErrorMessage(rawMsg: string, toolName?: string): string {
   if (!rawMsg) return "An unexpected error occurred."
 
   let msg = rawMsg
@@ -956,7 +956,7 @@ export function formatCleanErrorMessage(rawMsg: string): string {
     // Keep original
   }
 
-  const low = msg.toLowerCase()
+  const low = `${toolName ?? ''} ${msg}`.toLowerCase()
 
   if (low.includes("posthog")) {
     if (low.includes("401") || low.includes("unauthorized") || low.includes("invalid_api_key")) {
@@ -968,7 +968,7 @@ export function formatCleanErrorMessage(rawMsg: string): string {
     if (low.includes("404") || low.includes("not found")) {
       return "PostHog resource or project ID not found. Verify your project ID in Settings."
     }
-    if (low.includes("timeout") || low.includes("timed out") || low.includes("504")) {
+    if (low.includes("timeout") || low.includes("timed out") || low.includes("504") || low.includes("aborted")) {
       return "PostHog analytics API request timed out. Please try again."
     }
     if (low.includes("500") || low.includes("502") || low.includes("503")) {
@@ -990,8 +990,18 @@ export function formatCleanErrorMessage(rawMsg: string): string {
     return msg
   }
 
+  if (low.includes("gmail") || low.includes("google")) {
+    if (low.includes("401") || low.includes("unauthorized") || low.includes("token")) {
+      return "Google / Gmail session expired or unauthorized. Please reconnect in Settings."
+    }
+    if (low.includes("timeout") || low.includes("timed out")) {
+      return "Google / Gmail request timed out. Please try again."
+    }
+    return msg
+  }
+
   if (low.includes("rate_limit") || low.includes("429") || low.includes("tpm") || low.includes("rpm")) {
-    return "OpenAI API rate limit reached. Please wait a few moments before trying again or check your OpenAI plan quota."
+    return "API rate limit reached. Please wait a few moments before trying again."
   }
 
   if (
@@ -1004,7 +1014,7 @@ export function formatCleanErrorMessage(rawMsg: string): string {
     low.includes("service_unavailable") ||
     low.includes("bad gateway")
   ) {
-    return "The AI model service is temporarily unavailable. Please try your request again in a few moments."
+    return "Service temporarily unavailable or timed out. Please try your request again in a few moments."
   }
 
   if (
