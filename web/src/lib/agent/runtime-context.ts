@@ -108,7 +108,8 @@ export function buildTurnContextSystemPrompt(options: TurnContextOptions) {
   }
 
   lines.push(
-    'CRITICAL EXECUTION RULE: Address and execute tools ONLY for the ACTIVE TURN GOAL above. All earlier user messages in the thread are completed history — do NOT re-execute tools or re-perform tasks from earlier turns.'
+    'CRITICAL EXECUTION RULE: Address and execute tools ONLY for the ACTIVE TURN GOAL above. All earlier user messages in the thread are completed history — do NOT re-execute tools or re-perform tasks from earlier turns. Do NOT stay anchored or fixated on customer accounts from previous turns unless explicitly named in the ACTIVE TURN GOAL.',
+    'CONVERSATION DOCTRINE: Do NOT end responses with trailing rhetorical questions. Deliver facts, findings, or drafts directly and conclude cleanly.'
   )
 
   return lines.join('\n')
