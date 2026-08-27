@@ -1484,16 +1484,48 @@ export function AgentFeed() {
     }
   }, [])
 
-  // Auto-scroll on new messages
-  React.useEffect(() => {
+  const bottomAnchorRef = React.useRef<HTMLDivElement>(null)
+
+  // Smooth auto-scroll on new messages, streaming updates, and expanding nodes
+  const scrollToBottom = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
     if (feedRef.current) {
       if (displayMessages === DEMO_SEED_MESSAGES) {
         feedRef.current.scrollTop = 0
       } else {
-        feedRef.current.scrollTop = feedRef.current.scrollHeight
+        feedRef.current.scrollTo({
+          top: feedRef.current.scrollHeight,
+          behavior,
+        })
       }
     }
-  }, [displayMessages, status])
+  }, [displayMessages])
+
+  // Track DOM mutations and size changes during streaming/rendering to auto-scroll smoothly
+  React.useEffect(() => {
+    const container = feedRef.current
+    if (!container) return
+
+    scrollToBottom(isLoading ? 'smooth' : 'auto')
+
+    const resizeObserver = new ResizeObserver(() => {
+      scrollToBottom('smooth')
+    })
+    resizeObserver.observe(container)
+
+    const mutationObserver = new MutationObserver(() => {
+      scrollToBottom('smooth')
+    })
+    mutationObserver.observe(container, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    })
+
+    return () => {
+      resizeObserver.disconnect()
+      mutationObserver.disconnect()
+    }
+  }, [displayMessages, status, isLoading, scrollToBottom])
 
   // Show loading state during server hydration
   if (hydrationStatus === "loading") {
@@ -1512,7 +1544,7 @@ export function AgentFeed() {
   }
 
   return (
-    <div ref={feedRef} className="flex-1 overflow-y-auto px-6 py-6 flex flex-col custom-scrollbar">
+    <div ref={feedRef} className="flex-1 overflow-y-auto px-6 py-6 flex flex-col custom-scrollbar scroll-smooth">
       <div className="w-full flex flex-col gap-4">
         {displayMessages.map((message) => (
           <AgentMessageBubble key={message.id} message={message} avatarUrl={avatarUrl} />
@@ -1569,6 +1601,7 @@ export function AgentFeed() {
             </div>
           </div>
         )}
+        <div ref={bottomAnchorRef} className="h-px shrink-0" />
       </div>
     </div>
   )
