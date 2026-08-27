@@ -28,7 +28,6 @@ import {
   AgentReasoningBatch,
   AgentApprovalBlock,
 } from "./timeline-nodes"
-import { DotmSquare12 } from "@/components/ui/dotm-square-12"
 import { USER_EMOJI_PALETTE } from "@/lib/emoji-palette"
 import { Search, Loader2, Zap, Database, Mail, CreditCard, MessageSquare, Calendar, User, Globe, AlertCircle, ChevronRight, Check } from "lucide-react"
 import {
@@ -777,9 +776,36 @@ function extractToolName(part: Record<string, unknown>): string {
   return 'unknown'
 }
 
+function getStructuredTaskThinking(toolNames: string[]): string {
+  const lower = toolNames.map((t) => t.toLowerCase())
+  if (lower.some((t) => t.includes('connection') || t.includes('sync'))) {
+    return "Analyzing request to inspect active integration credentials and verify live connection health across connected providers."
+  }
+  if (lower.some((t) => t.includes('inbox') || t.includes('gmail') || t.includes('mail') || t.includes('thread') || t.includes('email'))) {
+    return "Analyzing request to scan inbox communications, filter background automated digests, and triage direct founder threads."
+  }
+  if (lower.some((t) => t.includes('calendar') || t.includes('event') || t.includes('meeting') || t.includes('schedule'))) {
+    return "Analyzing request to inspect upcoming calendar schedule, check event timings, and verify meeting commitments."
+  }
+  if (lower.some((t) => t.includes('stripe') || t.includes('billing') || t.includes('balance') || t.includes('account') || t.includes('churn'))) {
+    return "Analyzing request to query Stripe billing metrics, inspect subscription status, and evaluate customer retention signals."
+  }
+  if (lower.some((t) => t.includes('posthog') || t.includes('event') || t.includes('telemetry') || t.includes('feature'))) {
+    return "Analyzing request to query PostHog product usage analytics, event telemetry, and user activation metrics."
+  }
+  if (lower.some((t) => t.includes('web') || t.includes('search') || t.includes('tavily'))) {
+    return "Formulating targeted search query, evaluating authoritative web sources, and synthesizing real-time intelligence."
+  }
+  if (lower.some((t) => t.includes('linear') || t.includes('ticket') || t.includes('issue'))) {
+    return "Analyzing request to inspect issue tracking board, review active tickets, and verify issue status."
+  }
+  if (lower.some((t) => t.includes('sentry') || t.includes('error') || t.includes('crash'))) {
+    return "Analyzing request to inspect real-time error monitoring signals, crash diagnostics, and stack traces."
+  }
+  return "Analyzing request context, evaluating referents, and selecting optimal operational toolset."
+}
+
 // ─── Single Message Renderer ─────────────────────────────────────────
-
-
 
 function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatarUrl: string | null }) {
   const { sendMessage, status } = useChatContext()
@@ -837,7 +863,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       ?.announcedActionMismatch
   )
 
-  let hasRenderedInitialReasoning = false
+  let hasRenderedThinking = false
 
   const flushToolBatch = () => {
     if (toolBatch.length > 0) {
@@ -862,7 +888,6 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       toolBatch = []
       toolBatchCount = 0
       batchToolNames = []
-      hasRenderedInitialReasoning = false
     }
   }
 
@@ -883,6 +908,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
               isExecuting={isChatStreaming}
             />
           )
+          hasRenderedThinking = true
         }
         rawText = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim()
       }
@@ -908,6 +934,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
           isExecuting={isChatStreaming}
         />
       )
+      hasRenderedThinking = true
     }
 
     // Tool parts: in AI SDK v6, tool types are `tool-${NAME}` or `dynamic-tool`
@@ -921,6 +948,19 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       // Internal orchestration meta-tools should not be rendered as separate user-facing nodes
       if (toolName === 'requestMoreTools') {
         continue
+      }
+
+      // Ensure thinking dropdown is ALWAYS displayed before any task or tool executes
+      if (!hasRenderedThinking) {
+        const structuredThinking = getStructuredTaskThinking([toolName])
+        rendered.push(
+          <MonologueBlock
+            key={`task-thinking-${message.id}`}
+            text={structuredThinking}
+            isExecuting={isChatStreaming && !hasAssistantText}
+          />
+        )
+        hasRenderedThinking = true
       }
 
       // Collect consecutive tool parts with the same toolName into a single grouped node
@@ -1083,12 +1123,14 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
   )
 }
 
-// ─── Loading Indicator ───────────────────────────────────────────────
+// ─── Structured Thinking Indicator ──────────────────────────────────
 function AgentThinking() {
   return (
-    <div className="w-full flex items-center gap-2.5 mt-2 mb-3 py-1">
-      <DotmSquare12 size={16} dotSize={2.5} speed={1.2} bloom />
-      <span className="text-[13px] font-medium text-neutral-400 tracking-tight">Thinking...</span>
+    <div className="group text-[13px] text-neutral-400 font-normal leading-relaxed py-0.5 mt-2 mb-4">
+      <div className="flex items-center gap-2 text-left w-full select-none py-0.5">
+        <ChevronRight className="w-3.5 h-3.5 shrink-0 text-neutral-500 animate-pulse" />
+        <span className="font-medium text-neutral-400">Thinking</span>
+      </div>
     </div>
   )
 }
