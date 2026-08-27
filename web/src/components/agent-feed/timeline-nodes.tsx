@@ -301,16 +301,7 @@ export function TimelineNode({
   children,
   className
 }: TimelineNodeProps) {
-  const [isOpen, setIsOpen] = React.useState(!isCompleted)
-  const hasAutoCollapsedRef = React.useRef(false)
-
-  React.useEffect(() => {
-    if (isCompleted && !hasAutoCollapsedRef.current) {
-      hasAutoCollapsedRef.current = true
-      const timer = setTimeout(() => setIsOpen(false), 1400)
-      return () => clearTimeout(timer)
-    }
-  }, [isCompleted])
+  const [isOpen, setIsOpen] = React.useState(true)
 
   return (
     <div className={cn("relative flex flex-col group", className)}>
@@ -364,19 +355,16 @@ export function TimelineNode({
   )
 }
 
-export function sanitizeReasoningText(raw: string): string {
+function sanitizeReasoningText(raw: string): string {
   if (!raw) return ""
 
   let clean = raw
-    // Strip raw tool function names and signatures
-    .replace(/\b(?:requestMoreTools|inspectIntegrationConnectionsTool|listCalendarEventsTool|getMyInbox|getAllAccounts|getStripeAccountState|getAccountDetails|getRecentSignals|getSlackHistory|searchLinearIssuesTool|listSentryIssuesTool|searchNotionTool|listAirtableBasesTool|createRescueDiscountTool)\s*\([^)]*\)/gi, '')
-    .replace(/\b(?:requestMoreTools|inspectIntegrationConnectionsTool|listCalendarEventsTool|getMyInbox|getAllAccounts|getStripeAccountState|getAccountDetails|getRecentSignals|getSlackHistory|searchLinearIssuesTool|listSentryIssuesTool|searchNotionTool|listAirtableBasesTool|createRescueDiscountTool)\b/g, (match) => {
-      if (match.includes('Calendar')) return 'Google Calendar'
-      if (match.includes('Inbox') || match.includes('Gmail')) return 'Inbox'
-      if (match.includes('Stripe') || match.includes('Account')) return 'customer accounts'
-      if (match.includes('Slack')) return 'Slack'
-      if (match.includes('Linear')) return 'Linear'
-      if (match.includes('Sentry')) return 'error logs'
+    // Strip tool call signatures (e.g. `requestMoreTools(...)`, `getAllAccounts(...)`)
+    .replace(/\b(?:requestMoreTools|getAllAccounts|getMyInbox|getGmailThreadsForAccount|getStripeAccountState|getPostHogEvents|getAccountDetails|listCalendarEventsTool|createCalendarEventTool)\s*\([^)]*\)/gi, (match) => {
+      if (match.includes('Calendar')) return 'calendar schedule'
+      if (match.includes('Inbox') || match.includes('Gmail')) return 'email inbox'
+      if (match.includes('Stripe') || match.includes('Account')) return 'billing data'
+      if (match.includes('PostHog')) return 'product analytics'
       if (match.includes('Search') || match.includes('web')) return 'web search'
       return 'available tools'
     })
@@ -387,16 +375,11 @@ export function sanitizeReasoningText(raw: string): string {
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 
-  // Keep it concise and clean (under 450 chars)
-  if (clean.length > 450) {
-    clean = `${clean.slice(0, 447).trimEnd()}...`
-  }
-
   return clean || "Evaluating context and executing requested workflow."
 }
 
 export function MonologueBlock({ text, label }: { text: string; label?: string }) {
-  const [expanded, setExpanded] = React.useState(false)
+  const [expanded, setExpanded] = React.useState(true)
 
   // Derive dynamic thinking label from the reasoning content
   const thinkingLabel = React.useMemo(() => {
