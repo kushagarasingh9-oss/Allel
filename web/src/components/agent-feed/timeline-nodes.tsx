@@ -301,7 +301,19 @@ export function TimelineNode({
   children,
   className
 }: TimelineNodeProps) {
-  const [isOpen, setIsOpen] = React.useState(true)
+  const [isOpen, setIsOpen] = React.useState(!isCompleted || Boolean(isLoading))
+  const hasAutoCollapsedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (isLoading) {
+      setIsOpen(true)
+      hasAutoCollapsedRef.current = false
+    } else if (isCompleted && !hasAutoCollapsedRef.current) {
+      hasAutoCollapsedRef.current = true
+      const timer = setTimeout(() => setIsOpen(false), 1400)
+      return () => clearTimeout(timer)
+    }
+  }, [isLoading, isCompleted])
 
   return (
     <div className={cn("relative flex flex-col group", className)}>
