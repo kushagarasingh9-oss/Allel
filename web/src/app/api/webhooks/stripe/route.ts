@@ -14,7 +14,6 @@
  * - invoice.paid
  */
 
-import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { verifyWebhookSignature } from '@/lib/integrations/stripe'
