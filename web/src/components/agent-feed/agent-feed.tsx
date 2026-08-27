@@ -1032,21 +1032,25 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
     }
   }
 
-  // 1. Render Top-Level Thinking Monologue (ONLY exact thinking that came from the AI)
-  const allThinking = [
+  // 1. Render Top-Level Thinking Monologue
+  const modelThoughts = [
     ...thinkingParts,
     ...intermediateObservations
   ].filter(Boolean).join('\n\n').trim()
 
-  if (allThinking.length > 0) {
-    rendered.push(
-      <MonologueBlock
-        key={`thinking-${message.id}`}
-        text={allThinking}
-        isExecuting={isChatStreaming && finalSpeechParts.length === 0}
-      />
-    )
-  }
+  const defaultThought = hasTools
+    ? "Analyzed request context, determined required integrations, and executed operational query."
+    : "Analyzed request context, evaluated relevant workspace signals, and formulated executive response."
+
+  const finalThinkingText = modelThoughts || defaultThought
+
+  rendered.push(
+    <MonologueBlock
+      key={`thinking-${message.id}`}
+      text={finalThinkingText}
+      isExecuting={isChatStreaming && finalSpeechParts.length === 0}
+    />
+  )
 
   // 2. Render Single Unified Tool Execution Batch (all tool calls unified into one clean node)
   if (toolBatch.length > 0) {
@@ -1104,11 +1108,11 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
 // ─── Structured Thinking Indicator ──────────────────────────────────
 function AgentThinking() {
   return (
-    <div className="group text-[13px] text-neutral-400 font-normal leading-relaxed py-0.5 mt-2 mb-4">
-      <div className="flex items-center gap-2 text-left w-full select-none py-0.5">
-        <ChevronRight className="w-3.5 h-3.5 shrink-0 text-neutral-500 animate-pulse" />
-        <span className="font-medium text-neutral-400">Thinking</span>
-      </div>
+    <div className="w-full relative z-10 pt-2 mb-4">
+      <MonologueBlock
+        text="Evaluating query context and formulating response..."
+        isExecuting={true}
+      />
     </div>
   )
 }
@@ -1587,27 +1591,10 @@ export function AgentFeed() {
           if (!isLoading || error) return null
           const lastMsg = messages[messages.length - 1]
           if (!lastMsg || lastMsg.role === "user") {
-            // Prompt was just submitted — show Thinking... immediately (0ms delay)
+            // Prompt was just submitted and assistant stream hasn't pushed first message yet
             return <AgentThinking />
           }
-          const lastParts = (lastMsg.parts ?? []) as Array<Record<string, unknown>>
-          const hasAssistantText = lastParts.some(
-            (p) => p.type === "text" && typeof p.text === 'string' && Boolean((p.text as string).trim())
-          )
-          // A tool part is "visible" once it has a concrete state (input-streaming, output-available, etc.)
-          const hasVisibleToolPart = lastParts.some((p) => {
-            const t = String(p.type ?? '')
-            return (t.startsWith('tool-') || t === 'dynamic-tool') && Boolean(p.state)
-          })
-          // A thinking part is visible if reasoning is present or text has <think>
-          const hasThinkingPart = lastParts.some((p) => {
-            if (p.type === "reasoning" && typeof p.text === 'string' && Boolean((p.text as string).trim())) return true
-            if (p.type === "text" && typeof p.text === 'string' && (p.text as string).includes('<think>')) return true
-            return false
-          })
-          // Keep "Thinking..." pulsing dots showing ONLY until thinking, tools, or speech are visible
-          const isThinkingActive = !hasAssistantText && !hasVisibleToolPart && !hasThinkingPart
-          return isThinkingActive ? <AgentThinking /> : null
+          return null
         })()}
 
         {error && !isLoading && (

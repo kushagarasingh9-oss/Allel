@@ -413,56 +413,39 @@ export function MonologueBlock({
 }) {
   // Keep open by default so the founder can inspect the AI thought process
   const [expanded, setExpanded] = React.useState(true)
+  const startTimeRef = React.useRef(Date.now())
+  const [elapsedSeconds, setElapsedSeconds] = React.useState(0)
+  const [durationSeconds, setDurationSeconds] = React.useState<number | null>(null)
 
-  // Derive dynamic thinking label from the reasoning content
+  React.useEffect(() => {
+    if (isExecuting) {
+      const interval = setInterval(() => {
+        const sec = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000))
+        setElapsedSeconds(sec)
+      }, 500)
+      return () => clearInterval(interval)
+    } else {
+      if (durationSeconds === null) {
+        const finalSec = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000))
+        setDurationSeconds(finalSec)
+      }
+    }
+  }, [isExecuting, durationSeconds])
+
+  // Label: Live "Thinking (Xs)" while in-flight, and "Thought for Xs" when finished
   const thinkingLabel = React.useMemo(() => {
     if (label) return label
-    if (!text) return "Thinking"
-    const low = text.toLowerCase()
-    if (low.includes('capacity') || low.includes('rate limit') || low.includes('retrying') || low.includes('queue')) {
-      return "AI capacity queue: auto-retrying in background"
+    if (isExecuting) {
+      return elapsedSeconds > 0 ? `Thinking (${elapsedSeconds}s)` : "Thinking"
     }
-    if (
-      low.includes('brief') ||
-      low.includes('morning') ||
-      low.includes('daily') ||
-      low.includes('standup') ||
-      low.includes('executive update') ||
-      low.includes('scan across') ||
-      (low.includes('calendar') && (low.includes('inbox') || low.includes('billing') || low.includes('mrr'))) ||
-      (low.includes('inbox') && (low.includes('stripe') || low.includes('account') || low.includes('billing')))
-    ) {
-      return "Structuring daily executive brief"
-    }
-    // Single-domain checks
-    if (low.includes('inbox') || low.includes('email') || low.includes('mail') || low.includes('gmail') || low.includes('thread') || low.includes('draft')) {
-      return "Triaging inbox communications"
-    }
-    if (low.includes('calendar') || low.includes('schedule') || low.includes('reschedule') || (low.includes('meeting') && !low.includes('mail') && !low.includes('inbox'))) {
-      return "Checking schedule & calendar"
-    }
-    if (low.includes('stripe') || low.includes('billing') || low.includes('revenue') || low.includes('mrr') || low.includes('churn') || low.includes('account')) {
-      return "Analyzing customer & billing health"
-    }
-    if (low.includes('web') || low.includes('tavily') || low.includes('search the web') || low.includes('websearch') || low.includes('internet lookup')) {
-      return "Formulating web search"
-    }
-    if (low.includes('linear') || low.includes('ticket') || low.includes('issue') || low.includes('bug')) {
-      return "Reviewing issue tracker"
-    }
-    if (low.includes('sentry') || low.includes('error') || low.includes('crash') || low.includes('exception')) {
-      return "Diagnosing error signals"
-    }
-    if (low.includes('slack') || low.includes('channel') || low.includes('message')) {
-      return "Analyzing Slack context"
-    }
-    if (low.includes('tool') || low.includes('expand') || low.includes('request')) {
-      return "Selecting optimal toolset"
-    }
-    return "Analyzing request & context"
-  }, [text, label])
+    const sec = durationSeconds ?? elapsedSeconds ?? 1
+    return `Thought for ${sec}s`
+  }, [label, isExecuting, elapsedSeconds, durationSeconds])
 
-  const sanitizedText = React.useMemo(() => sanitizeReasoningText(text), [text])
+  const sanitizedText = React.useMemo(() => {
+    const raw = text || "Evaluating query context and formulating response..."
+    return sanitizeReasoningText(raw)
+  }, [text])
 
   return (
     <div className="group text-[13px] text-neutral-400 font-normal leading-relaxed py-0.5">
