@@ -456,15 +456,15 @@ export function MonologueBlock({
   const thinkingLabel = React.useMemo(() => {
     if (label) return label
     if (isExecuting) {
-      return elapsedSeconds > 0 ? `Thinking (${elapsedSeconds}s)` : "Thinking"
+      return `Thinking (${elapsedSeconds}s)`
     }
     const sec = durationSeconds ?? elapsedSeconds ?? 1
     return `Thought for ${sec}s`
   }, [label, isExecuting, elapsedSeconds, durationSeconds])
 
   const sanitizedText = React.useMemo(() => {
-    const raw = text || "Evaluating query context and formulating response..."
-    return sanitizeReasoningText(raw)
+    if (!text || !text.trim()) return ""
+    return sanitizeReasoningText(text)
   }, [text])
 
   return (
@@ -480,6 +480,9 @@ export function MonologueBlock({
             expanded && "rotate-90"
           )}
         />
+        {isExecuting && (
+          <Loader2 className="w-3 h-3 animate-spin text-amber-500/80 shrink-0" />
+        )}
         <span className="font-medium text-neutral-400">{thinkingLabel}</span>
       </button>
       <AnimatePresence initial={false}>
@@ -495,7 +498,14 @@ export function MonologueBlock({
               ref={scrollContainerRef}
               className="max-h-[110px] overflow-y-auto custom-scrollbar pr-2 text-neutral-400/90 whitespace-pre-wrap leading-relaxed text-[12px] border-l border-white/10 pl-2.5"
             >
-              {sanitizedText}
+              {sanitizedText ? (
+                sanitizedText
+              ) : (
+                <div className="flex items-center gap-2 text-neutral-500 text-[11.5px] italic py-1">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-ping shrink-0" />
+                  <span>Formulating thoughts...</span>
+                </div>
+              )}
             </div>
           </motion.div>
         )}

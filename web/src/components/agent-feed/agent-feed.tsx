@@ -1101,21 +1101,23 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
     ...intermediateObservations
   ].filter(Boolean).join('\n\n').trim()
 
-  const shouldRenderThinking = modelThoughts.length > 0 || hasTools || (isChatStreaming && finalSpeechParts.length === 0)
+  const isExecutingTurn = isChatStreaming && finalSpeechParts.length === 0
+  const shouldRenderThinking = modelThoughts.length > 0 || hasTools || isExecutingTurn
 
   if (shouldRenderThinking) {
-    const dynamicThought = buildDynamicOperationalThought(batchToolNames, parts as Array<Record<string, unknown>>)
-    const finalThinkingText = modelThoughts || dynamicThought
+    // While actively executing/streaming, display modelThoughts directly (shows spinner if empty yet).
+    // Only fall back to dynamic operational summary when turn is finished with tools and model emitted no thoughts.
+    const finalThinkingText = isExecutingTurn
+      ? modelThoughts
+      : (modelThoughts || (hasTools ? buildDynamicOperationalThought(batchToolNames, parts as Array<Record<string, unknown>>) : ''))
 
-    if (finalThinkingText.trim().length > 0) {
-      rendered.push(
-        <MonologueBlock
-          key={`thinking-${message.id}`}
-          text={finalThinkingText}
-          isExecuting={isChatStreaming && finalSpeechParts.length === 0}
-        />
-      )
-    }
+    rendered.push(
+      <MonologueBlock
+        key={`thinking-${message.id}`}
+        text={finalThinkingText}
+        isExecuting={isExecutingTurn}
+      />
+    )
   }
 
   // 2. Render Single Unified Tool Execution Batch (all tool calls unified into one clean node)
@@ -1176,7 +1178,7 @@ function AgentThinking() {
   return (
     <div className="w-full relative z-10 pt-2 mb-4">
       <MonologueBlock
-        text="Evaluating query context and formulating response..."
+        text=""
         isExecuting={true}
       />
     </div>
