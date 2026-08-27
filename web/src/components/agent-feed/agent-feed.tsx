@@ -909,7 +909,13 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
 
       flushToolBatch()
       if (rawText) {
-        rendered.push(<AgentSpeechBlock key={`text-${i}`} text={rawText} />)
+        rendered.push(
+          <AgentSpeechBlock
+            key={`text-${i}`}
+            text={rawText}
+            isStreaming={isChatStreaming && i === parts.length - 1}
+          />
+        )
       }
       hasRenderedInitialReasoning = false
     }

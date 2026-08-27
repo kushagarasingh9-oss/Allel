@@ -521,7 +521,48 @@ function formatTextWithIntegrationLogos(raw: string): string {
     .replace(/(?:🎧|🎫)\s*(\*{0,2}Intercom\b\*{0,2}|\*{0,2}Support\b\*{0,2})/gi, '![Intercom](/logos/intercom.svg) $1')
 }
 
-export function AgentSpeechBlock({ text }: { text: string }) {
+export function AgentSpeechBlock({
+  text,
+  isStreaming = false,
+}: {
+  text: string
+  isStreaming?: boolean
+}) {
+  const [displayedLength, setDisplayedLength] = React.useState(isStreaming ? 0 : text.length)
+  const animRef = React.useRef<number | null>(null)
+  const textRef = React.useRef(text)
+  textRef.current = text
+
+  React.useEffect(() => {
+    if (!isStreaming) {
+      setDisplayedLength(text.length)
+      return
+    }
+
+    const step = () => {
+      const target = textRef.current.length
+      setDisplayedLength((prev) => {
+        if (prev < target) {
+          // Fast, silky smooth progressive easing (2-5 characters per frame)
+          const delta = Math.max(2, Math.ceil((target - prev) * 0.4))
+          const next = Math.min(target, prev + delta)
+          if (next < target) {
+            animRef.current = requestAnimationFrame(step)
+          }
+          return next
+        }
+        return prev
+      })
+    }
+
+    animRef.current = requestAnimationFrame(step)
+    return () => {
+      if (animRef.current) cancelAnimationFrame(animRef.current)
+    }
+  }, [text, isStreaming])
+
+  const currentText = isStreaming ? text.slice(0, displayedLength) : text
+
   const detectMissingIntegrations = React.useMemo(() => {
     const low = text.toLowerCase()
     
@@ -571,13 +612,13 @@ export function AgentSpeechBlock({ text }: { text: string }) {
     return found
   }, [text])
 
-  const formattedText = React.useMemo(() => formatTextWithIntegrationLogos(text), [text])
+  const formattedText = React.useMemo(() => formatTextWithIntegrationLogos(currentText), [currentText])
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 3 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: "easeOut" }}
+      initial={{ opacity: 0, y: 4, filter: "blur(2px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
       className="w-full text-[13.5px] text-neutral-300 font-normal leading-relaxed mt-1 mb-4 pr-4 max-w-prose"
     >
       <div className="prose prose-invert prose-sm prose-p:text-neutral-300 prose-p:leading-relaxed prose-p:mb-3.5 prose-pre:bg-[#14141A] prose-pre:border prose-pre:border-white/10 prose-ul:mb-3.5 prose-ul:space-y-2 prose-ul:list-disc prose-ul:pl-5 prose-ol:mb-3.5 prose-ol:space-y-2.5 prose-ol:list-decimal prose-ol:pl-5 prose-li:text-neutral-200 prose-li:leading-relaxed prose-h3:text-[14px] prose-h3:font-medium prose-h3:text-neutral-200 prose-h3:mt-4 prose-h3:mb-2 prose-strong:font-semibold prose-strong:text-white">
