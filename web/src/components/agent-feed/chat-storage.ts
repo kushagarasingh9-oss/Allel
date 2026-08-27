@@ -153,7 +153,7 @@ export function buildPersonaThreadChatId(
 
 export function sanitizeStoredPersonaMessages(
   messages: unknown,
-  options?: {
+  _options?: {
     workspaceId?: string
     personaId?: PersonaId
   }
@@ -162,10 +162,16 @@ export function sanitizeStoredPersonaMessages(
     return [] as StoredUIMessage[]
   }
 
+  // Preserve ALL messages — both user and assistant — in the local cache.
+  // The old approach dropped assistant messages missing a trusted HMAC
+  // signature (`trustedHistory`). That was over-aggressive: sessionStorage
+  // is a UI-only cache, not a security boundary. The real HMAC check
+  // happens server-side in `sanitizeClientUiMessages`. Dropping assistants
+  // here meant local restore produced user-only arrays, and subsequent
+  // reconciliation with the server record grouped user messages at the top
+  // with assistant responses stacked below — instead of proper interleaving.
   return messages.filter((message): message is StoredUIMessage => {
-    if (!isStoredUIMessage(message)) return false
-    if (message.role === "user") return true
-    return hasScopedTrustedHistory(message, options)
+    return isStoredUIMessage(message)
   })
 }
 

@@ -223,6 +223,8 @@ export async function connectStripe(apiKey: string) {
 
 export async function connectPostHog(apiKey: string, projectId: string) {
   try {
+    const trimmedKey = apiKey.trim()
+    const trimmedProject = projectId.trim()
     const supabase = await createClient()
     const {
       data: { user },
@@ -233,17 +235,17 @@ export async function connectPostHog(apiKey: string, projectId: string) {
 
     const { workspaceId } = await getWorkspaceIdForUser(user)
 
-    const isValid = await validatePostHogKey(apiKey, projectId)
+    const isValid = await validatePostHogKey(trimmedKey, trimmedProject)
     if (!isValid) {
       redirect(buildSettingsRedirect({ error: 'PostHog credentials were rejected.' }))
     }
 
-    await saveEncryptedToken({ supabase, workspaceId, provider: 'posthog', value: apiKey })
+    await saveEncryptedToken({ supabase, workspaceId, provider: 'posthog', value: trimmedKey })
     await upsertConnection({
       supabase,
       workspaceId,
       provider: 'posthog',
-      metadata: { project_id: projectId, coverage: 'Ready for first PostHog sync' },
+      metadata: { project_id: trimmedProject, coverage: 'Ready for first PostHog sync' },
     })
 
     const { message } = await runConnectedProviderSync({

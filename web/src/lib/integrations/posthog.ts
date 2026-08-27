@@ -45,8 +45,12 @@ async function posthogGet<T = Record<string, unknown>>(
 ): Promise<PostHogApiResponse<T>> {
   const qs = params ? '?' + new URLSearchParams(params).toString() : ''
   const response = await fetch(
-    `https://app.posthog.com/api/projects/${projectId}/${path}${qs}`,
-    { headers: { Authorization: `Bearer ${apiKey}` } }
+    `https://us.posthog.com/api/projects/${projectId}/${path}${qs}`,
+    {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10_000),
+    }
   )
 
   if (!response.ok) {
@@ -63,7 +67,7 @@ async function posthogPost<T = Record<string, unknown>>(
   body: Record<string, unknown>
 ): Promise<T> {
   const response = await fetch(
-    `https://app.posthog.com/api/projects/${projectId}/${path}`,
+    `https://us.posthog.com/api/projects/${projectId}/${path}`,
     {
       method: 'POST',
       headers: {
@@ -71,6 +75,8 @@ async function posthogPost<T = Record<string, unknown>>(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10_000),
     }
   )
 
@@ -199,15 +205,46 @@ export async function queryEventCounts(
 // ============================================================
 
 export async function validatePostHogKey(apiKey: string, projectId: string): Promise<boolean> {
-  try {
-    const response = await fetch(
-      `https://app.posthog.com/api/projects/${projectId}/`,
-      { headers: { Authorization: `Bearer ${apiKey}` } }
-    )
-    return response.ok
-  } catch {
-    return false
+  const trimmedKey = apiKey.trim()
+  const trimmedProject = projectId.trim()
+
+  // PostHog personal API keys start with "phx_" (new format) or "phc_" or
+  // can be any string. The key distinction is that app.posthog.com issues
+  // 307 redirects to us.posthog.com (or eu.posthog.com), which silently
+  // fails validation. Use the direct API hosts instead.
+  const apiHosts = [
+    'https://us.posthog.com',
+    'https://eu.posthog.com',
+    'https://app.posthog.com',
+  ]
+
+  for (const host of apiHosts) {
+    try {
+      // If a project ID is provided, try the project-specific endpoint first
+      const endpoint = trimmedProject
+        ? `${host}/api/projects/${trimmedProject}/`
+        : `${host}/api/users/@me/`
+
+      const response = await fetch(endpoint, {
+        headers: { Authorization: `Bearer ${trimmedKey}` },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(10_000),
+      })
+
+      if (response.ok) return true
+
+      // 401/403 means the key itself is invalid — no point trying other hosts
+      if (response.status === 401 || response.status === 403) return false
+
+      // 307/308 redirect or 404 — try next host
+      continue
+    } catch {
+      // Network error or timeout — try next host
+      continue
+    }
   }
+
+  return false
 }
 
 // ============================================================
