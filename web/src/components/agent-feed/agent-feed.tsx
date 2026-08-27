@@ -423,6 +423,14 @@ function AccountsListResult({ accounts }: { accounts: Array<Record<string, unkno
   const [isExpanded, setIsExpanded] = React.useState(false)
   const displayAccounts = isExpanded ? accounts : accounts.slice(0, 5)
 
+  if (accounts.length === 0) {
+    return (
+      <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 mb-2">
+        <img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain opacity-60" /> No active customer accounts ($0 MRR)
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-1">
       {displayAccounts.map((acc, i) => (
@@ -461,9 +469,8 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
       errorStr.includes('credentials are missing') ||
       errorStr.includes('refresh token') ||
       errorStr.includes('oauth') ||
-      errorStr.includes('authentication') ||
-      errorStr.includes('unauthorized') ||
-      errorStr.includes('integration') ||
+      errorStr.includes('invalid_grant') ||
+      (errorStr.includes('unauthorized') && !errorStr.includes('no active')) ||
       data.dataSource === 'connection_guard'
 
     if (isConnectionError) {
@@ -1031,6 +1038,16 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
           )
           toolBatchCount++
         } else if (state === "output-error") {
+          const errText = String(single.part.errorText ?? 'The agent encountered an error processing this request.')
+          const errLow = errText.toLowerCase()
+          const isAuthErr =
+            errLow.includes('not connected') ||
+            errLow.includes('not configured') ||
+            errLow.includes('reconnect') ||
+            errLow.includes('credentials are missing') ||
+            errLow.includes('refresh token') ||
+            errLow.includes('oauth') ||
+            errLow.includes('invalid_grant')
           toolBatch.push(
             <TimelineNode
               key={`tool-${single.index}`}
@@ -1038,7 +1055,10 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
               icon={icon}
               isCompleted={true}
             >
-              <UnconnectedIntegrationBadge toolName={toolName} errorText={String(single.part.errorText ?? 'Integration not connected for this workspace')} />
+              {isAuthErr
+                ? <UnconnectedIntegrationBadge toolName={toolName} errorText={errText} />
+                : <div className="text-[12px] text-red-400/80 font-normal py-0.5 mt-0.5">{formatCleanErrorMessage(errText, toolName)}</div>
+              }
             </TimelineNode>
           )
           toolBatchCount++
