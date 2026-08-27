@@ -1507,9 +1507,14 @@ export function AgentFeed() {
         ))}
 
         {(() => {
+          if (!isLoading || error) return null
           const lastMsg = messages[messages.length - 1]
-          const lastParts = (lastMsg?.parts ?? []) as Array<Record<string, unknown>>
-          const hasTextOutput = lastParts.some(
+          if (!lastMsg || lastMsg.role === "user") {
+            // Prompt was just submitted — show Thinking... immediately (0ms delay)
+            return <AgentThinking />
+          }
+          const lastParts = (lastMsg.parts ?? []) as Array<Record<string, unknown>>
+          const hasAssistantText = lastParts.some(
             (p) => p.type === "text" && typeof p.text === 'string' && Boolean((p.text as string).trim())
           )
           // A tool part is "visible" once it has a concrete state (input-streaming, output-available, etc.)
@@ -1517,8 +1522,8 @@ export function AgentFeed() {
             const t = String(p.type ?? '')
             return (t.startsWith('tool-') || t === 'dynamic-tool') && Boolean(p.state)
           })
-          // Keep "Thinking..." showing until either text or tool execution steps are visible
-          const isThinkingActive = isLoading && !error && !hasTextOutput && !hasVisibleToolPart
+          // Keep "Thinking..." showing until either assistant text or tool execution steps are visible
+          const isThinkingActive = !hasAssistantText && !hasVisibleToolPart
           return isThinkingActive ? <AgentThinking /> : null
         })()}
 

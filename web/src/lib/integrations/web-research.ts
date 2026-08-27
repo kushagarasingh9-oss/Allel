@@ -53,11 +53,11 @@ export const webSearchTool = tool({
       query: sanitizeExternalText(response.query, { maxLength: 240 }).text,
       answer: response.answer
         ? buildExternalContentSnippet({
-            source: 'web',
-            text: response.answer,
-            maxLength: 500,
-            title: response.query,
-          }).text
+          source: 'web',
+          text: response.answer,
+          maxLength: 500,
+          title: response.query,
+        }).text
         : null,
       requestId: response.requestId,
       responseTime: response.responseTime,
@@ -74,12 +74,12 @@ export const webSearchTool = tool({
         }).text,
         rawContentPreview: result.rawContent
           ? buildExternalContentSnippet({
-              source: 'web',
-              text: result.rawContent,
-              maxLength: 320,
-              title: result.title,
-              url: result.url,
-            }).text
+            source: 'web',
+            text: result.rawContent,
+            maxLength: 320,
+            title: result.title,
+            url: result.url,
+          }).text
           : null,
         score: result.score,
         publishedDate: result.publishedDate,
