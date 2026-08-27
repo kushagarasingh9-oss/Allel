@@ -1786,7 +1786,6 @@ export function getAgentForPersona(
     id: `agent-${persona.id}`,
     model: getLanguageModel(modelId) as any,
     instructions: initialInstructions,
-    system: initialInstructions,
     tools: runtimeTools as any,
     activeTools: initialActiveTools as any,
     maxOutputTokens: 4096,
