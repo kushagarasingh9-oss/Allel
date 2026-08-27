@@ -861,6 +861,7 @@ async function fetchThreadDetailByAccessToken(
     `https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}?${params.toString()}`,
     {
       headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(12000),
     }
   )
 
@@ -879,6 +880,7 @@ export async function getGmailProfile(workspaceId: string): Promise<GmailProfile
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+      signal: AbortSignal.timeout(12000),
     })
 
     if (!response.ok) {
@@ -947,6 +949,7 @@ export async function sendEmail(
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
+      signal: AbortSignal.timeout(15000),
       body: JSON.stringify({
         raw: encodedMessage,
         ...(params.replyToThreadId ? { threadId: params.replyToThreadId } : {}),
@@ -987,6 +990,7 @@ export async function fetchThreads(
       `https://gmail.googleapis.com/gmail/v1/users/me/threads?${params.toString()}`,
       {
         headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(12000),
       }
     )
 
