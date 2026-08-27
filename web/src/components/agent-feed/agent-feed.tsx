@@ -1459,8 +1459,9 @@ export function AgentFeed() {
   const displayMessages = React.useMemo(() => {
     const seenIds = new Set<string>()
     const liveMessages = messages.filter((m, idx) => {
-      if (m.id && seenIds.has(m.id)) return false
-      if (m.id) seenIds.add(m.id)
+      const msgId = typeof m.id === "string" && m.id.trim().length > 0 ? m.id : `msg-${m.role}-${idx}`
+      if (seenIds.has(msgId)) return false
+      seenIds.add(msgId)
 
       if (m.role === "assistant") {
         const prev = messages[idx - 1]
@@ -1596,8 +1597,12 @@ export function AgentFeed() {
   return (
     <div ref={feedRef} className="flex-1 overflow-y-auto px-6 py-6 flex flex-col custom-scrollbar scroll-smooth">
       <div className="w-full flex flex-col gap-4">
-        {displayMessages.map((message) => (
-          <AgentMessageBubble key={message.id} message={message} avatarUrl={avatarUrl} />
+        {displayMessages.map((message, idx) => (
+          <AgentMessageBubble
+            key={typeof message.id === "string" && message.id.trim().length > 0 ? message.id : `msg-${message.role}-${idx}`}
+            message={message}
+            avatarUrl={avatarUrl}
+          />
         ))}
 
         {(() => {
