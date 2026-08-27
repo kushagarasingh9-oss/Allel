@@ -778,31 +778,31 @@ function extractToolName(part: Record<string, unknown>): string {
 
 function getStructuredTaskThinking(toolNames: string[]): string {
   const lower = toolNames.map((t) => t.toLowerCase())
-  if (lower.some((t) => t.includes('connection') || t.includes('sync'))) {
-    return "Analyzing request to inspect active integration credentials and verify live connection health across connected providers."
-  }
   if (lower.some((t) => t.includes('inbox') || t.includes('gmail') || t.includes('mail') || t.includes('thread') || t.includes('email'))) {
-    return "Analyzing request to scan inbox communications, filter background automated digests, and triage direct founder threads."
+    return "1. Analyzing request: scan and triage active inbox communications.\n2. Querying Gmail provider to retrieve recent threads, sender metadata, and message snippets.\n3. Filtering background automated noise (newsletters, receipts, automated marketing digests).\n4. Isolating high-priority direct human threads needing urgent founder action or reply drafting."
   }
   if (lower.some((t) => t.includes('calendar') || t.includes('event') || t.includes('meeting') || t.includes('schedule'))) {
-    return "Analyzing request to inspect upcoming calendar schedule, check event timings, and verify meeting commitments."
+    return "1. Analyzing request: check upcoming schedule and meeting commitments.\n2. Querying Google Calendar API for events in Asia/Kolkata timezone.\n3. Checking start times, participant details, and meeting agenda.\n4. Identifying scheduling conflicts and synthesizing a structured executive timeline."
   }
   if (lower.some((t) => t.includes('stripe') || t.includes('billing') || t.includes('balance') || t.includes('account') || t.includes('churn'))) {
-    return "Analyzing request to query Stripe billing metrics, inspect subscription status, and evaluate customer retention signals."
+    return "1. Analyzing request: evaluate live billing health and subscription status.\n2. Querying Stripe API for current MRR, delinquent accounts, and failed payment events.\n3. Segmenting accounts by churn risk severity (past-due dunning vs active).\n4. Identifying high-value recovery opportunities and required founder interventions."
+  }
+  if (lower.some((t) => t.includes('connection') || t.includes('sync'))) {
+    return "1. Analyzing request: verify health and authorization status of all workspace integrations.\n2. Probing live provider connection states across Stripe, PostHog, Gmail, Calendar, Slack, Linear, and Notion.\n3. Verifying OAuth token validity and API endpoint reachability.\n4. Categorizing integrations into Connected & Ready, Needs Attention, and Disconnected."
   }
   if (lower.some((t) => t.includes('posthog') || t.includes('event') || t.includes('telemetry') || t.includes('feature'))) {
-    return "Analyzing request to query PostHog product usage analytics, event telemetry, and user activation metrics."
+    return "1. Analyzing request: evaluate product usage trends and telemetry.\n2. Querying PostHog analytics for active user events, feature adoption, and retention curves.\n3. Correlating usage drop-offs with customer account records to flag silent churn.\n4. Synthesizing actionable operational takeaways for product and customer success."
   }
   if (lower.some((t) => t.includes('web') || t.includes('search') || t.includes('tavily'))) {
-    return "Formulating targeted search query, evaluating authoritative web sources, and synthesizing real-time intelligence."
+    return "1. Analyzing request: conduct real-time external web research.\n2. Formulating search queries and querying Tavily search API for authoritative industry sources.\n3. Extracting and cross-referencing relevant press releases, documentation, and product roadmaps.\n4. Synthesizing verified factual findings into an executive briefing."
   }
   if (lower.some((t) => t.includes('linear') || t.includes('ticket') || t.includes('issue'))) {
-    return "Analyzing request to inspect issue tracking board, review active tickets, and verify issue status."
+    return "1. Analyzing request: inspect issue tracking board and verify issue status.\n2. Querying Linear workspace for high-priority bugs and blocking tasks.\n3. Segmenting active issues by project milestone and assignee.\n4. Formulating actionable triage recommendations."
   }
   if (lower.some((t) => t.includes('sentry') || t.includes('error') || t.includes('crash'))) {
-    return "Analyzing request to inspect real-time error monitoring signals, crash diagnostics, and stack traces."
+    return "1. Analyzing request: inspect real-time error monitoring signals and crash diagnostics.\n2. Querying Sentry API for unhandled exceptions, frequency spikes, and affected users.\n3. Tracing root causes and stack traces.\n4. Synthesizing diagnostic summary and remediation steps."
   }
-  return "Analyzing request context, evaluating referents, and selecting optimal operational toolset."
+  return "1. Analyzing founder request context and resolving target entities.\n2. Formulating operational execution plan across workspace data sources.\n3. Executing parallel integration read tools to fetch live state.\n4. Synthesizing raw provider data into a high-signal executive summary."
 }
 
 // ─── Single Message Renderer ─────────────────────────────────────────

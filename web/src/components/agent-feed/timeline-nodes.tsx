@@ -407,21 +407,8 @@ export function MonologueBlock({
   label?: string
   isExecuting?: boolean
 }) {
-  // Start open while executing, smoothly collapse when completed
-  const [expanded, setExpanded] = React.useState(isExecuting)
-  const hasAutoCollapsedRef = React.useRef(false)
-
-  React.useEffect(() => {
-    if (isExecuting) {
-      setExpanded(true)
-      hasAutoCollapsedRef.current = false
-    } else if (!hasAutoCollapsedRef.current) {
-      hasAutoCollapsedRef.current = true
-      // Smoothly auto-collapse thinking monologue 1.2s after turn completion
-      const timer = setTimeout(() => setExpanded(false), 1200)
-      return () => clearTimeout(timer)
-    }
-  }, [isExecuting])
+  // Keep open by default so the founder can inspect the AI thought process
+  const [expanded, setExpanded] = React.useState(true)
 
   // Derive dynamic thinking label from the reasoning content
   const thinkingLabel = React.useMemo(() => {
