@@ -842,8 +842,8 @@ export const TOOL_DOMAIN_GROUPS: ReadonlyArray<ToolDomainGroup> = [
   {
     domain: 'web_research',
     provider: null,
-    regex: /\b(search|web|google|pricing|competitor|competitors|url|http|https|crawl|scrape|research|internet|online|browse|trends|industry|news|lookup)\b/i,
-    fuzzyKeywords: ['search', 'google', 'pricing', 'competitor', 'crawl', 'scrape', 'research', 'internet', 'online'],
+    regex: /\b(search|web|google|pricing|competitor|competitors|url|http|https|crawl|scrape|research|internet|online|browse|trends|industry|news|lookup|founder|founders|who\s+is|who\s+are|who\s+founded|founded\s+by|what\s+is|what\s+are|how\s+does|how\s+much|when\s+did|tell\s+me\s+about|find\s+out|website|company|ceo|site|info|information|\.com|\.ai|\.io|\.co|\.org|\.dev|\.app|\.clo|\.tech)\b/i,
+    fuzzyKeywords: ['search', 'google', 'pricing', 'competitor', 'crawl', 'scrape', 'research', 'internet', 'online', 'founder', 'founders', 'lookup', 'website', 'company'],
     tools: ['webSearchTool', 'webExtractTool', 'webCrawlTool', 'webMapTool'],
   },
 ]
@@ -992,11 +992,11 @@ export function scoreDomainMatch(
  *  gmail  → accounts (email threads are linked to accounts)
  */
 const DOMAIN_COMPANIONS: Partial<Record<ToolDomain, ToolDomain[]>> = {
-  stripe:   ['recovery', 'posthog'],
+  stripe: ['recovery', 'posthog'],
   recovery: ['stripe', 'posthog'],
-  posthog:  ['recovery'],
-  gmail:    [],
-  slack:    [],
+  posthog: ['recovery'],
+  gmail: [],
+  slack: [],
 }
 
 /**
@@ -1007,43 +1007,43 @@ const INTENT_CORE_TOOLS: Array<{
   verbs: RegExp
   tools: AgentToolName[]
 }> = [
-  {
-    verbs: /\b(brief|daily|morning|today|overview|standup|summary|updated?|update|what'?s (up|new|happening))\b/i,
-    tools: [
-      'listCalendarEventsTool',
-      'getMyInbox',
-      'getAllAccounts',
-      'getSlackHistory',
-      'getRecentSignals',
-      'listSentryIssuesTool',
-      'searchLinearIssuesTool',
-    ],
-  },
-  {
-    verbs: /\b(research|google|internet|browse|competitor|competitors|online|trends|news|lookup)\b/i,
-    tools: ['webSearchTool', 'webExtractTool'],
-  },
-  {
-    verbs: /\b(show|list|get|fetch|find|look|display|what|who|which)\b/i,
-    tools: ['getAccountDetails', 'getAllAccounts', 'getRecentSignals'],
-  },
-  {
-    verbs: /\b(send|email|message|notify|draft|compose|reply)\b/i,
-    tools: ['getExistingDrafts', 'getMyInbox'],
-  },
-  {
-    verbs: /\b(recover|recovery|case|cases|risk|churn|at.risk|pipeline)\b/i,
-    tools: ['getRecoveryCases', 'getRecoveryMetrics'],
-  },
-  {
-    verbs: /\b(analyse|analyze|breakdown|score|why|reason|explain|diagnose)\b/i,
-    tools: ['getAccountMemory', 'getAccountTimeline', 'getChurnScoreHistory'],
-  },
-  {
-    verbs: /\b(sync|refresh|update|reconnect)\b/i,
-    tools: ['inspectIntegrationConnectionsTool'],
-  },
-]
+    {
+      verbs: /\b(brief|daily|morning|today|overview|standup|summary|updated?|update|what'?s (up|new|happening))\b/i,
+      tools: [
+        'listCalendarEventsTool',
+        'getMyInbox',
+        'getAllAccounts',
+        'getSlackHistory',
+        'getRecentSignals',
+        'listSentryIssuesTool',
+        'searchLinearIssuesTool',
+      ],
+    },
+    {
+      verbs: /\b(research|google|internet|browse|competitor|competitors|online|trends|news|lookup|founder|founders|who\s+is|who\s+are|who\s+founded|founded\s+by|what\s+is|what\s+are|how\s+does|how\s+much|when\s+did|tell\s+me\s+about|find\s+out|search|website|info|information|\.com|\.ai|\.io|\.co|\.org|\.dev|\.app|\.clo|\.tech)\b/i,
+      tools: ['webSearchTool', 'webExtractTool'],
+    },
+    {
+      verbs: /\b(show|list|get|fetch|find|look|display|what|who|which)\b/i,
+      tools: ['getAccountDetails', 'getAllAccounts', 'getRecentSignals'],
+    },
+    {
+      verbs: /\b(send|email|message|notify|draft|compose|reply)\b/i,
+      tools: ['getExistingDrafts', 'getMyInbox'],
+    },
+    {
+      verbs: /\b(recover|recovery|case|cases|risk|churn|at.risk|pipeline)\b/i,
+      tools: ['getRecoveryCases', 'getRecoveryMetrics'],
+    },
+    {
+      verbs: /\b(analyse|analyze|breakdown|score|why|reason|explain|diagnose)\b/i,
+      tools: ['getAccountMemory', 'getAccountTimeline', 'getChurnScoreHistory'],
+    },
+    {
+      verbs: /\b(sync|refresh|update|reconnect)\b/i,
+      tools: ['inspectIntegrationConnectionsTool'],
+    },
+  ]
 
 export function getEligibleToolsForDomains(
   eligibleToolNames: readonly AgentToolName[],
@@ -1133,12 +1133,12 @@ export function createRequestMoreToolsTool(eligibleToolNames: readonly AgentTool
       return activatedTools.length > 0
         ? { ok: true, status: 'expansion_requested', domain, activatedTools }
         : {
-            ok: false,
-            status: 'outside_policy',
-            domain,
-            activatedTools: [],
-            message: 'This persona or workflow is not permitted to use that domain.',
-          }
+          ok: false,
+          status: 'outside_policy',
+          domain,
+          activatedTools: [],
+          message: 'This persona or workflow is not permitted to use that domain.',
+        }
     },
   })
 }
@@ -1162,6 +1162,7 @@ export function selectRelevantToolsForPrompt(
 
   const coreTools: AgentToolName[] = [
     'inspectIntegrationConnectionsTool',
+    'webSearchTool',
     'getAccountDetails',
     'getAccountMemory',
     'getAllAccounts',
@@ -1626,7 +1627,7 @@ const COMPACT_THRESHOLD = 200
 // Flexible shape — matches both UIMessage (parts[]) and CoreMessage (content)
 type CompactableMessage = {
   role: string
-  parts?: Array<{ type: string; text?: string; [key: string]: unknown }>
+  parts?: Array<{ type: string; text?: string;[key: string]: unknown }>
   content?: unknown
   [key: string]: unknown
 }
