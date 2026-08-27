@@ -480,9 +480,6 @@ export function MonologueBlock({
             expanded && "rotate-90"
           )}
         />
-        {isExecuting && (
-          <Loader2 className="w-3 h-3 animate-spin text-neutral-400 shrink-0" />
-        )}
         <span className="font-medium text-neutral-400">{thinkingLabel}</span>
       </button>
       <AnimatePresence initial={false}>
@@ -501,9 +498,8 @@ export function MonologueBlock({
               {sanitizedText ? (
                 sanitizedText
               ) : (
-                <div className="flex items-center gap-2 text-neutral-400 text-[12px] py-1">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400 shrink-0" />
-                  <span className="text-neutral-400">Thinking...</span>
+                <div className="flex items-center py-1">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-500 shrink-0" />
                 </div>
               )}
             </div>
