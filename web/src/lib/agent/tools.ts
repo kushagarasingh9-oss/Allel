@@ -227,9 +227,13 @@ async function listLiveStripeAccounts(workspaceId: string): Promise<LiveStripeAc
   const byCustomer = new Map<string, typeof subscriptions>()
 
   for (const subscription of subscriptions) {
-    const existing = byCustomer.get(subscription.stripeCustomerId) ?? []
+    const key =
+      subscription.customerName?.trim().toLowerCase() ||
+      subscription.customerEmail?.trim().toLowerCase() ||
+      subscription.stripeCustomerId
+    const existing = byCustomer.get(key) ?? []
     existing.push(subscription)
-    byCustomer.set(subscription.stripeCustomerId, existing)
+    byCustomer.set(key, existing)
   }
 
   // Internal IDs are only used as a bridge to founder-owned workflow actions

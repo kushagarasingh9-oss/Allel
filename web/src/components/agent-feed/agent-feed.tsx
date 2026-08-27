@@ -419,6 +419,34 @@ function ToolThinkingSummary({ toolName, input }: { toolName: string; input: unk
   )
 }
 
+function AccountsListResult({ accounts }: { accounts: Array<Record<string, unknown>> }) {
+  const [isExpanded, setIsExpanded] = React.useState(false)
+  const displayAccounts = isExpanded ? accounts : accounts.slice(0, 5)
+
+  return (
+    <div className="flex flex-col gap-1">
+      {displayAccounts.map((acc, i) => (
+        <MiniResultCard
+          key={i}
+          icon={<img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain" />}
+          title={<span className="text-white">{String(acc.name)}</span>}
+          subtitle={`${acc.mrr ?? ''} · ${String(acc.riskLevel ?? 'unknown')} risk`}
+        />
+      ))}
+      {accounts.length > 5 && (
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-[12px] text-neutral-400 hover:text-white pl-7 py-1 text-left flex items-center gap-1.5 transition-colors cursor-pointer"
+        >
+          <span>{isExpanded ? 'Show fewer accounts' : `+ ${accounts.length - 5} more accounts`}</span>
+          <ChevronRight className={`w-3 h-3 transition-transform ${isExpanded ? '-rotate-90' : 'rotate-90'}`} />
+        </button>
+      )}
+    </div>
+  )
+}
+
 function ToolResultSummary({ toolName, result }: { toolName: string; result: unknown }) {
   if (!result || typeof result !== 'object') return null
   const data = result as Record<string, unknown>
@@ -465,22 +493,7 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
 
   // All accounts
   if (toolName === 'getAllAccounts' && Array.isArray(data.accounts)) {
-    const accounts = data.accounts as Array<Record<string, unknown>>
-    return (
-      <div className="flex flex-col gap-1">
-        {accounts.slice(0, 5).map((acc, i) => (
-          <MiniResultCard
-            key={i}
-            icon={<img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain" />}
-            title={<span className="text-white">{String(acc.name)}</span>}
-            subtitle={`${acc.mrr ?? ''} · ${String(acc.riskLevel ?? 'unknown')} risk`}
-          />
-        ))}
-        {accounts.length > 5 && (
-          <div className="text-[12px] text-neutral-500 pl-7">+ {accounts.length - 5} more accounts</div>
-        )}
-      </div>
-    )
+    return <AccountsListResult accounts={data.accounts as Array<Record<string, unknown>>} />
   }
 
   // Gmail threads (both account-level and founder's own inbox)
