@@ -849,6 +849,10 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
     }
   }
 
+  const hasAssistantText = parts.some(
+    (p) => p.type === "text" && typeof p.text === 'string' && Boolean(p.text.trim())
+  )
+
   // Group sequential tool calls into reasoning batches
   const rendered: React.ReactNode[] = []
   let toolBatch: React.ReactNode[] = []
