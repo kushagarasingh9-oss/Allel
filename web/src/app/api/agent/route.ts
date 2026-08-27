@@ -282,13 +282,16 @@ CORE OPERATIONAL DOCTRINE:
   ]
 
 
-  // Build conversation context from ALL user messages in the window,
-  // not just the latest one. This ensures follow-ups like "yeah reply"
-  // retain Gmail tools from earlier turns. (Bug 1.6 fix)
   const conversationText = recentMessages
     .filter((m) => m.role === 'user')
     .flatMap((m) => (m.parts ?? []).filter((p) => p.type === 'text').map((p) => (p as { text: string }).text))
     .join('\n')
+
+  // Prioritize active turn focus: use the latest user message for tool routing.
+  // Only expand to preceding turns if the latest message is a brief referent ("yes", "do it", "send").
+  const latestText = latestUserMessage ? getMessageTextContent(latestUserMessage).trim() : ''
+  const isShortReferent = latestText.split(/\s+/).length <= 3
+  const activePromptText = isShortReferent && conversationText ? `${latestText}\n${conversationText}` : (latestText || conversationText)
 
   const modelId = resolveAgentModelId({
     personaId: persona.id,
@@ -299,7 +302,7 @@ CORE OPERATIONAL DOCTRINE:
     modelId,
     channel: 'chat',
     runType: 'chat_message',
-    prompt: conversationText,
+    prompt: activePromptText,
     historyMessages: enrichedMessages,
   })
 
