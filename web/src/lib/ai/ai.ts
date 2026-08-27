@@ -6,7 +6,7 @@
  */
 
 import { generateText as aiGenerateText, generateObject as aiGenerateObject } from 'ai'
-import { openai, createOpenAI } from '@ai-sdk/openai'
+import { createOpenAI } from '@ai-sdk/openai'
 import { AsyncLocalStorage } from 'async_hooks'
 import type { ZodSchema } from 'zod'
 

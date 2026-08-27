@@ -2,7 +2,6 @@ import type { UIMessage } from 'ai'
 import { createServiceClient } from '@/lib/supabase/service'
 import {
   getMessageTextContent,
-  sanitizeClientUiMessages,
   sanitizePersistedDatabaseMessages,
   type TrustedMessageMetadata,
 } from './ui-message-utils'
