@@ -658,6 +658,93 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
     )
   }
 
+  // PostHog Insights
+  if (toolName === 'listPostHogInsights' && Array.isArray(data.insights)) {
+    const insights = data.insights as Array<Record<string, unknown>>
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        {insights.slice(0, 4).map((ins, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-white">{String(ins.name ?? 'Insight')}</span>}
+            subtitle={String(ins.description || 'Saved metric insight')}
+          />
+        ))}
+        {insights.length > 4 && (
+          <div className="text-[11.5px] text-neutral-500 pl-7">+ {insights.length - 4} more insights</div>
+        )}
+      </div>
+    )
+  }
+
+  // PostHog Events
+  if (toolName === 'getPostHogEvents' && Array.isArray(data.events)) {
+    const events = data.events as Array<Record<string, unknown>>
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        {events.slice(0, 4).map((ev, i) => {
+          const isCancel = String(ev.event).includes('cancel')
+          return (
+            <MiniResultCard
+              key={i}
+              icon={<img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain shrink-0" />}
+              title={
+                <span className={`font-mono text-[11.5px] ${isCancel ? 'text-rose-400 font-semibold' : 'text-white'}`}>
+                  {String(ev.event ?? 'event')}
+                </span>
+              }
+              subtitle={
+                <span className="flex items-center gap-1.5 truncate">
+                  <span className="text-neutral-400">{String(ev.distinctId ?? 'user')}</span>
+                  {ev.url ? <span className="text-neutral-500 truncate">· {String(ev.url)}</span> : null}
+                </span>
+              }
+            />
+          )
+        })}
+        {events.length > 4 && (
+          <div className="text-[11.5px] text-neutral-500 pl-7">+ {events.length - 4} more events</div>
+        )}
+      </div>
+    )
+  }
+
+  // PostHog Cohorts
+  if (toolName === 'listPostHogCohorts' && Array.isArray(data.cohorts)) {
+    const cohorts = data.cohorts as Array<Record<string, unknown>>
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        {cohorts.map((c, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-white">{String(c.name ?? 'Cohort')}</span>}
+            subtitle={`${c.userCount ?? 0} users in cohort`}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // PostHog Event Definitions
+  if (toolName === 'getPostHogEventDefinitions' && Array.isArray(data.events)) {
+    const evDefs = data.events as Array<Record<string, unknown>>
+    if (evDefs.length === 0) return null
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        {evDefs.slice(0, 3).map((def, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="font-mono text-[11.5px] text-white">{String(def.name)}</span>}
+            subtitle={`${def.volume30d ?? 0} events / 30d`}
+          />
+        ))}
+      </div>
+    )
+  }
+
   // Generic success
   if (data.success) {
     return (
