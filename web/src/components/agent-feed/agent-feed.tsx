@@ -849,8 +849,22 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
     const part = parts[i]
 
     if (part.type === "text" && part.text.trim()) {
+      let rawText = part.text
+      const thinkMatch = rawText.match(/<think>([\s\S]*?)(?:<\/think>|$)/i)
+      if (thinkMatch) {
+        const thinkContent = thinkMatch[1].trim()
+        if (thinkContent) {
+          toolBatch.push(
+            <MonologueBlock key={`think-match-${i}`} text={thinkContent} />
+          )
+        }
+        rawText = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim()
+      }
+
       flushToolBatch()
-      rendered.push(<AgentSpeechBlock key={`text-${i}`} text={part.text} />)
+      if (rawText) {
+        rendered.push(<AgentSpeechBlock key={`text-${i}`} text={rawText} />)
+      }
       initialReasoningText = ""
       hasRenderedInitialReasoning = false
     }
