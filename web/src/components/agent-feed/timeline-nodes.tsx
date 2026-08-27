@@ -244,8 +244,8 @@ export function AgentReasoningBatch({
   toolNames?: string[]
 }) {
   const label = describeReasoningBatch({ isExecuting, stepsCount, announcedActionMismatch, toolNames })
-  // Start open if it's currently executing, closed if it's a past message
-  const [isOpen, setIsOpen] = React.useState(isExecuting)
+  // Keep open so steps and reasoning are always visible
+  const [isOpen, setIsOpen] = React.useState(true)
 
   React.useEffect(() => {
     if (isExecuting && !isOpen) setIsOpen(true)
@@ -258,7 +258,7 @@ export function AgentReasoningBatch({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex items-center gap-1.5 text-[13px] font-medium transition-colors group select-none py-1",
+          "flex items-center gap-1.5 text-[13px] font-medium transition-colors group select-none py-1 cursor-pointer",
           label.isUnfulfilled
             ? "text-amber-400/90 hover:text-amber-300"
             : "text-neutral-400 hover:text-neutral-200"
@@ -301,16 +301,7 @@ export function TimelineNode({
   children,
   className
 }: TimelineNodeProps) {
-  const [isOpen, setIsOpen] = React.useState(!isCompleted)
-  const hasAutoCollapsedRef = React.useRef(false)
-
-  React.useEffect(() => {
-    if (isCompleted && !hasAutoCollapsedRef.current) {
-      hasAutoCollapsedRef.current = true
-      const timer = setTimeout(() => setIsOpen(false), 1400)
-      return () => clearTimeout(timer)
-    }
-  }, [isCompleted])
+  const [isOpen, setIsOpen] = React.useState(true)
 
   return (
     <div className={cn("relative flex flex-col group", className)}>
