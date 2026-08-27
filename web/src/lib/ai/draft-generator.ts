@@ -40,7 +40,7 @@ export async function generateDraft(params: {
     schema: DraftOutputSchema,
     schemaName: 'email_draft',
     schemaDescription: 'A follow-up email draft with subject and body',
-    maxOutputTokens: 512,
+    maxOutputTokens: 2048,
     temperature: 0.4,
   })
 

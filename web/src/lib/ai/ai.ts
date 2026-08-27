@@ -17,7 +17,8 @@ const MODEL_ID = process.env.OPENAI_MODEL_ID || 'gpt-4o'
 
 /** Resolve the model via the unified router so Azure/GitHub Models deployments work. */
 function resolvedModel() {
-  return getLanguageModel(MODEL_ID)
+  const modelId = process.env.OPENAI_MODEL_ID || 'gpt-4o'
+  return getLanguageModel(modelId)
 }
 
 /**
@@ -165,7 +166,7 @@ export function getLanguageModel(modelIdOverride?: string) {
       // This prevents 429 TPM spikes from surfacing as hard errors to the agent.
       fetch: fetchWithBackoff,
     })
-    return azureOpenAI(modelId)
+    return azureOpenAI.chat(modelId)
   }
 
   if (apiKey && apiKey.startsWith('1ss')) {
@@ -174,14 +175,14 @@ export function getLanguageModel(modelIdOverride?: string) {
       baseURL: 'https://models.inference.ai.azure.com',
       fetch: fetchWithBackoff,
     })
-    return githubModels(modelId)
+    return githubModels.chat(modelId)
   }
 
   const standardOpenAI = createOpenAI({
     apiKey,
     fetch: fetchWithBackoff,
   })
-  return standardOpenAI(modelId)
+  return standardOpenAI.chat(modelId)
 }
 
 export function isAIConfigured() {
