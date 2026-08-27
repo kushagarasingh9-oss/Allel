@@ -197,7 +197,7 @@ export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boole
     return isExecuting ? "Verifying active connections..." : "Verified active connections"
   }
 
-  return isExecuting ? "Executing requested workflow..." : "Completed requested workflow"
+  return isExecuting ? "Executing requested workflow" : "Completed requested workflow"
 }
 
 /**

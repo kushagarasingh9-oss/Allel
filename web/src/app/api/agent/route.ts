@@ -476,9 +476,13 @@ CORE OPERATIONAL DOCTRINE:
         })
 
       const mergeAgentStream = async (agentStream: unknown) => {
-        await writer.merge(
-          agentStream as AsyncIterableStream<InferUIMessageChunk<AgentChatMessage>>
-        )
+        const stream = agentStream as AsyncIterableStream<InferUIMessageChunk<AgentChatMessage>>
+        const reader = stream.getReader()
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          writer.write(value)
+        }
       }
 
       const onStreamRetry = ({ attempt, waitSeconds }: { attempt: number; waitSeconds: number }) => {

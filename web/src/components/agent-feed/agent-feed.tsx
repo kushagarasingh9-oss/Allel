@@ -875,14 +875,14 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
       if (thinkMatch) {
         const thinkContent = thinkMatch[1].trim()
         if (thinkContent) {
-          toolBatch.push(
+          flushToolBatch()
+          rendered.push(
             <MonologueBlock
               key={`think-match-${i}`}
               text={thinkContent}
               isExecuting={isChatStreaming}
             />
           )
-          hasRenderedInitialReasoning = true
         }
         rawText = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim()
       }
@@ -897,21 +897,17 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
           />
         )
       }
-      hasRenderedInitialReasoning = false
     }
 
     if (part.type === "reasoning" && typeof part.text === 'string' && part.text.trim()) {
-      const isRetryPart = part.text.toLowerCase().includes('capacity') || part.text.toLowerCase().includes('retry')
-      if (isRetryPart || !hasRenderedInitialReasoning) {
-        if (!isRetryPart) hasRenderedInitialReasoning = true
-        toolBatch.push(
-          <MonologueBlock
-            key={`reasoning-${i}`}
-            text={part.text}
-            isExecuting={isChatStreaming}
-          />
-        )
-      }
+      flushToolBatch()
+      rendered.push(
+        <MonologueBlock
+          key={`reasoning-${i}`}
+          text={part.text}
+          isExecuting={isChatStreaming}
+        />
+      )
     }
 
     // Tool parts: in AI SDK v6, tool types are `tool-${NAME}` or `dynamic-tool`
@@ -1565,8 +1561,14 @@ export function AgentFeed() {
             const t = String(p.type ?? '')
             return (t.startsWith('tool-') || t === 'dynamic-tool') && Boolean(p.state)
           })
-          // Keep "Thinking..." showing until either assistant text or tool execution steps are visible
-          const isThinkingActive = !hasAssistantText && !hasVisibleToolPart
+          // A thinking part is visible if reasoning is present or text has <think>
+          const hasThinkingPart = lastParts.some((p) => {
+            if (p.type === "reasoning" && typeof p.text === 'string' && Boolean((p.text as string).trim())) return true
+            if (p.type === "text" && typeof p.text === 'string' && (p.text as string).includes('<think>')) return true
+            return false
+          })
+          // Keep "Thinking..." pulsing dots showing ONLY until thinking, tools, or speech are visible
+          const isThinkingActive = !hasAssistantText && !hasVisibleToolPart && !hasThinkingPart
           return isThinkingActive ? <AgentThinking /> : null
         })()}
 
