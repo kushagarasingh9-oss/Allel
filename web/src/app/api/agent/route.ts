@@ -264,16 +264,16 @@ CORE OPERATIONAL DOCTRINE:
     // Include persisted conversation memory as a system message
     ...(memoryPrompt
       ? [{
-          id: `system-conversation-memory-${persona.id}`,
-          role: 'system' as const,
-          parts: [{ type: 'text' as const, text: memoryPrompt }],
-        }]
+        id: `system-conversation-memory-${persona.id}`,
+        role: 'system' as const,
+        parts: [{ type: 'text' as const, text: memoryPrompt }],
+      }]
       : []),
     // Pillar 3: Compact old tool results in history to prevent O(N²) token growth.
     // Keeps the last tool exchange verbatim; earlier large payloads are truncated to
     // a 1-line preview + char count. User/assistant messages are never touched.
     // Double-cast via unknown[] — compactToolHistory returns same objects at runtime.
-    ...(compactToolHistory(recentMessages as unknown as Array<{ role: string; parts?: Array<{ type: string; text?: string }>; [key: string]: unknown }>)
+    ...(compactToolHistory(recentMessages as unknown as Array<{ role: string; parts?: Array<{ type: string; text?: string }>;[key: string]: unknown }>)
       .filter((m) => Array.isArray(m.parts) && (m.parts?.length ?? 0) > 0) as unknown as AgentChatMessage[]),
 
   ]
@@ -371,8 +371,8 @@ CORE OPERATIONAL DOCTRINE:
                 const synthesized = calledToolNames.length > 0
                   ? buildFallbackSynthesisForTools(calledToolNames)
                   : isContentFilter
-                  ? "The AI safety filter blocked this request (content-filter). Please try rephrasing (e.g. 'check inbox' or 'scan emails')."
-                  : "The model returned an empty response. Please retry your request."
+                    ? "The AI safety filter blocked this request (content-filter). Please try rephrasing (e.g. 'check inbox' or 'scan emails')."
+                    : "The model returned an empty response. Please retry your request."
 
                 const synthId = `synth-${Date.now()}`
                 writer.write({
@@ -407,8 +407,7 @@ CORE OPERATIONAL DOCTRINE:
 
               if (mismatchResult.mismatch) {
                 console.warn(
-                  `[agent-route] Announced action mismatch (${mismatchResult.reason}): announced ${
-                    mismatchResult.announcedProviders.join(', ') || 'unspecified'
+                  `[agent-route] Announced action mismatch (${mismatchResult.reason}): announced ${mismatchResult.announcedProviders.join(', ') || 'unspecified'
                   }, called ${mismatchResult.calledProviders.join(', ') || 'nothing'} — "${outputText.slice(0, 120)}"`
                 )
               }
@@ -424,12 +423,12 @@ CORE OPERATIONAL DOCTRINE:
                 }),
                 ...(mismatchResult.mismatch
                   ? {
-                      announcedActionMismatch: {
-                        reason: mismatchResult.reason,
-                        announcedProviders: mismatchResult.announcedProviders,
-                        calledProviders: mismatchResult.calledProviders,
-                      },
-                    }
+                    announcedActionMismatch: {
+                      reason: mismatchResult.reason,
+                      announcedProviders: mismatchResult.announcedProviders,
+                      calledProviders: mismatchResult.calledProviders,
+                    },
+                  }
                   : {}),
               }
 
