@@ -73,7 +73,99 @@ async function fetchWithBackoff(
       }
     }
 
+function transformReasoningSSEStream(rawStream: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const reader = rawStream.getReader()
+  const decoder = new TextDecoder()
+  const encoder = new TextEncoder()
+  let buffer = ''
+  let inReasoning = false
+
+  return new ReadableStream({
+    async pull(controller) {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) {
+          if (inReasoning) {
+            controller.enqueue(encoder.encode('data: {"choices":[{"index":0,"delta":{"content":"</think>"}}]}\n\n'))
+            inReasoning = false
+          }
+          controller.close()
+          break
+        }
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (let line of lines) {
+          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+            try {
+              const json = JSON.parse(line.slice(6))
+              const delta = json.choices?.[0]?.delta
+              if (delta?.reasoning_content) {
+                let content = delta.reasoning_content
+                if (!inReasoning) {
+                  content = '<think>' + content
+                  inReasoning = true
+                }
+                delta.content = content
+                line = 'data: ' + JSON.stringify(json)
+              } else if (inReasoning && (delta?.content || delta?.tool_calls)) {
+                const prefix = '</think>'
+                inReasoning = false
+                if (delta?.content) {
+                  delta.content = prefix + delta.content
+                  line = 'data: ' + JSON.stringify(json)
+                } else {
+                  // Tool call chunk — inject closing </think> chunk with valid choice index
+                  const closingChunk = {
+                    choices: [{ index: 0, delta: { content: prefix } }]
+                  }
+                  controller.enqueue(encoder.encode('data: ' + JSON.stringify(closingChunk) + '\n\n'))
+                }
+              }
+            } catch {
+              // Ignore JSON parse errors for non-JSON lines
+            }
+          }
+          controller.enqueue(encoder.encode(line + '\n'))
+        }
+        break
+      }
+    }
+  })
+}
+
     if (!shouldRetry || attempt >= maxRetries) {
+      const contentType = response.headers.get('content-type') || ''
+      if (contentType.includes('text/event-stream') && response.body) {
+        const transformed = transformReasoningSSEStream(response.body)
+        return new Response(transformed, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        })
+      }
+
+      if (contentType.includes('application/json')) {
+        try {
+          const clone = response.clone()
+          const json = await clone.json()
+          const choice = json.choices?.[0]
+          if (choice?.message?.reasoning_content) {
+            const reasoning = choice.message.reasoning_content
+            choice.message.content = `<think>${reasoning}</think>\n\n${choice.message.content || ''}`
+            return new Response(JSON.stringify(json), {
+              status: response.status,
+              statusText: response.statusText,
+              headers: response.headers,
+            })
+          }
+        } catch {
+          // Ignore JSON clone errors
+        }
+      }
+
       return response
     }
 
