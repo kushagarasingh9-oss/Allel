@@ -1059,7 +1059,20 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
 
   flushToolBatch()
 
-  if (rendered.length === 0) return null
+  if (rendered.length === 0) {
+    if (isChatStreaming) return null
+    return (
+      <div className="w-full relative z-10 pt-2 mb-6">
+        <div className="w-full flex flex-col gap-2">
+          <AgentSpeechBlock
+            key={`fallback-${message.id || 'default'}`}
+            text="Hey! What's on your mind today? I can check your inbox, review billing health, or scan for account risks."
+            isStreaming={false}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="w-full relative z-10 pt-2 mb-6">
