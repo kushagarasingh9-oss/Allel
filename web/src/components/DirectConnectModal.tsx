@@ -182,7 +182,7 @@ export default function DirectConnectModal({
             await connectStripe(apiKey.trim())
             break
           case 'posthog':
-            await connectPostHog(apiKey.trim(), secondaryInput.trim() || 'default')
+            await connectPostHog(apiKey.trim(), secondaryInput.trim() || undefined)
             break
           case 'notion':
             await connectNotion(apiKey.trim())

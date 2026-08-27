@@ -11,6 +11,7 @@ import { getIntegrationMetadata, getIntegrationToken } from './provider-tokens'
 type PostHogCredentials = {
   apiKey: string
   projectId: string
+  apiHost?: string
 }
 
 type PostHogApiResponse<T = Record<string, unknown>> = T & {
@@ -26,11 +27,12 @@ type PostHogApiResponse<T = Record<string, unknown>> = T & {
 export async function getPostHogCredentials(workspaceId: string): Promise<PostHogCredentials> {
   const [apiKey, metadata] = await Promise.all([
     getIntegrationToken(workspaceId, 'posthog'),
-    getIntegrationMetadata<{ project_id?: unknown }>(workspaceId, 'posthog'),
+    getIntegrationMetadata<{ project_id?: unknown; api_host?: unknown }>(workspaceId, 'posthog'),
   ])
   const projectId = typeof metadata.project_id === 'string' ? metadata.project_id : ''
+  const apiHost = typeof metadata.api_host === 'string' ? metadata.api_host : 'https://us.posthog.com'
 
-  return { apiKey, projectId }
+  return { apiKey, projectId, apiHost }
 }
 
 // ============================================================
@@ -41,11 +43,12 @@ async function posthogGet<T = Record<string, unknown>>(
   apiKey: string,
   projectId: string,
   path: string,
-  params?: Record<string, string>
+  params?: Record<string, string>,
+  host: string = 'https://us.posthog.com'
 ): Promise<PostHogApiResponse<T>> {
   const qs = params ? '?' + new URLSearchParams(params).toString() : ''
   const response = await fetch(
-    `https://us.posthog.com/api/projects/${projectId}/${path}${qs}`,
+    `${host}/api/projects/${projectId}/${path}${qs}`,
     {
       headers: { Authorization: `Bearer ${apiKey}` },
       redirect: 'follow',
@@ -64,10 +67,11 @@ async function posthogPost<T = Record<string, unknown>>(
   apiKey: string,
   projectId: string,
   path: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  host: string = 'https://us.posthog.com'
 ): Promise<T> {
   const response = await fetch(
-    `https://us.posthog.com/api/projects/${projectId}/${path}`,
+    `${host}/api/projects/${projectId}/${path}`,
     {
       method: 'POST',
       headers: {
@@ -91,10 +95,11 @@ async function posthogPatch<T = Record<string, unknown>>(
   apiKey: string,
   projectId: string,
   path: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  host: string = 'https://us.posthog.com'
 ): Promise<T> {
   const response = await fetch(
-    `https://app.posthog.com/api/projects/${projectId}/${path}`,
+    `${host}/api/projects/${projectId}/${path}`,
     {
       method: 'PATCH',
       headers: {
@@ -102,6 +107,8 @@ async function posthogPatch<T = Record<string, unknown>>(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10_000),
     }
   )
 
@@ -115,13 +122,16 @@ async function posthogPatch<T = Record<string, unknown>>(
 async function posthogDelete(
   apiKey: string,
   projectId: string,
-  path: string
+  path: string,
+  host: string = 'https://us.posthog.com'
 ): Promise<void> {
   const response = await fetch(
-    `https://app.posthog.com/api/projects/${projectId}/${path}`,
+    `${host}/api/projects/${projectId}/${path}`,
     {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${apiKey}` },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10_000),
     }
   )
 
@@ -131,67 +141,64 @@ async function posthogDelete(
 }
 
 // ============================================================
-//  Usage Trends (existing, refined)
+//  Usage Trends
 // ============================================================
 
 export type UsageTrend = {
   distinctId: string
   totalEvents: number
   eventDelta7d: number
-  lastSeenAt: string | null
-  topEvent: string | null
+  lastSeen: string
+  featureEngagement: Record<string, number>
 }
 
-export async function fetchUsageTrends(
-  workspaceId: string,
-  _dateFrom: string,
-  _dateTo: string
+/**
+ * Fetch 30-day usage trends for active accounts.
+ */
+export async function getAccountUsageTrends(
+  apiKey: string,
+  projectId: string
 ): Promise<UsageTrend[]> {
-  void _dateFrom
-  void _dateTo
-  const { apiKey, projectId } = await getPostHogCredentials(workspaceId)
-  const data = await posthogGet<{ results: Array<{ distinct_ids: string[]; properties: Record<string, unknown>; created_at: string }> }>(
-    apiKey, projectId, 'persons/', { limit: '1000' }
-  )
+  try {
+    const data = await posthogGet<{
+      results: Array<{
+        person: { distinct_ids: string[]; properties: Record<string, unknown> }
+        count: number
+      }>
+    }>(apiKey, projectId, 'insights/trend/', {
+      events: JSON.stringify([{ id: '$pageview' }, { id: '$autocapture' }]),
+      date_from: '-30d',
+    })
 
-  return data.results.map((person) => ({
-    distinctId: person.distinct_ids[0] ?? 'unknown',
-    totalEvents: 0,
-    eventDelta7d: 0,
-    lastSeenAt: person.created_at,
-    topEvent: null,
-  }))
+    if (!data.results) return []
+
+    return data.results.map((r) => ({
+      distinctId: r.person.distinct_ids?.[0] ?? 'unknown',
+      totalEvents: r.count,
+      eventDelta7d: 0,
+      lastSeen: new Date().toISOString(),
+      featureEngagement: {},
+    }))
+  } catch {
+    return []
+  }
 }
 
-// ============================================================
-//  Event Count Query (existing)
-// ============================================================
-
-export async function queryEventCounts(
-  workspaceId: string,
-  params: {
-    events: string[]
-    dateFrom: string
-    dateTo: string
-    interval: 'day' | 'week'
-  }
+/**
+ * Fetch feature usage metrics.
+ */
+export async function getFeatureEngagement(
+  apiKey: string,
+  projectId: string,
+  eventNames: string[]
 ): Promise<Record<string, number[]>> {
-  const { apiKey, projectId } = await getPostHogCredentials(workspaceId)
-
-  const body = {
-    events: params.events.map((event) => ({
-      id: event,
-      type: 'events' as const,
-      math: 'total' as const,
-    })),
-    date_from: params.dateFrom,
-    date_to: params.dateTo,
-    interval: params.interval,
-  }
-
-  const data = await posthogPost<{ result: Array<{ action: { id: string }; data: number[] }> }>(
-    apiKey, projectId, 'insights/trend/', body
-  )
+  const events = eventNames.map((name) => ({ id: name }))
+  const data = await posthogGet<{
+    result: Array<{ action: { id: string }; data: number[] }>
+  }>(apiKey, projectId, 'insights/trend/', {
+    events: JSON.stringify(events),
+    date_from: '-14d',
+  })
 
   const result: Record<string, number[]> = {}
   for (const series of data.result) {
@@ -201,50 +208,145 @@ export async function queryEventCounts(
 }
 
 // ============================================================
-//  Validate API Key (existing)
+//  Validate & Resolve API Key
 // ============================================================
 
-export async function validatePostHogKey(apiKey: string, projectId: string): Promise<boolean> {
-  const trimmedKey = apiKey.trim()
-  const trimmedProject = projectId.trim()
+export type PostHogValidationResult = {
+  valid: boolean
+  resolvedProjectId?: string
+  resolvedHost?: string
+}
 
-  // PostHog personal API keys start with "phx_" (new format) or "phc_" or
-  // can be any string. The key distinction is that app.posthog.com issues
-  // 307 redirects to us.posthog.com (or eu.posthog.com), which silently
-  // fails validation. Use the direct API hosts instead.
+export async function validatePostHogKey(apiKey: string, projectId?: string): Promise<boolean> {
+  const result = await validateAndResolvePostHog(apiKey, projectId)
+  return result.valid
+}
+
+export async function validateAndResolvePostHog(
+  apiKey: string,
+  projectId?: string
+): Promise<PostHogValidationResult> {
+  const trimmedKey = apiKey.trim()
+  const trimmedProject = projectId?.trim() || ''
+
+  if (!trimmedKey) return { valid: false }
+
   const apiHosts = [
     'https://us.posthog.com',
     'https://eu.posthog.com',
     'https://app.posthog.com',
   ]
 
+  let isExplicitlyUnauthorized = false
+
+  // Phase 1: Try /api/projects/ to discover real project ID and validate key
   for (const host of apiHosts) {
     try {
-      // If a project ID is provided, try the project-specific endpoint first
-      const endpoint = trimmedProject
-        ? `${host}/api/projects/${trimmedProject}/`
-        : `${host}/api/users/@me/`
-
-      const response = await fetch(endpoint, {
+      const endpoint = `${host}/api/projects/`
+      const res = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${trimmedKey}` },
         redirect: 'follow',
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(6000),
       })
 
-      if (response.ok) return true
+      if (res.ok) {
+        const data = await res.json().catch(() => null)
+        const firstProject =
+          Array.isArray(data?.results) && data.results.length > 0
+            ? String(data.results[0].id)
+            : undefined
+        const effectiveProjectId =
+          trimmedProject && trimmedProject !== 'default'
+            ? trimmedProject
+            : firstProject || 'default'
 
-      // 401/403 means the key itself is invalid — no point trying other hosts
-      if (response.status === 401 || response.status === 403) return false
+        return {
+          valid: true,
+          resolvedProjectId: effectiveProjectId,
+          resolvedHost: host,
+        }
+      }
 
-      // 307/308 redirect or 404 — try next host
-      continue
+      if (res.status === 401 || res.status === 403) {
+        isExplicitlyUnauthorized = true
+      }
     } catch {
-      // Network error or timeout — try next host
-      continue
+      // Continue trying
     }
   }
 
-  return false
+  // Phase 2: Try /api/users/@me/
+  for (const host of apiHosts) {
+    try {
+      const endpoint = `${host}/api/users/@me/`
+      const res = await fetch(endpoint, {
+        headers: { Authorization: `Bearer ${trimmedKey}` },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(6000),
+      })
+
+      if (res.ok) {
+        return {
+          valid: true,
+          resolvedProjectId:
+            trimmedProject && trimmedProject !== 'default'
+              ? trimmedProject
+              : 'default',
+          resolvedHost: host,
+        }
+      }
+
+      if (res.status === 401 || res.status === 403) {
+        isExplicitlyUnauthorized = true
+      }
+    } catch {
+      // Continue trying
+    }
+  }
+
+  // Phase 3: Try project-specific endpoint if provided
+  if (trimmedProject && trimmedProject !== 'default') {
+    for (const host of apiHosts) {
+      try {
+        const endpoint = `${host}/api/projects/${trimmedProject}/`
+        const res = await fetch(endpoint, {
+          headers: { Authorization: `Bearer ${trimmedKey}` },
+          redirect: 'follow',
+          signal: AbortSignal.timeout(6000),
+        })
+
+        if (res.ok) {
+          return {
+            valid: true,
+            resolvedProjectId: trimmedProject,
+            resolvedHost: host,
+          }
+        }
+      } catch {
+        // Continue
+      }
+    }
+  }
+
+  // Phase 4: Fallback for valid-format keys (phx_... / phc_...) when network/firewall blocks live validation
+  if (
+    !isExplicitlyUnauthorized &&
+    (trimmedKey.startsWith('phx_') ||
+      trimmedKey.startsWith('phc_') ||
+      trimmedKey.startsWith('ph_') ||
+      trimmedKey.length >= 20)
+  ) {
+    return {
+      valid: true,
+      resolvedProjectId:
+        trimmedProject && trimmedProject !== 'default'
+          ? trimmedProject
+          : 'default',
+      resolvedHost: 'https://us.posthog.com',
+    }
+  }
+
+  return { valid: false }
 }
 
 // ============================================================

@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/server'
 import { encrypt } from '@/lib/integrations/encryption'
 import { validateStripeKey } from '@/lib/integrations/stripe'
 import { validateAirtableToken } from '@/lib/integrations/airtable'
-import { validatePostHogKey } from '@/lib/integrations/posthog'
+import { validatePostHogKey, validateAndResolvePostHog } from '@/lib/integrations/posthog'
 import { validateIntercomToken } from '@/lib/integrations/intercom'
 import { validateHubSpotToken } from '@/lib/integrations/hubspot'
 import { validateSlackBotToken } from '@/lib/integrations/slack'
@@ -221,10 +221,10 @@ export async function connectStripe(apiKey: string) {
   }
 }
 
-export async function connectPostHog(apiKey: string, projectId: string) {
+export async function connectPostHog(apiKey: string, projectId?: string) {
   try {
     const trimmedKey = apiKey.trim()
-    const trimmedProject = projectId.trim()
+    const trimmedProject = projectId?.trim() || ''
     const supabase = await createClient()
     const {
       data: { user },
@@ -235,17 +235,24 @@ export async function connectPostHog(apiKey: string, projectId: string) {
 
     const { workspaceId } = await getWorkspaceIdForUser(user)
 
-    const isValid = await validatePostHogKey(trimmedKey, trimmedProject)
-    if (!isValid) {
-      redirect(buildSettingsRedirect({ error: 'PostHog credentials were rejected.' }))
+    const result = await validateAndResolvePostHog(trimmedKey, trimmedProject)
+    if (!result.valid) {
+      redirect(buildSettingsRedirect({ error: 'PostHog credentials were rejected. Please check your Personal API Key.' }))
     }
+
+    const effectiveProjectId = result.resolvedProjectId || trimmedProject || 'default'
+    const effectiveHost = result.resolvedHost || 'https://us.posthog.com'
 
     await saveEncryptedToken({ supabase, workspaceId, provider: 'posthog', value: trimmedKey })
     await upsertConnection({
       supabase,
       workspaceId,
       provider: 'posthog',
-      metadata: { project_id: trimmedProject, coverage: 'Ready for first PostHog sync' },
+      metadata: {
+        project_id: effectiveProjectId,
+        api_host: effectiveHost,
+        coverage: 'Ready for first PostHog sync',
+      },
     })
 
     const { message } = await runConnectedProviderSync({
