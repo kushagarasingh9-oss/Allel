@@ -1457,10 +1457,17 @@ export function AgentFeed() {
 
         {(() => {
           const lastMsg = messages[messages.length - 1]
-          const hasTextOutput = lastMsg?.parts?.some(
-            (p) => p.type === "text" && Boolean((p as { text?: string }).text?.trim())
+          const lastParts = (lastMsg?.parts ?? []) as Array<Record<string, unknown>>
+          const hasTextOutput = lastParts.some(
+            (p) => p.type === "text" && typeof p.text === 'string' && Boolean((p.text as string).trim())
           )
-          const isThinkingActive = isLoading && (!lastMsg || lastMsg.role === "user" || !hasTextOutput) && !error
+          // A tool part is "visible" once it has a concrete state (input-streaming, output-available, etc.)
+          const hasVisibleToolPart = lastParts.some((p) => {
+            const t = String(p.type ?? '')
+            return (t.startsWith('tool-') || t === 'dynamic-tool') && Boolean(p.state)
+          })
+          // Keep "Thinking..." showing until either text or tool execution steps are visible
+          const isThinkingActive = isLoading && !error && !hasTextOutput && !hasVisibleToolPart
           return isThinkingActive ? <AgentThinking /> : null
         })()}
 
