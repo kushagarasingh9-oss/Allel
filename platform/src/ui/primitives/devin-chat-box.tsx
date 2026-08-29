@@ -294,9 +294,9 @@ export function DevinChatBox({
                   <img src={item.icon} alt={item.name} className="w-3.5 h-3.5 object-contain shrink-0" />
                 </div>
 
-                {/* Hover Tooltip Popover Card */}
+                {/* Hover Tooltip Popover Card (Interactive) */}
                 {hoveredLogo === item.id && (
-                  <div className="absolute bottom-7 -left-16 z-50 w-[210px] bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-xs text-zinc-300 pointer-events-none select-none">
+                  <div className="absolute bottom-8 -left-16 z-50 w-[220px] bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-xs text-zinc-300 select-none">
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-1.5">
                         <img src={item.icon} alt={item.name} className="w-3.5 h-3.5 object-contain" />
@@ -313,13 +313,20 @@ export function DevinChatBox({
                       </span>
                     </div>
 
-                    <p className="text-[11px] text-zinc-400 leading-snug mb-2">
+                    <p className="text-[11px] text-zinc-400 leading-snug mb-2.5">
                       {item.desc}
                     </p>
 
-                    <div className="text-[10px] font-semibold text-[#38bdf8] flex items-center gap-1">
-                      <span>{item.connected ? "Manage connection →" : "Connect now →"}</span>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.location.href = `/dashboard/connections?provider=${item.id}`;
+                      }}
+                      className="w-full py-1.5 px-2.5 rounded-lg bg-white text-black font-semibold text-[11px] hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                    >
+                      <span>{item.connected ? "Configure connection" : `Connect ${item.name}`}</span>
+                    </button>
                   </div>
                 )}
               </div>
