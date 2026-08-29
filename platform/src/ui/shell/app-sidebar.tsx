@@ -238,7 +238,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
     (chatContext?.isLoading &&
      chatContext?.messages &&
      chatContext.messages.length > 0 &&
-     !chatContext.messages.some((m) => m.role === "assistant" && (m.parts?.some((p) => p.type === "text" && (p as { text?: string }).text?.trim().length > 0))))
+     !chatContext.messages.some((m) => m.role === "assistant" && (m.parts?.some((p) => p.type === "text" && typeof (p as { text?: string }).text === "string" && (p as { text?: string }).text!.trim().length > 0))))
   );
 
   const hasActiveMessages = Boolean(chatContext?.messages && chatContext.messages.length > 0);
@@ -256,12 +256,12 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   });
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#0f0f10] text-[#F4F4F5] transition-colors relative">
-      {/* Sidebar Pane — Clean Dark #0b0b0c Surface */}
+    <div className="flex h-screen w-full overflow-hidden bg-[#09090b] text-[#F4F4F5] transition-colors relative p-2 gap-2">
+      {/* Sidebar Pane — External background environment */}
       <aside
         className={cn(
-          "flex flex-col justify-between h-full bg-[#0b0b0c] border-r border-[#1a1a1c] transition-all duration-300 ease-in-out shrink-0 py-3 px-3 relative z-30 select-none",
-          collapsed ? "w-[60px]" : "w-[240px]"
+          "flex flex-col justify-between h-full bg-transparent transition-all duration-300 ease-in-out shrink-0 py-1 px-1 relative z-30 select-none",
+          collapsed ? "w-[52px]" : "w-[236px]"
         )}
       >
         {/* Top Header & Navigation */}
@@ -597,8 +597,8 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
         )}
       </aside>
 
-      {/* Main Workspace Panel Container — Flush Full Canvas */}
-      <main className="flex-1 h-full min-w-0 bg-[#141414] relative overflow-auto flex flex-col">
+      {/* Main Workspace Panel Container — Rounded Floating Canvas with Subtle Border & Depth */}
+      <main className="flex-1 h-full min-w-0 bg-[#121214] border border-white/[0.08] rounded-2xl relative overflow-hidden flex flex-col shadow-2xl">
         {children}
       </main>
     </div>

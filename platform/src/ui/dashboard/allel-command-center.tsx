@@ -134,9 +134,9 @@ export function AllelCommandCenter() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#0f0f10] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
+    <div className="flex flex-col h-full w-full bg-[#121214] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
       {/* Top Header Bar (Devin Style: No Border Divider + Pure Icon Cluster) */}
-      <header className="h-11 px-4 flex items-center justify-between shrink-0 bg-[#0f0f10] z-20">
+      <header className="h-11 px-4 flex items-center justify-between shrink-0 bg-[#121214] z-20">
         <div className="flex items-center gap-3">
           {!hasMessages ? (
             <span className="text-xs sm:text-sm font-medium text-zinc-300">
