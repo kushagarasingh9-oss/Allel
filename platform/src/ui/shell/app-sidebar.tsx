@@ -57,20 +57,20 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const meta = user.user_metadata ?? {};
-          const pic = meta.avatar_url || meta.picture || meta.avatar_path || null;
-          if (pic) setAvatarUrl(pic);
-          
-          const name = meta.full_name || meta.name || meta.display_name || user.email?.split('@')[0] || "kushagra singh";
-          setUserName(name);
+        
+        const activeEmail = user?.email || "kushagrasingh175@gmail.com";
+        setUserEmail(activeEmail);
 
-          if (user.email) {
-            setUserEmail(user.email);
-          }
-        }
+        const meta = user?.user_metadata ?? {};
+        const name = meta.full_name || meta.name || meta.display_name || activeEmail.split('@')[0] || "kushagra singh";
+        setUserName(name);
+
+        // Fetch exact profile picture from Google OAuth metadata or unavatar service for the logged-in Gmail address
+        const pic = meta.avatar_url || meta.picture || meta.avatar_path || `https://unavatar.io/${encodeURIComponent(activeEmail)}`;
+        setAvatarUrl(pic);
       } catch (err) {
         console.error("Failed to load user info:", err);
+        setAvatarUrl(`https://unavatar.io/kushagrasingh175@gmail.com`);
       }
     }
     loadUser();
@@ -308,17 +308,14 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 onMouseEnter={() => setIsProfileMenuOpen(true)}
                 className="flex items-center gap-2 text-xs font-medium text-zinc-300 hover:text-white transition-colors cursor-pointer group"
               >
-                {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt="Account"
-                    className="w-5 h-5 rounded-full object-cover shrink-0"
-                  />
-                ) : (
-                  <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-amber-600 to-red-500 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
-                    KU
-                  </div>
-                )}
+                <img
+                  src={avatarUrl || `https://unavatar.io/${encodeURIComponent(userEmail)}`}
+                  alt="Account"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = `https://unavatar.io/${encodeURIComponent(userEmail)}`;
+                  }}
+                  className="w-5 h-5 rounded-full object-cover shrink-0 border border-white/10"
+                />
                 <span className="text-xs">Account</span>
               </button>
 
@@ -329,17 +326,14 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                   className="absolute bottom-9 left-0 z-50 w-64 bg-[#161616] border border-[#262626] rounded-xl p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-150 select-none"
                 >
                   <div className="flex items-center gap-2.5 p-2 mb-2 bg-[#202020] rounded-lg border border-[#282828]">
-                    {avatarUrl ? (
-                      <img
-                        src={avatarUrl}
-                        alt={userName}
-                        className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/10"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600 to-red-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                        {userName.slice(0, 2).toUpperCase()}
-                      </div>
-                    )}
+                    <img
+                      src={avatarUrl || `https://unavatar.io/${encodeURIComponent(userEmail)}`}
+                      alt={userName}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://unavatar.io/${encodeURIComponent(userEmail)}`;
+                      }}
+                      className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/10"
+                    />
                     <div className="flex flex-col min-w-0">
                       <span className="text-xs font-medium text-white truncate">
                         {userName}
