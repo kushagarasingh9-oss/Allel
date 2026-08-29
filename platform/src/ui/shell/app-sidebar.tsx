@@ -371,9 +371,15 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 )}
               </button>
               {isHistoryOpen && (
-                <div className="flex flex-col gap-0.5 overflow-y-auto pr-1 max-h-[220px] custom-scrollbar">
+                <div className="flex flex-col gap-0.5 overflow-y-auto pr-1 flex-1 max-h-none custom-scrollbar">
                   {/* Active / Pending Session Skeleton Item with white round loader & left-to-right shimmer animation */}
-                  {(pendingSessionId || (chatContext?.isResolvingTitle && chatContext?.currentSessionId)) && !historySessions.some((s) => s.sessionId === (pendingSessionId || chatContext?.currentSessionId)) && (
+                  {Boolean(
+                    pendingSessionId ||
+                    (chatContext?.isLoading &&
+                     chatContext?.messages &&
+                     chatContext.messages.length > 0 &&
+                     !chatContext.messages.some((m) => m.role === "assistant" && (m.parts?.some((p) => p.type === "text" && (p as { text?: string }).text?.trim().length > 0))))
+                  ) && (
                     <div className="relative group w-full my-0.5 animate-in fade-in duration-200">
                       <div className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-2 border border-transparent bg-transparent text-white select-none">
                         <Loader2 className="w-3.5 h-3.5 animate-spin text-white shrink-0" />
@@ -384,23 +390,36 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                     </div>
                   )}
 
-                  {isFetchingHistory && historySessions.length === 0 && !pendingSessionId ? (
+                  {isFetchingHistory && historySessions.length === 0 ? (
                     <div className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-500 font-normal truncate">
                       Loading history...
                     </div>
-                  ) : historySessions.length === 0 && !pendingSessionId ? (
+                  ) : historySessions.length === 0 ? (
                     <div className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-500 font-normal truncate">
                       No previous sessions
                     </div>
                   ) : (
-                    historySessions.map((session) => {
-                      const hasActiveMessages = Boolean(chatContext?.messages && chatContext.messages.length > 0);
-                      const activeSessionId = hasActiveMessages
-                        ? (chatContext?.currentSessionId || (typeof window !== "undefined"
-                            ? new URLSearchParams(window.location.search).get("sessionId")
-                            : null))
-                        : null;
-                      const isSelected = Boolean(hasActiveMessages && activeSessionId === session.sessionId);
+                    historySessions
+                      .filter((s) => {
+                        const isResolving = Boolean(
+                          chatContext?.isLoading &&
+                          chatContext?.messages &&
+                          chatContext.messages.length > 0 &&
+                          !chatContext.messages.some((m) => m.role === "assistant" && (m.parts?.some((p) => p.type === "text" && (p as { text?: string }).text?.trim().length > 0)))
+                        );
+                        if (isResolving && (s.sessionId === chatContext?.currentSessionId || s.sessionId === pendingSessionId)) {
+                          return false;
+                        }
+                        return true;
+                      })
+                      .map((session) => {
+                        const hasActiveMessages = Boolean(chatContext?.messages && chatContext.messages.length > 0);
+                        const activeSessionId = hasActiveMessages
+                          ? (chatContext?.currentSessionId || (typeof window !== "undefined"
+                              ? new URLSearchParams(window.location.search).get("sessionId")
+                              : null))
+                          : null;
+                        const isSelected = Boolean(hasActiveMessages && activeSessionId === session.sessionId);
 
                       return (
                         <div key={session.sessionId} className="relative group w-full">
