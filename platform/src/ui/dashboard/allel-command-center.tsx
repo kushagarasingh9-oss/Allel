@@ -187,9 +187,9 @@ export function AllelCommandCenter() {
               onStop={stop}
               placeholder="Ask Allel to build features, fix bugs, or work on your code"
               modeLabel="Normal"
-              statusMessage="Autonomous Engine Active • All integrations synchronized"
-              statusLinkText="Explore automations"
-              onStatusLinkClick={() => window.location.href = "/dashboard/flows"}
+              statusMessage="Connect your stack to automate your workflows"
+              statusLinkText="+more"
+              onStatusLinkClick={() => window.location.href = "/dashboard/connections"}
             />
           </div>
         ) : (

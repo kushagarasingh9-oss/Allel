@@ -73,8 +73,8 @@ export function DevinChatBox({
   placeholder = "Ask Allel to build features, fix bugs, or work on your code",
   modeLabel = "Normal",
   onModeToggle,
-  statusMessage = "Connect your stack to orchestrate automations",
-  statusLinkText = "+5 more",
+  statusMessage = "Connect your stack to automate your workflows",
+  statusLinkText = "+more",
   onStatusLinkClick,
   className,
 }: DevinChatBoxProps) {
@@ -335,16 +335,17 @@ export function DevinChatBox({
                 )}
               </div>
             ))}
+
+            {/* Inline +more link directly after the 5th logo icon */}
+            <button
+              type="button"
+              onClick={onStatusLinkClick || (() => window.location.href = "/dashboard/connections")}
+              className="text-xs font-semibold text-[#38bdf8] hover:underline cursor-pointer shrink-0 ml-3.5 pl-1"
+            >
+              +more
+            </button>
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={onStatusLinkClick || (() => window.location.href = "/dashboard/connections")}
-          className="text-xs font-semibold text-[#38bdf8] hover:underline cursor-pointer shrink-0 ml-2"
-        >
-          {statusLinkText}
-        </button>
       </div>
     </div>
   );
