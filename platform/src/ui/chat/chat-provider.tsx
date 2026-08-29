@@ -208,23 +208,20 @@ export function ChatProvider({
   const wrappedSendMessage = React.useCallback(
     (options: { text: string }) => {
       if (!messages || messages.length === 0) {
-        const newSessionId = `session-${Date.now()}`
-        setCurrentSessionId(newSessionId)
-        setActiveSessionId(newSessionId)
         if (typeof window !== "undefined") {
           try {
             const url = new URL(window.location.href)
             url.pathname = "/dashboard"
-            url.searchParams.set("sessionId", newSessionId)
+            url.searchParams.set("sessionId", currentSessionId)
             window.history.pushState({}, "", url.toString())
           } catch {
             // Ignore
           }
-          window.sessionStorage.setItem("allel.current-session-id", newSessionId)
-          window.localStorage.setItem("allel.current-session-id", newSessionId)
+          window.sessionStorage.setItem("allel.current-session-id", currentSessionId)
+          window.localStorage.setItem("allel.current-session-id", currentSessionId)
           window.dispatchEvent(
             new CustomEvent("allel:session-starting", {
-              detail: { sessionId: newSessionId },
+              detail: { sessionId: currentSessionId },
             })
           )
         }
@@ -232,7 +229,7 @@ export function ChatProvider({
 
       sendMessage(options)
     },
-    [messages, sendMessage]
+    [messages, sendMessage, currentSessionId]
   )
 
   const persistThread = React.useCallback(() => {
@@ -333,14 +330,17 @@ export function ChatProvider({
           sessionId: resolvedStorageScope!.sessionId,
         })
         const response = await fetch(`/api/agent/history?${params}`)
-        if (!response.ok || cancelled) return
+        if (cancelled) return
+
+        if (!response.ok) {
+          setHydrationStatus("empty")
+          return
+        }
 
         const data = await response.json()
         const serverMessages = data.messages as UIMessage[] | undefined
 
         if (serverMessages && serverMessages.length > 0 && !cancelled && chatRef.current) {
-          // Server wins, but a turn appended after the last save exists only
-          // locally and must survive.
           const merged = reconcileConversationHistory(
             chatRef.current.chat.messages,
             serverMessages
