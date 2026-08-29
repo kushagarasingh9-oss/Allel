@@ -855,7 +855,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
 
     return (
       <div className="w-full flex justify-end items-center my-3 relative z-10">
-        <div className="bg-[#282828] border border-[#343434] text-zinc-100 text-xs sm:text-sm font-normal px-4 py-3 rounded-[18px] max-w-[85%] sm:max-w-[72%] shadow-sm leading-relaxed break-words">
+        <div className="bg-[#1e1e1e] border border-[#282828] text-zinc-200 text-xs sm:text-sm font-normal px-4 py-2.5 rounded-[18px] max-w-[85%] sm:max-w-[70%] shadow-sm leading-relaxed break-words">
           {textContent}
         </div>
       </div>
