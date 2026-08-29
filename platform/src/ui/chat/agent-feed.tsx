@@ -1601,44 +1601,43 @@ export function AgentFeed() {
   }, [displayMessages])
 
   // Track DOM mutations and size changes during streaming/rendering to auto-scroll smoothly without jitter
+  // Smooth auto-scroll on new messages, streaming updates, text generation, and expanding nodes
   React.useEffect(() => {
     const container = feedRef.current
     if (!container) return
 
     let rafId: number | null = null
-    const scheduleScroll = (behavior: ScrollBehavior = 'auto') => {
+    const scheduleScroll = (behavior: ScrollBehavior = 'smooth') => {
       if (rafId) return
       rafId = requestAnimationFrame(() => {
         if (container) {
           if (displayMessages === DEMO_SEED_MESSAGES) {
             container.scrollTop = 0
           } else {
-            const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
-            if (distanceFromBottom < 250 || isLoading) {
-              container.scrollTo({
-                top: container.scrollHeight,
-                behavior,
-              })
-            }
+            container.scrollTo({
+              top: container.scrollHeight,
+              behavior,
+            })
           }
         }
         rafId = null
       })
     }
 
-    scheduleScroll(isLoading ? 'smooth' : 'auto')
+    scheduleScroll('smooth')
 
     const resizeObserver = new ResizeObserver(() => {
-      scheduleScroll('auto')
+      scheduleScroll('smooth')
     })
     resizeObserver.observe(container)
 
     const mutationObserver = new MutationObserver(() => {
-      scheduleScroll('auto')
+      scheduleScroll('smooth')
     })
     mutationObserver.observe(container, {
       childList: true,
       subtree: true,
+      characterData: true,
     })
 
     return () => {
@@ -1666,7 +1665,7 @@ export function AgentFeed() {
 
   return (
     <div ref={feedRef} className="flex-1 overflow-y-auto px-6 py-6 flex flex-col custom-scrollbar scroll-smooth">
-      <div className="w-full flex flex-col gap-4">
+      <div className="w-full flex flex-col gap-4 pb-48">
         {displayMessages.map((message, idx) => (
           <AgentMessageBubble
             key={typeof message.id === "string" && message.id.trim().length > 0 ? message.id : `msg-${message.role}-${idx}`}

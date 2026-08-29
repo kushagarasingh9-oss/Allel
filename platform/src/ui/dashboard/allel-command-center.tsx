@@ -200,7 +200,7 @@ export function AllelCommandCenter() {
              STATE 2: FULL-WIDTH AGENT EXECUTION FEED (ACTIVE RUN)
              ============================================================ */
           <div className="w-full flex-1 flex flex-col justify-between max-w-[760px] mx-auto px-4 py-4 animate-in fade-in duration-200">
-            <div className="flex-1 w-full overflow-y-auto">
+            <div className="flex-1 w-full min-h-0 flex flex-col relative">
               <AgentFeed />
             </div>
 
