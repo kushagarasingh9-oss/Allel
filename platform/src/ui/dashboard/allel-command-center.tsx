@@ -172,7 +172,7 @@ export function AllelCommandCenter() {
       </header>
 
       {/* Main Space Workspace Body */}
-      <div className="flex-1 min-h-0 overflow-y-auto relative flex flex-col items-center justify-between">
+      <div className="flex-1 min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
         {!hasMessages ? (
           <div className="w-full max-w-[700px] px-4 py-6 flex flex-col items-center my-auto animate-in fade-in zoom-in-95 duration-150">
             {/* Clean Minimal Left-Aligned Title Above Chat Box */}
