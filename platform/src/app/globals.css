@@ -40,18 +40,18 @@
 /* Global Theme Color Tokens */
 html.dark {
   color-scheme: dark;
-  --token-42377e4c-6aff-45af-80cf-861971d3bff6: #0b0b0a;
-  --token-10e74244-94d1-431e-87d0-281bc16f26b9: #141413;
-  --token-fc3e2144-81ca-48e6-9365-4417af9831c9: #282825;
-  --token-ead5ee04-8072-43a8-8b63-6c52f5667fd6: #2c2c28;
-  --token-4b5c2631-4675-4701-82c8-51d44ba443f5: #edede8;
-  --token-a858697d-e879-4ab9-8f8f-ff96d21fdb35: #8b8b83;
-  --token-4e477fa6-3a4a-4dca-ae8d-06a59b9bf0d6: #7ba0ff;
-  --token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0: #edede8;
-  --token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7: #121211;
-  --token-839f404f-2485-4df4-989d-84c9778f6e7d: #333330;
-  background-color: #0b0b0a;
-  color: #edede8;
+  --token-42377e4c-6aff-45af-80cf-861971d3bff6: #0e0e10;
+  --token-10e74244-94d1-431e-87d0-281bc16f26b9: #141417;
+  --token-fc3e2144-81ca-48e6-9365-4417af9831c9: #26262b;
+  --token-ead5ee04-8072-43a8-8b63-6c52f5667fd6: #1a1a1e;
+  --token-4b5c2631-4675-4701-82c8-51d44ba443f5: #f4f4f5;
+  --token-a858697d-e879-4ab9-8f8f-ff96d21fdb35: #a1a1aa;
+  --token-4e477fa6-3a4a-4dca-ae8d-06a59b9bf0d6: #3b82f6;
+  --token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0: #f4f4f5;
+  --token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7: #141417;
+  --token-839f404f-2485-4df4-989d-84c9778f6e7d: #26262b;
+  background-color: #0e0e10;
+  color: #f4f4f5;
 }
 
 /* Light Theme: Layered Executive Tonal Hierarchy */

@@ -106,6 +106,10 @@ function getThreadState(chat: Chat<UIMessage>) {
   }
 }
 
+export function useOptionalChatContext() {
+  return React.useContext(ChatContext)
+}
+
 export function useChatContext() {
   const ctx = React.useContext(ChatContext)
   if (!ctx) {

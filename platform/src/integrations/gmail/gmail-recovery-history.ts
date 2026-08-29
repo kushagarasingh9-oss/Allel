@@ -15,6 +15,7 @@ import {
   isGmailReadSyncEnabled,
   listGmailHistory,
   type GmailThreadMessage,
+  type GmailThreadSummary,
 } from '@/integrations/gmail/gmail'
 import { buildCanonicalProviderEvent } from '@/recovery/events'
 import { RECOVERY_CONFIG } from '@/recovery/config'
@@ -170,7 +171,7 @@ export async function syncGmailRecoveryHistory(
   let ignoredMessages = 0
 
   for (const historyMessage of history.messages) {
-    let thread: GmailThread | null = null
+    let thread: GmailThreadSummary | null = null
     try {
       thread = await fetchThreadDetail(workspaceId, historyMessage.threadId)
     } catch (err) {
@@ -179,7 +180,7 @@ export async function syncGmailRecoveryHistory(
       continue
     }
 
-    const message = thread?.messages?.find((candidate) => candidate.id === historyMessage.id)
+    const message = thread?.messages?.find((candidate: GmailThreadMessage) => candidate.id === historyMessage.id)
 
     if (!message || !isCustomerInboundMessage(message, profile.emailAddress)) {
       ignoredMessages += 1

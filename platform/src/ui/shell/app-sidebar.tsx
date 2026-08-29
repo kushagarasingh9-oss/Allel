@@ -17,10 +17,12 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/foundation/utils";
+import { useOptionalChatContext } from "@/ui/chat/chat-provider";
 
 export function AppSidebarContainer({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { theme, setTheme, resolvedTheme } = useTheme();
+  const chatContext = useOptionalChatContext();
   const [mounted, setMounted] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -82,13 +84,13 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
 
   const links = [
     {
-      label: "Home",
+      label: "Sessions",
       href: "/dashboard",
       icon: Home,
       exact: true,
     },
     {
-      label: "Workflows",
+      label: "Automations",
       href: "/dashboard/flows",
       icon: Zap,
     },
@@ -101,36 +103,33 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   ];
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-neutral-100 dark:bg-[#0A0A0C] text-neutral-900 dark:text-white p-2 gap-2 transition-colors">
-      {/* Sidebar Pane — Base background */}
+    <div className="flex h-screen w-full overflow-hidden bg-[#0E0E10] text-[#F4F4F5] p-2 gap-2 transition-colors">
+      {/* Sidebar Pane — Devin-style obsidian surface */}
       <aside
         className={cn(
-          "flex flex-col justify-between h-full bg-neutral-100 dark:bg-[#0A0A0C] transition-all duration-300 ease-in-out shrink-0 py-2 px-3 relative",
-          collapsed ? "w-[60px]" : "w-[220px]"
+          "flex flex-col justify-between h-full bg-[#141417] border border-white/[0.08] rounded-xl transition-all duration-300 ease-in-out shrink-0 py-3 px-2.5 relative",
+          collapsed ? "w-[60px]" : "w-[240px]"
         )}
       >
-        {/* Top Section: Logo & Links */}
-        <div className="flex flex-col gap-6">
-          {/* Logo / Brand */}
+        {/* Top Section: Logo, + New Session & Links */}
+        <div className="flex flex-col gap-4 min-h-0 flex-1">
+          {/* Logo / Brand Header */}
           <Link
             href="/dashboard"
-            className="flex items-center gap-2.5 px-2 pt-2 pb-1 transition-opacity hover:opacity-80 group select-none"
+            className="flex items-center gap-2.5 px-2 py-1 transition-opacity hover:opacity-80 group select-none"
           >
             <img
               src="/1.png"
               alt="Allel"
-              width={24}
-              height={24}
-              className="w-6 h-6 object-contain shrink-0"
-              style={{ width: "24px", height: "24px" }}
+              width={22}
+              height={22}
+              className="w-5.5 h-5.5 object-contain shrink-0"
             />
             {!collapsed && (
               <span
-                className="text-[19px] text-neutral-900 dark:text-white leading-none"
+                className="text-[17px] text-[#F4F4F5] leading-none tracking-tight font-medium"
                 style={{
                   fontFamily: '"Cabinet Grotesk", "Cabinet Grotesk Placeholder", sans-serif',
-                  letterSpacing: "-0.02em",
-                  fontWeight: 500,
                 }}
               >
                 Allel
@@ -138,7 +137,28 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
             )}
           </Link>
 
-          {/* Navigation Links */}
+          {/* + New Session Action Button (Devin Style) */}
+          <button
+            type="button"
+            onClick={() => {
+              // Start a clean new session or reload
+              if (window.location.pathname !== "/dashboard") {
+                window.location.href = "/dashboard";
+              } else {
+                window.dispatchEvent(new CustomEvent("allel:new-session"));
+              }
+            }}
+            className={cn(
+              "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer border",
+              "bg-[#1A1A1E] hover:bg-[#222228] text-[#F4F4F5] border-white/[0.08] hover:border-white/[0.15] shadow-xs"
+            )}
+            title="New session"
+          >
+            <span className="text-sm leading-none font-semibold text-blue-400">+</span>
+            {!collapsed && <span>New session</span>}
+          </button>
+
+          {/* Primary Navigation Links */}
           <nav className="flex flex-col gap-1">
             {links.map((link) => {
               const IconComponent = link.icon;
@@ -151,18 +171,65 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                   key={link.label}
                   href={link.href}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 font-medium",
+                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 font-medium",
                     isActive
-                      ? "bg-white dark:bg-[#222226] text-neutral-900 dark:text-white border border-neutral-200/80 dark:border-transparent shadow-xs"
-                      : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-200/60 dark:hover:bg-[#18181C]"
+                      ? "bg-[#222228] text-white border border-white/[0.1] shadow-xs"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-[#1A1A1E]"
                   )}
                 >
-                  <IconComponent className="w-4 h-4 shrink-0" />
+                  <IconComponent className="w-3.5 h-3.5 shrink-0" />
                   {!collapsed && <span>{link.label}</span>}
                 </Link>
               );
             })}
           </nav>
+
+          {/* Devin-Style Recent Sessions Section */}
+          {!collapsed && (
+            <div className="flex flex-col gap-1 pt-2 border-t border-white/[0.06] flex-1 overflow-hidden">
+              <div className="flex items-center justify-between px-2 pb-1 text-[11px] font-medium text-zinc-500 tracking-wider uppercase">
+                <span>Recent</span>
+              </div>
+              <div className="flex flex-col gap-1 overflow-y-auto pr-1">
+                <Link
+                  href="/dashboard"
+                  className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-[#1A1A1E] transition-colors group"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                    <span className="truncate">Check my inbox & calendar</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-500 group-hover:text-zinc-400 shrink-0">
+                    Active
+                  </span>
+                </Link>
+                <Link
+                  href="/dashboard"
+                  className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-[#1A1A1E] transition-colors group"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
+                    <span className="truncate">Stripe MRR & Churn Scan</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-500 group-hover:text-zinc-400 shrink-0">
+                    2h ago
+                  </span>
+                </Link>
+                <Link
+                  href="/dashboard"
+                  className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-[#1A1A1E] transition-colors group"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
+                    <span className="truncate">Devin Meetup Calendar Fix</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-500 group-hover:text-zinc-400 shrink-0">
+                    Yesterday
+                  </span>
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Bottom Section: Settings Icon Button with Profile Popover Menu */}
