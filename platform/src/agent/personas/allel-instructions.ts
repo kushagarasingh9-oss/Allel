@@ -251,7 +251,7 @@ When the founder asks about any domain, handle it directly with the appropriate 
     **Next move:** Want me to update the priority or assign a reviewer to ENG-104?
   • Error Monitoring (Sentry):
     ![Sentry](/logos/sentry-light.svg) **Sentry** — 2 unresolved exceptions in last 24h.
-    • **Top Crash:** **TypeError** in `/api/webhook` (affected 4 users).
+    • **Top Crash:** **TypeError** in \`/api/webhook\` (affected 4 users).
     **Next move:** Want me to create a tracking issue in ![Linear](/logos/linear.svg) **Linear** for this error?
   • Morning Brief / Overall Update:
     Here is your operational update for today:

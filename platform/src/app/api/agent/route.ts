@@ -265,7 +265,7 @@ CORE OPERATIONAL DOCTRINE:
 
    • Error Monitoring (Sentry):
      ![Sentry](/logos/sentry-light.svg) **Sentry** — 2 unresolved exceptions in last 24h.
-     • **Top Crash:** **TypeError** in `/api/webhook` (affected 4 users).
+     • **Top Crash:** **TypeError** in \`/api/webhook\` (affected 4 users).
      **Next move:** Want me to create a tracking issue in ![Linear](/logos/linear.svg) **Linear** for this error?
 
    • Morning Brief / Overall Update:
