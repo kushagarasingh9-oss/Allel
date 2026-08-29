@@ -36,11 +36,11 @@ export function computeBillingComponent(features: AccountFeatures): ComponentRes
     value = Math.max(value, 100);
     ruleIds.push('billing_cancelled');
   }
-  if (features.failedPaymentCount30d >= 3) {
+  if (features.failedPaymentCount30d >= RECOVERY_CONFIG.REPEATED_PAYMENT_FAILURE_30D_MIN) {
     value = Math.max(value, 100);
     ruleIds.push('billing_failures_30d_gte_3');
   }
-  if (features.failedPaymentCount7d >= 2) {
+  if (features.failedPaymentCount7d >= RECOVERY_CONFIG.REPEATED_PAYMENT_FAILURE_7D_MIN) {
     value = Math.max(value, 95);
     ruleIds.push('billing_failures_7d_gte_2');
   }
@@ -48,7 +48,10 @@ export function computeBillingComponent(features: AccountFeatures): ComponentRes
     value = Math.max(value, 90);
     ruleIds.push('billing_cancel_at_period_end');
   }
-  if (features.failedPaymentCount7d === 1 || features.failedPaymentCount30d >= 1) {
+  if (
+    features.failedPaymentCount7d === RECOVERY_CONFIG.SINGLE_PAYMENT_FAILURE_7D_COUNT ||
+    features.failedPaymentCount30d >= RECOVERY_CONFIG.SINGLE_PAYMENT_FAILURE_30D_MIN
+  ) {
     value = Math.max(value, 80);
     ruleIds.push('billing_single_payment_failure');
   }
@@ -259,11 +262,17 @@ export function computeRiskDecision(
     finalScore = Math.max(finalScore ?? 0, 90);
     severity = 'critical';
     hardOverrides.push('cancel_intent');
-  } else if (features.failedPaymentCount7d >= 2 || features.failedPaymentCount30d >= 3) {
+  } else if (
+    features.failedPaymentCount7d >= RECOVERY_CONFIG.REPEATED_PAYMENT_FAILURE_7D_MIN ||
+    features.failedPaymentCount30d >= RECOVERY_CONFIG.REPEATED_PAYMENT_FAILURE_30D_MIN
+  ) {
     finalScore = Math.max(finalScore ?? 0, 90);
     severity = 'critical';
     hardOverrides.push('repeated_payment_failure');
-  } else if (features.failedPaymentCount7d === 1 || features.failedPaymentCount30d >= 1) {
+  } else if (
+    features.failedPaymentCount7d === RECOVERY_CONFIG.SINGLE_PAYMENT_FAILURE_7D_COUNT ||
+    features.failedPaymentCount30d >= RECOVERY_CONFIG.SINGLE_PAYMENT_FAILURE_30D_MIN
+  ) {
     finalScore = Math.max(finalScore ?? 0, 80);
     if (severity === 'low' || severity === 'medium') severity = 'high';
     hardOverrides.push('single_payment_failure');

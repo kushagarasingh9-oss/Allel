@@ -14,7 +14,8 @@ type DraftRecord = {
   workspace_id: string
   customer_account_id: string | null
   subject: string
-  body_preview: string
+  body_full: string | null
+  recipient_email: string | null
   status: string
   approved_at?: string | null
   approved_by_actor?: string | null
@@ -33,7 +34,7 @@ export async function sendDraftWithGmail(
   const { data: draft, error: fetchError } = await supabase
     .from('follow_up_drafts')
     .select(
-      'id, workspace_id, customer_account_id, subject, body_preview, status, approved_at, approved_by_actor'
+      'id, workspace_id, customer_account_id, subject, body_full, recipient_email, status, approved_at, approved_by_actor'
     )
     .eq('id', draftId)
     .maybeSingle()
@@ -56,19 +57,16 @@ export async function sendDraftWithGmail(
     throw new Error('Draft is not linked to a customer account')
   }
 
-  const { data: contact, error: contactError } = await supabase
-    .from('account_contacts')
-    .select('email')
-    .eq('customer_account_id', typedDraft.customer_account_id)
-    .eq('is_primary', true)
-    .maybeSingle()
-
-  if (contactError) {
-    throw new Error(contactError.message)
+  // Send exactly what was approved: the stored full body and the approved
+  // recipient. There is deliberately no preview or primary-contact fallback.
+  const recipientEmail = typedDraft.recipient_email?.trim()
+  if (!recipientEmail) {
+    throw new Error('Draft has no approved recipient email')
   }
 
-  if (!contact?.email) {
-    throw new Error('No primary contact email found for this account')
+  const bodyFull = typedDraft.body_full
+  if (!bodyFull) {
+    throw new Error('Draft has no full body — refusing to send preview content')
   }
 
   if (!isGmailConfigured()) {
@@ -82,7 +80,7 @@ export async function sendDraftWithGmail(
     try {
       const recentThread = await findMostRecentThreadForEmail(
         typedDraft.workspace_id,
-        contact.email
+        recipientEmail
       )
       replyToThreadId = recentThread?.threadId
     } catch (error) {
@@ -91,15 +89,24 @@ export async function sendDraftWithGmail(
   }
 
   const result = await sendEmail(typedDraft.workspace_id, {
-    to: contact.email,
+    to: recipientEmail,
     subject: typedDraft.subject,
-    body: typedDraft.body_preview,
+    body: bodyFull,
     replyToThreadId,
   })
 
+  if (!result.messageId || !result.threadId) {
+    throw new Error('Gmail did not return both message and thread IDs — delivery is unconfirmed')
+  }
+
   const { error: statusError } = await supabase
     .from('follow_up_drafts')
-    .update({ status: 'sent' })
+    .update({
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+      provider_message_id: result.messageId,
+      provider_thread_id: result.threadId,
+    })
     .eq('id', draftId)
 
   if (statusError) {
@@ -121,7 +128,7 @@ export async function sendDraftWithGmail(
       customer_account_id: typedDraft.customer_account_id,
       event_type: 'email_sent',
       headline: `Follow-up sent: ${typedDraft.subject}`,
-      detail: `Sent to ${contact.email}`,
+      detail: `Sent to ${recipientEmail}`,
       source: 'gmail',
       metadata: { message_id: result.messageId, thread_id: result.threadId },
     })
@@ -147,7 +154,7 @@ export async function sendDraftWithGmail(
     customerAccountId: typedDraft.customer_account_id,
     runType: 'draft_sent',
     status: 'completed',
-    outputSummary: `Email sent to ${contact.email}: "${typedDraft.subject}"`,
+    outputSummary: `Email sent to ${recipientEmail}: "${typedDraft.subject}"`,
     metadata: {
       draftId: typedDraft.id,
       actor: context?.actor ?? 'founder',
@@ -166,6 +173,6 @@ export async function sendDraftWithGmail(
   return {
     messageId: result.messageId,
     threadId: result.threadId,
-    recipient: contact.email,
+    recipient: recipientEmail,
   }
 }

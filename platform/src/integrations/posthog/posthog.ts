@@ -8,6 +8,8 @@
 
 import { getIntegrationMetadata, getIntegrationToken } from '@/integrations/_core/provider-tokens'
 
+export const POSTHOG_DEFAULT_HOST = 'https://us.posthog.com'
+
 type PostHogCredentials = {
   apiKey: string
   projectId: string
@@ -30,7 +32,7 @@ export async function getPostHogCredentials(workspaceId: string): Promise<PostHo
     getIntegrationMetadata<{ project_id?: unknown; api_host?: unknown }>(workspaceId, 'posthog'),
   ])
   const projectId = typeof metadata.project_id === 'string' ? metadata.project_id : ''
-  const apiHost = typeof metadata.api_host === 'string' ? metadata.api_host : 'https://us.posthog.com'
+  const apiHost = typeof metadata.api_host === 'string' ? metadata.api_host : POSTHOG_DEFAULT_HOST
 
   return { apiKey, projectId, apiHost }
 }
@@ -44,7 +46,7 @@ async function posthogGet<T = Record<string, unknown>>(
   projectId: string,
   path: string,
   params?: Record<string, string>,
-  host: string = 'https://us.posthog.com',
+  host: string = POSTHOG_DEFAULT_HOST,
   timeoutMs: number = 15_000
 ): Promise<PostHogApiResponse<T>> {
   const qs = params ? '?' + new URLSearchParams(params).toString() : ''
@@ -69,7 +71,7 @@ async function posthogPost<T = Record<string, unknown>>(
   projectId: string,
   path: string,
   body: Record<string, unknown>,
-  host: string = 'https://us.posthog.com'
+  host: string = POSTHOG_DEFAULT_HOST
 ): Promise<T> {
   const response = await fetch(
     `${host}/api/projects/${projectId}/${path}`,
@@ -97,7 +99,7 @@ async function posthogPatch<T = Record<string, unknown>>(
   projectId: string,
   path: string,
   body: Record<string, unknown>,
-  host: string = 'https://us.posthog.com'
+  host: string = POSTHOG_DEFAULT_HOST
 ): Promise<T> {
   const response = await fetch(
     `${host}/api/projects/${projectId}/${path}`,
@@ -124,7 +126,7 @@ async function posthogDelete(
   apiKey: string,
   projectId: string,
   path: string,
-  host: string = 'https://us.posthog.com'
+  host: string = POSTHOG_DEFAULT_HOST
 ): Promise<void> {
   const response = await fetch(
     `${host}/api/projects/${projectId}/${path}`,
@@ -233,7 +235,7 @@ export async function validateAndResolvePostHog(
   if (!trimmedKey) return { valid: false }
 
   const apiHosts = [
-    'https://us.posthog.com',
+    POSTHOG_DEFAULT_HOST,
     'https://eu.posthog.com',
     'https://app.posthog.com',
   ]
@@ -343,7 +345,7 @@ export async function validateAndResolvePostHog(
         trimmedProject && trimmedProject !== 'default'
           ? trimmedProject
           : 'default',
-      resolvedHost: 'https://us.posthog.com',
+      resolvedHost: POSTHOG_DEFAULT_HOST,
     }
   }
 
@@ -486,7 +488,7 @@ export async function getRecentEvents(
   apiKey: string,
   projectId: string,
   params?: { event?: string; distinctId?: string; limit?: number; after?: string },
-  host: string = 'https://us.posthog.com'
+  host: string = POSTHOG_DEFAULT_HOST
 ): Promise<PostHogEvent[]> {
   const queryParams: Record<string, string> = {
     limit: String(params?.limit ?? 50),
@@ -521,7 +523,7 @@ export async function listInsights(
   apiKey: string,
   projectId: string,
   limit: number = 20,
-  host: string = 'https://us.posthog.com'
+  host: string = POSTHOG_DEFAULT_HOST
 ): Promise<PostHogInsight[]> {
   const data = await posthogGet<{ results: PostHogInsight[] }>(
     apiKey, projectId, 'insights/', { limit: String(limit) }, host
@@ -534,7 +536,7 @@ export async function getInsight(
   apiKey: string,
   projectId: string,
   insightId: number,
-  host: string = 'https://us.posthog.com'
+  host: string = POSTHOG_DEFAULT_HOST
 ): Promise<PostHogInsight> {
   return posthogGet<PostHogInsight>(apiKey, projectId, `insights/${insightId}/`, undefined, host)
 }
@@ -556,7 +558,7 @@ export type PostHogCohort = {
 export async function listCohorts(
   apiKey: string,
   projectId: string,
-  host: string = 'https://us.posthog.com'
+  host: string = POSTHOG_DEFAULT_HOST
 ): Promise<PostHogCohort[]> {
   const data = await posthogGet<{ results: PostHogCohort[] }>(
     apiKey, projectId, 'cohorts/', undefined, host
@@ -579,7 +581,7 @@ export type PostHogEventDefinition = {
 export async function listEventDefinitions(
   apiKey: string,
   projectId: string,
-  host: string = 'https://us.posthog.com'
+  host: string = POSTHOG_DEFAULT_HOST
 ): Promise<PostHogEventDefinition[]> {
   const data = await posthogGet<{ results: PostHogEventDefinition[] }>(
     apiKey, projectId, 'event_definitions/', { limit: '50' }, host, 3500
@@ -603,7 +605,7 @@ export type PostHogAction = {
 export async function listActions(
   apiKey: string,
   projectId: string,
-  host: string = 'https://us.posthog.com'
+  host: string = POSTHOG_DEFAULT_HOST
 ): Promise<PostHogAction[]> {
   const data = await posthogGet<{ results: PostHogAction[] }>(
     apiKey, projectId, 'actions/', { limit: '200' }, host
@@ -627,7 +629,7 @@ export type PostHogDashboard = {
 export async function listDashboards(
   apiKey: string,
   projectId: string,
-  host: string = 'https://us.posthog.com'
+  host: string = POSTHOG_DEFAULT_HOST
 ): Promise<PostHogDashboard[]> {
   const data = await posthogGet<{ results: PostHogDashboard[] }>(
     apiKey, projectId, 'dashboards/', { limit: '100' }, host

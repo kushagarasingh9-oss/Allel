@@ -362,3 +362,78 @@ test('Revenue metrics invariants: strict and protected MRR are strictly partitio
 });
 
 
+function paymentFailureFeatures(failed7d: number, failed30d: number): AccountFeatures {
+  const nowIso = new Date().toISOString();
+  return {
+    workspaceId: 'ws_test',
+    customerAccountId: 'acc_test',
+    billingAvailable: true,
+    billingStatus: 'active',
+    stripeCustomerId: 'cus_123',
+    stripeSubscriptionId: null,
+    currentMrrCents: 100000,
+    preCancelMrrCents: null,
+    lastInvoiceId: null,
+    lastInvoiceStatus: null,
+    failedPaymentCount7d: failed7d,
+    failedPaymentCount30d: failed30d,
+    lastPaymentFailedAt: failed30d > 0 ? nowIso : null,
+    lastPaymentSucceededAt: null,
+    cancelAtPeriodEnd: null,
+    cancelledAt: null,
+    usageAvailable: false,
+    usageCurrent7d: 0,
+    usagePrevious7d: 0,
+    usageDeltaPercent: null,
+    keyFeatureCurrent7d: 0,
+    keyFeaturePrevious7d: 0,
+    keyFeatureMissing: false,
+    cancelIntentAt: null,
+    lastProductActivityAt: null,
+    communicationAvailable: false,
+    lastOutboundAt: null,
+    lastInboundAt: null,
+    unrepliedOutboundCount: 0,
+    gmailThreadId: null,
+    billingFreshAt: nowIso,
+    usageFreshAt: null,
+    communicationFreshAt: null,
+    sourceWatermarks: {},
+    featureVersion: 'features-v1-2026-08',
+    computedAt: nowIso,
+    updatedAt: nowIso,
+  };
+}
+
+test('Payment-failure thresholds are single-sourced in RECOVERY_CONFIG', () => {
+  assert.equal(RECOVERY_CONFIG.REPEATED_PAYMENT_FAILURE_7D_MIN, 2);
+  assert.equal(RECOVERY_CONFIG.REPEATED_PAYMENT_FAILURE_30D_MIN, 3);
+  assert.equal(RECOVERY_CONFIG.SINGLE_PAYMENT_FAILURE_7D_COUNT, 1);
+  assert.equal(RECOVERY_CONFIG.SINGLE_PAYMENT_FAILURE_30D_MIN, 1);
+  assert.throws(() =>
+    RecoveryConfigSchema.parse({
+      REPEATED_PAYMENT_FAILURE_7D_MIN: 1,
+      SINGLE_PAYMENT_FAILURE_7D_COUNT: 1,
+    })
+  );
+});
+
+test('Billing component and hard overrides agree on the repeated payment-failure thresholds', () => {
+  const repeated7d = paymentFailureFeatures(RECOVERY_CONFIG.REPEATED_PAYMENT_FAILURE_7D_MIN, RECOVERY_CONFIG.REPEATED_PAYMENT_FAILURE_7D_MIN);
+  assert.ok(computeBillingComponent(repeated7d).ruleIds.includes('billing_failures_7d_gte_2'));
+  assert.ok(computeRiskDecision(repeated7d, 1.0, 100000).hardOverrides.includes('repeated_payment_failure'));
+
+  const repeated30d = paymentFailureFeatures(0, RECOVERY_CONFIG.REPEATED_PAYMENT_FAILURE_30D_MIN);
+  assert.ok(computeBillingComponent(repeated30d).ruleIds.includes('billing_failures_30d_gte_3'));
+  assert.ok(computeRiskDecision(repeated30d, 1.0, 100000).hardOverrides.includes('repeated_payment_failure'));
+
+  const single = paymentFailureFeatures(RECOVERY_CONFIG.SINGLE_PAYMENT_FAILURE_7D_COUNT, RECOVERY_CONFIG.SINGLE_PAYMENT_FAILURE_30D_MIN);
+  assert.ok(computeBillingComponent(single).ruleIds.includes('billing_single_payment_failure'));
+  const singleDecision = computeRiskDecision(single, 1.0, 100000);
+  assert.ok(singleDecision.hardOverrides.includes('single_payment_failure'));
+  assert.ok(!singleDecision.hardOverrides.includes('repeated_payment_failure'));
+
+  const none = paymentFailureFeatures(0, 0);
+  assert.ok(!computeBillingComponent(none).ruleIds.some((r) => r.startsWith('billing_failures')));
+  assert.ok(!computeRiskDecision(none, 1.0, 100000).hardOverrides.includes('repeated_payment_failure'));
+});

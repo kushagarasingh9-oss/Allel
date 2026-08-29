@@ -17,9 +17,45 @@ const STRIPE_API_VERSION = '2025-03-31.basil' as const
 
 export async function getStripeClient(workspaceId: string): Promise<Stripe> {
   // Uses the shared token helper which falls back from api_key → oauth_access,
-  // so Stripe works regardless of whether it was connected manually or via Pipedream OAuth.
+  // so Stripe works regardless of how the key was stored.
   const apiKey = await getIntegrationToken(workspaceId, 'stripe')
   return new Stripe(apiKey, { apiVersion: STRIPE_API_VERSION })
+}
+
+// ============================================================
+//  Subscription Helpers
+// ============================================================
+
+type MaybeCurrentPeriodEnd = { current_period_end?: unknown }
+
+function readCurrentPeriodEnd(value: MaybeCurrentPeriodEnd): number | null {
+  const raw = value.current_period_end
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null
+}
+
+/**
+ * Resolve a subscription's current period end (unix seconds).
+ *
+ * Recent Stripe API versions expose the period end on subscription items
+ * rather than the subscription, and it is absent from the SDK types, so read
+ * both locations and take the latest.
+ */
+export function getSubscriptionCurrentPeriodEnd(
+  subscription: Pick<Stripe.Subscription, 'items'> & MaybeCurrentPeriodEnd
+): number | null {
+  const candidates = [
+    readCurrentPeriodEnd(subscription),
+    ...(subscription.items?.data ?? []).map((item) => readCurrentPeriodEnd(item)),
+  ].filter((value): value is number => value !== null)
+
+  return candidates.length > 0 ? Math.max(...candidates) : null
+}
+
+export function getSubscriptionCurrentPeriodEndIso(
+  subscription: Pick<Stripe.Subscription, 'items'> & MaybeCurrentPeriodEnd
+): string | null {
+  const periodEnd = getSubscriptionCurrentPeriodEnd(subscription)
+  return periodEnd === null ? null : new Date(periodEnd * 1000).toISOString()
 }
 
 // ============================================================
@@ -90,10 +126,8 @@ export async function syncSubscriptions(workspaceId: string): Promise<SyncedSubs
             .filter((name): name is string => Boolean(name))
         )
       ).join(', ') || null
-      const currentPeriodEnd = items
-        .map((item) => (item as unknown as { current_period_end?: number }).current_period_end)
-        .filter((value): value is number => typeof value === 'number')
-        .sort((left, right) => right - left)[0] ?? Math.floor(Date.now() / 1000)
+      const currentPeriodEnd =
+        getSubscriptionCurrentPeriodEnd(sub) ?? Math.floor(Date.now() / 1000)
 
       results.push({
         stripeCustomerId: customer.id,

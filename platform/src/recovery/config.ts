@@ -58,6 +58,13 @@ export const RecoveryConfigSchema = z.object({
   RISK_CRITICAL_MIN: z.number().int().min(0).max(100).default(85),
   COMPOUND_WINDOW_HOURS: z.number().int().positive().default(72),
   COMPOUND_SCORE_FLOOR: z.number().int().min(0).max(100).default(95),
+
+  // Payment-failure thresholds (single source of truth for the billing
+  // component and the top-level hard-override chain)
+  REPEATED_PAYMENT_FAILURE_7D_MIN: z.number().int().positive().default(2),
+  REPEATED_PAYMENT_FAILURE_30D_MIN: z.number().int().positive().default(3),
+  SINGLE_PAYMENT_FAILURE_7D_COUNT: z.number().int().positive().default(1),
+  SINGLE_PAYMENT_FAILURE_30D_MIN: z.number().int().positive().default(1),
   ACTION_CONFIDENCE_MIN: z.number().min(0).max(1).default(0.75),
 
   // Communication & Drafts
@@ -110,6 +117,11 @@ export const RecoveryConfigSchema = z.object({
 ).refine(
   (c) => c.RISK_MEDIUM_MIN < c.RISK_HIGH_MIN && c.RISK_HIGH_MIN < c.RISK_CRITICAL_MIN,
   { message: 'Risk thresholds must be strictly ordered: RISK_MEDIUM_MIN < RISK_HIGH_MIN < RISK_CRITICAL_MIN' }
+).refine(
+  (c) =>
+    c.SINGLE_PAYMENT_FAILURE_7D_COUNT < c.REPEATED_PAYMENT_FAILURE_7D_MIN &&
+    c.SINGLE_PAYMENT_FAILURE_30D_MIN < c.REPEATED_PAYMENT_FAILURE_30D_MIN,
+  { message: 'Repeated payment-failure thresholds must exceed the single-failure thresholds' }
 );
 
 export type RecoveryConfig = z.infer<typeof RecoveryConfigSchema>;

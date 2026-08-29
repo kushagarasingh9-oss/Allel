@@ -43,6 +43,7 @@ import { isIntegrationConnected } from '@/integrations/_core/connection-guard'
 import {
   getStripeClient,
   createRescueCoupon,
+  getSubscriptionCurrentPeriodEndIso,
   syncSubscriptions,
 } from '@/integrations/stripe/stripe'
 import {
@@ -58,7 +59,7 @@ import {
   getStripeBalance,
   listStripeDisputes,
 } from '@/integrations/stripe/stripe'
-import { getPostHogCredentials } from '@/integrations/posthog/posthog'
+import { getPostHogCredentials, POSTHOG_DEFAULT_HOST } from '@/integrations/posthog/posthog'
 import {
   createAnnotation,
   listAnnotations,
@@ -1439,11 +1440,7 @@ export const getStripeAccountState = tool({
         source: 'stripe_live',
         observedAt: new Date().toISOString(),
         subscriptions: subscriptions.data.map((sub) => {
-          // current_period_end may not be in the TS types for newer Stripe SDK versions
-          const rawSub = sub as unknown as Record<string, unknown>
-          const periodEnd = typeof rawSub.current_period_end === 'number'
-            ? new Date(rawSub.current_period_end * 1000).toISOString()
-            : null
+          const periodEnd = getSubscriptionCurrentPeriodEndIso(sub)
 
           return {
             id: sub.id,
@@ -1512,7 +1509,7 @@ export const getPostHogAccountUsage = tool({
       let events30d = 0
       let lastSeen: string | null = null
 
-      const host = apiHost || 'https://us.posthog.com'
+      const host = apiHost || POSTHOG_DEFAULT_HOST
       for (const distinctId of distinctIds.slice(0, 5)) {
         const url = `${host}/api/projects/${projectId}/events/?distinct_id=${encodeURIComponent(distinctId)}&limit=100&after=${encodeURIComponent(thirtyDaysAgo)}`
         const response = await fetch(url, {
@@ -3107,7 +3104,7 @@ export const getPostHogEvents = tool({
   execute: async ({ workspaceId, event, distinctId, limit }) => {
     try {
       const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
-      const host = apiHost || 'https://us.posthog.com'
+      const host = apiHost || POSTHOG_DEFAULT_HOST
       const events = await getPostHogRecentEvents(apiKey, projectId, {
         event,
         distinctId,
@@ -3140,7 +3137,7 @@ export const listPostHogInsights = tool({
   execute: async ({ workspaceId, limit }) => {
     try {
       const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
-      const host = apiHost || 'https://us.posthog.com'
+      const host = apiHost || POSTHOG_DEFAULT_HOST
       const insights = await listInsights(apiKey, projectId, limit ?? 15, host)
       return {
         insights: insights.map((i) => ({
@@ -3169,7 +3166,7 @@ export const listPostHogCohorts = tool({
   execute: async ({ workspaceId }) => {
     try {
       const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
-      const host = apiHost || 'https://us.posthog.com'
+      const host = apiHost || POSTHOG_DEFAULT_HOST
       const cohorts = await listCohorts(apiKey, projectId, host)
       return {
         cohorts: cohorts.map((c) => ({
@@ -3197,7 +3194,7 @@ export const getPostHogEventDefinitions = tool({
   execute: async ({ workspaceId }) => {
     try {
       const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
-      const host = apiHost || 'https://us.posthog.com'
+      const host = apiHost || POSTHOG_DEFAULT_HOST
       
       try {
         const defs = await listEventDefinitions(apiKey, projectId, host)
@@ -3640,7 +3637,7 @@ export const getStripeCustomerDetail = tool({
           id: s.id,
           status: s.status,
           cancelAtPeriodEnd: s.cancel_at_period_end,
-          currentPeriodEnd: null as string | null,
+          currentPeriodEnd: getSubscriptionCurrentPeriodEndIso(s),
           plan: s.items.data[0]?.price?.nickname ?? null,
           amountCents: s.items.data[0]?.price?.unit_amount ?? 0,
           interval: s.items.data[0]?.price?.recurring?.interval ?? 'month',
@@ -3736,7 +3733,7 @@ export const getStripeSubscriptionDetail = tool({
         status: sub.status,
         customer: customer ? { id: customer.id, name: customer.name, email: customer.email } : null,
         cancelAtPeriodEnd: sub.cancel_at_period_end,
-        currentPeriodEnd: null as string | null,
+        currentPeriodEnd: getSubscriptionCurrentPeriodEndIso(sub),
         plan: sub.items.data[0]?.price?.nickname ?? null,
         amountCents: sub.items.data[0]?.price?.unit_amount ?? 0,
         interval: sub.items.data[0]?.price?.recurring?.interval ?? 'month',
