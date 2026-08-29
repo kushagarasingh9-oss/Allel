@@ -147,7 +147,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
               <img
                 src="/1.png"
                 alt="Allel"
-                className="w-5.5 h-5.5 object-contain shrink-0"
+                className="w-5.5 h-5.5 object-contain shrink-0 filter brightness-0 invert"
               />
             </Link>
 
