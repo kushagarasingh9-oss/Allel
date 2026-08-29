@@ -107,25 +107,39 @@ export function AllelCommandCenter() {
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   useEffect(() => {
+    let feed: HTMLElement | null = null;
     const checkScroll = () => {
-      const feed = document.querySelector('.overflow-y-auto');
+      if (!feed) feed = document.getElementById("agent-chat-feed");
       if (feed) {
-        const isNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 120;
+        const isNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
         setShowScrollBottom(!isNearBottom);
       }
     };
 
-    const feed = document.querySelector('.overflow-y-auto');
+    feed = document.getElementById("agent-chat-feed");
     if (feed) {
-      feed.addEventListener('scroll', checkScroll, { passive: true });
-      return () => feed.removeEventListener('scroll', checkScroll);
+      feed.addEventListener("scroll", checkScroll, { passive: true });
     }
+
+    const timer = setInterval(() => {
+      const el = document.getElementById("agent-chat-feed");
+      if (el && el !== feed) {
+        feed = el;
+        feed.addEventListener("scroll", checkScroll, { passive: true });
+      }
+      checkScroll();
+    }, 300);
+
+    return () => {
+      if (feed) feed.removeEventListener("scroll", checkScroll);
+      clearInterval(timer);
+    };
   }, [hasMessages, messages.length]);
 
   const handleScrollToBottom = () => {
-    const feed = document.querySelector('.overflow-y-auto');
+    const feed = document.getElementById("agent-chat-feed");
     if (feed) {
-      feed.scrollTo({ top: feed.scrollHeight, behavior: 'smooth' });
+      feed.scrollTo({ top: feed.scrollHeight, behavior: "smooth" });
     }
     setShowScrollBottom(false);
   };

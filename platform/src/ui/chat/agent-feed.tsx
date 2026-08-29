@@ -1640,7 +1640,7 @@ export function AgentFeed() {
   }
 
   return (
-    <div ref={feedRef} className="w-full h-full flex-1 min-h-0 overflow-y-auto px-6 py-6 flex flex-col [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden scroll-smooth">
+    <div id="agent-chat-feed" ref={feedRef} className="w-full h-full flex-1 min-h-0 overflow-y-auto px-6 py-6 flex flex-col [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden scroll-smooth">
       <div className="w-full flex flex-col gap-4 pb-52">
         {displayMessages.map((message, idx) => (
           <AgentMessageBubble
