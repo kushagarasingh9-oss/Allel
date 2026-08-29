@@ -190,7 +190,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
             </div>
           )}
 
-          {/* + New task / session Action Button (Runable Pill Style) */}
+          {/* + New task / session Action Button (Highlighted Box ONLY on Hover) */}
           <button
             type="button"
             onClick={() => {
@@ -201,13 +201,14 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
               }
             }}
             className={cn(
-              "flex items-center gap-2.5 px-3 py-2 rounded-2xl text-xs font-medium transition-all duration-150 cursor-pointer border",
-              "bg-[#1c1c1c] hover:bg-[#242424] text-white border-[#262626] shadow-xs"
+              "group flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer border border-transparent",
+              "text-zinc-300 hover:text-white hover:bg-[#1c1c1c] hover:border-[#262626]",
+              collapsed && "justify-center px-0"
             )}
-            title="New session"
+            title="New task"
           >
-            <div className="w-4 h-4 rounded-full border border-white/40 flex items-center justify-center shrink-0">
-              <Plus className="w-3 h-3 text-white" />
+            <div className="w-4 h-4 rounded-full border border-zinc-400 group-hover:border-white flex items-center justify-center shrink-0 transition-colors">
+              <Plus className="w-3 h-3 text-zinc-300 group-hover:text-white transition-colors" />
             </div>
             {!collapsed && <span>New task</span>}
           </button>
