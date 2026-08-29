@@ -1496,57 +1496,33 @@ export function AgentFeed() {
 
   // Filter out temporary test artifacts, deduplicate identical repeated messages, and avoid repeating stopped banners
   const displayMessages = React.useMemo(() => {
-    const seenIds = new Set<string>()
-    let lastRenderedAssistantWasStopped = false
+    const merged: UIMessage[] = []
 
-    const liveMessages = messages.filter((m, idx) => {
-      const msgId = typeof m.id === "string" && m.id.trim().length > 0 ? m.id : `msg-${m.role}-${idx}`
-      if (seenIds.has(msgId)) return false
-      seenIds.add(msgId)
-
-      if (m.role === "assistant") {
-        const textParts = m.parts?.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim() ?? ""
-        const isStoppedMsg = textParts.toLowerCase().includes("execution stopped") || (m.parts?.length ?? 0) === 0
-
-        // If the previous message was also an assistant stopped banner, omit consecutive repeats
-        if (isStoppedMsg) {
-          if (lastRenderedAssistantWasStopped) return false
-          lastRenderedAssistantWasStopped = true
-        } else {
-          lastRenderedAssistantWasStopped = false
-        }
-
-        const prev = messages[idx - 1]
-        if (prev && prev.role === "assistant") {
-          const prevText = prev.parts?.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim()
-          if (prevText && textParts && prevText === textParts) {
-            return false
-          }
-        }
-        return true
-      }
-
-      if (m.role === "user") {
-        lastRenderedAssistantWasStopped = false
-        const prev = messages[idx - 1]
-        if (prev && prev.role === "user") {
-          const prevText = prev.parts?.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim()
-          const currText = m.parts?.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim()
-          if (prevText && currText && prevText === currText) {
-            return false
-          }
-        }
-      }
-
-      const text = m.parts
+    for (const m of messages) {
+      const textParts = m.parts
         ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
         .map((p) => p.text)
         .join("")
         .trim() ?? ""
-      return !text.startsWith("c=") && text !== "jd" && text !== "f"
-    })
 
-    return liveMessages
+      if (textParts.startsWith("c=") || textParts === "jd" || textParts === "f") continue
+
+      if (m.role === "assistant") {
+        const last = merged[merged.length - 1]
+        if (last && last.role === "assistant") {
+          // Merge parts into a single unified assistant message bubble
+          merged[merged.length - 1] = {
+            ...last,
+            parts: [...(last.parts || []), ...(m.parts || [])],
+          }
+          continue
+        }
+      }
+
+      merged.push(m)
+    }
+
+    return merged
   }, [messages])
 
   // Fetch Google account avatar
