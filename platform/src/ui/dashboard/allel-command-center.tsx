@@ -26,6 +26,7 @@ import {
   Share2,
   MoreHorizontal,
   PanelRight,
+  Flag,
 } from "lucide-react";
 import { cn } from "@/foundation/utils";
 
@@ -118,67 +119,49 @@ export function AllelCommandCenter() {
 
   return (
     <div className="flex flex-col h-full w-full bg-[#121212] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
-      {/* Top Navigation Bar (Devin Style: Share + More Options + PanelRight) */}
-      <header className="h-11 border-b border-[#1c1c1c] px-4 flex items-center justify-between shrink-0 bg-[#121212] z-20">
+      {/* Top Header Bar (Devin Style: No Border Divider + Pure Icon Cluster matching media_1788036132936.png) */}
+      <header className="h-11 px-4 flex items-center justify-between shrink-0 bg-[#121212] z-20">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 text-zinc-500">
-            <button
-              type="button"
-              className="p-1 hover:text-white rounded transition-colors cursor-pointer"
-              title="Back"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              className="p-1 hover:text-white rounded transition-colors cursor-pointer"
-              title="Forward"
-            >
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <span className="text-xs font-semibold text-zinc-300">
-            {hasMessages ? "Operational Run" : "New Space"}
+          <span className="text-xs sm:text-sm font-medium text-zinc-300">
+            {hasMessages ? "Operational Run" : "Generate new automation"}
           </span>
         </div>
 
-        {/* Right Header Toolbar (Share, More Options, PanelRight Toggle) */}
-        <div className="flex items-center gap-1.5">
+        {/* Right Header Pure Icon Cluster (Flag, More Options, PanelRight - No Borders, No Covers) */}
+        <div className="flex items-center gap-3 text-zinc-400">
           {hasMessages && (
             <button
               onClick={() => resetActiveThread()}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-zinc-400 hover:text-white hover:bg-[#252525] border border-[#262626] transition-colors cursor-pointer mr-1"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-zinc-400 hover:text-white hover:bg-[#252525] transition-colors cursor-pointer mr-1"
               title="Reset space"
             >
-              <RotateCcw className="w-3 h-3" />
+              <RotateCcw className="w-3.5 h-3.5" />
               <span>New Run</span>
             </button>
           )}
 
           <button
             type="button"
-            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1c1c1c] border border-[#262626] text-xs font-medium text-zinc-300 hover:text-white hover:bg-[#242424] transition-colors cursor-pointer"
-            title="Share session"
+            className="p-1 hover:text-white transition-colors cursor-pointer"
+            title="Flag session"
           >
-            <Upload className="w-3 h-3 text-zinc-400" />
-            <span>Share</span>
+            <Flag className="w-4 h-4" />
           </button>
 
           <button
             type="button"
-            className="w-7 h-7 rounded-lg border border-[#262626] bg-[#1c1c1c] hover:bg-[#242424] flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            className="p-1 hover:text-white transition-colors cursor-pointer"
             title="More options"
           >
-            <MoreHorizontal className="w-3.5 h-3.5" />
+            <MoreHorizontal className="w-4 h-4" />
           </button>
 
           <button
             type="button"
-            className="w-7 h-7 rounded-lg border border-[#262626] bg-[#1c1c1c] hover:bg-[#242424] flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
-            title="Toggle panel"
+            className="p-1 hover:text-white transition-colors cursor-pointer"
+            title="Toggle right panel"
           >
-            <PanelRight className="w-3.5 h-3.5" />
+            <PanelRight className="w-4 h-4" />
           </button>
         </div>
       </header>
