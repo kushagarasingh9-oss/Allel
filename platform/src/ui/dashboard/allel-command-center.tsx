@@ -112,9 +112,9 @@ export function AllelCommandCenter() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#0E0E10] text-[#F4F4F5] relative overflow-hidden font-sans">
+    <div className="flex flex-col h-full w-full bg-[#141414] text-[#F4F4F5] relative overflow-hidden font-sans">
       {/* Top Bar Navigation */}
-      <header className="h-12 border-b border-white/[0.06] px-4 flex items-center justify-between shrink-0 bg-[#141417]/80 backdrop-blur-md z-20">
+      <header className="h-12 border-b border-[#222222] px-4 flex items-center justify-between shrink-0 bg-[#191919]/90 backdrop-blur-md z-20">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-xs font-medium text-zinc-400">
             <span className="text-zinc-500">Space</span>
@@ -124,7 +124,7 @@ export function AllelCommandCenter() {
             </span>
           </div>
 
-          <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-white/[0.08] text-[11px] text-zinc-400">
+          <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-[#222222] text-[11px] text-zinc-400">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>Autonomous Engine Active</span>
           </div>
@@ -134,7 +134,7 @@ export function AllelCommandCenter() {
           {hasMessages && (
             <button
               onClick={() => resetActiveThread()}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-white/[0.06] border border-white/[0.06] transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-[#252525] border border-[#222222] transition-colors cursor-pointer"
               title="Reset conversation"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -153,7 +153,7 @@ export function AllelCommandCenter() {
           <div className="w-full max-w-3xl px-4 py-12 flex flex-col items-center justify-center my-auto animate-in fade-in zoom-in-95 duration-200">
             {/* Center Subtle Allel Watermark */}
             <div className="flex flex-col items-center gap-3 mb-8 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-[#1A1A1E] border border-white/[0.1] flex items-center justify-center shadow-lg shadow-black/40">
+              <div className="w-12 h-12 rounded-2xl bg-[#191919] border border-[#222222] flex items-center justify-center shadow-lg shadow-black/40">
                 <img src="/1.png" alt="Allel" className="w-6 h-6 object-contain" />
               </div>
               <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">
@@ -165,7 +165,7 @@ export function AllelCommandCenter() {
             </div>
 
             {/* Devin-Style Centered Command Omnibar */}
-            <div className="w-full bg-[#1A1A1E] border border-white/[0.1] rounded-2xl p-3 shadow-2xl shadow-black/60 focus-within:border-blue-500/60 focus-within:ring-1 focus-within:ring-blue-500/40 transition-all">
+            <div className="w-full bg-[#252525] border border-[#2e2e2e] rounded-2xl p-3 shadow-2xl shadow-black/60 focus-within:border-blue-500/60 focus-within:ring-1 focus-within:ring-blue-500/40 transition-all">
               <textarea
                 ref={textareaRef}
                 value={inputText}
@@ -180,14 +180,14 @@ export function AllelCommandCenter() {
               <div className="flex items-center justify-between pt-2 border-t border-white/[0.06] mt-2 text-xs">
                 <div className="flex items-center gap-2">
                   {/* Mode Selector Pill */}
-                  <div className="flex items-center bg-[#141417] p-0.5 rounded-lg border border-white/[0.08]">
+                  <div className="flex items-center bg-[#191919] p-0.5 rounded-lg border border-[#222222]">
                     <button
                       type="button"
                       onClick={() => setMode("agent")}
                       className={cn(
                         "px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1.5",
                         mode === "agent"
-                          ? "bg-[#27272E] text-white shadow-xs"
+                          ? "bg-[#282828] text-white shadow-xs"
                           : "text-zinc-400 hover:text-zinc-200"
                       )}
                     >
@@ -200,7 +200,7 @@ export function AllelCommandCenter() {
                       className={cn(
                         "px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1.5",
                         mode === "ask"
-                          ? "bg-[#27272E] text-white shadow-xs"
+                          ? "bg-[#282828] text-white shadow-xs"
                           : "text-zinc-400 hover:text-zinc-200"
                       )}
                     >
@@ -209,7 +209,7 @@ export function AllelCommandCenter() {
                   </div>
 
                   {/* Connected Integrations Badge */}
-                  <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-md bg-white/[0.03] border border-white/[0.06] text-[11px] text-zinc-400">
+                  <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-md bg-white/[0.03] border border-[#222222] text-[11px] text-zinc-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     <span>6 Tools Connected</span>
                   </div>
@@ -251,7 +251,7 @@ export function AllelCommandCenter() {
                       key={action.id}
                       type="button"
                       onClick={() => handleSubmit(action.prompt)}
-                      className="flex flex-col text-left p-3.5 rounded-xl bg-[#161619] hover:bg-[#1C1C20] border border-white/[0.06] hover:border-white/[0.15] transition-all group cursor-pointer"
+                      className="flex flex-col text-left p-3.5 rounded-xl bg-[#191919] hover:bg-[#202020] border border-[#222222] hover:border-[#2e2e2e] transition-all group cursor-pointer"
                     >
                       <div className="flex items-center justify-between w-full mb-1.5">
                         <div className="flex items-center gap-2">
@@ -262,7 +262,7 @@ export function AllelCommandCenter() {
                             {action.title}
                           </span>
                         </div>
-                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.04] text-zinc-400 border border-white/[0.04]">
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.04] text-zinc-400 border border-[#222222]">
                           {action.badge}
                         </span>
                       </div>
@@ -277,7 +277,7 @@ export function AllelCommandCenter() {
 
             {/* Recent Sessions List below Omnibar (Devin style) */}
             {savedSessions.length > 0 && (
-              <div className="w-full mt-8 pt-6 border-t border-white/[0.06]">
+              <div className="w-full mt-8 pt-6 border-t border-[#222222]">
                 <div className="flex items-center justify-between mb-2.5 px-1 text-xs font-medium text-zinc-400">
                   <div className="flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-zinc-500" />
@@ -291,7 +291,7 @@ export function AllelCommandCenter() {
                       key={session.id}
                       type="button"
                       onClick={() => loadChatSession(session)}
-                      className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#141417] hover:bg-[#1A1A1E] border border-white/[0.04] hover:border-white/[0.1] text-xs text-zinc-300 hover:text-white transition-all text-left cursor-pointer"
+                      className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#191919] hover:bg-[#222222] border border-[#222222] hover:border-[#2e2e2e] text-xs text-zinc-300 hover:text-white transition-all text-left cursor-pointer"
                     >
                       <div className="flex items-center gap-2 truncate">
                         <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
@@ -316,8 +316,8 @@ export function AllelCommandCenter() {
             </div>
 
             {/* Pinned Bottom Omnibar */}
-            <div className="sticky bottom-4 left-0 right-0 w-full pt-4 bg-gradient-to-t from-[#0E0E10] via-[#0E0E10]/95 to-transparent z-20">
-              <div className="w-full bg-[#1A1A1E] border border-white/[0.1] rounded-2xl p-2.5 shadow-2xl shadow-black/80 focus-within:border-blue-500/60 transition-all">
+            <div className="sticky bottom-4 left-0 right-0 w-full pt-4 bg-gradient-to-t from-[#141414] via-[#141414]/95 to-transparent z-20">
+              <div className="w-full bg-[#252525] border border-[#2e2e2e] rounded-2xl p-2.5 shadow-2xl shadow-black/80 focus-within:border-blue-500/60 transition-all">
                 <textarea
                   ref={textareaRef}
                   value={inputText}

@@ -103,11 +103,11 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   ];
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#0E0E10] text-[#F4F4F5] p-2 gap-2 transition-colors">
-      {/* Sidebar Pane — Devin-style obsidian surface */}
+    <div className="flex h-screen w-full overflow-hidden bg-[#141414] text-[#F4F4F5] p-2 gap-2 transition-colors">
+      {/* Sidebar Pane — Devin-style exact #191919 surface */}
       <aside
         className={cn(
-          "flex flex-col justify-between h-full bg-[#141417] border border-white/[0.08] rounded-xl transition-all duration-300 ease-in-out shrink-0 py-3 px-2.5 relative",
+          "flex flex-col justify-between h-full bg-[#191919] border border-[#222222] rounded-xl transition-all duration-300 ease-in-out shrink-0 py-3 px-2.5 relative",
           collapsed ? "w-[60px]" : "w-[240px]"
         )}
       >
@@ -150,7 +150,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
             }}
             className={cn(
               "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer border",
-              "bg-[#1A1A1E] hover:bg-[#222228] text-[#F4F4F5] border-white/[0.08] hover:border-white/[0.15] shadow-xs"
+              "bg-[#252525] hover:bg-[#2c2c2c] text-[#F4F4F5] border-[#2e2e2e] hover:border-[#383838] shadow-xs"
             )}
             title="New session"
           >
@@ -173,8 +173,8 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 font-medium",
                     isActive
-                      ? "bg-[#222228] text-white border border-white/[0.1] shadow-xs"
-                      : "text-zinc-400 hover:text-zinc-200 hover:bg-[#1A1A1E]"
+                      ? "bg-[#282828] text-white border border-[#333333] shadow-xs"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-[#222222]"
                   )}
                 >
                   <IconComponent className="w-3.5 h-3.5 shrink-0" />
@@ -186,14 +186,14 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
 
           {/* Devin-Style Recent Sessions Section */}
           {!collapsed && (
-            <div className="flex flex-col gap-1 pt-2 border-t border-white/[0.06] flex-1 overflow-hidden">
+            <div className="flex flex-col gap-1 pt-2 border-t border-[#222222] flex-1 overflow-hidden">
               <div className="flex items-center justify-between px-2 pb-1 text-[11px] font-medium text-zinc-500 tracking-wider uppercase">
                 <span>Recent</span>
               </div>
               <div className="flex flex-col gap-1 overflow-y-auto pr-1">
                 <Link
                   href="/dashboard"
-                  className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-[#1A1A1E] transition-colors group"
+                  className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-[#222222] transition-colors group"
                 >
                   <div className="flex items-center gap-2 truncate">
                     <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
@@ -205,7 +205,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 </Link>
                 <Link
                   href="/dashboard"
-                  className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-[#1A1A1E] transition-colors group"
+                  className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-[#222222] transition-colors group"
                 >
                   <div className="flex items-center gap-2 truncate">
                     <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
@@ -217,7 +217,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 </Link>
                 <Link
                   href="/dashboard"
-                  className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-[#1A1A1E] transition-colors group"
+                  className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-[#222222] transition-colors group"
                 >
                   <div className="flex items-center gap-2 truncate">
                     <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
