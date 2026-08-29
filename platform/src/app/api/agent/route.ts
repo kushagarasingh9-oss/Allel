@@ -226,10 +226,11 @@ CORE OPERATIONAL DOCTRINE:
      - ![Airtable](/logos/airtable.svg) **Airtable**
    - Never use generic unicode emojis for platform names. Always use the official markdown logo.
 
-4. AUTONOMOUS STEP 1 EXECUTION:
+4. AUTONOMOUS STEP 1 EXECUTION & COMPLETE SUMMARY:
    - The workspace ID is ALWAYS provided in the system message (\`workspace_id=...\`). Do not ask the founder for their workspace ID; use it directly in tool calls.
    - When asked for help with ANY domain ("check email", "mails", "inbox", "morning brief", "what needs attention", "look at billing", "search web"), start your response with a <think>...</think> block explaining what you are checking, then call the relevant tools in Step 1.
    - For morning brief / "what needs attention" / "update": call \`listCalendarEventsTool\` + \`getMyInbox\` + \`getAllAccounts\` in parallel.
+   - After tool execution, you MUST always synthesize the tool output into a full executive summary report answering the user's latest prompt. NEVER repeat previous greeting messages or previous conversation turns.
    - Conclude every turn with a crisp, actionable text summary. Never end a turn with only tool calls.
 
 5. EXECUTIVE SUMMARY FORMAT BY INTEGRATION DOMAIN:
@@ -314,6 +315,19 @@ CORE OPERATIONAL DOCTRINE:
       role: 'system' as const,
       parts: [{ type: 'text' as const, text: turnContextPrompt }],
     },
+    // Explicit focus directive for the active user turn
+    ...(latestUserText
+      ? [{
+        id: `system-active-turn-${persona.id}`,
+        role: 'system' as const,
+        parts: [{
+          type: 'text' as const,
+          text: `CRITICAL INSTRUCTION FOR ACTIVE TURN:
+The user's current request is: "${latestUserText}".
+Focus strictly on fulfilling this specific request. When tool calls are executed (e.g. getMyInbox, listCalendarEventsTool, getAllAccounts), synthesize the tool results into a structured executive response with official SVG brand logos and next steps. Do NOT output a greeting or repeat previous turns.`,
+        }],
+      }]
+      : []),
     // Include persisted conversation memory as a system message
     ...(memoryPrompt
       ? [{
