@@ -107,33 +107,20 @@ export function AllelCommandCenter() {
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   useEffect(() => {
-    let feed: HTMLElement | null = null;
     const checkScroll = () => {
-      if (!feed) feed = document.getElementById("agent-chat-feed");
+      const feed = document.getElementById("agent-chat-feed");
       if (feed) {
         const isNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
         setShowScrollBottom(!isNearBottom);
       }
     };
 
-    feed = document.getElementById("agent-chat-feed");
+    const feed = document.getElementById("agent-chat-feed");
     if (feed) {
       feed.addEventListener("scroll", checkScroll, { passive: true });
-    }
-
-    const timer = setInterval(() => {
-      const el = document.getElementById("agent-chat-feed");
-      if (el && el !== feed) {
-        feed = el;
-        feed.addEventListener("scroll", checkScroll, { passive: true });
-      }
       checkScroll();
-    }, 300);
-
-    return () => {
-      if (feed) feed.removeEventListener("scroll", checkScroll);
-      clearInterval(timer);
-    };
+      return () => feed.removeEventListener("scroll", checkScroll);
+    }
   }, [hasMessages, messages.length]);
 
   const handleScrollToBottom = () => {

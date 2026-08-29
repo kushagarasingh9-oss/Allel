@@ -1561,9 +1561,29 @@ export function AgentFeed() {
   }, [])
 
   const bottomAnchorRef = React.useRef<HTMLDivElement>(null)
+  const isUserScrolledUpRef = React.useRef(false)
 
-  // Smooth auto-scroll on new messages, streaming updates, and expanding nodes
+  // Track user manual scroll so we don't yank the screen down while they are reading
+  React.useEffect(() => {
+    const container = feedRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+      if (distanceFromBottom > 80) {
+        isUserScrolledUpRef.current = true
+      } else {
+        isUserScrolledUpRef.current = false
+      }
+    }
+
+    container.addEventListener("scroll", handleScroll, { passive: true })
+    return () => container.removeEventListener("scroll", handleScroll)
+  }, [])
+
+  // Smooth auto-scroll on new messages, streaming updates, and expanding nodes (only when user is at bottom)
   const scrollToBottom = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
+    isUserScrolledUpRef.current = false
     if (feedRef.current) {
       if (displayMessages === DEMO_SEED_MESSAGES) {
         feedRef.current.scrollTop = 0
@@ -1577,16 +1597,18 @@ export function AgentFeed() {
   }, [displayMessages])
 
   // Track DOM mutations and size changes during streaming/rendering to auto-scroll smoothly without jitter
-  // Smooth auto-scroll on new messages, streaming updates, text generation, and expanding nodes
   React.useEffect(() => {
     const container = feedRef.current
     if (!container) return
 
     let rafId: number | null = null
     const scheduleScroll = (behavior: ScrollBehavior = 'smooth') => {
+      // Do not hijack scroll if user is scrolled up reading earlier turns
+      if (isUserScrolledUpRef.current) return
+
       if (rafId) return
       rafId = requestAnimationFrame(() => {
-        if (container) {
+        if (container && !isUserScrolledUpRef.current) {
           if (displayMessages === DEMO_SEED_MESSAGES) {
             container.scrollTop = 0
           } else {
