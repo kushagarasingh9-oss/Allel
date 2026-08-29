@@ -62,12 +62,12 @@ export function DevinChatBox({
   return (
     <div
       className={cn(
-        "w-full max-w-[650px] mx-auto bg-[#1d1d1d] border border-[#282828] rounded-[20px] p-1.5 shadow-[0_6px_24px_rgba(0,0,0,0.35)] flex flex-col gap-1 transition-all select-none",
+        "w-full max-w-[650px] mx-auto bg-[#1e1e1e] border border-[#2c2c2c] rounded-[20px] p-1.5 shadow-[0_6px_24px_rgba(0,0,0,0.35)] flex flex-col gap-1 transition-all select-none",
         className
       )}
     >
       {/* 1. UPPER INNER FLOATING INPUT CARD */}
-      <div className="w-full bg-[#282828] border border-[#343434] rounded-[15px] p-3.5 focus-within:border-zinc-500 transition-all flex flex-col justify-between min-h-[92px]">
+      <div className="w-full bg-[#292929] border border-[#363636] rounded-[15px] p-3.5 focus-within:border-zinc-400 transition-all flex flex-col justify-between min-h-[92px]">
         {/* Textarea Input */}
         <textarea
           ref={textareaRef}
@@ -109,7 +109,7 @@ export function DevinChatBox({
                 "w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0",
                 value.trim() || isLoading
                   ? "bg-white text-black hover:bg-zinc-200 shadow-md"
-                  : "bg-[#5a5a5a] text-zinc-300 cursor-not-allowed"
+                  : "bg-[#646464] text-[#1e1e1e] cursor-not-allowed"
               )}
             >
               {isLoading ? (
