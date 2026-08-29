@@ -61,7 +61,7 @@ export function DevinChatBox({
   return (
     <div
       className={cn(
-        "w-full max-w-[760px] mx-auto bg-[#1e1e1e] border border-[#2a2a2a] rounded-[24px] p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1 transition-all select-none",
+        "w-full max-w-[760px] mx-auto bg-[#191919] border border-[#282828] rounded-[24px] p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 transition-all select-none",
         className
       )}
     >
@@ -138,7 +138,7 @@ export function DevinChatBox({
       </div>
 
       {/* 2. OUTER CARD STATUS FOOTER BANNER */}
-      <div className="flex items-center justify-between px-3 py-1 text-xs">
+      <div className="flex items-center justify-between px-3.5 pt-2 pb-2.5 text-xs">
         <div className="flex items-center gap-2 text-zinc-300 font-medium truncate">
           <span className="w-3.5 h-3.5 rounded-full border border-zinc-400 flex items-center justify-center text-[10px] text-zinc-400 shrink-0 font-semibold">
             !
