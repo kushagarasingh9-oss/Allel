@@ -230,6 +230,17 @@ export function ChatProvider({
   React.useEffect(() => {
     if (typeof window === "undefined" || !resolvedStorageScope) return
 
+    // 1. Check if savedSessions has canonical messages for this active sessionId
+    const foundInSaved = savedSessions.find((s) => s.id === resolvedStorageScope.sessionId)
+    if (foundInSaved) {
+      if (chatRef.current) {
+        chatRef.current.chat.messages = foundInSaved.messages
+      }
+      setMessages(foundInSaved.messages)
+      return
+    }
+
+    // 2. Fallback to sessionStorage for session-specific thread
     const raw = window.sessionStorage.getItem(
       buildPersonaThreadStorageKey(resolvedStorageScope)
     )
@@ -253,7 +264,7 @@ export function ChatProvider({
       )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedStorageScope?.sessionId])
+  }, [resolvedStorageScope?.sessionId, savedSessions])
 
   // ── Server Hydration ──
   React.useEffect(() => {
@@ -533,7 +544,9 @@ function generateRefinedTitle(messages: UIMessage[]): string {
         }
       }
     }
-    chatRef.current = null
+    if (chatRef.current) {
+      chatRef.current.chat.messages = []
+    }
     setActiveSessionId(newSessionId)
     setCurrentSessionId(newSessionId)
     setMessages([])
@@ -565,10 +578,11 @@ function generateRefinedTitle(messages: UIMessage[]): string {
         }
       }
     }
-    // Queue the messages to be applied after the new Chat object is created
+    if (chatRef.current) {
+      chatRef.current.chat.messages = session.messages
+    }
     pendingLoadRef.current = session.messages
     skipHydrationRef.current = true
-    chatRef.current = null
     setActiveSessionId(session.id)
     setCurrentSessionId(session.id)
     setMessages(session.messages)
