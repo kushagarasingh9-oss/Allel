@@ -2,6 +2,13 @@
 
 import React, { useRef, useEffect, useState } from "react";
 import { Plus, Mic, ArrowUp, Square, SlidersHorizontal, ChevronDown, Check, Info, ChevronRight } from "lucide-react";
+import {
+  SiGithub,
+  SiStripe,
+  SiPosthog,
+  SiSentry,
+  SiLinear,
+} from "@icons-pack/react-simple-icons";
 import { cn } from "@/foundation/utils";
 
 export interface DevinChatBoxProps {
@@ -28,8 +35,8 @@ export function DevinChatBox({
   placeholder = "Ask Allel to build features, fix bugs, or work on your code",
   modeLabel = "Normal",
   onModeToggle,
-  statusMessage = "Autonomous Engine Active • All 6 integrations synchronized",
-  statusLinkText = "Explore automations",
+  statusMessage = "Connect with your stack to automate them",
+  statusLinkText = "+5 more",
   onStatusLinkClick,
   className,
 }: DevinChatBoxProps) {
@@ -230,11 +237,30 @@ export function DevinChatBox({
           <span className="truncate text-xs text-zinc-300 font-medium">
             {statusMessage}
           </span>
+
+          {/* Overlapping Stacked Integration Icons (5 Stacked Logos) */}
+          <div className="flex items-center -space-x-1.5 ml-1 shrink-0">
+            <div className="w-4.5 h-4.5 rounded-full bg-[#242424] border border-[#333333] flex items-center justify-center text-white p-0.5 shadow-xs" title="GitHub">
+              <SiGithub className="w-2.5 h-2.5 text-white" />
+            </div>
+            <div className="w-4.5 h-4.5 rounded-full bg-[#242424] border border-[#333333] flex items-center justify-center text-[#635BFF] p-0.5 shadow-xs" title="Stripe">
+              <SiStripe className="w-2.5 h-2.5 text-[#635BFF]" />
+            </div>
+            <div className="w-4.5 h-4.5 rounded-full bg-[#242424] border border-[#333333] flex items-center justify-center text-[#F54E00] p-0.5 shadow-xs" title="PostHog">
+              <SiPosthog className="w-2.5 h-2.5 text-[#F54E00]" />
+            </div>
+            <div className="w-4.5 h-4.5 rounded-full bg-[#242424] border border-[#333333] flex items-center justify-center text-white p-0.5 shadow-xs" title="Sentry">
+              <SiSentry className="w-2.5 h-2.5 text-white" />
+            </div>
+            <div className="w-4.5 h-4.5 rounded-full bg-[#242424] border border-[#333333] flex items-center justify-center text-[#5E6AD2] p-0.5 shadow-xs" title="Linear">
+              <SiLinear className="w-2.5 h-2.5 text-[#5E6AD2]" />
+            </div>
+          </div>
         </div>
 
         <button
           type="button"
-          onClick={onStatusLinkClick}
+          onClick={onStatusLinkClick || (() => window.location.href = "/dashboard/connections")}
           className="text-xs font-semibold text-[#38bdf8] hover:underline cursor-pointer shrink-0 ml-2"
         >
           {statusLinkText}
