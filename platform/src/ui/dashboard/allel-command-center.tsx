@@ -228,8 +228,8 @@ export function AllelCommandCenter() {
               <AgentFeed />
             </div>
 
-            {/* Fixed Bottom Omnibar + Attached Top Task Runner Tray (100% Fixed at one place) */}
-            <div className="absolute bottom-3 left-0 right-0 w-full z-30 px-4 pb-2 flex flex-col items-center pointer-events-none [&>*]:pointer-events-auto">
+            {/* Fixed Bottom Omnibar + Attached Top Task Runner Tray (100% Fixed at one place, masks scrolling text beneath) */}
+            <div className="absolute bottom-0 left-0 right-0 w-full z-30 px-4 pb-3 pt-8 flex flex-col items-center bg-gradient-to-t from-[#121214] from-70% via-[#121214]/90 to-transparent pointer-events-none [&>*]:pointer-events-auto">
               {/* Scroll Down Floating Indicator Button */}
               <button
                 type="button"
