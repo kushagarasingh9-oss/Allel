@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/foundation/database/client";
 import {
   Plus,
+  ArrowUp,
   Search,
   PanelLeftClose,
   PanelLeftOpen,
@@ -21,6 +22,8 @@ import {
   Bell,
   Monitor,
   Settings,
+  Download,
+  HelpCircle,
   LogOut,
   Sun,
   Moon,
@@ -294,113 +297,118 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
           )}
         </div>
 
-        {/* Bottom Profile Toolbar (Runable Pill Bar) */}
+        {/* Bottom Footer Toolbar (Devin Style: Upgrade Link + Settings / Download / Help Icons) */}
         {!collapsed && (
-          <div className="pt-2 relative flex items-center justify-between gap-1 border-t border-[#1a1a1a]" ref={menuRef}>
-            {/* Left User Profile Pill */}
-            <button
-              type="button"
-              onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-[#1c1c1c] hover:bg-[#242424] border border-[#262626] text-xs font-medium text-white transition-all min-w-0 max-w-[145px] cursor-pointer"
-            >
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={userName}
-                  className="w-5 h-5 rounded-full object-cover shrink-0"
-                />
-              ) : (
-                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-amber-600 to-red-500 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
-                  {userName.slice(0, 2).toUpperCase()}
-                </div>
-              )}
-              <span className="truncate text-xs">{userName}</span>
-            </button>
-
-            {/* Right Action Icons */}
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                className="w-8 h-8 rounded-full bg-[#1c1c1c] hover:bg-[#242424] border border-[#262626] flex items-center justify-center text-zinc-400 hover:text-white transition-colors relative cursor-pointer"
-                title="Notifications"
-              >
-                <Bell className="w-3.5 h-3.5" />
-                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-400 rounded-full" />
-              </button>
-
+          <div className="pt-2 px-1 relative flex items-center justify-between gap-1 border-t border-[#1a1a1a]" ref={menuRef}>
+            {/* Left Upgrade / Account Action Link */}
+            <div className="relative">
               <button
                 type="button"
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                className="w-8 h-8 rounded-full bg-[#1c1c1c] hover:bg-[#242424] border border-[#262626] flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                title="Settings & Profile"
+                onMouseEnter={() => setIsProfileMenuOpen(true)}
+                className="flex items-center gap-2 text-xs font-medium text-[#38bdf8] hover:underline cursor-pointer group"
               >
-                <Monitor className="w-3.5 h-3.5" />
+                <div className="w-4 h-4 rounded-full border border-[#38bdf8] flex items-center justify-center shrink-0">
+                  <ArrowUp className="w-2.5 h-2.5 text-[#38bdf8] stroke-[2.5]" />
+                </div>
+                <span>Upgrade</span>
               </button>
+
+              {/* Connected Account Info Card Popover (Shown on hover/click) */}
+              {isProfileMenuOpen && (
+                <div
+                  onMouseLeave={() => setIsProfileMenuOpen(false)}
+                  className="absolute bottom-9 left-0 z-50 w-64 bg-[#161616] border border-[#262626] rounded-xl p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-150 select-none"
+                >
+                  <div className="flex items-center gap-2.5 p-2 mb-2 bg-[#202020] rounded-lg border border-[#282828]">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={userName}
+                        className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/10"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600 to-red-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                        {userName.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-medium text-white truncate">
+                        {userName}
+                      </span>
+                      <span className="text-[11px] text-zinc-400 truncate">
+                        {userEmail}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="px-2 py-1 mb-2 text-[11px] text-zinc-400 flex items-center justify-between border-t border-b border-[#242424]">
+                    <span>Connected Account:</span>
+                    <span className="text-emerald-400 font-medium">Active (Free Tier)</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setTheme(currentTheme === "dark" ? "light" : "dark")}
+                    className="flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-[#202020] transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      {currentTheme === "light" ? (
+                        <Sun className="w-3.5 h-3.5 text-amber-500" />
+                      ) : (
+                        <Moon className="w-3.5 h-3.5 text-neutral-400" />
+                      )}
+                      <span>Theme</span>
+                    </div>
+                    <span className="capitalize text-[11px] text-zinc-400">{currentTheme === "light" ? "Light" : "Dark"}</span>
+                  </button>
+
+                  <Link
+                    href="/dashboard/settings"
+                    onClick={() => setIsProfileMenuOpen(false)}
+                    className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-[#202020] transition-colors"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>Account Settings</span>
+                  </Link>
+
+                  <button
+                    onClick={handleSignOut}
+                    className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors mt-0.5 cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-red-400" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Profile Popover Popup */}
-            {isProfileMenuOpen && (
-              <div className="absolute bottom-12 left-0 z-50 w-60 bg-[#161616] border border-[#262626] rounded-xl p-3 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex items-center gap-2.5 p-2 mb-2 bg-[#202020] rounded-lg border border-[#282828]">
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt={userName}
-                      className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/10"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600 to-red-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                      {userName.slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-medium text-white truncate">
-                      {userName}
-                    </span>
-                    <span className="text-[11px] text-zinc-400 truncate">
-                      {userEmail}
-                    </span>
-                  </div>
-                </div>
+            {/* Right Action Icons (Settings, Download App, Help) */}
+            <div className="flex items-center gap-2.5 text-zinc-400">
+              <Link
+                href="/dashboard/settings"
+                className="hover:text-white transition-colors cursor-pointer p-1"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </Link>
 
-                <div className="h-px bg-[#262626] my-1" />
+              <button
+                type="button"
+                className="hover:text-white transition-colors cursor-pointer p-1"
+                title="Download desktop app"
+              >
+                <Download className="w-4 h-4" />
+              </button>
 
-                <button
-                  type="button"
-                  onClick={() => setTheme(currentTheme === "dark" ? "light" : "dark")}
-                  className="flex items-center justify-between w-full px-2.5 py-2 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-[#202020] transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-2.5">
-                    {currentTheme === "light" ? (
-                      <Sun className="w-4 h-4 text-amber-500" />
-                    ) : (
-                      <Moon className="w-4 h-4 text-neutral-400" />
-                    )}
-                    <span>Theme</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-[#202020] border border-[#282828] px-2 py-0.5 rounded-md text-[11px] font-medium text-zinc-200">
-                    <span className="capitalize">{currentTheme === "light" ? "Light" : "Dark"}</span>
-                  </div>
-                </button>
-
-                <Link
-                  href="/dashboard/settings"
-                  onClick={() => setIsProfileMenuOpen(false)}
-                  className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-[#202020] transition-colors"
-                >
-                  <Settings className="w-4 h-4 text-zinc-400" />
-                  <span>Account Settings</span>
-                </Link>
-
-                <button
-                  onClick={handleSignOut}
-                  className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors mt-0.5 cursor-pointer"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            )}
+              <button
+                type="button"
+                className="hover:text-white transition-colors cursor-pointer p-1"
+                title="Help & Documentation"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
       </aside>
