@@ -123,8 +123,6 @@ export function AllelCommandCenter() {
     }
   };
 
-  const hasMessages = messages.length > 0;
-
   return (
     <div className="flex flex-col h-full w-full bg-[#0f0f10] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
       {/* Top Header Bar (Devin Style: No Border Divider + Pure Icon Cluster) */}
