@@ -1504,20 +1504,32 @@ export function AgentFeed() {
   const feedRef = React.useRef<HTMLDivElement>(null)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
 
-  // Filter out temporary test artifacts and deduplicate identical repeated messages
+  // Filter out temporary test artifacts, deduplicate identical repeated messages, and avoid repeating stopped banners
   const displayMessages = React.useMemo(() => {
     const seenIds = new Set<string>()
+    let lastRenderedAssistantWasStopped = false
+
     const liveMessages = messages.filter((m, idx) => {
       const msgId = typeof m.id === "string" && m.id.trim().length > 0 ? m.id : `msg-${m.role}-${idx}`
       if (seenIds.has(msgId)) return false
       seenIds.add(msgId)
 
       if (m.role === "assistant") {
+        const textParts = m.parts?.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim() ?? ""
+        const isStoppedMsg = textParts.toLowerCase().includes("execution stopped") || (m.parts?.length ?? 0) === 0
+
+        // If the previous message was also an assistant stopped banner, omit consecutive repeats
+        if (isStoppedMsg) {
+          if (lastRenderedAssistantWasStopped) return false
+          lastRenderedAssistantWasStopped = true
+        } else {
+          lastRenderedAssistantWasStopped = false
+        }
+
         const prev = messages[idx - 1]
         if (prev && prev.role === "assistant") {
           const prevText = prev.parts?.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim()
-          const currText = m.parts?.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim()
-          if (prevText && currText && prevText === currText) {
+          if (prevText && textParts && prevText === textParts) {
             return false
           }
         }
@@ -1525,6 +1537,7 @@ export function AgentFeed() {
       }
 
       if (m.role === "user") {
+        lastRenderedAssistantWasStopped = false
         const prev = messages[idx - 1]
         if (prev && prev.role === "user") {
           const prevText = prev.parts?.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim()
@@ -1543,10 +1556,7 @@ export function AgentFeed() {
       return !text.startsWith("c=") && text !== "jd" && text !== "f"
     })
 
-    if (liveMessages.length > 0) {
-      return liveMessages
-    }
-    return DEMO_SEED_MESSAGES
+    return liveMessages
   }, [messages])
 
   // Fetch Google account avatar

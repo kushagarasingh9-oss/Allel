@@ -211,10 +211,10 @@ CORE OPERATIONAL DOCTRINE:
      7. ![Sentry](/logos/sentry-light.svg) **Error Monitoring (Sentry)**: Track crashes and regressions.
 
 3. MANDATORY SVG BRAND LOGOS IN SUMMARIES:
-   - Whenever mentioning or introducing a platform or integration section, you MUST prefix with its official SVG logo markdown:
-     - ![Google Calendar](/logos/google-calendar.svg) **Calendar** (e.g. ![Google Calendar](/logos/google-calendar.svg) **Calendar (Aug 26)** — ...)
-     - ![Gmail](/logos/gmail.svg) **Inbox** (e.g. ![Gmail](/logos/gmail.svg) **Inbox** — ...)
-     - ![Stripe](/logos/stripe.svg) **Billing** (e.g. ![Stripe](/logos/stripe.svg) **Billing** — ...)
+   - Whenever mentioning or introducing a platform or integration (in headers OR inline mentions), you MUST prefix with its official SVG logo markdown:
+     - ![Google Calendar](/logos/google-calendar.svg) **Calendar**
+     - ![Gmail](/logos/gmail.svg) **Inbox**
+     - ![Stripe](/logos/stripe.svg) **Billing**
      - ![Slack](/logos/slack.svg) **Slack**
      - ![PostHog](/logos/posthog.svg) **Product Analytics**
      - ![Linear](/logos/linear.svg) **Linear**
@@ -222,7 +222,9 @@ CORE OPERATIONAL DOCTRINE:
      - ![Notion](/logos/notion.svg) **Notion**
      - ![HubSpot](/logos/hubspot.svg) **HubSpot**
      - ![Intercom](/logos/intercom.svg) **Intercom**
-   - Integration Logos: Always use official SVG logo markdown (e.g. ![Gmail](/logos/gmail.svg) **Inbox**, ![Stripe](/logos/stripe.svg) **Billing**) for platform section headers rather than generic unicode emojis.
+     - ![LinkedIn](/logos/linkedin.svg) **LinkedIn** (e.g. "One ![LinkedIn](/logos/linkedin.svg) **LinkedIn** invite from...")
+     - ![Airtable](/logos/airtable.svg) **Airtable**
+   - Never use generic unicode emojis for platform names. Always use the official markdown logo.
 
 4. AUTONOMOUS STEP 1 EXECUTION:
    - The workspace ID is ALWAYS provided in the system message (\`workspace_id=...\`). Do not ask the founder for their workspace ID; use it directly in tool calls.
@@ -231,6 +233,13 @@ CORE OPERATIONAL DOCTRINE:
    - Conclude every turn with a crisp, actionable text summary. Never end a turn with only tool calls.
 
 5. EXECUTIVE SUMMARY FORMAT:
+   - Always structure your email / inbox summaries cleanly with inline SVG logos and bullet points:
+     Example for email triage:
+     ![Gmail](/logos/gmail.svg) **Inbox** — 4 threads need replies, 20 digests auto-cleared.
+     **Reply-worthy:** • **Sender A** on topic — context. • **Sender B** with topic.
+     One ![LinkedIn](/logos/linkedin.svg) **LinkedIn** invite from Prakash Dixit — no action needed.
+     **Next move:** Want me to open any of these threads so you can read the full message and decide how to respond?
+   - Always conclude with a bold **Next move:** proposing the highest-leverage action.
    - Formatting: Avoid raw key-value metadata blocks ("From:", "Subject:", "Priority:").
    - Output either a 2–3 sentence executive paragraph OR clean 1-line action bullets.
    - State facts with executive confidence; never use apologetic phrasing.
@@ -276,13 +285,23 @@ CORE OPERATIONAL DOCTRINE:
         parts: [{ type: 'text' as const, text: memoryPrompt }],
       }]
       : []),
-    // Pillar 3: Compact old tool results in history to prevent O(N²) token growth.
-    // Keeps the last tool exchange verbatim; earlier large payloads are truncated to
-    // a 1-line preview + char count. User/assistant messages are never touched.
-    // Double-cast via unknown[] — compactToolHistory returns same objects at runtime.
-    ...(compactToolHistory(recentMessages as unknown as Array<{ role: string; parts?: Array<{ type: string; text?: string }>;[key: string]: unknown }>)
-      .filter((m) => Array.isArray(m.parts) && (m.parts?.length ?? 0) > 0) as unknown as AgentChatMessage[]),
-
+    // Pillar 3: Compact old tool results in history to prevent O(N²) token growth,
+    // and strip incomplete/interrupted tool-call parts to prevent AI_MissingToolResultsError.
+    ...(compactToolHistory(
+      recentMessages
+        .map((msg) => {
+          if (msg.role !== 'assistant' || !Array.isArray(msg.parts)) return msg
+          const safeParts = msg.parts.filter((part: Record<string, unknown>) => {
+            const typeStr = String(part.type ?? '')
+            if (typeStr.startsWith('tool-') || typeStr === 'dynamic-tool') {
+              return part.state === 'output-available' || part.output !== undefined
+            }
+            return true
+          })
+          if (safeParts.length > 0) return { ...msg, parts: safeParts }
+          return { ...msg, parts: [{ type: 'text', text: 'Execution was stopped by user.' }] }
+        }) as unknown as Array<{ role: string; parts?: Array<{ type: string; text?: string }>;[key: string]: unknown }>
+    ).filter((m) => Array.isArray(m.parts) && (m.parts?.length ?? 0) > 0) as unknown as AgentChatMessage[]),
   ]
 
 
