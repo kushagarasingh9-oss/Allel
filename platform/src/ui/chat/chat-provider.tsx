@@ -553,6 +553,31 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     setMessages(session.messages)
   }, [clearError, setMessages, stop, storageUserId, storageWorkspaceId])
 
+  // Listen for custom allel:load-session event from sidebar for smooth hydration without full browser reload
+  React.useEffect(() => {
+    const handleLoadSession = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && detail.sessionId) {
+        const found = savedSessions.find((s) => s.id === detail.sessionId);
+        if (found) {
+          loadChatSession(found);
+        } else {
+          stop();
+          clearError();
+          if (typeof window !== "undefined") {
+            window.sessionStorage.setItem("allel.current-session-id", detail.sessionId);
+            window.localStorage.setItem("allel.current-session-id", detail.sessionId);
+          }
+          chatRef.current = null;
+          setActiveSessionId(detail.sessionId);
+          setCurrentSessionId(detail.sessionId);
+        }
+      }
+    };
+    window.addEventListener("allel:load-session", handleLoadSession);
+    return () => window.removeEventListener("allel:load-session", handleLoadSession);
+  }, [savedSessions, loadChatSession, stop, clearError])
+
   const deleteChatSession = React.useCallback(async (id: string) => {
     // 1. Remove from local history list
     setSavedSessions((prev) => {

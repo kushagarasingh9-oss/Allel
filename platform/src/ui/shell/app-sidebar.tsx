@@ -75,17 +75,54 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
 
   const currentTheme = mounted ? (theme ?? resolvedTheme ?? "dark") : "dark";
 
-  // Load history sessions from backend API
+  // Load history sessions from backend API + localStorage fallback
   const loadHistory = async () => {
     try {
       setIsFetchingHistory(true);
+      
+      // 1. Read local saved sessions from localStorage for instant hydration
+      let localSessions: Array<{ sessionId: string; title: string; updatedAt: string }> = [];
+      if (typeof window !== "undefined") {
+        try {
+          const raw = window.localStorage.getItem("allel.chat-history.v1");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              localSessions = parsed.map((s: any) => ({
+                sessionId: s.id,
+                title: s.title,
+                updatedAt: s.createdAt || new Date().toISOString(),
+              }));
+            }
+          }
+        } catch {
+          // Ignore storage read error
+        }
+      }
+
+      // 2. Fetch remote DB sessions from backend API
+      let remoteSessions: Array<{ sessionId: string; title: string; updatedAt: string }> = [];
       const res = await fetch("/api/agent/sessions");
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.sessions)) {
-          setHistorySessions(data.sessions);
+          remoteSessions = data.sessions;
         }
       }
+
+      // 3. Merge local + remote sessions (local title precedence for active runs)
+      const map = new Map<string, { sessionId: string; title: string; updatedAt: string }>();
+      remoteSessions.forEach((s) => map.set(s.sessionId, s));
+      localSessions.forEach((s) => {
+        const existing = map.get(s.sessionId);
+        if (existing) {
+          map.set(s.sessionId, { ...existing, title: s.title });
+        } else {
+          map.set(s.sessionId, s);
+        }
+      });
+
+      setHistorySessions(Array.from(map.values()));
     } catch (err) {
       console.error("Failed to load history sessions:", err);
     } finally {
@@ -347,7 +384,13 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                           <button
                             type="button"
                             onClick={() => {
-                              window.location.href = `/dashboard?sessionId=${encodeURIComponent(session.sessionId)}`;
+                              if (typeof window !== "undefined") {
+                                const url = new URL(window.location.href);
+                                url.pathname = "/dashboard";
+                                url.searchParams.set("sessionId", session.sessionId);
+                                window.history.pushState({}, "", url.toString());
+                                window.dispatchEvent(new CustomEvent("allel:load-session", { detail: { sessionId: session.sessionId } }));
+                              }
                             }}
                             className={cn(
                               "w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 truncate cursor-pointer flex items-center justify-between gap-1 border border-transparent",
