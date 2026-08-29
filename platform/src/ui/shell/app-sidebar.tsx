@@ -315,11 +315,11 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
               </button>
               {isHistoryOpen && (
                 <div className="flex flex-col gap-0.5 overflow-y-auto pr-1 max-h-[220px] custom-scrollbar">
-                  {/* Active / Pending Session Skeleton Item with round loader & left-to-right shimmer animation */}
+                  {/* Active / Pending Session Skeleton Item with white round loader & left-to-right shimmer animation */}
                   {pendingSessionId && !historySessions.some((s) => s.sessionId === pendingSessionId) && (
                     <div className="relative group w-full my-0.5 animate-in fade-in duration-200">
-                      <div className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-2 border border-white/[0.08] bg-white/[0.06] text-white select-none">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
+                      <div className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-2 border border-transparent bg-transparent text-white select-none">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white shrink-0" />
                         <div className="relative overflow-hidden w-28 h-3 rounded bg-zinc-800/80 shrink-0">
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-skeleton-shimmer" />
                         </div>
