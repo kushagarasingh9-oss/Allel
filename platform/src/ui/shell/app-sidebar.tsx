@@ -216,8 +216,8 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
             {!collapsed && <span>New task</span>}
           </button>
 
-          {/* Nav List */}
-          <nav className="flex flex-col gap-0.5">
+          {/* Nav List with Increased Breathing Room */}
+          <nav className="flex flex-col gap-1.5 py-1">
             {navLinks.map((link) => {
               const IconComp = link.icon;
               const isActive = link.exact
@@ -229,7 +229,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                   key={link.label}
                   href={link.href}
                   className={cn(
-                    "flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 font-medium",
+                    "flex items-center gap-3 px-2.5 py-2 rounded-lg text-xs transition-all duration-150 font-medium",
                     isActive
                       ? "bg-[#1c1c1c] text-white border border-[#262626]"
                       : "text-zinc-400 hover:text-zinc-200 hover:bg-[#181818]"
@@ -242,32 +242,9 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
             })}
           </nav>
 
-          {/* Projects Accordion Section */}
-          {!collapsed && (
-            <div className="flex flex-col gap-1 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsProjectsOpen(!isProjectsOpen)}
-                className="flex items-center gap-1 px-1 text-[11px] font-semibold text-zinc-400 hover:text-zinc-200 cursor-pointer"
-              >
-                <span>Projects</span>
-                {isProjectsOpen ? (
-                  <ChevronDown className="w-3 h-3 text-zinc-500" />
-                ) : (
-                  <ChevronRight className="w-3 h-3 text-zinc-500" />
-                )}
-              </button>
-              {isProjectsOpen && (
-                <div className="px-2 py-0.5 text-xs text-zinc-500 font-normal">
-                  No projects yet
-                </div>
-              )}
-            </div>
-          )}
-
           {/* History Accordion Section */}
           {!collapsed && (
-            <div className="flex flex-col gap-1 pt-2 flex-1 overflow-hidden">
+            <div className="flex flex-col gap-1 pt-3 flex-1 overflow-hidden">
               <button
                 type="button"
                 onClick={() => setIsHistoryOpen(!isHistoryOpen)}
