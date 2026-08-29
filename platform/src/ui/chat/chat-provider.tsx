@@ -42,6 +42,7 @@ export type SavedChatSession = {
 }
 
 type ChatContextType = {
+  currentSessionId: string
   messages: UIMessage[]
   sendMessage: (params: { text: string }) => void
   stop: () => void
@@ -466,6 +467,17 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     const hasUserMsg = messages.some((m) => m.role === "user")
     if (!hasUserMsg) return
 
+    try {
+      const url = new URL(window.location.href)
+      if (url.searchParams.get("sessionId") !== currentSessionId) {
+        url.pathname = "/dashboard"
+        url.searchParams.set("sessionId", currentSessionId)
+        window.history.pushState({}, "", url.toString())
+      }
+    } catch {
+      // Ignore
+    }
+
     const title = generateRefinedTitle(messages)
 
     const sessionItem: SavedChatSession = {
@@ -500,6 +512,15 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     clearError()
     const newSessionId = `session-${Date.now()}`
     if (typeof window !== "undefined") {
+      try {
+        const url = new URL(window.location.href)
+        url.pathname = "/dashboard"
+        url.searchParams.set("sessionId", newSessionId)
+        window.history.pushState({}, "", url.toString())
+      } catch {
+        // Ignore
+      }
+
       window.sessionStorage.setItem("allel.current-session-id", newSessionId)
       window.localStorage.setItem("allel.current-session-id", newSessionId)
       if (storageUserId && storageWorkspaceId) {
@@ -516,12 +537,22 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     setActiveSessionId(newSessionId)
     setCurrentSessionId(newSessionId)
     setMessages([])
+    window.dispatchEvent(new CustomEvent("allel:refresh-history"))
   }, [clearError, setMessages, stop, storageUserId, storageWorkspaceId])
 
   const loadChatSession = React.useCallback((session: SavedChatSession) => {
     stop()
     clearError()
     if (typeof window !== "undefined") {
+      try {
+        const url = new URL(window.location.href)
+        url.pathname = "/dashboard"
+        url.searchParams.set("sessionId", session.id)
+        window.history.pushState({}, "", url.toString())
+      } catch {
+        // Ignore
+      }
+
       window.sessionStorage.setItem("allel.current-session-id", session.id)
       window.localStorage.setItem("allel.current-session-id", session.id)
       if (storageUserId && storageWorkspaceId) {
@@ -541,6 +572,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     setActiveSessionId(session.id)
     setCurrentSessionId(session.id)
     setMessages(session.messages)
+    window.dispatchEvent(new CustomEvent("allel:refresh-history"))
   }, [clearError, setMessages, stop, storageUserId, storageWorkspaceId])
 
   // Listen for custom allel:load-session event from sidebar for smooth hydration without full browser reload
@@ -606,6 +638,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
 
   const contextValue = React.useMemo<ChatContextType>(
     () => ({
+      currentSessionId,
       messages,
       sendMessage,
       stop,
@@ -624,6 +657,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
       deleteChatSession,
     }),
     [
+      currentSessionId,
       messages,
       sendMessage,
       stop,

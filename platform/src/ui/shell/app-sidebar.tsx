@@ -374,9 +374,9 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                     </div>
                   ) : (
                     historySessions.map((session) => {
-                      const activeSessionId = typeof window !== "undefined"
+                      const activeSessionId = chatContext?.currentSessionId || (typeof window !== "undefined"
                         ? new URLSearchParams(window.location.search).get("sessionId")
-                        : null;
+                        : null);
                       const isSelected = activeSessionId === session.sessionId;
 
                       return (
