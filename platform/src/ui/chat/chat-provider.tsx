@@ -53,6 +53,7 @@ type ChatContextType = {
   setAgentId: (id: PersonaId) => void
   resetActiveThread: () => Promise<void>
   activeSessionTitle: string | null
+  isResolvingTitle: boolean
   threadStateByAgent: Record<PersonaId, {
     messageCount: number
     status: ChatStatus
@@ -169,10 +170,16 @@ export function ChatProvider({
   } | null>(null)
 
   if (!chatRef.current || chatRef.current.scopeKey !== scopeKey) {
+    const initialMessages = pendingLoadRef.current && pendingLoadRef.current.length > 0
+      ? pendingLoadRef.current
+      : undefined
+    pendingLoadRef.current = null
+
     chatRef.current = {
       scopeKey,
       chat: new Chat<UIMessage>({
         id: buildPersonaThreadChatId(AGENT_ID, resolvedStorageScope),
+        messages: initialMessages,
         transport: new DefaultChatTransport({
           api: `/api/agent?agentId=${AGENT_ID}`,
           body: resolvedStorageScope
@@ -184,12 +191,6 @@ export function ChatProvider({
   }
 
   const chat = chatRef.current.chat
-
-  // Apply pending messages from loadChatSession after Chat object is recreated
-  if (pendingLoadRef.current && pendingLoadRef.current.length > 0) {
-    chat.messages = pendingLoadRef.current
-    pendingLoadRef.current = null
-  }
   const [hydrationStatus, setHydrationStatus] = React.useState<HydrationStatus>("idle")
 
   const {
@@ -681,6 +682,17 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     return generateRefinedTitle(messages)
   }, [messages, savedSessions, currentSessionId])
 
+  const isResolvingTitle = React.useMemo(() => {
+    if (!messages || messages.length === 0) return false
+    const existing = savedSessions.find((s) => s.id === currentSessionId)
+    const hasAssistantText = messages.some((m) => {
+      if (m.role !== "assistant") return false
+      const textParts = m.parts?.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim() ?? ""
+      return textParts.length > 0
+    })
+    return isLoading && !hasAssistantText && (!existing || existing.title === "New Session" || existing.title === "New Conversation")
+  }, [messages, savedSessions, currentSessionId, isLoading])
+
   const contextValue = React.useMemo<ChatContextType>(
     () => ({
       currentSessionId,
@@ -694,6 +706,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
       setAgentId,
       resetActiveThread,
       activeSessionTitle,
+      isResolvingTitle,
       threadStateByAgent: threadState,
       hydrationStatus,
       savedSessions,
@@ -712,6 +725,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
       setAgentId,
       resetActiveThread,
       activeSessionTitle,
+      isResolvingTitle,
       threadState,
       hydrationStatus,
       savedSessions,
