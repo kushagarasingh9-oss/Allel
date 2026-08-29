@@ -6,6 +6,7 @@ import { AgentFeed } from "@/ui/chat/agent-feed";
 import { DevinChatBox } from "@/ui/primitives/devin-chat-box";
 import {
   ArrowUp,
+  ArrowDown,
   Square,
   Sparkles,
   Plus,
