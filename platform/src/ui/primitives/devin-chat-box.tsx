@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useState } from "react";
-import { Plus, Mic, ArrowUp, Square, SlidersHorizontal, ChevronDown } from "lucide-react";
+import { Plus, Mic, ArrowUp, Square, SlidersHorizontal, ChevronDown, Check, Info, ChevronRight } from "lucide-react";
 import { cn } from "@/foundation/utils";
 
 export interface DevinChatBoxProps {
@@ -34,6 +34,19 @@ export function DevinChatBox({
   className,
 }: DevinChatBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
+  const [selectedMode, setSelectedMode] = useState<string>(modeLabel || "Normal");
+  const modeMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (modeMenuRef.current && !modeMenuRef.current.contains(event.target as Node)) {
+        setIsModeMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -80,16 +93,100 @@ export function DevinChatBox({
 
         {/* Action Controls Row Inside Inner Card */}
         <div className="flex items-center justify-between text-xs pt-1">
-          {/* Left Controls (+ Sliders Normal) */}
-          <button
-            type="button"
-            onClick={onModeToggle}
-            className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5 text-zinc-400" />
-            <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-400" />
-            <span>{modeLabel}</span>
-          </button>
+          {/* Left Controls (+ Sliders Mode Selector Pill Dropdown) */}
+          <div className="relative" ref={modeMenuRef}>
+            <button
+              type="button"
+              onClick={() => setIsModeMenuOpen(!isModeMenuOpen)}
+              className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer group"
+            >
+              <Plus className="w-3.5 h-3.5 text-zinc-400" />
+              <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="px-2 py-0.5 rounded-md bg-[#333333] text-white font-medium text-xs hover:bg-[#3d3d3d] transition-colors">
+                {selectedMode}
+              </span>
+            </button>
+
+            {/* Mode Selector Dropdown Popover (Matching media_1788037283326.png) */}
+            {isModeMenuOpen && (
+              <div className="absolute top-7 left-0 z-50 w-[210px] bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-150 select-none text-xs text-zinc-300">
+                {/* Item 1: Fusion Preview */}
+                <button
+                  type="button"
+                  onClick={() => { setSelectedMode("Fusion"); setIsModeMenuOpen(false); }}
+                  className="flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-[#252525] transition-colors cursor-pointer text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full border border-zinc-400 flex items-center justify-center">
+                      {selectedMode === "Fusion" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </div>
+                    <span className="text-zinc-200 font-medium">Fusion</span>
+                  </div>
+                  <span className="text-[#38bdf8] text-[11px] font-medium">Preview</span>
+                </button>
+
+                <div className="h-px bg-[#262626] my-1.5" />
+
+                {/* Subheader: Capability */}
+                <div className="flex items-center justify-between px-2 py-1 text-[11px] text-zinc-500 font-medium">
+                  <span>Capability</span>
+                  <Info className="w-3 h-3 text-zinc-500" />
+                </div>
+
+                {/* Item 2: Ultra */}
+                <button
+                  type="button"
+                  onClick={() => { setSelectedMode("Ultra"); setIsModeMenuOpen(false); }}
+                  className="flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-[#252525] transition-colors cursor-pointer text-zinc-300 hover:text-white"
+                >
+                  <span className="pl-5">Ultra</span>
+                  {selectedMode === "Ultra" && <Check className="w-3 h-3 text-white" />}
+                </button>
+
+                {/* Item 3: Normal Standard (Active Checked) */}
+                <button
+                  type="button"
+                  onClick={() => { setSelectedMode("Normal"); setIsModeMenuOpen(false); }}
+                  className={cn(
+                    "flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-[#252525] transition-colors cursor-pointer",
+                    selectedMode === "Normal" ? "text-white font-medium bg-[#222222]" : "text-zinc-300 hover:text-white"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Check className={cn("w-3 h-3 shrink-0", selectedMode === "Normal" ? "text-white" : "opacity-0")} />
+                    <span>Normal</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-zinc-400 text-[11px]">
+                    <span>Standard</span>
+                    <ChevronRight className="w-3 h-3 text-zinc-500" />
+                  </div>
+                </button>
+
+                {/* Item 4: Lite */}
+                <button
+                  type="button"
+                  onClick={() => { setSelectedMode("Lite"); setIsModeMenuOpen(false); }}
+                  className="flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-[#252525] transition-colors cursor-pointer text-zinc-300 hover:text-white"
+                >
+                  <span className="pl-5">Lite</span>
+                  {selectedMode === "Lite" && <Check className="w-3 h-3 text-white" />}
+                </button>
+
+                {/* Item 5: SWE-1.7 */}
+                <button
+                  type="button"
+                  onClick={() => { setSelectedMode("SWE-1.7"); setIsModeMenuOpen(false); }}
+                  className="flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-[#252525] transition-colors cursor-pointer text-zinc-300 hover:text-white"
+                >
+                  <span className="pl-5">SWE-1.7</span>
+                  <div className="flex items-center gap-1">
+                    {selectedMode === "SWE-1.7" && <Check className="w-3 h-3 text-white mr-1" />}
+                    <ChevronRight className="w-3 h-3 text-zinc-500" />
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Right Controls (Mic + Dual Pill Send Dropdown [ ↑ | ˅ ]) */}
           <div className="flex items-center gap-2">

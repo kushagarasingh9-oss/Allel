@@ -171,7 +171,7 @@ export function AllelCommandCenter() {
       <div className="flex-1 min-h-0 overflow-y-auto relative flex flex-col items-center justify-between">
         {!hasMessages ? (
           <div className="w-full max-w-[700px] px-4 py-6 flex flex-col items-center my-auto animate-in fade-in zoom-in-95 duration-150">
-            {/* Header Row Above Chat Box (Logo on Left, Agent/Ask Mode Pill on Right) */}
+            {/* Header Row Above Chat Box (Logo on Left) */}
             <div className="w-full flex items-center justify-between mb-3 px-1">
               {/* Brand Logo & Name */}
               <div className="flex items-center gap-2.5">
@@ -181,22 +181,6 @@ export function AllelCommandCenter() {
                   className="w-6 h-6 object-contain filter brightness-0 invert"
                 />
                 <span className="text-xl font-bold tracking-tight text-white">Allel</span>
-              </div>
-
-              {/* Mode Toggle Pill (Agent | Ask) */}
-              <div className="flex items-center p-0.5 rounded-full bg-[#1c1c1c] border border-[#262626] text-xs">
-                <button
-                  type="button"
-                  className="px-3 py-1 rounded-full bg-[#292929] text-white font-medium transition-colors shadow-xs cursor-pointer"
-                >
-                  Agent
-                </button>
-                <button
-                  type="button"
-                  className="px-3 py-1 rounded-full text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                >
-                  Ask
-                </button>
               </div>
             </div>
 
