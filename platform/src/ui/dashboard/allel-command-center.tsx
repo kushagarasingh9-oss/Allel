@@ -199,13 +199,13 @@ export function AllelCommandCenter() {
           /* ============================================================
              STATE 2: FULL-WIDTH AGENT EXECUTION FEED (ACTIVE RUN)
              ============================================================ */
-          <div className="w-full flex-1 flex flex-col justify-between max-w-[760px] mx-auto px-4 py-4 animate-in fade-in duration-200">
-            <div className="flex-1 w-full min-h-0 flex flex-col relative">
+          <div className="w-full flex-1 flex flex-col justify-between max-w-[760px] mx-auto px-4 py-4 animate-in fade-in duration-200 relative">
+            <div className="flex-1 w-full min-h-0 flex flex-col">
               <AgentFeed />
             </div>
 
-            {/* Pinned Bottom Omnibar + Attached Top Task Runner Tray (With smooth background fade mask) */}
-            <div className="sticky bottom-0 left-0 right-0 w-full z-20 px-0 pb-5 pt-10 flex flex-col items-center bg-gradient-to-t from-[#0f0f10] via-[#0f0f10] to-transparent pointer-events-none [&>*]:pointer-events-auto">
+            {/* Fixed Bottom Omnibar + Attached Top Task Runner Tray (100% Fixed at one place) */}
+            <div className="absolute bottom-3 left-0 right-0 w-full z-30 px-4 pb-2 pt-10 flex flex-col items-center bg-gradient-to-t from-[#0f0f10] via-[#0f0f10] to-transparent pointer-events-none [&>*]:pointer-events-auto">
               {/* Scroll Down Floating Indicator Button */}
               <button
                 type="button"
