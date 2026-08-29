@@ -61,12 +61,12 @@ export function DevinChatBox({
   return (
     <div
       className={cn(
-        "w-full max-w-[760px] mx-auto bg-[#191919] border border-[#282828] rounded-[24px] p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 transition-all select-none",
+        "w-full max-w-[700px] mx-auto bg-[#191919] border border-[#282828] rounded-[24px] p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 transition-all select-none",
         className
       )}
     >
       {/* 1. UPPER INNER FLOATING INPUT CARD */}
-      <div className="w-full bg-[#292929] border border-[#363636] rounded-[18px] p-3.5 focus-within:border-zinc-400 transition-all flex flex-col justify-between min-h-[92px]">
+      <div className="w-full bg-[#292929] border border-[#363636] rounded-[18px] p-3.5 sm:p-4 focus-within:border-zinc-400 transition-all flex flex-col justify-between min-h-[102px]">
         {/* Textarea Input */}
         <textarea
           ref={textareaRef}
