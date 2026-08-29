@@ -139,40 +139,56 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
         {/* Top Header & Navigation */}
         <div className="flex flex-col gap-4 min-h-0 flex-1">
           {/* Header Row: Logo & Icons */}
-          <div className="flex items-center justify-between px-1">
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 transition-opacity hover:opacity-80 group"
-            >
-              <img
-                src="/1.png"
-                alt="Allel"
-                className="w-5.5 h-5.5 object-contain shrink-0 filter brightness-0 invert"
-              />
-            </Link>
-
-            <div className="flex items-center gap-1 text-zinc-400">
+          {collapsed ? (
+            /* Minimized Top Header: Logo converts to PanelLeftOpen Expand icon on hover */
+            <div className="flex justify-center items-center py-1">
               <button
                 type="button"
-                className="p-1 hover:text-white rounded-md hover:bg-white/[0.06] transition-colors cursor-pointer"
-                title="Search"
+                onClick={() => setCollapsed(false)}
+                className="group relative w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/[0.08] transition-colors cursor-pointer"
+                title="Expand sidebar"
               >
-                <Search className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setCollapsed(!collapsed)}
-                className="p-1 hover:text-white rounded-md hover:bg-white/[0.06] transition-colors cursor-pointer"
-                title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              >
-                {collapsed ? (
-                  <PanelLeftOpen className="w-4 h-4" />
-                ) : (
-                  <PanelLeftClose className="w-4 h-4" />
-                )}
+                <img
+                  src="/1.png"
+                  alt="Allel"
+                  className="w-5 h-5 object-contain shrink-0 filter brightness-0 invert transition-all duration-150 group-hover:opacity-0 group-hover:scale-95"
+                />
+                <PanelLeftOpen className="w-4 h-4 text-white absolute opacity-0 group-hover:opacity-100 transition-all duration-150 group-hover:scale-100 scale-90" />
               </button>
             </div>
-          </div>
+          ) : (
+            /* Expanded Top Header: Logo + Search + PanelLeftClose icon */
+            <div className="flex items-center justify-between px-1">
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-2 transition-opacity hover:opacity-80 group"
+              >
+                <img
+                  src="/1.png"
+                  alt="Allel"
+                  className="w-5.5 h-5.5 object-contain shrink-0 filter brightness-0 invert"
+                />
+              </Link>
+
+              <div className="flex items-center gap-1 text-zinc-400">
+                <button
+                  type="button"
+                  className="p-1 hover:text-white rounded-md hover:bg-white/[0.06] transition-colors cursor-pointer"
+                  title="Search"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCollapsed(true)}
+                  className="p-1 hover:text-white rounded-md hover:bg-white/[0.06] transition-colors cursor-pointer"
+                  title="Collapse sidebar"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* + New task / session Action Button (Runable Pill Style) */}
           <button
