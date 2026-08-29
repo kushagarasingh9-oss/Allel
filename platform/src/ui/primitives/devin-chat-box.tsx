@@ -91,37 +91,48 @@ export function DevinChatBox({
             <span>{modeLabel}</span>
           </button>
 
-          {/* Right Controls (Construct Devin Prompt Hint + Mic + Send Button) */}
+          {/* Right Controls (Mic + Dual Pill Send Dropdown [ ↑ | ˅ ]) */}
           <div className="flex items-center gap-2">
-            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-zinc-500 font-medium select-none mr-1">
-              Construct Devin Prompt <kbd className="px-1 py-0.5 rounded bg-[#333333] text-[10px] text-zinc-400 font-mono">⌥↵</kbd>
-            </span>
-
             <button
               type="button"
               className="p-1.5 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
               title="Voice input"
             >
-              <Mic className="w-3.5 h-3.5" />
+              <Mic className="w-4 h-4" />
             </button>
 
-            <button
-              type="button"
-              onClick={handleButtonClick}
-              disabled={!value.trim() && !isLoading}
+            {/* Dual Pill Send / Dropdown Button */}
+            <div
               className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-xs",
+                "flex items-center rounded-full px-2.5 py-1 transition-all shrink-0 shadow-xs",
                 value.trim() || isLoading
-                  ? "bg-white text-black hover:bg-zinc-200 shadow-md"
-                  : "bg-[#5a5a5a] text-[#1c1c1c] cursor-not-allowed"
+                  ? "bg-white text-black hover:bg-zinc-100"
+                  : "bg-[#646464] text-[#1e1e1e] hover:bg-[#747474]"
               )}
             >
-              {isLoading ? (
-                <Square className="w-3.5 h-3.5 fill-current" />
-              ) : (
-                <ArrowUp className="w-4 h-4 stroke-[2.5]" />
-              )}
-            </button>
+              <button
+                type="button"
+                onClick={handleButtonClick}
+                className="p-1 hover:opacity-80 transition-opacity cursor-pointer flex items-center justify-center"
+                title={isLoading ? "Stop execution" : "Send prompt"}
+              >
+                {isLoading ? (
+                  <Square className="w-3.5 h-3.5 fill-current" />
+                ) : (
+                  <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                )}
+              </button>
+
+              <div className="w-[1px] h-3.5 bg-[#1e1e1e]/40 mx-1" />
+
+              <button
+                type="button"
+                className="p-0.5 hover:opacity-80 transition-opacity cursor-pointer flex items-center justify-center"
+                title="Prompt options"
+              >
+                <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
