@@ -122,9 +122,9 @@ export function AllelCommandCenter() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#0a0a0a] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
+    <div className="flex flex-col h-full w-full bg-[#0f0f10] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
       {/* Top Header Bar (Devin Style: No Border Divider + Pure Icon Cluster) */}
-      <header className="h-11 px-4 flex items-center justify-between shrink-0 bg-[#0a0a0a] z-20">
+      <header className="h-11 px-4 flex items-center justify-between shrink-0 bg-[#0f0f10] z-20">
         <div className="flex items-center gap-3">
           <span className="text-xs sm:text-sm font-medium text-zinc-300">
             {hasMessages ? "Operational Run" : "Generate new automation"}
@@ -204,8 +204,8 @@ export function AllelCommandCenter() {
               <AgentFeed />
             </div>
 
-            {/* Pinned Bottom Omnibar + Attached Top Task Runner Tray */}
-            <div className="sticky bottom-6 left-0 right-0 w-full z-20 px-0 flex flex-col items-center">
+            {/* Pinned Bottom Omnibar + Attached Top Task Runner Tray (With smooth background fade mask) */}
+            <div className="sticky bottom-0 left-0 right-0 w-full z-20 px-0 pb-5 pt-10 flex flex-col items-center bg-gradient-to-t from-[#0f0f10] via-[#0f0f10] to-transparent pointer-events-none [&>*]:pointer-events-auto">
               {/* Scroll Down Floating Indicator Button */}
               <button
                 type="button"
@@ -219,10 +219,9 @@ export function AllelCommandCenter() {
                 <ArrowDown className="w-3.5 h-3.5" />
               </button>
 
-              {/* Seamless Unified Double-Curved Container */}
-              <div className="w-full max-w-[700px] mx-auto bg-[#121212] border border-[#222222] rounded-[24px] p-1.5 shadow-[0_16px_48px_rgba(0,0,0,0.85)] flex flex-col gap-1.5 transition-all select-none">
-                {/* Attached Task Runner Tray Header (ONLY renders when isLoading is true) */}
-                {isLoading && (
+              {/* Conditional Attached Processing Header (Pops up attached when query is submitted & running) */}
+              {isLoading ? (
+                <div className="w-full max-w-[700px] mx-auto bg-[#121214] border border-white/[0.08] rounded-[24px] p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.6)] flex flex-col gap-1.5 transition-all select-none animate-in fade-in slide-in-from-bottom-2 duration-200">
                   <div className="w-full flex flex-col items-start transition-all px-1 pt-0.5">
                     <button
                       type="button"
@@ -248,8 +247,20 @@ export function AllelCommandCenter() {
                       </div>
                     )}
                   </div>
-                )}
 
+                  <DevinChatBox
+                    value={inputText}
+                    onChange={setInputText}
+                    onSubmit={handleSubmit}
+                    isLoading={isLoading}
+                    onStop={stop}
+                    placeholder="Ask a follow-up..."
+                    modeLabel="Auto"
+                    hideStatusBanner={true}
+                    className="max-w-none w-full bg-transparent border-0 p-0 shadow-none"
+                  />
+                </div>
+              ) : (
                 <DevinChatBox
                   value={inputText}
                   onChange={setInputText}
@@ -259,9 +270,9 @@ export function AllelCommandCenter() {
                   placeholder="Ask a follow-up..."
                   modeLabel="Auto"
                   hideStatusBanner={true}
-                  className="max-w-none w-full bg-transparent border-0 p-0 shadow-none"
+                  className="max-w-[700px] w-full mx-auto"
                 />
-              </div>
+              )}
             </div>
           </div>
         )}
