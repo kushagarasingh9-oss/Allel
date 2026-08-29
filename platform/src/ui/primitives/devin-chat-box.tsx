@@ -62,65 +62,43 @@ export function DevinChatBox({
   return (
     <div
       className={cn(
-        "w-full max-w-[620px] mx-auto bg-[#1c1c1c] border border-[#2a2a2a] rounded-[20px] shadow-2xl shadow-black/80 flex flex-col transition-all overflow-hidden select-none",
+        "w-full max-w-[620px] mx-auto bg-[#1e1e1e] border border-[#2a2a2a] rounded-[24px] p-2 shadow-2xl shadow-black/80 flex flex-col gap-2 transition-all select-none",
         className
       )}
     >
-      {/* 1. UPPER LAYER CARD (Prompt Input Box) */}
-      <div className="w-full bg-[#252525] border border-[#303030] rounded-[14px] p-3 focus-within:border-zinc-400 transition-all flex flex-col justify-between min-h-[72px]">
+      {/* 1. UPPER INNER FLOATING INPUT CARD */}
+      <div className="w-full bg-[#292929] border border-[#363636] rounded-[18px] p-3.5 focus-within:border-zinc-500 transition-all flex flex-col justify-between min-h-[92px]">
         {/* Textarea Input */}
         <textarea
           ref={textareaRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          rows={1}
+          rows={2}
           placeholder={placeholder}
-          className="w-full bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-500 resize-none outline-none focus:outline-none min-h-[34px] max-h-[140px] leading-relaxed font-sans px-1"
+          className="w-full bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-500 resize-none outline-none focus:outline-none min-h-[44px] max-h-[140px] leading-relaxed font-sans px-0.5"
         />
 
-        {/* Action Controls Row Inside Upper Card */}
-        <div className="flex items-center justify-between text-xs pt-1.5">
-          {/* Left Controls */}
-          <div className="flex items-center gap-1.5 text-zinc-300">
+        {/* Action Controls Row Inside Inner Card */}
+        <div className="flex items-center justify-between text-xs pt-1">
+          {/* Left Controls (+ Normal) */}
+          <button
+            type="button"
+            onClick={() => setModelName(modelName === "Normal" ? "Fast" : "Normal")}
+            className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-white transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-zinc-400" />
+            <span>{modelName}</span>
+          </button>
+
+          {/* Right Controls (Mic & Send Button) */}
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              className="w-6 h-6 rounded-md bg-[#303030] hover:bg-[#383838] border border-white/[0.08] flex items-center justify-center text-white transition-colors cursor-pointer"
-              title="Add context or files"
-            >
-              <Plus className="w-3.5 h-3.5 text-white" />
-            </button>
-
-            <button
-              type="button"
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold text-zinc-300 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer"
-            >
-              <Code2 className="w-3 h-3 text-zinc-400" />
-              <span>Code</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setModelName(modelName === "SWE-1.6 Slow" ? "SWE-1.6 Fast" : "SWE-1.6 Slow")}
-              className="px-1.5 py-0.5 rounded text-[11px] font-medium text-zinc-300 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer"
-            >
-              <span>{modelName}</span>
-            </button>
-          </div>
-
-          {/* Right Controls */}
-          <div className="flex items-center gap-1.5">
-            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium text-zinc-300 bg-white/[0.04]">
-              <Sparkles className="w-3 h-3 text-blue-400" />
-              <span>Devin Local</span>
-            </div>
-
-            <button
-              type="button"
-              className="p-1 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              className="p-1.5 text-zinc-400 hover:text-white transition-colors cursor-pointer"
               title="Voice input"
             >
-              <Mic className="w-3.5 h-3.5" />
+              <Mic className="w-4 h-4" />
             </button>
 
             <button
@@ -128,48 +106,39 @@ export function DevinChatBox({
               onClick={handleButtonClick}
               disabled={!value.trim() && !isLoading}
               className={cn(
-                "w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0",
+                "w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0",
                 value.trim() || isLoading
                   ? "bg-white text-black hover:bg-zinc-200 shadow-md"
                   : "bg-[#5a5a5a] text-zinc-300 cursor-not-allowed"
               )}
             >
               {isLoading ? (
-                <Square className="w-3 h-3 fill-current" />
+                <Square className="w-3.5 h-3.5 fill-current" />
               ) : (
-                <ArrowUp className="w-3.5 h-3.5" />
+                <ArrowUp className="w-4 h-4" />
               )}
             </button>
           </div>
         </div>
       </div>
 
-      {/* 2. BACKGROUND DOWN DIP CADDY SUB-BAR */}
-      <div className="flex items-center justify-between px-3.5 py-2 bg-[#1c1c1c] text-[11px] text-zinc-400 font-medium">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="flex items-center gap-1 hover:text-zinc-200 transition-colors cursor-pointer"
-          >
-            <Laptop className="w-3 h-3 text-zinc-400" />
-            <span>Local</span>
-          </button>
-          <button
-            type="button"
-            className="flex items-center gap-1 hover:text-zinc-200 transition-colors cursor-pointer"
-          >
-            <Folder className="w-3 h-3 text-zinc-400" />
-            <span>Choose folder</span>
-          </button>
+      {/* 2. OUTER CARD STATUS FOOTER BANNER */}
+      <div className="flex items-center justify-between px-3 py-1 text-xs">
+        <div className="flex items-center gap-2 text-zinc-300 font-medium truncate">
+          <span className="w-3.5 h-3.5 rounded-full border border-zinc-400 flex items-center justify-center text-[10px] text-zinc-400 shrink-0 font-bold">
+            !
+          </span>
+          <span className="truncate text-xs text-zinc-300">
+            Autonomous Engine Active • All 6 integrations synchronized
+          </span>
         </div>
 
         <button
           type="button"
           onClick={() => window.location.href = "/dashboard/flows"}
-          className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white transition-colors cursor-pointer"
+          className="text-xs font-semibold text-[#38bdf8] hover:underline cursor-pointer shrink-0 ml-2"
         >
-          <span>Go to agent manager</span>
-          <ArrowUpRight className="w-3 h-3" />
+          Explore automations
         </button>
       </div>
     </div>
