@@ -466,11 +466,15 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     if (!hasUserMsg) return
 
     if (status === "submitted" || status === "streaming") {
-      window.dispatchEvent(
-        new CustomEvent("allel:session-starting", {
-          detail: { sessionId: currentSessionId }
-        })
-      )
+      const isExistingSession = savedSessions.some((s) => s.id === currentSessionId)
+      const userMsgCount = messages.filter((m) => m.role === "user").length
+      if (!isExistingSession && userMsgCount <= 1) {
+        window.dispatchEvent(
+          new CustomEvent("allel:session-starting", {
+            detail: { sessionId: currentSessionId }
+          })
+        )
+      }
       return
     }
 
