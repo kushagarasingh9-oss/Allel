@@ -180,20 +180,20 @@ export default function SettingsPage() {
     : INTEGRATIONS
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-neutral-50 dark:bg-[#0E0E12] overflow-y-auto w-full p-10 font-sans transition-colors">
+    <div className="flex-1 flex flex-col h-full bg-[#101010] overflow-y-auto w-full p-10 font-sans transition-colors text-white">
       <div className="max-w-[1080px] mx-auto w-full pt-8 pb-20">
         {/* Toast */}
         {toastMessage && (
           <div
             className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-lg text-[13px] font-medium shadow-lg border transition-all duration-300 ${toastMessage.type === 'success'
-                ? 'bg-emerald-50 dark:bg-[#101b13] border-emerald-300 dark:border-[#10b981]/30 text-emerald-800 dark:text-[#8dd6a7]'
-                : 'bg-red-50 dark:bg-[#190d10] border-red-300 dark:border-[#f87171]/30 text-red-800 dark:text-[#ffb0b9]'
+                ? 'bg-[#101b13] border-[#10b981]/30 text-[#8dd6a7]'
+                : 'bg-[#190d10] border-[#f87171]/30 text-[#ffb0b9]'
               }`}
           >
             {toastMessage.text}
             <button
               onClick={() => setToastMessage(null)}
-              className="ml-3 text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+              className="ml-3 text-zinc-400 hover:text-white transition-colors"
             >
               ✕
             </button>
@@ -202,24 +202,24 @@ export default function SettingsPage() {
 
         {/* Header */}
         <div className="mb-10">
-          <h1 className="flex items-center text-3xl font-medium text-neutral-900 dark:text-white mb-2 tracking-tight">
+          <h1 className="flex items-center text-3xl font-medium text-white mb-2 tracking-tight">
             Connections
-            <IconPlugConnected className="w-7 h-7 text-neutral-400 ml-3" stroke={2} />
+            <IconPlugConnected className="w-7 h-7 text-zinc-400 ml-3" stroke={2} />
           </h1>
-          <p className="text-[14px] text-neutral-500 dark:text-neutral-400">
+          <p className="text-[14px] text-zinc-400">
             Connect your stack via Direct API keys. Zero monthly subscriptions required.
           </p>
         </div>
 
         {/* Search */}
         <div className="relative mb-8">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 dark:text-neutral-500" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
             placeholder="Search connections..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white dark:bg-[#121216] border border-neutral-200 dark:border-[#24242A] rounded-lg py-3 pl-10 pr-4 text-[13px] text-neutral-900 dark:text-white outline-none focus:border-neutral-400 dark:focus:border-white/20 transition-colors placeholder:text-neutral-400 dark:placeholder:text-neutral-500 shadow-xs"
+            className="w-full bg-[#181818] border border-[#262626] rounded-lg py-3 pl-10 pr-4 text-[13px] text-white outline-none focus:border-zinc-400 transition-colors placeholder:text-zinc-500 shadow-xs"
           />
         </div>
 
@@ -232,7 +232,7 @@ export default function SettingsPage() {
             return (
               <div
                 key={app.provider}
-                className="bg-white dark:bg-[#121216] border border-neutral-200/80 dark:border-[#24242A] rounded-lg p-5 flex flex-col justify-between min-h-[170px] shadow-xs hover:border-neutral-300 dark:hover:border-white/20 transition-all group"
+                className="bg-[#181818] border border-[#262626] rounded-lg p-5 flex flex-col justify-between min-h-[170px] shadow-xs hover:border-zinc-500 transition-all group"
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
@@ -240,23 +240,23 @@ export default function SettingsPage() {
                       <div className="w-7 h-7 flex items-center justify-center shrink-0">
                         {app.icon}
                       </div>
-                      <h3 className="text-[15px] font-medium text-neutral-900 dark:text-white tracking-tight">
+                      <h3 className="text-[15px] font-medium text-white tracking-tight">
                         {app.name}
                       </h3>
                     </div>
 
                     {isConnected ? (
                       <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-50 dark:bg-[#10b981]/10 border border-emerald-200 dark:border-[#10b981]/20">
-                          <div className="w-[5px] h-[5px] rounded-full bg-[#10b981] animate-pulse" />
-                          <span className="text-emerald-700 dark:text-[#10b981] text-[11px] font-medium tracking-wide">
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                          <div className="w-[5px] h-[5px] rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="text-emerald-400 text-[11px] font-medium tracking-wide">
                             Connected
                           </span>
                         </div>
                         <button
                           onClick={() => handleDisconnect(app.provider)}
                           disabled={isDisconnecting || isPending}
-                          className="text-[12px] font-medium text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 transition-colors disabled:opacity-50 cursor-pointer"
+                          className="text-[12px] font-medium text-zinc-400 hover:text-red-400 transition-colors disabled:opacity-50 cursor-pointer"
                         >
                           {isDisconnecting ? 'Disconnecting…' : 'Disconnect'}
                         </button>
@@ -264,13 +264,13 @@ export default function SettingsPage() {
                     ) : (
                       <button
                         onClick={() => setConnectingModalApp(app)}
-                        className="px-3 py-1.5 rounded-md text-xs font-medium bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200 transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                        className="px-3 py-1.5 rounded-md text-xs font-medium bg-white text-black hover:bg-zinc-200 transition-all shadow-xs flex items-center gap-1 cursor-pointer"
                       >
                         Connect
                       </button>
                     )}
                   </div>
-                  <p className="text-[13px] text-neutral-600 dark:text-neutral-400 mt-2 leading-[1.6] group-hover:text-neutral-900 dark:group-hover:text-neutral-300 transition-colors">
+                  <p className="text-[13px] text-zinc-400 mt-2 leading-[1.6] group-hover:text-zinc-200 transition-colors">
                     {app.description}
                   </p>
                 </div>
