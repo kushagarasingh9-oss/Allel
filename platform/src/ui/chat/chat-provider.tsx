@@ -459,11 +459,22 @@ function generateRefinedTitle(messages: UIMessage[]): string {
   return "General Discussion"
 }
 
-  // Auto-save active chat session when messages update and status is ready (not while streaming)
+  // Notify sidebar on session initialization and auto-save active chat session when status is ready
   React.useEffect(() => {
-    if (typeof window === "undefined" || messages.length === 0 || status !== "ready") return
+    if (typeof window === "undefined" || messages.length === 0) return
     const hasUserMsg = messages.some((m) => m.role === "user")
     if (!hasUserMsg) return
+
+    if (status === "submitted" || status === "streaming") {
+      window.dispatchEvent(
+        new CustomEvent("allel:session-starting", {
+          detail: { sessionId: currentSessionId }
+        })
+      )
+      return
+    }
+
+    if (status !== "ready") return
 
     const title = generateRefinedTitle(messages)
 
@@ -490,6 +501,8 @@ function generateRefinedTitle(messages: UIMessage[]): string {
       }
       return updated
     })
+
+    window.dispatchEvent(new CustomEvent("allel:refresh-history"))
   }, [messages, currentSessionId, status])
 
   const startNewChat = React.useCallback(() => {

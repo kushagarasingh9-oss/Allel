@@ -37,6 +37,41 @@
   }
 }
 
+@keyframes silver-flow {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-skeleton-shimmer {
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.silver-shimmer-text {
+  background: linear-gradient(
+    110deg,
+    #8e8e93 25%,
+    #ffffff 50%,
+    #8e8e93 75%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: silver-flow 3.5s linear infinite;
+}
+
 /* Global Theme Color Tokens */
 html.dark {
   color-scheme: dark;

@@ -18,6 +18,7 @@ import {
   ChevronRight,
   MoreHorizontal,
   Trash2,
+  Loader2,
   Bell,
   Monitor,
   Settings,
@@ -47,6 +48,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   const [historySessions, setHistorySessions] = useState<
     Array<{ sessionId: string; title: string; updatedAt: string }>
   >([]);
+  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -93,9 +95,23 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     loadHistory();
-    const handleRefresh = () => loadHistory();
+    const handleRefresh = () => {
+      loadHistory();
+      setPendingSessionId(null);
+    };
+    const handleSessionStarting = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && detail.sessionId) {
+        setPendingSessionId(detail.sessionId);
+      }
+    };
+
     window.addEventListener("allel:refresh-history", handleRefresh);
-    return () => window.removeEventListener("allel:refresh-history", handleRefresh);
+    window.addEventListener("allel:session-starting", handleSessionStarting);
+    return () => {
+      window.removeEventListener("allel:refresh-history", handleRefresh);
+      window.removeEventListener("allel:session-starting", handleSessionStarting);
+    };
   }, []);
 
   useEffect(() => {
@@ -171,11 +187,11 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   ];
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#0e0e0e] text-[#F4F4F5] transition-colors">
-      {/* Sidebar Pane — Deep obsidian #0a0a0a surface */}
+    <div className="flex h-screen w-full overflow-hidden bg-[#0f0f10] text-[#F4F4F5] transition-colors relative">
+      {/* Sidebar Pane — Clean Dark #0b0b0c Surface */}
       <aside
         className={cn(
-          "flex flex-col justify-between h-full bg-[#0a0a0a] border-r border-[#161616] transition-all duration-300 ease-in-out shrink-0 py-3 px-3 relative select-none",
+          "flex flex-col justify-between h-full bg-[#0b0b0c] border-r border-[#1a1a1c] transition-all duration-300 ease-in-out shrink-0 py-3 px-3 relative z-30 select-none",
           collapsed ? "w-[60px]" : "w-[240px]"
         )}
       >
@@ -188,7 +204,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
               <button
                 type="button"
                 onClick={() => setCollapsed(false)}
-                className="group relative w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/[0.08] transition-colors cursor-pointer"
+                className="group relative w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/[0.1] transition-colors cursor-pointer"
                 title="Expand sidebar"
               >
                 <img
@@ -216,7 +232,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
               <div className="flex items-center gap-1 text-zinc-400">
                 <button
                   type="button"
-                  className="p-1 hover:text-white rounded-md hover:bg-white/[0.06] transition-colors cursor-pointer"
+                  className="p-1 hover:text-white rounded-md hover:bg-white/[0.08] transition-colors cursor-pointer"
                   title="Search"
                 >
                   <Search className="w-4 h-4" />
@@ -224,7 +240,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 <button
                   type="button"
                   onClick={() => setCollapsed(true)}
-                  className="p-1 hover:text-white rounded-md hover:bg-white/[0.06] transition-colors cursor-pointer"
+                  className="p-1 hover:text-white rounded-md hover:bg-white/[0.08] transition-colors cursor-pointer"
                   title="Collapse sidebar"
                 >
                   <PanelLeftClose className="w-4 h-4" />
@@ -233,7 +249,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
             </div>
           )}
 
-          {/* + New task Action Button (Shifted down a bit with mt-3.5 mb-1) */}
+          {/* + New task Action Button */}
           <button
             type="button"
             onClick={() => {
@@ -245,7 +261,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
             }}
             className={cn(
               "group flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer border border-transparent mt-3.5 mb-1",
-              "text-zinc-300 hover:text-white hover:bg-[#1c1c1c] hover:border-[#262626]",
+              "text-zinc-300 hover:text-white hover:bg-white/[0.08] hover:border-white/[0.12]",
               collapsed && "justify-center px-0 mt-3 mb-1"
             )}
             title="New task"
@@ -269,10 +285,10 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                   key={link.label}
                   href={link.href}
                   className={cn(
-                    "flex items-center gap-3 px-2.5 py-2 rounded-lg text-xs transition-all duration-150 font-medium",
+                    "flex items-center gap-3 px-2.5 py-2 rounded-lg text-xs transition-all duration-150 font-medium border border-transparent",
                     isActive
-                      ? "bg-[#1c1c1c] text-white border border-[#262626]"
-                      : "text-zinc-400 hover:text-zinc-200 hover:bg-[#181818]"
+                      ? "bg-[#18181a] text-white border-[#242428] shadow-xs font-semibold"
+                      : "text-zinc-400 hover:text-white hover:bg-[#141416]"
                   )}
                 >
                   <IconComp className="w-4 h-4 shrink-0 text-zinc-400" />
@@ -299,11 +315,23 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
               </button>
               {isHistoryOpen && (
                 <div className="flex flex-col gap-0.5 overflow-y-auto pr-1 max-h-[220px] custom-scrollbar">
-                  {isFetchingHistory && historySessions.length === 0 ? (
+                  {/* Active / Pending Session Skeleton Item with round loader & left-to-right shimmer animation */}
+                  {pendingSessionId && !historySessions.some((s) => s.sessionId === pendingSessionId) && (
+                    <div className="relative group w-full my-0.5 animate-in fade-in duration-200">
+                      <div className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-2 border border-white/[0.08] bg-white/[0.06] text-white select-none">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
+                        <div className="relative overflow-hidden w-28 h-3 rounded bg-zinc-800/80 shrink-0">
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-skeleton-shimmer" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {isFetchingHistory && historySessions.length === 0 && !pendingSessionId ? (
                     <div className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-500 font-normal truncate">
                       Loading history...
                     </div>
-                  ) : historySessions.length === 0 ? (
+                  ) : historySessions.length === 0 && !pendingSessionId ? (
                     <div className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-500 font-normal truncate">
                       No previous sessions
                     </div>
@@ -322,10 +350,10 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                               window.location.href = `/dashboard?sessionId=${encodeURIComponent(session.sessionId)}`;
                             }}
                             className={cn(
-                              "w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 truncate cursor-pointer flex items-center justify-between gap-1",
+                              "w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 truncate cursor-pointer flex items-center justify-between gap-1 border border-transparent",
                               isSelected
-                                ? "bg-[#1c1c1c] text-white font-medium border border-[#262626]"
-                                : "text-zinc-400 hover:text-white hover:bg-[#181818]"
+                                ? "text-white font-medium bg-white/[0.06]"
+                                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
                             )}
                             title={session.title}
                           >
