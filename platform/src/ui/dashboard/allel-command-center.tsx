@@ -229,7 +229,7 @@ export function AllelCommandCenter() {
             </div>
 
             {/* Fixed Bottom Omnibar + Attached Top Task Runner Tray (100% Fixed at one place) */}
-            <div className="absolute bottom-3 left-0 right-0 w-full z-30 px-4 pb-2 pt-10 flex flex-col items-center bg-gradient-to-t from-[#0f0f10] via-[#0f0f10] to-transparent pointer-events-none [&>*]:pointer-events-auto">
+            <div className="absolute bottom-3 left-0 right-0 w-full z-30 px-4 pb-2 flex flex-col items-center pointer-events-none [&>*]:pointer-events-auto">
               {/* Scroll Down Floating Indicator Button */}
               <button
                 type="button"
