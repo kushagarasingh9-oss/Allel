@@ -112,9 +112,9 @@ export function AllelCommandCenter() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#141414] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
+    <div className="flex flex-col h-full w-full bg-[#121212] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
       {/* Top Navigation Bar (Devin Style: Arrows + Title + Avatar) */}
-      <header className="h-11 border-b border-[#1f1f1f] px-3 flex items-center justify-between shrink-0 bg-[#141414] z-20">
+      <header className="h-11 border-b border-[#1c1c1c] px-3 flex items-center justify-between shrink-0 bg-[#121212] z-20">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-zinc-500">
             <button
