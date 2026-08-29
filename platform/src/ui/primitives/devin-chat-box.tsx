@@ -61,7 +61,7 @@ export function DevinChatBox({
   return (
     <div
       className={cn(
-        "w-full max-w-[760px] mx-auto bg-[#1e1e1e] border border-[#2a2a2a] rounded-[24px] p-2 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 transition-all select-none",
+        "w-full max-w-[760px] mx-auto bg-[#1e1e1e] border border-[#2a2a2a] rounded-[24px] p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1 transition-all select-none",
         className
       )}
     >
