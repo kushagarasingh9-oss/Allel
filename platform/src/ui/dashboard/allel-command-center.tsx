@@ -162,7 +162,7 @@ export function AllelCommandCenter() {
           /* ============================================================
              STATE 1: DEVIN CENTERED CANVAS (EXACT HOME MATCH)
              ============================================================ */
-          <div className="w-full max-w-2xl px-4 py-8 flex flex-col items-center my-auto animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-[640px] px-4 py-6 flex flex-col items-center my-auto animate-in fade-in zoom-in-95 duration-150">
             {/* Devin Center Emblem Watermark */}
             <div className="flex flex-col items-center gap-3 mb-6 text-center">
               <div className="w-12 h-12 flex items-center justify-center opacity-40 hover:opacity-80 transition-opacity">

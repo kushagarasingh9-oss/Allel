@@ -62,30 +62,30 @@ export function DevinChatBox({
   return (
     <div
       className={cn(
-        "w-full bg-[#1c1c1c] border border-[#2a2a2a] rounded-[22px] shadow-2xl shadow-black/80 flex flex-col transition-all overflow-hidden select-none",
+        "w-full max-w-[620px] mx-auto bg-[#1c1c1c] border border-[#2a2a2a] rounded-[20px] shadow-2xl shadow-black/80 flex flex-col transition-all overflow-hidden select-none",
         className
       )}
     >
       {/* 1. UPPER LAYER CARD (Prompt Input Box) */}
-      <div className="w-full bg-[#252525] border border-[#303030] rounded-2xl p-3.5 focus-within:border-zinc-400 transition-all flex flex-col justify-between min-h-[110px]">
+      <div className="w-full bg-[#252525] border border-[#303030] rounded-[14px] p-3 focus-within:border-zinc-400 transition-all flex flex-col justify-between min-h-[72px]">
         {/* Textarea Input */}
         <textarea
           ref={textareaRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          rows={2}
+          rows={1}
           placeholder={placeholder}
-          className="w-full bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-500 resize-none outline-none focus:outline-none min-h-[46px] max-h-[160px] leading-relaxed font-sans"
+          className="w-full bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-500 resize-none outline-none focus:outline-none min-h-[34px] max-h-[140px] leading-relaxed font-sans px-1"
         />
 
         {/* Action Controls Row Inside Upper Card */}
-        <div className="flex items-center justify-between text-xs pt-2">
+        <div className="flex items-center justify-between text-xs pt-1.5">
           {/* Left Controls */}
-          <div className="flex items-center gap-2 text-zinc-300">
+          <div className="flex items-center gap-1.5 text-zinc-300">
             <button
               type="button"
-              className="w-6.5 h-6.5 rounded-lg bg-[#303030] hover:bg-[#383838] border border-white/[0.08] flex items-center justify-center text-white transition-colors cursor-pointer"
+              className="w-6 h-6 rounded-md bg-[#303030] hover:bg-[#383838] border border-white/[0.08] flex items-center justify-center text-white transition-colors cursor-pointer"
               title="Add context or files"
             >
               <Plus className="w-3.5 h-3.5 text-white" />
@@ -93,24 +93,24 @@ export function DevinChatBox({
 
             <button
               type="button"
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold text-zinc-300 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold text-zinc-300 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer"
             >
-              <Code2 className="w-3.5 h-3.5 text-zinc-400" />
+              <Code2 className="w-3 h-3 text-zinc-400" />
               <span>Code</span>
             </button>
 
             <button
               type="button"
               onClick={() => setModelName(modelName === "SWE-1.6 Slow" ? "SWE-1.6 Fast" : "SWE-1.6 Slow")}
-              className="px-2 py-1 rounded-md text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer"
+              className="px-1.5 py-0.5 rounded text-[11px] font-medium text-zinc-300 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer"
             >
               <span>{modelName}</span>
             </button>
           </div>
 
           {/* Right Controls */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-zinc-300 bg-white/[0.04]">
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium text-zinc-300 bg-white/[0.04]">
               <Sparkles className="w-3 h-3 text-blue-400" />
               <span>Devin Local</span>
             </div>
@@ -128,16 +128,16 @@ export function DevinChatBox({
               onClick={handleButtonClick}
               disabled={!value.trim() && !isLoading}
               className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0",
+                "w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0",
                 value.trim() || isLoading
                   ? "bg-white text-black hover:bg-zinc-200 shadow-md"
                   : "bg-[#5a5a5a] text-zinc-300 cursor-not-allowed"
               )}
             >
               {isLoading ? (
-                <Square className="w-3.5 h-3.5 fill-current" />
+                <Square className="w-3 h-3 fill-current" />
               ) : (
-                <ArrowUp className="w-4 h-4" />
+                <ArrowUp className="w-3.5 h-3.5" />
               )}
             </button>
           </div>
@@ -145,20 +145,20 @@ export function DevinChatBox({
       </div>
 
       {/* 2. BACKGROUND DOWN DIP CADDY SUB-BAR */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#1c1c1c] text-xs text-zinc-400 font-medium">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between px-3.5 py-2 bg-[#1c1c1c] text-[11px] text-zinc-400 font-medium">
+        <div className="flex items-center gap-3">
           <button
             type="button"
-            className="flex items-center gap-1.5 hover:text-zinc-200 transition-colors cursor-pointer"
+            className="flex items-center gap-1 hover:text-zinc-200 transition-colors cursor-pointer"
           >
-            <Laptop className="w-3.5 h-3.5 text-zinc-400" />
+            <Laptop className="w-3 h-3 text-zinc-400" />
             <span>Local</span>
           </button>
           <button
             type="button"
-            className="flex items-center gap-1.5 hover:text-zinc-200 transition-colors cursor-pointer"
+            className="flex items-center gap-1 hover:text-zinc-200 transition-colors cursor-pointer"
           >
-            <Folder className="w-3.5 h-3.5 text-zinc-400" />
+            <Folder className="w-3 h-3 text-zinc-400" />
             <span>Choose folder</span>
           </button>
         </div>
@@ -166,10 +166,10 @@ export function DevinChatBox({
         <button
           type="button"
           onClick={() => window.location.href = "/dashboard/flows"}
-          className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer"
+          className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white transition-colors cursor-pointer"
         >
           <span>Go to agent manager</span>
-          <ArrowUpRight className="w-3.5 h-3.5" />
+          <ArrowUpRight className="w-3 h-3" />
         </button>
       </div>
     </div>
