@@ -170,15 +170,34 @@ export function AllelCommandCenter() {
       {/* Main Space Workspace Body */}
       <div className="flex-1 min-h-0 overflow-y-auto relative flex flex-col items-center justify-between">
         {!hasMessages ? (
-          /* ============================================================
-             STATE 1: DEVIN CENTERED CANVAS (EXACT HOME MATCH)
-             ============================================================ */
           <div className="w-full max-w-[760px] px-4 py-6 flex flex-col items-center my-auto animate-in fade-in zoom-in-95 duration-150">
-            {/* Heading Text in Place of Logo Watermark */}
-            <div className="flex flex-col items-center gap-2 mb-6 text-center">
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white">
-                What do you want to automate today?
-              </h1>
+            {/* Header Row Above Chat Box (Logo on Left, Agent/Ask Mode Pill on Right) */}
+            <div className="w-full flex items-center justify-between mb-3 px-1">
+              {/* Brand Logo & Name */}
+              <div className="flex items-center gap-2.5">
+                <img
+                  src="/1.png"
+                  alt="Allel"
+                  className="w-6 h-6 object-contain filter brightness-0 invert"
+                />
+                <span className="text-xl font-bold tracking-tight text-white">Allel</span>
+              </div>
+
+              {/* Mode Toggle Pill (Agent | Ask) */}
+              <div className="flex items-center p-0.5 rounded-full bg-[#1c1c1c] border border-[#262626] text-xs">
+                <button
+                  type="button"
+                  className="px-3 py-1 rounded-full bg-[#292929] text-white font-medium transition-colors shadow-xs cursor-pointer"
+                >
+                  Agent
+                </button>
+                <button
+                  type="button"
+                  className="px-3 py-1 rounded-full text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  Ask
+                </button>
+              </div>
             </div>
 
             {/* Devin Exact Chat Component */}
@@ -194,69 +213,6 @@ export function AllelCommandCenter() {
               statusLinkText="Explore automations"
               onStatusLinkClick={() => window.location.href = "/dashboard/flows"}
             />
-
-            {/* Recent Sessions Box below Omnibar (Devin Dual-Curved Card Style) */}
-            <div className="w-full mt-6">
-              <div className="flex items-center justify-between mb-2 px-1 text-xs font-medium text-zinc-400">
-                <div className="flex items-center gap-1 cursor-pointer hover:text-zinc-200">
-                  <span>Recent sessions</span>
-                  <ChevronDown className="w-3 h-3 text-zinc-500" />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => window.location.reload()}
-                  className="text-xs font-semibold text-[#38bdf8] hover:underline transition-colors cursor-pointer"
-                >
-                  View all
-                </button>
-              </div>
-
-              <div className="w-full bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-1.5 shadow-lg shadow-black/40">
-                <div className="w-full bg-[#292929] border border-[#363636] rounded-xl p-3 flex flex-col gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => handleSubmit("Give me a full morning brief across my calendar, inbox, and billing.")}
-                    className="flex items-center justify-between text-left text-xs text-zinc-300 hover:text-white transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <span className="truncate font-medium text-zinc-200 group-hover:text-white">
-                        Close integration, draft-send, scoring, and config gaps
-                      </span>
-                      <span className="text-zinc-500">·</span>
-                      <div className="flex items-center gap-1 text-[11px] text-zinc-400">
-                        <Cloud className="w-3 h-3 text-zinc-500" />
-                        <span>2h ago</span>
-                      </div>
-                      <span className="text-zinc-500">·</span>
-                      <div className="flex items-center gap-1 text-[11px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">
-                        <GitPullRequest className="w-3 h-3" />
-                        <span>1</span>
-                      </div>
-                    </div>
-                  </button>
-
-                  <div className="h-px bg-[#363636]" />
-
-                  <button
-                    type="button"
-                    onClick={() => handleSubmit("Scan all accounts in Stripe for churn risk and payment failures.")}
-                    className="flex items-center justify-between text-left text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <span className="truncate group-hover:text-zinc-200">
-                        Generate new automation
-                      </span>
-                      <span className="text-zinc-500">·</span>
-                      <div className="flex items-center gap-1 text-[11px] text-zinc-400">
-                        <Cloud className="w-3 h-3 text-zinc-500" />
-                        <span>4d ago</span>
-                      </div>
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 ml-1" />
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </div>
           </div>
         ) : (
           /* ============================================================
