@@ -413,13 +413,20 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                         return true;
                       })
                       .map((session) => {
+                        const isResolving = Boolean(
+                          pendingSessionId ||
+                          (chatContext?.isLoading &&
+                           chatContext?.messages &&
+                           chatContext.messages.length > 0 &&
+                           !chatContext.messages.some((m) => m.role === "assistant" && (m.parts?.some((p) => p.type === "text" && (p as { text?: string }).text?.trim().length > 0)))
+                        );
                         const hasActiveMessages = Boolean(chatContext?.messages && chatContext.messages.length > 0);
                         const activeSessionId = hasActiveMessages
                           ? (chatContext?.currentSessionId || (typeof window !== "undefined"
                               ? new URLSearchParams(window.location.search).get("sessionId")
                               : null))
                           : null;
-                        const isSelected = Boolean(hasActiveMessages && activeSessionId === session.sessionId);
+                        const isSelected = Boolean(!isResolving && hasActiveMessages && activeSessionId === session.sessionId);
 
                       return (
                         <div key={session.sessionId} className="relative group w-full">

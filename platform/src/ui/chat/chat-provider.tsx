@@ -205,6 +205,36 @@ export function ChatProvider({
     chat,
   })
 
+  const wrappedSendMessage = React.useCallback(
+    (options: { text: string }) => {
+      if (!messages || messages.length === 0) {
+        const newSessionId = `session-${Date.now()}`
+        setCurrentSessionId(newSessionId)
+        setActiveSessionId(newSessionId)
+        if (typeof window !== "undefined") {
+          try {
+            const url = new URL(window.location.href)
+            url.pathname = "/dashboard"
+            url.searchParams.set("sessionId", newSessionId)
+            window.history.pushState({}, "", url.toString())
+          } catch {
+            // Ignore
+          }
+          window.sessionStorage.setItem("allel.current-session-id", newSessionId)
+          window.localStorage.setItem("allel.current-session-id", newSessionId)
+          window.dispatchEvent(
+            new CustomEvent("allel:session-starting", {
+              detail: { sessionId: newSessionId },
+            })
+          )
+        }
+      }
+
+      sendMessage(options)
+    },
+    [messages, sendMessage]
+  )
+
   const persistThread = React.useCallback(() => {
     if (typeof window === "undefined" || !resolvedStorageScope) return
 
@@ -697,7 +727,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     () => ({
       currentSessionId,
       messages,
-      sendMessage,
+      sendMessage: wrappedSendMessage,
       stop,
       status,
       isLoading,
@@ -717,7 +747,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     [
       currentSessionId,
       messages,
-      sendMessage,
+      wrappedSendMessage,
       stop,
       status,
       isLoading,
