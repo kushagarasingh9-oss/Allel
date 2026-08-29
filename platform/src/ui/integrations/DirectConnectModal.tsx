@@ -219,8 +219,11 @@ export default function DirectConnectModal({
         if (typeof err === 'object' && err !== null && 'digest' in err && typeof err.digest === 'string' && err.digest.startsWith('NEXT_REDIRECT')) {
           const digest = (err as { digest: string }).digest
           if (digest.includes('error=')) {
-            const errorMatch = digest.match(/error=([^&]*)/)
-            setError(errorMatch ? decodeURIComponent(errorMatch[1]) : 'Connection failed.')
+            const errorMatch = digest.match(/error=([^&;]*)/)
+            const cleanErr = errorMatch
+              ? decodeURIComponent(errorMatch[1].replace(/\+/g, ' '))
+              : 'Connection failed.'
+            setError(cleanErr)
             return
           }
           onSuccess(provider, `${providerLabel} connected!`)

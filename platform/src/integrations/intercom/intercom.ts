@@ -347,14 +347,29 @@ export async function getIntercomWorkspaceIdentity(
   return { id: data.id ?? null, name: data.name ?? null, type: data.type ?? null }
 }
 
-/** @deprecated OAuth is required for customer-connected Intercom workspaces. */
 export async function validateIntercomToken(
   accessToken: string,
   region: IntercomRegion = DEFAULT_INTERCOM_REGION
 ) {
   try {
-    await getIntercomWorkspaceIdentity(accessToken, region)
-    return true
+    const cleanToken = accessToken.trim()
+    const baseUrl = getIntercomApiBaseUrl(region)
+    const headers = {
+      Authorization: `Bearer ${cleanToken}`,
+      Accept: 'application/json',
+      'Intercom-Version': INTERCOM_VERSION,
+    }
+
+    const res = await fetch(`${baseUrl}/me`, { headers, signal: AbortSignal.timeout(10000) })
+    if (res.ok) return true
+
+    const res2 = await fetch(`${baseUrl}/admins`, { headers, signal: AbortSignal.timeout(10000) })
+    if (res2.ok) return true
+
+    const res3 = await fetch(`${baseUrl}/contacts?per_page=1`, { headers, signal: AbortSignal.timeout(10000) })
+    if (res3.ok) return true
+
+    return false
   } catch {
     return false
   }

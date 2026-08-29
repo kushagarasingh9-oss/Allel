@@ -870,6 +870,9 @@ export async function connectIntercom(accessToken: string, regionInput: string =
       })
     )
   } catch (error) {
+    if (typeof error === 'object' && error !== null && 'digest' in error && typeof (error as { digest: unknown }).digest === 'string' && (error as { digest: string }).digest.startsWith('NEXT_REDIRECT')) {
+      throw error
+    }
     unstable_rethrow(error)
     redirect(
       buildSettingsRedirect({
