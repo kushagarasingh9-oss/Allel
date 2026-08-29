@@ -22,6 +22,10 @@ import {
   Cloud,
   GitPullRequest,
   SlidersHorizontal,
+  Upload,
+  Share2,
+  MoreHorizontal,
+  PanelRight,
 } from "lucide-react";
 import { cn } from "@/foundation/utils";
 
@@ -114,10 +118,10 @@ export function AllelCommandCenter() {
 
   return (
     <div className="flex flex-col h-full w-full bg-[#121212] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
-      {/* Top Navigation Bar (Devin Style: Arrows + Title + Avatar) */}
-      <header className="h-11 border-b border-[#1c1c1c] px-3 flex items-center justify-between shrink-0 bg-[#121212] z-20">
+      {/* Top Navigation Bar (Devin Style: Share + More Options + PanelRight) */}
+      <header className="h-11 border-b border-[#1c1c1c] px-4 flex items-center justify-between shrink-0 bg-[#121212] z-20">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-zinc-500">
+          <div className="flex items-center gap-1 text-zinc-500">
             <button
               type="button"
               className="p-1 hover:text-white rounded transition-colors cursor-pointer"
@@ -134,16 +138,17 @@ export function AllelCommandCenter() {
             </button>
           </div>
 
-          <span className="text-xs font-semibold text-zinc-200">
+          <span className="text-xs font-semibold text-zinc-300">
             {hasMessages ? "Operational Run" : "New Space"}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Right Header Toolbar (Share, More Options, PanelRight Toggle) */}
+        <div className="flex items-center gap-1.5">
           {hasMessages && (
             <button
               onClick={() => resetActiveThread()}
-              className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-zinc-400 hover:text-white hover:bg-[#252525] border border-[#262626] transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-zinc-400 hover:text-white hover:bg-[#252525] border border-[#262626] transition-colors cursor-pointer mr-1"
               title="Reset space"
             >
               <RotateCcw className="w-3 h-3" />
@@ -151,9 +156,30 @@ export function AllelCommandCenter() {
             </button>
           )}
 
-          <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 flex items-center justify-center text-[10px] font-bold text-white shrink-0 border border-white/20">
-            KS
-          </div>
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1c1c1c] border border-[#262626] text-xs font-medium text-zinc-300 hover:text-white hover:bg-[#242424] transition-colors cursor-pointer"
+            title="Share session"
+          >
+            <Upload className="w-3 h-3 text-zinc-400" />
+            <span>Share</span>
+          </button>
+
+          <button
+            type="button"
+            className="w-7 h-7 rounded-lg border border-[#262626] bg-[#1c1c1c] hover:bg-[#242424] flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            title="More options"
+          >
+            <MoreHorizontal className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            className="w-7 h-7 rounded-lg border border-[#262626] bg-[#1c1c1c] hover:bg-[#242424] flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            title="Toggle panel"
+          >
+            <PanelRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       </header>
 
