@@ -148,12 +148,12 @@ export function DevinChatBox({
         "w-full max-w-[700px] mx-auto transition-all select-none",
         hideStatusBanner
           ? "bg-transparent border-0 p-0 shadow-none gap-0"
-          : "bg-[#121212] border border-[#222222] rounded-[24px] p-1.5 shadow-[0_16px_48px_rgba(0,0,0,0.85)] flex flex-col gap-1.5",
+          : "bg-[#121214] border border-white/[0.08] rounded-[24px] p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.6)] flex flex-col gap-1.5",
         className
       )}
     >
       {/* 1. UPPER INNER FLOATING INPUT CARD */}
-      <div className="w-full bg-[#1a1a1a] border border-[#262626] rounded-[18px] p-3.5 sm:p-4 focus-within:border-zinc-400 transition-all flex flex-col justify-between min-h-[102px] relative">
+      <div className="w-full bg-[#161618] border border-white/[0.08] rounded-[18px] p-3.5 sm:p-4 focus-within:border-white/25 transition-all flex flex-col justify-between min-h-[102px] relative shadow-md">
         {/* Animated Custom Monochrome Placeholder Overlay */}
         {!value && !placeholder && (
           <div className="absolute top-3.5 sm:top-4 left-3.5 sm:left-4 pointer-events-none flex items-center gap-1.5 text-xs text-zinc-500 font-sans tracking-tight select-none z-10">
@@ -162,7 +162,7 @@ export function DevinChatBox({
               <img
                 src={DYNAMIC_STACK_ITEMS[stackIndex].icon}
                 alt={DYNAMIC_STACK_ITEMS[stackIndex].name}
-                className="w-3 h-3 object-contain grayscale opacity-60 filter brightness-150 shrink-0"
+                className="w-3.5 h-3.5 object-contain shrink-0"
               />
               <span className="text-zinc-400 font-medium">{DYNAMIC_STACK_ITEMS[stackIndex].name}...</span>
             </div>
