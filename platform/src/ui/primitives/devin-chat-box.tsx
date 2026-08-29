@@ -198,38 +198,25 @@ export function DevinChatBox({
               <Mic className="w-4 h-4" />
             </button>
 
-            {/* Dual Pill Send / Dropdown Button */}
-            <div
+            {/* Simple Circular Send Button (Highlights WHITE when text is typed) */}
+            <button
+              type="button"
+              onClick={handleButtonClick}
+              disabled={!value.trim() && !isLoading}
               className={cn(
-                "flex items-center rounded-full px-2.5 py-1 transition-all shrink-0 shadow-xs",
+                "w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-xs",
                 value.trim() || isLoading
-                  ? "bg-white text-black hover:bg-zinc-100"
-                  : "bg-[#646464] text-[#1e1e1e] hover:bg-[#747474]"
+                  ? "bg-white text-black hover:bg-zinc-200 shadow-md"
+                  : "bg-[#5a5a5a] text-[#1c1c1c] cursor-not-allowed opacity-90"
               )}
+              title={isLoading ? "Stop execution" : "Send prompt"}
             >
-              <button
-                type="button"
-                onClick={handleButtonClick}
-                className="p-1 hover:opacity-80 transition-opacity cursor-pointer flex items-center justify-center"
-                title={isLoading ? "Stop execution" : "Send prompt"}
-              >
-                {isLoading ? (
-                  <Square className="w-3.5 h-3.5 fill-current" />
-                ) : (
-                  <ArrowUp className="w-4 h-4 stroke-[2.5]" />
-                )}
-              </button>
-
-              <div className="w-[1px] h-3.5 bg-[#1e1e1e]/40 mx-1" />
-
-              <button
-                type="button"
-                className="p-0.5 hover:opacity-80 transition-opacity cursor-pointer flex items-center justify-center"
-                title="Prompt options"
-              >
-                <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
-              </button>
-            </div>
+              {isLoading ? (
+                <Square className="w-3.5 h-3.5 fill-current" />
+              ) : (
+                <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+              )}
+            </button>
           </div>
         </div>
       </div>
