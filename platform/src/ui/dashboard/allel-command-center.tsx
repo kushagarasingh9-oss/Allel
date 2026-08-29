@@ -66,6 +66,7 @@ const QUICK_ACTIONS = [
 
 export function AllelCommandCenter() {
   const {
+    currentSessionId,
     messages,
     sendMessage,
     isLoading,
