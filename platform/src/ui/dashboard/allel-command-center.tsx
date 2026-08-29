@@ -223,11 +223,11 @@ export function AllelCommandCenter() {
               <div className="w-full max-w-[700px] mx-auto bg-[#191919] border border-[#282828] rounded-[24px] p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 transition-all select-none">
                 {/* Attached Task Runner Tray Header (ONLY renders when isLoading is true) */}
                 {isLoading && (
-                  <div className="w-full flex flex-col items-start transition-all">
+                  <div className="w-full flex flex-col items-start transition-all px-1 pt-0.5">
                     <button
                       type="button"
                       onClick={() => setIsTaskTrayOpen(!isTaskTrayOpen)}
-                      className="w-full flex items-center justify-between px-3.5 py-2 rounded-[16px] bg-[#202020] border border-[#2d2d2d] hover:bg-[#252525] transition-all cursor-pointer shadow-xs text-xs select-none"
+                      className="w-full flex items-center justify-between px-2 py-1 bg-transparent border-0 hover:opacity-80 transition-opacity cursor-pointer text-xs select-none"
                     >
                       <div className="flex items-center gap-2">
                         <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
