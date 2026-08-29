@@ -31,10 +31,12 @@ const projectRef = SUPABASE_URL.replace('https://', '').split('.')[0]
 console.log('Project ref:', projectRef)
 
 const MIGRATIONS = [
-  '../../supabase/migrations/20260822_recovery_core.sql',
-  '../../supabase/migrations/20260822_recovery_hardening.sql',
-  '../../supabase/migrations/20260822_recovery_queue.sql',
-  '../../supabase/migrations/20260822_recovery_rls_and_rpc.sql',
+  '../../database/migrations/20260822_recovery_core.sql',
+  '../../database/migrations/20260822_recovery_hardening.sql',
+  '../../database/migrations/20260822_recovery_queue.sql',
+  '../../database/migrations/20260822_recovery_rls_and_rpc.sql',
+  '../../database/migrations/20260829_recovery_workflow_integrity.sql',
+  '../../database/migrations/20260829_recovery_scenario_runs.sql',
 ]
 
 function post(host, path, token, body) {

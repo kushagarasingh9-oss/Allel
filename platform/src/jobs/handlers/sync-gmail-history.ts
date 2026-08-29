@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { JobExecutionContext, JobExecutionResult } from '@/jobs/types';
-import { syncGmailWorkspace } from '@/integrations/gmail/gmail-sync';
+import { syncGmailRecoveryHistory } from '@/integrations/gmail/gmail-recovery-history';
 
 export async function handleSyncGmailHistory(
   _supabase: SupabaseClient,
@@ -12,11 +12,9 @@ export async function handleSyncGmailHistory(
     throw new Error('sync_gmail_history requires workspaceId');
   }
 
-  try {
-    await syncGmailWorkspace(workspaceId);
-    return { success: true };
-  } catch (_err) {
-    // Non-fatal if Gmail is not connected
-    return { success: true };
-  }
+  // A disconnected or expired Gmail integration is actionable failure state,
+  // not a successful empty sync. The durable job retry/error path owns the
+  // visible remediation and ensures we never silently lose reply evidence.
+  await syncGmailRecoveryHistory(workspaceId);
+  return { success: true, workspaceId };
 }

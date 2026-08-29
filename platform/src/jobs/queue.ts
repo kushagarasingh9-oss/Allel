@@ -9,6 +9,7 @@ export async function enqueueWorkflowJob(
     workspaceId?: string | null;
     recoveryCaseId?: string | null;
     webhookEventId?: string | null;
+    scenarioRunId?: string | null;
     jobType: JobType;
     idempotencyKey: string;
     payload?: Record<string, any>;
@@ -25,6 +26,7 @@ export async function enqueueWorkflowJob(
     workspace_id: params.workspaceId || null,
     recovery_case_id: params.recoveryCaseId || null,
     webhook_event_id: params.webhookEventId || null,
+    scenario_run_id: params.scenarioRunId || null,
     job_type: params.jobType,
     idempotency_key: params.idempotencyKey,
     status: 'pending',
@@ -183,6 +185,7 @@ function mapDbToWorkflowJob(row: Record<string, any>): WorkflowJob {
     workspaceId: row.workspace_id,
     recoveryCaseId: row.recovery_case_id,
     webhookEventId: row.webhook_event_id,
+    scenarioRunId: row.scenario_run_id || null,
     jobType: row.job_type,
     idempotencyKey: row.idempotency_key,
     status: row.status,

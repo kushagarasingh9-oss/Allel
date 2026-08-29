@@ -25,6 +25,7 @@ export async function handleClassifyCaseOutcome(
     isTestMode: payload.isTestMode,
     stripeInvoiceId: payload.stripeInvoiceId,
     stripeSubscriptionId: payload.stripeSubscriptionId,
+    gmailThreadId: payload.gmailThreadId,
     usageRebound: payload.usageRebound,
     customerReplied: payload.customerReplied,
   });

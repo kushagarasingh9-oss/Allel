@@ -11,7 +11,6 @@ import { encrypt } from '@/integrations/_core/encryption'
 import { validateStripeKey } from '@/integrations/stripe/stripe'
 import { validateAirtableToken } from '@/integrations/airtable/airtable'
 import { validatePostHogKey, validateAndResolvePostHog } from '@/integrations/posthog/posthog'
-import { validateIntercomToken } from '@/integrations/intercom/intercom'
 import { validateHubSpotToken } from '@/integrations/hubspot/hubspot'
 import { validateSlackBotToken } from '@/integrations/slack/slack'
 import { validateSentryToken } from '@/integrations/sentry/sentry'
@@ -273,61 +272,6 @@ export async function connectPostHog(apiKey: string, projectId?: string) {
     redirect(
       buildSettingsRedirect({
         error: formatSettingsError(error, 'PostHog connection failed.'),
-      })
-    )
-  }
-}
-
-export async function connectIntercom(accessToken: string, apiBaseUrl?: string) {
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      redirect(buildSettingsRedirect({ error: 'Sign in again to connect Intercom.' }))
-    }
-
-    const { workspaceId } = await getWorkspaceIdForUser(user)
-    const normalizedApiBaseUrl =
-      typeof apiBaseUrl === 'string' && apiBaseUrl.trim().length > 0
-        ? apiBaseUrl.trim().replace(/\/+$/, '')
-        : 'https://api.intercom.io'
-
-    const isValid = await validateIntercomToken(accessToken, normalizedApiBaseUrl)
-    if (!isValid) {
-      redirect(buildSettingsRedirect({ error: 'Intercom rejected that access token.' }))
-    }
-
-    await saveEncryptedToken({ supabase, workspaceId, provider: 'intercom', value: accessToken })
-    await upsertConnection({
-      supabase,
-      workspaceId,
-      provider: 'intercom',
-      metadata: {
-        api_base_url: normalizedApiBaseUrl,
-        coverage: 'Ready for first Intercom sync',
-      },
-    })
-
-    const { message } = await runConnectedProviderSync({
-      supabase,
-      workspaceId,
-      provider: 'intercom',
-      trigger: 'manual_connect',
-    })
-
-    revalidateDashboardSurfaces()
-    redirect(
-      buildSettingsRedirect({
-        success: `Intercom connected. ${message}`,
-      })
-    )
-  } catch (error) {
-    unstable_rethrow(error)
-    redirect(
-      buildSettingsRedirect({
-        error: formatSettingsError(error, 'Intercom connection failed.'),
       })
     )
   }
@@ -866,4 +810,51 @@ export async function getGmailConnectUrl(provider: string = 'gmail') {
     { forceConsent: !refreshToken, origin, state }
   )
   return { authUrl }
+}
+
+/**
+ * Starts the Intercom OAuth installation flow. We intentionally do not accept
+ * a customer-supplied personal access token: Intercom requires OAuth when an
+ * app connects to another workspace's data.
+ */
+export async function getIntercomConnectUrl(regionInput: string = 'us') {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Sign in again to connect Intercom.')
+  }
+
+  const { workspaceId } = await getWorkspaceIdForUser(user)
+  const {
+    getIntercomOAuthUrl,
+    isIntercomConfigured,
+    normalizeIntercomRegion,
+  } = await import('@/integrations/intercom/intercom')
+
+  if (!isIntercomConfigured()) {
+    throw new Error(
+      'Intercom OAuth is not configured on this deployment. Set INTERCOM_CLIENT_ID, INTERCOM_CLIENT_SECRET, and INTERCOM_REDIRECT_URI first.'
+    )
+  }
+
+  const headerList = await headers()
+  const host = headerList.get('x-forwarded-host') || headerList.get('host')
+  const rawProto = headerList.get('x-forwarded-proto')
+  const proto = rawProto || (host?.includes('localhost') || host?.includes('127.0.0.1') ? 'http' : 'https')
+  const region = normalizeIntercomRegion(regionInput)
+  const state = `${workspaceId}:${crypto.randomUUID()}:intercom:${region}`
+
+  const cookieStore = await cookies()
+  cookieStore.set('intercom_oauth_state', state, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: proto === 'https',
+    path: '/api/integrations/intercom/callback',
+    maxAge: 10 * 60,
+  })
+
+  return { authUrl: getIntercomOAuthUrl({ state, region }) }
 }

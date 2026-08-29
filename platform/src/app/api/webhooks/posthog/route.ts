@@ -13,6 +13,7 @@ import { createHmac, createHash, timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/foundation/database/service'
 import { buildCanonicalProviderEvent } from '@/recovery/events'
+import { RECOVERY_CONFIG } from '@/recovery/config'
 
 export async function POST(request: NextRequest) {
   // §40.7: Reject oversized bodies
@@ -56,11 +57,23 @@ export async function POST(request: NextRequest) {
   const eventName = payload.event ?? payload.hook?.event ?? 'action_fired'
 
   // §40.7.2: Stable event ID — never use Date.now()
-  const eventUuid = computeStablePostHogEventId(payload, distinctId, eventName)
+  const eventUuid = computeStablePostHogEventId(payload, distinctId, eventName, body)
 
   const occurredAt = payload.properties?.timestamp
     || (payload.properties?.['$timestamp'] as string | undefined)
     || new Date().toISOString()
+  const scenarioId = getScenarioId(payload)
+  const scenarioRunId = getScenarioRunId(payload)
+  const declaredTestMode = payload.properties?.allel_test_mode
+  if (typeof declaredTestMode === 'boolean' && declaredTestMode !== RECOVERY_CONFIG.TEST_MODE) {
+    return NextResponse.json({ error: 'Test-mode event does not match this recovery environment' }, { status: 409 })
+  }
+  if (
+    RECOVERY_CONFIG.TEST_MODE &&
+    (!scenarioId || !scenarioId.startsWith(RECOVERY_CONFIG.SCENARIO_PREFIX))
+  ) {
+    return NextResponse.json({ error: 'Test-mode PostHog events require a valid allel_scenario_id' }, { status: 400 })
+  }
 
   // Resolve workspace via provider_identities then email fallback
   let workspaceId: string | null = null
@@ -78,7 +91,10 @@ export async function POST(request: NextRequest) {
     eventType: eventName,
     occurredAt,
     primaryExternalIdentity: distinctId,
+    scenarioId,
+    scenarioRunId,
     rawPayload: body,
+    testMode: RECOVERY_CONFIG.TEST_MODE,
   })
 
   // Call atomic ingestion RPC
@@ -96,10 +112,11 @@ export async function POST(request: NextRequest) {
       p_external_id: eventUuid,
       p_dedupe_key: canonicalEvent.dedupeKey,
       p_payload_hash: canonicalEvent.payloadHash,
-      p_occurred_at: occurredAt,
+      p_occurred_at: canonicalEvent.occurredAt,
       p_payload: payload as unknown as Record<string, unknown>,
-      p_test_mode: false,
-      p_scenario_id: null,
+      p_test_mode: canonicalEvent.testMode,
+      p_scenario_id: canonicalEvent.scenarioId,
+      p_scenario_run_id: canonicalEvent.scenarioRunId,
       p_job_idempotency: jobIdempotencyKey,
     }
   )
@@ -127,7 +144,8 @@ export async function POST(request: NextRequest) {
 function computeStablePostHogEventId(
   payload: PostHogWebhookPayload,
   distinctId: string | null,
-  eventName: string
+  eventName: string,
+  rawBody: string
 ): string {
   // 1. $insert_id
   const insertId = payload.properties?.$insert_id
@@ -144,7 +162,7 @@ function computeStablePostHogEventId(
   // 3. SHA-256 fingerprint — deterministic across retries
   const timestamp = payload.properties?.timestamp || ''
   const fingerprint = createHash('sha256')
-    .update([distinctId || '', eventName, timestamp, payload.properties?.$current_url || ''].join('::'))
+    .update(`${distinctId || ''}\u0000${eventName}\u0000${timestamp}\u0000${rawBody}`)
     .digest('hex')
     .slice(0, 32)
 
@@ -167,7 +185,7 @@ async function resolveWorkspaceForPostHog(
       .select('workspace_id')
       .eq('provider', 'posthog')
       .eq('identity_type', 'distinct_id')
-      .eq('normalized_external_id', distinctId.toLowerCase())
+      .eq('normalized_external_id', distinctId.trim())
       .limit(2)
 
     if (identity && identity.length === 1) {
@@ -190,6 +208,16 @@ async function resolveWorkspaceForPostHog(
   }
 
   return null
+}
+
+function getScenarioId(payload: PostHogWebhookPayload): string | null {
+  const value = payload.properties?.allel_scenario_id
+  return typeof value === 'string' && value.length <= 120 ? value : null
+}
+
+function getScenarioRunId(payload: PostHogWebhookPayload): string | null {
+  const value = payload.properties?.allel_test_run ?? payload.properties?.scenario_run_id
+  return typeof value === 'string' && value.length > 0 && value.length <= 160 ? value : null
 }
 
 function resolvePayloadEmail(payload: PostHogWebhookPayload): string | null {

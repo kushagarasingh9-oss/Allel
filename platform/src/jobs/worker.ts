@@ -103,6 +103,7 @@ export async function processSingleJob(
           workspaceId: result.nextJob.workspaceId || job.workspaceId,
           recoveryCaseId: result.nextJob.recoveryCaseId || job.recoveryCaseId,
           webhookEventId: result.nextJob.webhookEventId || job.webhookEventId,
+          scenarioRunId: result.nextJob.scenarioRunId || job.scenarioRunId,
           jobType: result.nextJob.jobType,
           idempotencyKey: result.nextJob.idempotencyKey,
           payload: result.nextJob.payload,
@@ -149,36 +150,41 @@ export async function drainWorkflowQueue(
   const batchSize = options?.batchSize || RECOVERY_CONFIG.WORKER_BATCH_SIZE;
   const deadlineMs = options?.deadlineMs || 55_000; // §40.15.4: Respect route timeout
 
-  // Claim batch
-  const jobs = await claimWorkflowJobs(supabase, workerId, batchSize, RECOVERY_CONFIG.JOB_LEASE_SECONDS);
-
+  let claimed = 0;
   let completed = 0;
   let retried = 0;
   let deadLettered = 0;
+  let runs = 0;
+  const maxRuns = options?.maxRuns ?? 12;
 
   // §40.15.4: Use WORKER_CONCURRENCY for bounded pool
   const concurrency = parseInt(process.env.WORKER_CONCURRENCY || '3', 10);
 
-  // Process in bounded concurrent batches
-  for (let i = 0; i < jobs.length; i += concurrency) {
-    // §40.15.4: Stop claiming new work before the deadline
-    if (Date.now() - startTime > deadlineMs) {
-      console.warn(`[worker] deadline approaching, processed ${completed}/${jobs.length} jobs`);
-      break;
-    }
+  // Reclaim until the queue is empty or the bounded route budget is consumed.
+  // This lets a single worker invocation advance event → features → decision
+  // → analysis → draft/verification instead of leaving each child stage for a
+  // separate scheduler tick.
+  while (runs < maxRuns && Date.now() - startTime <= deadlineMs) {
+    const jobs = await claimWorkflowJobs(supabase, workerId, batchSize, RECOVERY_CONFIG.JOB_LEASE_SECONDS);
+    if (jobs.length === 0) break;
+    claimed += jobs.length;
+    runs += 1;
 
-    const batch = jobs.slice(i, i + concurrency);
-    const results = await Promise.all(
-      batch.map(job => processSingleJob(supabase, job, workerId))
-    );
+    for (let i = 0; i < jobs.length; i += concurrency) {
+      if (Date.now() - startTime > deadlineMs) {
+        console.warn(`[worker] deadline approaching after ${completed}/${claimed} claimed jobs`);
+        break;
+      }
 
-    for (let j = 0; j < results.length; j++) {
-      const result = results[j];
-      const job = batch[j];
-      if (result.success) {
-        completed++;
-      } else {
-        if (job.attemptCount >= job.maxAttempts) {
+      const batch = jobs.slice(i, i + concurrency);
+      const results = await Promise.all(batch.map(job => processSingleJob(supabase, job, workerId)));
+
+      for (let j = 0; j < results.length; j++) {
+        const result = results[j];
+        const job = batch[j];
+        if (result.success) {
+          completed++;
+        } else if (job.attemptCount >= job.maxAttempts) {
           deadLettered++;
         } else {
           retried++;
@@ -188,7 +194,7 @@ export async function drainWorkflowQueue(
   }
 
   return {
-    claimed: jobs.length,
+    claimed,
     completed,
     retried,
     deadLettered,

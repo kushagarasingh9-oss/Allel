@@ -56,6 +56,7 @@ export function buildCanonicalProviderEvent(params: {
   primaryExternalIdentity?: string | null;
   secondaryExternalIdentities?: string[];
   scenarioId?: string | null;
+  scenarioRunId?: string | null;
   rawPayload: string | Buffer;
   testMode?: boolean;
 }): CanonicalProviderEvent {
@@ -84,6 +85,7 @@ export function buildCanonicalProviderEvent(params: {
     primaryExternalIdentity: params.primaryExternalIdentity || null,
     secondaryExternalIdentities: params.secondaryExternalIdentities || [],
     scenarioId: params.scenarioId || null,
+    scenarioRunId: params.scenarioRunId || null,
     payloadHash,
     payloadVersion: 1,
     testMode: params.testMode ?? RECOVERY_CONFIG.TEST_MODE,

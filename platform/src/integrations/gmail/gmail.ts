@@ -45,6 +45,17 @@ export type GmailProfile = {
   emailAddress: string
   messagesTotal: number
   threadsTotal: number
+  historyId: string
+}
+
+export type GmailHistoryMessage = {
+  id: string
+  threadId: string
+}
+
+export type GmailHistoryResult = {
+  historyId: string
+  messages: GmailHistoryMessage[]
 }
 
 export type SendEmailParams = {
@@ -892,13 +903,88 @@ export async function getGmailProfile(workspaceId: string): Promise<GmailProfile
       emailAddress: string
       messagesTotal: number
       threadsTotal: number
+      historyId: string
     }
 
     return {
       emailAddress: data.emailAddress.toLowerCase(),
       messagesTotal: data.messagesTotal,
       threadsTotal: data.threadsTotal,
+      historyId: data.historyId,
     }
+  })
+}
+
+/**
+ * Lists messages added after a durable Gmail history cursor. The caller owns
+ * cursor persistence and advances it only after it has durably recorded every
+ * returned message. A 404 means Gmail has expired the cursor; callers must
+ * reconcile safely instead of treating old inbox mail as new customer replies.
+ */
+export async function listGmailHistory(
+  workspaceId: string,
+  startHistoryId: string,
+  maxResults = 100
+): Promise<GmailHistoryResult> {
+  if (!isGmailReadSyncEnabled()) {
+    return { historyId: startHistoryId, messages: [] }
+  }
+
+  return executeWithGmailAccessToken(workspaceId, async (accessToken) => {
+    const messages = new Map<string, GmailHistoryMessage>()
+    let pageToken: string | null = null
+    let latestHistoryId = startHistoryId
+    let pagesRead = 0
+
+    do {
+      const params = new URLSearchParams({
+        startHistoryId,
+        historyTypes: 'messageAdded',
+        maxResults: String(maxResults),
+      })
+      if (pageToken) params.set('pageToken', pageToken)
+
+      const response = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/history?${params.toString()}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          signal: AbortSignal.timeout(12000),
+        }
+      )
+
+      if (response.status === 404) {
+        throw new Error('GMAIL_HISTORY_CURSOR_EXPIRED')
+      }
+      if (!response.ok) {
+        const error = await response.text()
+        throw new Error(`Gmail history fetch failed: ${response.status} ${error}`)
+      }
+
+      const data = (await response.json()) as {
+        historyId?: string
+        nextPageToken?: string
+        history?: Array<{
+          messagesAdded?: Array<{ message?: { id?: string; threadId?: string } }>
+        }>
+      }
+
+      if (data.historyId) latestHistoryId = data.historyId
+      for (const item of data.history ?? []) {
+        for (const added of item.messagesAdded ?? []) {
+          const id = added.message?.id
+          const threadId = added.message?.threadId
+          if (id && threadId) messages.set(id, { id, threadId })
+        }
+      }
+
+      pageToken = data.nextPageToken ?? null
+      pagesRead += 1
+      if (pagesRead > 50) {
+        throw new Error('Gmail history pagination exceeded safe bound')
+      }
+    } while (pageToken)
+
+    return { historyId: latestHistoryId, messages: Array.from(messages.values()) }
   })
 }
 

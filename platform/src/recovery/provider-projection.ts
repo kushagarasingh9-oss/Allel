@@ -311,6 +311,8 @@ export function projectPostHogEvent(
     ? `cancel_intent detected: event=${eventName}, distinct_id=${distinctId}`
     : `posthog event: event=${eventName}, distinct_id=${distinctId}`;
 
+  const isRecoveryAction = eventName === 'allel_recovery_action';
+
   return {
     provider: 'posthog',
     eventId: webhookEventId,
@@ -326,8 +328,49 @@ export function projectPostHogEvent(
         fact,
       },
     ],
-    outcomeCandidate: null,
+    outcomeCandidate: isRecoveryAction ? { kind: 'usage_rebound' } : null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Gmail projections
+// ---------------------------------------------------------------------------
+
+export function projectGmailInboundMessage(
+  webhookEventId: string,
+  providerEventId: string,
+  payload: Record<string, any>,
+  occurredAt: string
+): Omit<ProviderFeatureProjection, 'workspaceId' | 'customerAccountId'> {
+  const threadId = typeof payload.thread_id === 'string' ? payload.thread_id : null
+  const messageId = typeof payload.message_id === 'string' ? payload.message_id : providerEventId
+  const sender = typeof payload.from_address === 'string' ? payload.from_address : null
+
+  return {
+    provider: 'gmail',
+    eventId: webhookEventId,
+    providerEventId,
+    eventType: 'gmail.message_received',
+    occurredAt,
+    patch: {
+      communicationAvailable: true,
+      lastInboundAt: occurredAt,
+      communicationFreshAt: occurredAt,
+      // A customer response on the tracked thread closes the outstanding
+      // recovery outreach rather than creating a new outreach candidate.
+      unrepliedOutboundCount: 0,
+      ...(threadId ? { gmailThreadId: threadId } : {}),
+    },
+    evidence: [
+      {
+        eventId: webhookEventId,
+        provider: 'gmail',
+        objectId: messageId,
+        fact: `gmail customer reply received from ${sender ?? 'verified contact'} in thread ${threadId ?? 'unknown'}`,
+      },
+    ],
+    outcomeCandidate: { kind: 'customer_reply' },
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -394,6 +437,9 @@ export function projectProviderEvent(params: {
     return projectPostHogEvent(webhookEventId, providerEventId, payload, occurredAt);
   }
 
-  // Gmail events are handled separately in outcome attribution
+  if (provider === 'gmail' && eventType === 'gmail.message_received') {
+    return projectGmailInboundMessage(webhookEventId, providerEventId, payload, occurredAt);
+  }
+
   return null;
 }

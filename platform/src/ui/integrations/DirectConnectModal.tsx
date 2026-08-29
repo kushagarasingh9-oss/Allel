@@ -10,11 +10,10 @@ import {
   connectSentry,
   connectHubSpot,
   connectSlack,
-  connectIntercom,
   connectAirtable,
-  connectGmailDirect,
   connectDemoIntegrationSafe,
   getGmailConnectUrl,
+  getIntercomConnectUrl,
 } from '@/app/dashboard/settings/actions'
 import type { IntegrationProvider } from '@/integrations/catalog'
 
@@ -92,6 +91,7 @@ export default function DirectConnectModal({
 }: Props) {
   const [apiKey, setApiKey] = useState('')
   const [secondaryInput, setSecondaryInput] = useState('')
+  const [intercomRegion, setIntercomRegion] = useState<'us' | 'eu' | 'au'>('us')
   const [showKey, setShowKey] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -103,6 +103,8 @@ export default function DirectConnectModal({
     provider === 'google_calendar' ||
     provider === 'google_docs' ||
     provider === 'google_drive'
+  const isIntercomProvider = provider === 'intercom'
+  const usesOAuthConnect = isGoogleProvider || isIntercomProvider
 
   const hint = HINTS[provider] ?? {
     label: `${providerLabel} API Key / Token`,
@@ -110,11 +112,13 @@ export default function DirectConnectModal({
     docUrl: '#',
   }
 
-  const handleGoogleOAuthConnect = () => {
+  const handleOAuthConnect = () => {
     setError(null)
     startTransition(async () => {
       try {
-        const result = await getGmailConnectUrl(provider)
+        const result = isIntercomProvider
+          ? await getIntercomConnectUrl(intercomRegion)
+          : await getGmailConnectUrl(provider)
         if (result.authUrl) {
           window.location.href = result.authUrl
         } else {
@@ -134,7 +138,7 @@ export default function DirectConnectModal({
           onClose()
           return
         }
-        setError(err instanceof Error ? err.message : 'Google OAuth failed.')
+        setError(err instanceof Error ? err.message : 'OAuth connection failed.')
       }
     })
   }
@@ -199,14 +203,8 @@ export default function DirectConnectModal({
           case 'slack':
             await connectSlack(apiKey.trim(), secondaryInput.trim() || 'general')
             break
-          case 'intercom':
-            await connectIntercom(apiKey.trim())
-            break
           case 'airtable':
             await connectAirtable(apiKey.trim())
-            break
-          case 'gmail':
-            await connectGmailDirect(apiKey.trim())
             break
           default:
             await connectDemoIntegrationSafe(provider)
@@ -264,12 +262,27 @@ export default function DirectConnectModal({
           {unlockDescription}
         </p>
 
-        {/* Prominent 1-Click OAuth Button for Google Apps */}
-        {isGoogleProvider && (
-          <div className={provider === 'google_calendar' ? 'mb-2' : 'mb-5 pb-5 border-b border-white/10'}>
+        {/* OAuth is the only safe connection mechanism for Gmail and Intercom. */}
+        {usesOAuthConnect && (
+          <div className="mb-2">
+            {isIntercomProvider && (
+              <label className="block text-xs text-neutral-300 mb-2">
+                Intercom workspace region
+                <select
+                  value={intercomRegion}
+                  onChange={(event) => setIntercomRegion(event.target.value as 'us' | 'eu' | 'au')}
+                  disabled={isPending}
+                  className="mt-1.5 w-full bg-[#0B0B0E] border border-[#24242A] rounded-lg py-2 px-3 text-xs text-white outline-none focus:border-white/30"
+                >
+                  <option value="us">United States</option>
+                  <option value="eu">Europe</option>
+                  <option value="au">Australia</option>
+                </select>
+              </label>
+            )}
             <button
               type="button"
-              onClick={handleGoogleOAuthConnect}
+              onClick={handleOAuthConnect}
               disabled={isPending}
               className="w-full py-2.5 px-4 rounded-lg bg-white text-black hover:bg-neutral-200 text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
             >
@@ -280,20 +293,22 @@ export default function DirectConnectModal({
                 </>
               ) : (
                 <>
-                  <img src="/logos/gmail.svg" alt="Google" className="w-4 h-4 object-contain" />
-                  <span>1-Click Connect with Google Account</span>
+                  <img src={isIntercomProvider ? "/logos/intercom.svg" : "/logos/gmail.svg"} alt="Provider" className="w-4 h-4 object-contain" />
+                  <span>{isIntercomProvider ? 'Connect with Intercom' : 'Connect with Google Account'}</span>
                 </>
               )}
             </button>
             <p className="text-[11px] text-neutral-500 text-center mt-2">
-              {provider === 'google_calendar'
+              {isIntercomProvider
+                ? 'Uses Intercom OAuth. Customer access tokens are never requested or stored.'
+                : provider === 'google_calendar'
                 ? 'Google OAuth is required for private Calendar data. App passwords and API keys are not supported.'
-                : 'Authenticates directly using official Google Cloud OAuth. No manual API key required.'}
+                : 'Authenticates directly using Google OAuth. App passwords and API keys are not supported.'}
             </p>
           </div>
         )}
 
-        {provider === 'google_calendar' && error && (
+        {usesOAuthConnect && error && (
           <div className="flex items-center gap-2 p-2.5 mt-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
@@ -301,13 +316,13 @@ export default function DirectConnectModal({
         )}
 
         {/* Form for providers that support direct credentials */}
-        {provider !== 'google_calendar' && (
+        {!usesOAuthConnect && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-medium text-neutral-300 flex items-center gap-1.5">
                 <Key className="w-3.5 h-3.5 text-neutral-400" />
-                {isGoogleProvider ? 'Or enter App Password / Key manually' : hint.label}
+                {hint.label}
               </label>
               {hint.docUrl !== '#' && (
                 <a

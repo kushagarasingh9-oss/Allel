@@ -37,17 +37,8 @@ export default function LandingPage() {
     updateLocalCta();
     const interval = setInterval(updateLocalCta, 300);
 
-    // Load Framer runtime script for full entrance animations
-    const script = document.createElement('script');
-    script.type = 'module';
-    script.src = 'https://framerusercontent.com/sites/6Be8XUFFMocrXrTlNdktXK/script_main.BAtDVUVK.mjs';
-    document.body.appendChild(script);
-
     return () => {
       clearInterval(interval);
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
     };
   }, []);
 

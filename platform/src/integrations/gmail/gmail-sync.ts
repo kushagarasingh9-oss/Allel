@@ -15,6 +15,7 @@ import {
 } from '@/integrations/gmail/gmail'
 import { buildGmailBootstrapCandidates, buildGmailBootstrapQuery } from './gmail-bootstrap'
 import { mergeIntegrationConnectionMetadata } from '@/integrations/_core/connection-guard'
+import { syncGmailRecoveryHistory } from '@/integrations/gmail/gmail-recovery-history'
 
 type ExistingAccount = {
   id: string
@@ -307,7 +308,67 @@ async function createCommunicationDraftIfMissing(params: {
   return true
 }
 
+/**
+ * Canonical Gmail sync for the recovery workflow.
+ *
+ * Gmail history is ingested as provider evidence and then flows through the
+ * same identity → features → outcome path as Stripe and PostHog. This function
+ * deliberately never scores an account or creates a draft from inbox content.
+ */
 export async function syncGmailWorkspace(
+  workspaceId: string,
+  options?: { refreshBrief?: boolean }
+): Promise<GmailWorkspaceSyncResult> {
+  const supabase = createServiceClient()
+  const result = await syncGmailRecoveryHistory(workspaceId)
+  const syncedAt = new Date().toISOString()
+
+  const { error: connectionError } = await supabase.from('integration_connections').upsert(
+    {
+      workspace_id: workspaceId,
+      provider: 'gmail',
+      status: 'connected',
+      last_synced_at: syncedAt,
+      metadata: await mergeIntegrationConnectionMetadata(supabase, workspaceId, 'gmail', {
+        coverage: result.initialized
+          ? 'Gmail history cursor initialized; new customer replies will be ingested durably.'
+          : `${result.inboundMessages} inbound Gmail message(s) ingested into the recovery workflow.`,
+        mode: getGmailScopeMode(),
+        gmail_history_cursor: result.cursor,
+        observed_messages: result.observedMessages,
+        ignored_messages: result.ignoredMessages,
+      }),
+    },
+    { onConflict: 'workspace_id,provider' }
+  )
+  if (connectionError) throw connectionError
+
+  await logAgentRun({
+    workspaceId,
+    runType: 'integration_synced',
+    status: 'completed',
+    outputSummary: result.initialized
+      ? 'Gmail recovery history cursor initialized.'
+      : `Gmail recovery history sync completed: ${result.inboundMessages} inbound message(s) ingested.`,
+    metadata: { provider: 'gmail', ...result },
+  })
+
+  if (options?.refreshBrief ?? true) await generateWorkspaceBrief(workspaceId)
+
+  return {
+    syncedAccounts: 0,
+    syncedThreads: result.inboundMessages,
+    pendingReplies: result.inboundMessages,
+    ownerEmail: '',
+  }
+}
+
+/**
+ * Retained only for a future, explicitly separate inbox-triage product. It is
+ * not registered as an integration runner because it predates the durable
+ * recovery-case workflow and can independently score accounts or create drafts.
+ */
+async function syncLegacyGmailInboxForTriage(
   workspaceId: string,
   options?: { refreshBrief?: boolean }
 ): Promise<GmailWorkspaceSyncResult> {

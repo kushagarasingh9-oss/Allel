@@ -19,6 +19,7 @@ export type WorkflowJob<TPayload = Record<string, any>> = {
   workspaceId: string | null;
   recoveryCaseId: string | null;
   webhookEventId: string | null;
+  scenarioRunId: string | null;
   jobType: JobType;
   idempotencyKey: string;
   status: JobStatus;
@@ -58,6 +59,7 @@ export type JobExecutionResult = {
     priority?: number;
     recoveryCaseId?: string | null;
     webhookEventId?: string | null;
+    scenarioRunId?: string | null;
   };
 };
 

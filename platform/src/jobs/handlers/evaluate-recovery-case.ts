@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { JobExecutionContext, JobExecutionResult } from '@/jobs/types';
 import { computeRiskDecision } from '@/recovery/scoring';
 import { evaluateActionPolicy } from '@/recovery/policy';
+import { ContactPolicy } from '@/recovery/types';
 import { constructCaseKey, openOrUpdateRecoveryCase } from '@/recovery/cases';
 import { mapDbToAccountFeatures, AccountFeaturesDbRow } from '@/recovery/features';
 
@@ -34,12 +35,40 @@ export async function handleEvaluateRecoveryCase(
   const mrrBaselineCents = payload.mrrBaselineCents || features.currentMrrCents || features.preCancelMrrCents || 0;
 
   // 2. Fetch contact policy if any
-  const { data: policyRow } = await supabase
+  const { data: policyRows, error: policyError } = await supabase
     .from('contact_policies')
     .select('*')
     .eq('workspace_id', workspaceId)
     .eq('customer_account_id', customerAccountId)
-    .maybeSingle();
+    .eq('channel', 'email')
+    .order('created_at', { ascending: false });
+
+  if (policyError) {
+    throw new Error(`Failed to load contact policy: ${policyError.message}`);
+  }
+
+  const activePolicies = (policyRows ?? []).filter((row) =>
+    !row.expires_at || new Date(row.expires_at) >= new Date()
+  );
+  const policyPriority = ['do_not_contact', 'transactional_only', 'manual_review_only', 'allow'];
+  const policyRow = activePolicies.sort(
+    (left, right) => policyPriority.indexOf(left.policy) - policyPriority.indexOf(right.policy)
+  )[0] ?? null;
+  const contactPolicy: ContactPolicy | null = policyRow
+    ? {
+        id: policyRow.id,
+        workspaceId: policyRow.workspace_id,
+        customerAccountId: policyRow.customer_account_id,
+        channel: policyRow.channel,
+        address: policyRow.address,
+        policy: policyRow.policy,
+        reason: policyRow.reason,
+        source: policyRow.source,
+        expiresAt: policyRow.expires_at,
+        createdAt: policyRow.created_at,
+        updatedAt: policyRow.updated_at,
+      }
+    : null;
 
   // §40.10: Use identity confidence from payload (set by process-provider-event).
   // Never hard-code 1.0 — a hard-coded perfect confidence bypasses the low-confidence
@@ -54,7 +83,7 @@ export async function handleEvaluateRecoveryCase(
   const actionDecision = evaluateActionPolicy({
     riskDecision,
     identityConfidence,
-    contactPolicy: policyRow,
+    contactPolicy,
   });
 
   // 4. Update customer_accounts table with new risk score and level
@@ -91,6 +120,7 @@ export async function handleEvaluateRecoveryCase(
     triggerType,
     accountId: customerAccountId,
     objectId: features.lastInvoiceId || features.stripeSubscriptionId,
+    testMode: payload.isTestMode === true,
   });
 
   const evidenceItems = [
@@ -116,10 +146,12 @@ export async function handleEvaluateRecoveryCase(
     triggerEventType: payload.triggerEventType || 'evaluation',
     triggerEventId: payload.triggerEventId,
     scenarioId: payload.scenarioId,
+    scenarioRunId: context.job.scenarioRunId || payload.scenarioRunId || null,
     riskDecision,
     actionDecision,
     mrrBaselineCents,
     evidenceItems,
+    isTestMode: payload.isTestMode === true,
   });
 
   // §40.10: Record score snapshot with provider evidence IDs, component outputs, rule IDs
@@ -137,6 +169,7 @@ export async function handleEvaluateRecoveryCase(
     score_version: riskDecision.scoreVersion,
     policy_version: actionDecision.policyVersion,
     trigger_event_id: payload.triggerEventId || null,
+    scenario_run_id: context.job.scenarioRunId || payload.scenarioRunId || null,
   });
 
   if (snapshotError) {

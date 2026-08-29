@@ -193,6 +193,7 @@ export async function handleGenerateCaseDraft(
       workspace_id: workspaceId,
       customer_account_id: caseRow.customer_account_id,
       recovery_case_id: recoveryCaseId,
+      scenario_run_id: caseRow.scenario_run_id || context.job.scenarioRunId || null,
       draft_type: 'email',               // §40.5.5: required field
       status: 'needs_review',             // §40.5.5: not 'pending_review'
       recipient_email: draft.recipientEmail,

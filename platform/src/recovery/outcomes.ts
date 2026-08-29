@@ -29,6 +29,7 @@ export async function processOutcomeEvidence(
     isTestMode?: boolean;
     stripeInvoiceId?: string | null;
     stripeSubscriptionId?: string | null;
+    gmailThreadId?: string | null;
     usageRebound?: boolean;
     customerReplied?: boolean;
   }
@@ -51,7 +52,13 @@ export async function processOutcomeEvidence(
   }
 
   // 2. Find the best matching case (apply attribution gates)
-  const activeCaseRow = findBestAttributionCase(openCases, params, occurredAt, isTestMode);
+  const exactThreadCaseIds = params.customerReplied
+    ? await findCasesBoundToGmailThread(supabase, params.workspaceId, params.gmailThreadId)
+    : [];
+  const candidateCases = exactThreadCaseIds.length > 0
+    ? openCases.filter((candidate) => exactThreadCaseIds.includes(candidate.id))
+    : openCases;
+  const activeCaseRow = findBestAttributionCase(candidateCases, params, occurredAt, isTestMode);
   if (!activeCaseRow) {
     return { resolvedCase: null, outcomeType: null, recoveredCents: 0, protectedCents: 0 };
   }
@@ -108,6 +115,7 @@ export async function processOutcomeEvidence(
     attribution_rule: 'deterministic_case_match_v2',
     attribution_version: RECOVERY_CONFIG.ATTRIBUTION_VERSION,
     mrr_baseline_cents: mrrBaseline,
+    scenario_run_id: activeCaseRow.scenario_run_id || null,
     strict_recovered_cents: strictRecoveredCents,
     protected_cents: protectedCents,
     is_test_mode: isTestMode,
@@ -150,7 +158,12 @@ export async function processOutcomeEvidence(
       to_status: caseStatus,
       actor_type: 'provider',
       actor_id: params.evidenceProvider,
-      detail: { outcomeType, evidenceEventType: params.evidenceEventType },
+      detail: {
+        outcomeType,
+        evidenceEventType: params.evidenceEventType,
+        evidenceExternalId: params.evidenceExternalId ?? null,
+        gmailThreadId: params.gmailThreadId ?? null,
+      },
       created_at: now,
     });
   }
@@ -161,6 +174,26 @@ export async function processOutcomeEvidence(
     recoveredCents: strictRecoveredCents,
     protectedCents,
   };
+}
+
+async function findCasesBoundToGmailThread(
+  supabase: SupabaseClient,
+  workspaceId: string,
+  gmailThreadId: string | null | undefined
+): Promise<string[]> {
+  if (!gmailThreadId) return [];
+
+  const { data, error } = await supabase
+    .from('follow_up_drafts')
+    .select('recovery_case_id')
+    .eq('workspace_id', workspaceId)
+    .eq('provider_thread_id', gmailThreadId)
+    .not('recovery_case_id', 'is', null);
+
+  if (error) throw new Error(`Failed to resolve Gmail thread attribution: ${error.message}`);
+  return Array.from(new Set((data ?? [])
+    .map((row) => row.recovery_case_id)
+    .filter((id): id is string => typeof id === 'string')));
 }
 
 /**

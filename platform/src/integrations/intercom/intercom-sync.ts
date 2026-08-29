@@ -1,8 +1,6 @@
 import { createServiceClient } from '@/foundation/database/service'
 import { logAgentRun } from '@/agent/runtime/run-logger'
-import { buildSignalsFromAccount, scoreAccount } from '@/intelligence/scoring/score-engine'
 import { generateWorkspaceBrief } from '@/intelligence/briefs/generate-workspace-brief'
-import { buildAccountsByName, findAccountIdByEmail, getEmailDomain, isPersonalEmailDomain, normalizeMatchText } from '@/integrations/_core/account-match'
 import {
   fetchIntercomContacts,
   fetchIntercomOpenConversations,
@@ -11,24 +9,10 @@ import {
 } from '@/integrations/intercom/intercom'
 import { mergeIntegrationConnectionMetadata } from '@/integrations/_core/connection-guard'
 
-type ExistingAccount = {
-  id: string
-  name: string
-  mrr_cents: number
-  risk_level: string
-  risk_score: number
-  usage_delta_percent: number
-  open_issue: string | null
-  next_action: string | null
-  summary: string | null
-  last_touch_at: string | null
-  renewal_at: string | null
-  account_status: string
-}
-
 type ExistingContact = {
   email: string
   customer_account_id: string
+  is_primary: boolean
   external_ids: Record<string, unknown> | null
 }
 
@@ -54,10 +38,10 @@ function conversationDetail(conversation: IntercomConversation) {
 
 function buildSupportNextAction(openConversationCount: number) {
   if (openConversationCount > 1) {
-    return `Review the ${openConversationCount} open support conversations and send a founder follow-up today.`
+    return `Review the ${openConversationCount} open support conversations before deciding on any customer action.`
   }
 
-  return 'Review the open support thread and decide whether the founder should step in.'
+  return 'Review the open support thread as context; it does not authorize outreach.'
 }
 
 export async function syncIntercomWorkspace(
@@ -67,29 +51,19 @@ export async function syncIntercomWorkspace(
   const supabase = createServiceClient()
   const { accessToken, apiBaseUrl } = await getIntercomCredentials(workspaceId)
 
-  const [contacts, conversations, existingAccountsRes, existingContactsRes] = await Promise.all([
+  const [contacts, conversations, existingContactsRes] = await Promise.all([
     fetchIntercomContacts(accessToken, apiBaseUrl),
     fetchIntercomOpenConversations(accessToken, apiBaseUrl),
     supabase
-      .from('customer_accounts')
-      .select(
-        'id, name, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, summary, last_touch_at, renewal_at, account_status'
-      )
-      .eq('workspace_id', workspaceId),
-    supabase
       .from('account_contacts')
-      .select('email, customer_account_id, external_ids')
+      .select('email, customer_account_id, is_primary, external_ids')
       .eq('workspace_id', workspaceId),
   ])
 
-  if (existingAccountsRes.error) throw existingAccountsRes.error
   if (existingContactsRes.error) throw existingContactsRes.error
 
-  const existingAccounts = (existingAccountsRes.data as ExistingAccount[] | null) ?? []
   const existingContacts = (existingContactsRes.data as ExistingContact[] | null) ?? []
 
-  const accountsById = new Map(existingAccounts.map((account) => [account.id, account]))
-  const accountsByName = buildAccountsByName(existingAccounts)
   const contactsByEmail = new Map(existingContacts.map((contact) => [contact.email.toLowerCase(), contact]))
   const intercomContactIdToAccountId = new Map<string, string>()
 
@@ -100,17 +74,9 @@ export async function syncIntercomWorkspace(
     if (!email) continue
 
     const existingContact = contactsByEmail.get(email)
-    const companyName = contact.companies?.data?.[0]?.name?.trim() || null
-    let accountId =
-      findAccountIdByEmail(email, contactsByEmail) ??
-      (companyName ? accountsByName.get(normalizeMatchText(companyName))?.id ?? null : null)
-
-    if (!accountId) {
-      const domain = getEmailDomain(email)
-      if (domain && !isPersonalEmailDomain(domain)) {
-        accountId = accountsByName.get(normalizeMatchText(domain.split('.')[0] ?? domain))?.id ?? null
-      }
-    }
+    // Intercom support context is never allowed to guess account ownership.
+    // Only an existing exact, workspace-scoped email contact can be enriched.
+    const accountId = existingContact?.customer_account_id ?? null
 
     if (!accountId) {
       continue
@@ -128,7 +94,9 @@ export async function syncIntercomWorkspace(
         email,
         name: contact.name?.trim() || null,
         role: contact.role?.trim() || 'support_contact',
-        is_primary: existingContact?.customer_account_id === accountId ? true : false,
+        // Intercom must never change who receives recovery email. It can
+        // enrich a known contact, but preserves the existing recipient role.
+        is_primary: existingContact?.is_primary ?? false,
         external_ids: mergedExternalIds,
       },
       { onConflict: 'workspace_id,email' }
@@ -139,6 +107,7 @@ export async function syncIntercomWorkspace(
     contactsByEmail.set(email, {
       email,
       customer_account_id: accountId,
+      is_primary: existingContact?.is_primary ?? false,
       external_ids: mergedExternalIds,
     })
 
@@ -174,7 +143,7 @@ export async function syncIntercomWorkspace(
         .map((contactId) => intercomContactIdToAccountId.get(contactId))
         .find((value): value is string => typeof value === 'string') ??
       participantEmails
-        .map((email) => findAccountIdByEmail(email, contactsByEmail))
+        .map((email) => contactsByEmail.get(email)?.customer_account_id)
         .find((value): value is string => typeof value === 'string') ??
       null
 
@@ -202,35 +171,15 @@ export async function syncIntercomWorkspace(
   let syncedAccounts = 0
 
   for (const aggregate of aggregates.values()) {
-    const existingAccount = accountsById.get(aggregate.accountId)
-    if (!existingAccount || !aggregate.latestConversation) continue
+    if (!aggregate.latestConversation) continue
 
     const issue = conversationHeadline(aggregate.latestConversation)
-    const score = scoreAccount(
-      buildSignalsFromAccount({
-        mrr_cents: existingAccount.mrr_cents,
-        usage_delta_percent: existingAccount.usage_delta_percent,
-        risk_level: existingAccount.risk_level,
-        open_issue: issue,
-        last_touch_at: existingAccount.last_touch_at,
-        renewal_at: existingAccount.renewal_at,
-        account_status: existingAccount.account_status,
-      }, {
-        open_ticket_count: aggregate.openConversationCount,
-      })
-    )
-
     const nextAction = buildSupportNextAction(aggregate.openConversationCount)
 
     const { error: updateError } = await supabase
       .from('customer_accounts')
       .update({
         open_issue: issue,
-        risk_level: score.riskLevel,
-        risk_score: score.score,
-        summary: `${score.summary} Intercom has ${aggregate.openConversationCount} open conversation${
-          aggregate.openConversationCount === 1 ? '' : 's'
-        }.`,
         next_action: nextAction,
       })
       .eq('id', aggregate.accountId)
@@ -251,7 +200,9 @@ export async function syncIntercomWorkspace(
         `Open conversations: ${aggregate.openConversationCount}`,
         `Latest thread title: ${issue}`,
       ],
-      risk_level: score.riskLevel,
+      // Intercom is contextual support evidence, not a scoring source in the
+      // three-provider recovery policy. Preserve it as a visible signal only.
+      risk_level: 'low',
     })
 
     if (signalError) throw signalError

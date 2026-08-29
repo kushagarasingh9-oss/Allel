@@ -141,6 +141,7 @@ export async function projectAccountFeatures(
     workspaceId: string;
     customerAccountId: string;
     patch?: Partial<AccountFeatures>;
+    scenarioRunId?: string | null;
   }
 ): Promise<{ features: AccountFeatures; materialChange: boolean; previousHash: string | null; currentHash: string }> {
   const now = new Date().toISOString();
@@ -216,6 +217,7 @@ export async function projectAccountFeatures(
     {
       workspace_id: merged.workspaceId,
       customer_account_id: merged.customerAccountId,
+      scenario_run_id: params.scenarioRunId || existing?.scenario_run_id || null,
       billing_available: merged.billingAvailable,
       billing_status: merged.billingStatus,
       stripe_customer_id: merged.stripeCustomerId,

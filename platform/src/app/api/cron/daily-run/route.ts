@@ -11,20 +11,12 @@
 import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/foundation/database/service'
-import { isAgentConfigured } from '@/agent/runtime/agent'
 import {
-  enqueueRecentlyTouchedAccountMemories,
-  processQueuedAccountMemoryRefreshes,
-} from '@/agent/memory/account-memory'
-import {
-  buildDailyReviewJobs,
   logIntegrationSyncOutcome,
   logWorkflowStage,
-  runWorkflowAgentJobs,
 } from '@/agent/workflows/workflows'
 import { generateWorkspaceBrief } from '@/intelligence/briefs/generate-workspace-brief'
 import { deliverBriefEmail } from '@/intelligence/briefs/deliver-brief-email'
-import { measurePendingOutcomes } from '@/drafts/outcome-tracker'
 import {
   markIntegrationSyncFailed,
   markIntegrationSyncSucceeded,
@@ -39,6 +31,7 @@ import { syncSlackWorkspace } from '@/integrations/slack/slack-sync'
 import { syncStripeWorkspace } from '@/integrations/stripe/stripe-sync'
 import { checkRateLimit, rateLimitResponse } from '@/foundation/security/rate-limiter'
 import { drainWorkflowQueue } from '@/jobs/worker'
+import { enqueueWorkflowJob } from '@/jobs/queue'
 
 type SyncSummary = {
   stripe?: string
@@ -263,6 +256,17 @@ export async function GET(request: NextRequest) {
           })
         }
 
+        // Enqueue reconciliation rather than running an unconstrained legacy
+        // agent sweep. All customer-impacting work remains in the durable
+        // recovery queue where it has state, idempotency, and audit records.
+        await enqueueWorkflowJob(supabase, {
+          workspaceId: workspace.id,
+          jobType: 'reconcile_provider_state',
+          idempotencyKey: `ws:${workspace.id}:reconcile:${new Date().toISOString().slice(0, 10)}`,
+          payload: { workspaceId: workspace.id, requestedBy: 'daily_cron' },
+          priority: 80,
+        })
+
         // §11.5 + §11.12: Drain the workflow job queue so project_account_features,
         // evaluate_recovery_case, run_case_analysis, generate_case_draft, notify_founder
         // jobs enqueued by the syncs above are actually executed before we build the brief.
@@ -282,81 +286,16 @@ export async function GET(request: NextRequest) {
           console.error('[daily-run] workflow drain error:', drainErr)
         }
 
-        const { count: accountCount, error: accountCountError } = await supabase
-          .from('customer_accounts')
-          .select('id', { count: 'exact', head: true })
-          .eq('workspace_id', workspace.id)
-
-        if (accountCountError) throw accountCountError
-
-        const normalizedAccountCount = accountCount ?? 0
-
-        const memoryRefreshStartedAt = Date.now()
-        const enqueueResult = await enqueueRecentlyTouchedAccountMemories(
-          workspace.id,
-          syncWindowStartedAt
-        )
-        const memoryRefreshResult = await processQueuedAccountMemoryRefreshes({
-          workspaceId: workspace.id,
-        })
         await logWorkflowStage({
           workspaceId: workspace.id,
           workflowId,
           runType: 'daily_review',
-          stage: 'memory_refresh',
-          inputSummary: `Refresh account memory for accounts touched since ${syncWindowStartedAt}`,
-          outputSummary: `Processed ${memoryRefreshResult.processed} queued account memory refreshes${memoryRefreshResult.failed > 0 ? ` with ${memoryRefreshResult.failed} failures` : ''}`,
-          durationMs: Date.now() - memoryRefreshStartedAt,
-          metadata: {
-            accountCount: normalizedAccountCount,
-            enqueuedAccountCount: enqueueResult.enqueued,
-            processedCount: memoryRefreshResult.processed,
-            failedCount: memoryRefreshResult.failed,
-            queueAvailable: memoryRefreshResult.queueAvailable,
-          },
+          stage: 'deterministic_recovery_pipeline',
+          outputSummary: 'Provider reconciliation and recovery jobs executed through the durable queue; legacy free-form daily agent run is disabled.',
+          metadata: { syncWindowStartedAt, syncSummary },
         })
 
-        const result = isAgentConfigured()
-          ? await runWorkflowAgentJobs({
-              workspaceId: workspace.id,
-              workflowId,
-              runType: 'daily_review',
-              defaultPersonaId: 'sarah',
-              jobs: buildDailyReviewJobs({
-                accountCount: normalizedAccountCount,
-                syncSummary,
-              }),
-              sharedMetadata: {
-                accountCount: normalizedAccountCount,
-                syncSummary,
-              },
-            })
-          : null
-
-        if (!result) {
-          await logWorkflowStage({
-            workspaceId: workspace.id,
-            workflowId,
-            runType: 'daily_review',
-            stage: 'agent_analysis',
-            outputSummary: 'Skipped automated review because AI is not configured',
-            metadata: {
-              accountCount: normalizedAccountCount,
-              skipped: true,
-              syncSummary,
-            },
-          })
-        }
-
-        const summarizedResult =
-          result && result.length > 0
-            ? {
-                text: result.map((job) => `[${job.stage}] ${job.text}`).join('\n\n'),
-                steps: result.reduce((total, job) => total + job.steps, 0),
-                durationMs: result.reduce((total, job) => total + job.durationMs, 0),
-                tokensUsed: result.reduce((total, job) => total + job.tokensUsed, 0),
-              }
-            : null
+        const summarizedResult = null
 
         const briefStartedAt = Date.now()
         const briefResult = await generateWorkspaceBrief(workspace.id)
@@ -459,30 +398,6 @@ export async function GET(request: NextRequest) {
               },
             })
           }
-        }
-
-        // --- Measure draft outcomes (feedback loop) ---
-        const outcomeStartedAt = Date.now()
-        try {
-          const outcomeResult = await measurePendingOutcomes(workspace.id)
-
-          if (outcomeResult.measured > 0) {
-            await logWorkflowStage({
-              workspaceId: workspace.id,
-              workflowId,
-              runType: 'daily_review',
-              stage: 'outcome_measurement',
-              outputSummary: `Measured ${outcomeResult.measured} draft outcomes: ${outcomeResult.updated} updated, ${outcomeResult.errors} errors`,
-              durationMs: Date.now() - outcomeStartedAt,
-              metadata: {
-                measured: outcomeResult.measured,
-                updated: outcomeResult.updated,
-                errors: outcomeResult.errors,
-              },
-            })
-          }
-        } catch (error) {
-          console.error('[daily-run] Outcome measurement failed:', error)
         }
 
         results.push({

@@ -14,6 +14,7 @@ export type CanonicalProviderEvent = {
   primaryExternalIdentity: string | null;
   secondaryExternalIdentities: string[];
   scenarioId: string | null;
+  scenarioRunId: string | null;
   payloadHash: string;
   payloadVersion: number;
   testMode: boolean;
@@ -182,6 +183,7 @@ export type RecoveryCase = {
   triggerEventType: string;
   triggerEventId: string | null;
   scenarioId: string | null;
+  scenarioRunId: string | null;
   status: CaseStatus;
   resolution: CaseResolution | null;
   severity: Severity;

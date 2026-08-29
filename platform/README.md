@@ -22,8 +22,9 @@ Founder-facing retention operations app built with Next.js, Supabase, and the AI
 - `/dashboard/inbox` -> **empty placeholder.**
 - `/api/agent` -> persona chat
 - `/api/agent/runs` and `/api/agent/runs/[workflowId]` -> workflow inspection APIs with workflow-level pagination. Live and tested, but no UI consumes them.
-- `/api/cron/daily-run` -> daily automation
-- `/api/webhooks/stripe` and `/api/webhooks/posthog` -> follow-up automation triggers
+- `/api/cron/daily-run` -> provider reconciliation and founder brief
+- `/api/internal/workflows/drain` -> protected durable worker drain and Gmail History polling
+- `/api/webhooks/stripe` and `/api/webhooks/posthog` -> signed provider-event ingress
 
 ## Stack
 
@@ -32,7 +33,7 @@ Founder-facing retention operations app built with Next.js, Supabase, and the AI
 - Supabase for auth, storage, and product state
 - AI SDK 6 + OpenAI
 - Tailwind CSS 4
-- Direct API connections for integrations, plus Google OAuth for Gmail and Calendar. The former Pipedream connect flow has been removed; `@pipedream/sdk` remains a declared but unimported dependency.
+- Direct API connections for Stripe and PostHog; OAuth for Gmail, Calendar, and Intercom. The former Pipedream connect flow has been removed; `@pipedream/sdk` remains a declared but unimported dependency.
 
 ## Local Development
 
@@ -55,12 +56,14 @@ Required:
 - `AGENT_HISTORY_SIGNING_SECRET` — signs trusted assistant chat history. Falls back to `OPENAI_API_KEY` if unset, so set it explicitly.
 
 Automation and webhooks:
-- `CRON_SECRET`
+- `CRON_SECRET`, `WORKER_SECRET`
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `POSTHOG_WEBHOOK_SECRET`
+- `RECOVERY_TEST_MODE` (set `true` for the isolated competition workflow)
 
 Integrations and delivery:
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GOOGLE_GMAIL_SCOPE_MODE`
+- `INTERCOM_CLIENT_ID`, `INTERCOM_CLIENT_SECRET`, `INTERCOM_REDIRECT_URI` (the Intercom Developer Hub callback must match exactly)
 - `TAVILY_API_KEY`
 - `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_NOTIFICATION_EMAIL`
 - `NEXT_PUBLIC_APP_URL`
@@ -72,11 +75,7 @@ Optional model overrides:
 
 The `PIPEDREAM_*` keys still present in `.env.example` are read by no code.
 
-<<<<<<< ours
-3. Run the required Supabase SQL migrations from `../supabase/migrations`.
-=======
-3. Run the required Supabase SQL migrations from `../database/migrations`.
->>>>>>> theirs
+3. Run the ordered Supabase SQL migrations from `../database/migrations` (or `node scripts/apply-migrations.cjs` after configuring `.env.local`).
 
 4. Start the dev server:
 

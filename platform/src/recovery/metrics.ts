@@ -14,13 +14,15 @@ export async function calculateRecoveryMetrics(
   // 1. Query recovery cases filtered by workspace, test_mode, and observation window
   const { data: cases, error: casesError } = await supabase
     .from('recovery_cases')
-    .select('id, status, resolution, mrr_baseline_cents, created_at')
+    .select('id, status, resolution, mrr_baseline_cents, created_at, is_test_mode')
     .eq('workspace_id', workspaceId)
+    .eq('is_test_mode', isTestMode)
     .gte('created_at', observationStart)
     .lte('created_at', observationEnd);
 
   if (casesError) {
     console.error('[metrics] failed to query recovery_cases:', casesError.message);
+    throw new Error('Unable to calculate recovery metrics');
   }
 
   // 2. Query draft outcomes — filter by test_mode to never mix test/prod dollars
@@ -34,6 +36,7 @@ export async function calculateRecoveryMetrics(
 
   if (outcomesError) {
     console.error('[metrics] failed to query draft_outcomes:', outcomesError.message);
+    throw new Error('Unable to calculate recovery metrics');
   }
 
   let strictRecoveredCents = 0;

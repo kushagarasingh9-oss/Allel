@@ -2,11 +2,19 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { SCENARIO_MANIFEST_V1 } from './manifest.v1';
 import { upsertProviderIdentity } from '../identity';
 import { projectAccountFeatures } from '../features';
+import { createScenarioRun } from './runs';
 
 export async function seedScenarios(
   supabase: SupabaseClient,
-  workspaceId: string
-): Promise<{ seededCount: number; accountIds: Record<string, string> }> {
+  workspaceId: string,
+  options?: { scenarioRunId?: string; testMode?: boolean }
+): Promise<{ seededCount: number; accountIds: Record<string, string>; scenarioRunId: string }> {
+  const scenarioRunId = await createScenarioRun(supabase, {
+    workspaceId,
+    scenarioRunId: options?.scenarioRunId,
+    testMode: options?.testMode ?? true,
+    metadata: { manifest: 'v1' },
+  });
   const accountIds: Record<string, string> = {};
 
   for (const def of SCENARIO_MANIFEST_V1) {
@@ -17,7 +25,8 @@ export async function seedScenarios(
       .from('customer_accounts')
       .select('id')
       .eq('workspace_id', workspaceId)
-      .or(`domain.eq.${domain},name.eq.${def.accountName}`)
+      .eq('scenario_run_id', scenarioRunId)
+      .eq('scenario_id', def.scenarioId)
       .limit(1)
       .maybeSingle();
 
@@ -30,6 +39,8 @@ export async function seedScenarios(
       risk_level: def.expectedSeverity === 'critical' ? 'high' : def.expectedSeverity,
       domain,
       contact_email: def.contactEmail,
+      scenario_id: def.scenarioId,
+      scenario_run_id: scenarioRunId,
       updated_at: new Date().toISOString(),
     };
 
@@ -62,7 +73,7 @@ export async function seedScenarios(
       .from('account_contacts')
       .select('id')
       .eq('workspace_id', workspaceId)
-      .eq('email', def.contactEmail.toLowerCase())
+      .eq('customer_account_id', accountId)
       .limit(1)
       .maybeSingle();
 
@@ -77,6 +88,8 @@ export async function seedScenarios(
         stripe_customer_id: def.stripeCustomerId,
         posthog_distinct_ids: [def.posthogDistinctId],
       },
+      scenario_id: def.scenarioId,
+      scenario_run_id: scenarioRunId,
       updated_at: new Date().toISOString(),
     };
 
@@ -100,6 +113,8 @@ export async function seedScenarios(
       externalId: def.stripeCustomerId,
       isPrimary: true,
       source: 'scenario_seed',
+      scenarioId: def.scenarioId,
+      scenarioRunId,
     });
 
     await upsertProviderIdentity(supabase, {
@@ -110,6 +125,8 @@ export async function seedScenarios(
       externalId: def.posthogDistinctId,
       isPrimary: true,
       source: 'scenario_seed',
+      scenarioId: def.scenarioId,
+      scenarioRunId,
     });
 
     await upsertProviderIdentity(supabase, {
@@ -120,11 +137,13 @@ export async function seedScenarios(
       externalId: def.contactEmail,
       isPrimary: true,
       source: 'scenario_seed',
+      scenarioId: def.scenarioId,
+      scenarioRunId,
     });
 
     // 4. Upsert contact policy if present
     if (def.contactPolicy) {
-      await supabase.from('contact_policies').upsert(
+      const { error: policyError } = await supabase.from('contact_policies').upsert(
         {
           workspace_id: workspaceId,
           customer_account_id: accountId,
@@ -133,9 +152,14 @@ export async function seedScenarios(
           policy: def.contactPolicy,
           reason: 'Configured scenario policy',
           source: 'scenario_seed',
+          scenario_id: def.scenarioId,
+          scenario_run_id: scenarioRunId,
         },
         { onConflict: 'workspace_id,customer_account_id,channel' }
       );
+      if (policyError) {
+        throw new Error(`Failed to persist scenario contact policy: ${policyError.message}`);
+      }
     }
 
     // 5. Project canonical features
@@ -149,8 +173,9 @@ export async function seedScenarios(
         usageFreshAt: new Date().toISOString(),
         communicationFreshAt: new Date().toISOString(),
       },
+      scenarioRunId,
     });
   }
 
-  return { seededCount: SCENARIO_MANIFEST_V1.length, accountIds };
+  return { seededCount: SCENARIO_MANIFEST_V1.length, accountIds, scenarioRunId };
 }

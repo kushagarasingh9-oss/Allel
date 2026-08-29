@@ -10,11 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/foundation/database/server'
-import {
-  DraftWorkflowError,
-  getDraftWorkflowHttpStatus,
-  sendDraftForActor,
-} from '@/drafts/draft-workflows'
+import { approveRecoveryDraft, RecoveryDraftApprovalError } from '@/recovery/draft-approval'
 
 export async function POST(
   request: NextRequest,
@@ -31,26 +27,23 @@ export async function POST(
   }
 
   try {
-    const result = await sendDraftForActor({
+    const body = await request.json().catch(() => ({}))
+    // Sending is performed only by the durable worker. This endpoint supports
+    // an idempotent re-queue of a previously approved, exact-content draft.
+    const result = await approveRecoveryDraft({
       supabase,
       draftId: id,
-      access: { kind: 'user', userId: user.id },
-      actor: 'founder',
-      source: 'dashboard',
+      userId: user.id,
+      expectedContentHash: typeof body.expectedContentHash === 'string' ? body.expectedContentHash : null,
+      requireExpectedContentHash: true,
+      source: 'dashboard_requeue',
     })
 
-    return NextResponse.json({
-      success: true,
-      status: result.status,
-      messageId: result.messageId,
-    })
+    return NextResponse.json({ success: true, ...result }, { status: 202 })
   } catch (error) {
-    console.error('[api/drafts/send] Email send failed:', error)
-    const status = getDraftWorkflowHttpStatus(error)
-    const message =
-      error instanceof DraftWorkflowError
-        ? error.message
-        : 'Failed to send email. Please try again.'
+    console.error('[api/drafts/send] Draft requeue failed:', error)
+    const status = error instanceof RecoveryDraftApprovalError ? error.status : 500
+    const message = error instanceof Error ? error.message : 'Failed to queue email.'
 
     return NextResponse.json({ error: message }, { status })
   }

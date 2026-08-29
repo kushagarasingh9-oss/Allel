@@ -84,19 +84,28 @@ export async function handleVerifyCaseDraft(
   }
 
   // §40.12: Check contact policy still permits email
-  const { data: policy } = await supabase
+  const { data: policyRows, error: policyError } = await supabase
     .from('contact_policies')
-    .select('allowed')
+    .select('policy, expires_at')
     .eq('workspace_id', workspaceId)
     .eq('customer_account_id', caseRow.customer_account_id)
-    .eq('channel', 'email')
-    .maybeSingle();
+    .eq('channel', 'email');
 
-  const policyAllows = !policy || policy.allowed !== false;
+  // A policy lookup error must never be interpreted as permission to send.
+  // Recovery email is non-transactional, so all active restrictive policies
+  // block verification and force a visible, inspectable failure.
+  const policyAllows = !policyError && !(policyRows ?? []).some((policy) => {
+    if (policy.expires_at && new Date(policy.expires_at) < new Date()) return false;
+    return policy.policy !== 'allow';
+  });
   checks.push({
     ruleId: 'contact_policy_allows_email',
     passed: policyAllows,
-    detail: policyAllows ? 'Contact policy allows email' : 'Contact policy blocks email for this customer',
+    detail: policyAllows
+      ? 'Contact policy allows email'
+      : policyError
+        ? `Contact policy could not be verified: ${policyError.message}`
+        : 'Contact policy blocks email for this customer',
   });
 
   // §40.12: Check Gmail is connected and healthy
@@ -115,7 +124,7 @@ export async function handleVerifyCaseDraft(
   });
 
   // §40.12: Check case is in permitted pre-approval state
-  const permittedStates = ['action_proposed', 'analyzing'];
+  const permittedStates = ['action_proposed', 'analyzing', 'awaiting_approval'];
   const caseStateOk = permittedStates.includes(caseRow.status);
   checks.push({
     ruleId: 'case_in_pre_approval_state',
@@ -180,16 +189,31 @@ export async function handleVerifyCaseDraft(
 
   if (allPassed) {
     // §40.12: Transition case to awaiting_approval atomically
-    await transitionRecoveryCase(supabase, {
-      workspaceId,
-      caseId: recoveryCaseId,
-      targetStatus: 'awaiting_approval',
-      actorType: 'system',
-      actorId: 'draft_verifier',
-      eventType: 'verification_passed',
-      workflowJobId: context.job.id,
-      detail: { checks, contentHash: recomputedHash, verifierVersion: 'v1' },
-    });
+    if (caseRow.status !== 'awaiting_approval') {
+      await transitionRecoveryCase(supabase, {
+        workspaceId,
+        caseId: recoveryCaseId,
+        targetStatus: 'awaiting_approval',
+        actorType: 'system',
+        actorId: 'draft_verifier',
+        eventType: 'verification_passed',
+        workflowJobId: context.job.id,
+        detail: { checks, contentHash: recomputedHash, verifierVersion: 'v1' },
+      });
+    } else {
+      const { error: reverifyEventError } = await supabase.from('recovery_case_events').insert({
+        workspace_id: workspaceId,
+        recovery_case_id: recoveryCaseId,
+        event_type: 'verification_rechecked',
+        from_status: 'awaiting_approval',
+        to_status: 'awaiting_approval',
+        actor_type: 'system',
+        actor_id: 'draft_verifier',
+        workflow_job_id: context.job.id,
+        detail: { checks, contentHash: recomputedHash, verifierVersion: 'v1' },
+      });
+      if (reverifyEventError) throw new Error(`Failed to record re-verification: ${reverifyEventError.message}`);
+    }
 
     // Enqueue founder notification job
     const notifyIdempotencyKey = `ws:${workspaceId}:case:${recoveryCaseId}:notify:v1`;
@@ -211,22 +235,19 @@ export async function handleVerifyCaseDraft(
     };
   }
 
-  // §40.12: Verification failed — append failed checks, keep case inspectable
-  const { error: eventError } = await supabase.from('recovery_case_events').insert({
-    workspace_id: workspaceId,
-    recovery_case_id: recoveryCaseId,
-    event_type: 'verification_failed',
-    actor_type: 'system',
-    actor_id: 'draft_verifier',
-    workflow_job_id: context.job.id,
+  // §40.12: Verification failure is a terminal, auditable state rather than
+  // a silent successful job that leaves a sendable draft behind.
+  await transitionRecoveryCase(supabase, {
+    workspaceId,
+    caseId: recoveryCaseId,
+    targetStatus: 'failed',
+    actorType: 'system',
+    actorId: 'draft_verifier',
+    eventType: 'verification_failed',
+    workflowJobId: context.job.id,
     detail: { checks, failedRules: checks.filter(c => !c.passed).map(c => c.ruleId) },
   });
 
-  if (eventError) {
-    console.error('[verify-case-draft] failed to insert verification event:', eventError.message);
-  }
-
-  // §40.12: Do not return generic success without durable failure state
   return {
     success: true,
     workspaceId,

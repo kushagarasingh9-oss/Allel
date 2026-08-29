@@ -12,11 +12,10 @@
 import { createClient } from '@/foundation/database/server'
 import { revalidatePath } from 'next/cache'
 import {
-  approveDraftForActor,
   editDraftForActor,
   rejectDraftForActor,
-  sendDraftForActor,
 } from '@/drafts/draft-workflows'
+import { approveRecoveryDraft } from '@/recovery/draft-approval'
 
 function logActionFailure(context: string, error: unknown) {
   console.error(`[draft-actions] ${context}`, error)
@@ -29,11 +28,10 @@ export async function approveDraft(draftId: string) {
   } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
 
-  await approveDraftForActor({
+  await approveRecoveryDraft({
     supabase,
     draftId,
-    access: { kind: 'user', userId: user.id },
-    actor: 'founder',
+    userId: user.id,
     source: 'dashboard_action',
   })
 
@@ -93,11 +91,10 @@ export async function markDraftSent(draftId: string) {
   }
 
   try {
-    await sendDraftForActor({
+    await approveRecoveryDraft({
       supabase,
       draftId,
-      access: { kind: 'user', userId: user.id },
-      actor: 'founder',
+      userId: user.id,
       source: 'dashboard_action',
     })
     revalidatePath('/dashboard/drafts')

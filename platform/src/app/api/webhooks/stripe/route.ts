@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/foundation/database/service'
 import { verifyWebhookSignature } from '@/integrations/stripe/stripe'
 import { buildCanonicalProviderEvent } from '@/recovery/events'
+import { RECOVERY_CONFIG } from '@/recovery/config'
 import type Stripe from 'stripe'
 
 export async function POST(request: NextRequest) {
@@ -51,6 +52,10 @@ export async function POST(request: NextRequest) {
 
   // §40.7 step 4: Parse only after signature verification (already done by verifyWebhookSignature)
 
+  if ((!event.livemode) !== RECOVERY_CONFIG.TEST_MODE) {
+    return NextResponse.json({ error: 'Stripe event mode does not match this recovery environment' }, { status: 409 })
+  }
+
   const supabase = createServiceClient()
 
   // §40.7 step 5: Extract stable provider event ID
@@ -60,8 +65,22 @@ export async function POST(request: NextRequest) {
   const eventObj = event.data.object as unknown as Record<string, unknown>
   const customerId = typeof eventObj.customer === 'string' ? eventObj.customer : null
   const scenarioId = typeof eventObj.metadata === 'object' && eventObj.metadata !== null
-    ? (eventObj.metadata as Record<string, string>).scenario_id ?? null
+    ? (eventObj.metadata as Record<string, string>).allel_scenario_id
+      ?? (eventObj.metadata as Record<string, string>).scenario_id
+      ?? null
     : null
+  const scenarioRunId = typeof eventObj.metadata === 'object' && eventObj.metadata !== null
+    ? (eventObj.metadata as Record<string, string>).allel_test_run
+      ?? (eventObj.metadata as Record<string, string>).scenario_run_id
+      ?? null
+    : null
+
+  if (
+    RECOVERY_CONFIG.TEST_MODE &&
+    (!scenarioId || !scenarioId.startsWith(RECOVERY_CONFIG.SCENARIO_PREFIX))
+  ) {
+    return NextResponse.json({ error: 'Test-mode Stripe events require a valid allel_scenario_id' }, { status: 400 })
+  }
 
   let workspaceId: string | null = null
   try {
@@ -79,6 +98,7 @@ export async function POST(request: NextRequest) {
     occurredAt: new Date(event.created * 1000).toISOString(),
     primaryExternalIdentity: customerId,
     scenarioId,
+    scenarioRunId,
     rawPayload: body,
     testMode: !event.livemode,
   })
@@ -102,6 +122,7 @@ export async function POST(request: NextRequest) {
       p_payload: event.data.object as unknown as Record<string, unknown>,
       p_test_mode: canonicalEvent.testMode,
       p_scenario_id: scenarioId,
+      p_scenario_run_id: scenarioRunId,
       p_job_idempotency: jobIdempotencyKey,
     }
   )
@@ -137,7 +158,7 @@ async function resolveWorkspaceForStripeEvent(
       .select('workspace_id')
       .eq('provider', 'stripe')
       .eq('identity_type', 'customer_id')
-      .eq('normalized_external_id', customerId.toLowerCase())
+      .eq('normalized_external_id', customerId.trim())
       .limit(2)
 
     if (!identityError && identity && identity.length === 1) {

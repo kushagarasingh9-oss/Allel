@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/foundation/database/server';
 import { ensureWorkspaceForUser } from '@/data/workspaces/ensure-workspace';
+import { RecoveryApiError, requireWorkspaceRole } from '@/recovery/api-auth';
 
 export async function GET(
   request: NextRequest,
@@ -19,10 +20,12 @@ export async function GET(
   const workspace = await ensureWorkspaceForUser(user);
 
   try {
+    await requireWorkspaceRole(supabase, { workspaceId: workspace.id, userId: user.id });
+
     // 1. Fetch case details
     const { data: recoveryCase, error: caseError } = await supabase
       .from('recovery_cases')
-      .select('*, customer_accounts(*)')
+      .select('id, case_key, status, resolution, severity, risk_score, score_confidence, revenue_priority, mrr_baseline_cents, trigger_provider, trigger_event_type, scenario_id, scenario_run_id, action_type, action_reason, suppression_reason, evidence_snapshot, opened_at, approved_at, sent_at, resolved_at, failed_at, updated_at, customer_accounts(name, domain)')
       .eq('id', caseId)
       .eq('workspace_id', workspace.id)
       .single();
@@ -31,40 +34,62 @@ export async function GET(
       return NextResponse.json({ error: 'Case not found' }, { status: 404 });
     }
 
-    // 2. Fetch case events
-    const { data: events } = await supabase
+    // 2. Fetch inspectable, non-provider-payload evidence.
+    const { data: events, error: eventsError } = await supabase
       .from('recovery_case_events')
-      .select('*')
+      .select('id, event_type, from_status, to_status, actor_type, actor_id, detail, created_at')
       .eq('recovery_case_id', caseId)
       .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: true });
 
-    // 3. Fetch linked drafts
-    const { data: drafts } = await supabase
+    // 3. Draft lifecycle evidence. body_full and raw provider responses are
+    // intentionally excluded from a dashboard detail response.
+    const { data: drafts, error: draftsError } = await supabase
       .from('follow_up_drafts')
-      .select('*')
+      .select('id, status, recipient_email, subject, body_preview, content_hash, approved_content_hash, approved_at, approval_expires_at, provider_message_id, provider_thread_id, send_error, sent_at, created_at, updated_at')
       .eq('recovery_case_id', caseId)
       .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: false });
 
-    // 4. Fetch linked outcomes
-    const { data: outcomes } = await supabase
+    // 4. Fetch linked outcomes and queue attempts for reviewer inspection.
+    const { data: outcomes, error: outcomesError } = await supabase
       .from('draft_outcomes')
-      .select('*')
+      .select('id, outcome_type, evidence_provider, evidence_external_id, occurred_at, strict_recovered_cents, protected_cents, is_test_mode, created_at')
       .eq('recovery_case_id', caseId)
       .eq('workspace_id', workspace.id);
+
+    const { data: jobs, error: jobsError } = await supabase
+      .from('workflow_jobs')
+      .select('id, job_type, status, attempt_count, max_attempts, last_error_code, last_error_message, last_error_at, created_at, updated_at, completed_at')
+      .eq('recovery_case_id', caseId)
+      .eq('workspace_id', workspace.id)
+      .order('created_at', { ascending: true });
+
+    if (eventsError || draftsError || outcomesError || jobsError) {
+      console.error(`[api/recovery/cases/${caseId}] Failed to load related case records`, {
+        eventsError: eventsError?.message,
+        draftsError: draftsError?.message,
+        outcomesError: outcomesError?.message,
+        jobsError: jobsError?.message,
+      });
+      throw new Error('Related case records could not be loaded');
+    }
 
     return NextResponse.json({
       case: recoveryCase,
       events: events || [],
       drafts: drafts || [],
       outcomes: outcomes || [],
+      jobs: jobs || [],
       workspaceId: workspace.id,
     });
   } catch (error: any) {
     console.error(`[api/recovery/cases/${caseId}] Failed to load case`, error);
+    if (error instanceof RecoveryApiError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
     return NextResponse.json(
-      { error: 'Failed to load case detail', detail: error.message },
+      { error: 'Failed to load case detail', code: 'RECOVERY_CASE_DETAIL_UNAVAILABLE' },
       { status: 500 }
     );
   }

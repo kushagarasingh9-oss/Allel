@@ -27,6 +27,34 @@ export function evaluateActionPolicy(params: {
     };
   }
 
+  if (contactPolicy && contactPolicy.policy === 'transactional_only') {
+    return {
+      actionType: 'no_action',
+      allowed: false,
+      requiresApproval: false,
+      urgency: 'none',
+      reasonCode: 'contact_policy_transactional_only',
+      actionReason: 'Recovery outreach is not permitted by this contact policy',
+      suppressionReason: `transactional_only: ${contactPolicy.reason}`,
+      policyVersion: RECOVERY_CONFIG.POLICY_VERSION,
+      cooldownUntil: null,
+    };
+  }
+
+  if (contactPolicy && contactPolicy.policy === 'manual_review_only') {
+    return {
+      actionType: 'founder_review',
+      allowed: true,
+      requiresApproval: true,
+      urgency: 'today',
+      reasonCode: 'contact_policy_manual_review_only',
+      actionReason: `Contact policy requires founder review: ${contactPolicy.reason}`,
+      suppressionReason: null,
+      policyVersion: RECOVERY_CONFIG.POLICY_VERSION,
+      cooldownUntil: null,
+    };
+  }
+
   // 2. Identity confidence gate (< 0.90 blocks automated email)
   if (identityConfidence < RECOVERY_CONFIG.AUTOMATIC_IDENTITY_CONFIDENCE_MIN) {
     return {

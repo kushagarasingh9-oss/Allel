@@ -10,11 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/foundation/database/server'
-import {
-  approveDraftForActor,
-  DraftWorkflowError,
-  getDraftWorkflowHttpStatus,
-} from '@/drafts/draft-workflows'
+import { approveRecoveryDraft, RecoveryDraftApprovalError } from '@/recovery/draft-approval'
 
 export async function PATCH(
   request: NextRequest,
@@ -31,25 +27,20 @@ export async function PATCH(
   }
 
   try {
-    const result = await approveDraftForActor({
+    const body = await request.json().catch(() => ({}))
+    const result = await approveRecoveryDraft({
       supabase,
       draftId: id,
-      access: { kind: 'user', userId: user.id },
-      actor: 'founder',
+      userId: user.id,
+      expectedContentHash: typeof body.expectedContentHash === 'string' ? body.expectedContentHash : null,
+      requireExpectedContentHash: true,
       source: 'dashboard',
     })
 
-    return NextResponse.json({
-      success: true,
-      status: result.status,
-      skipped: result.skipped,
-    })
+    return NextResponse.json({ success: true, ...result }, { status: 202 })
   } catch (error) {
-    const status = getDraftWorkflowHttpStatus(error)
-    const message =
-      error instanceof DraftWorkflowError
-        ? error.message
-        : 'Failed to approve draft'
+    const status = error instanceof RecoveryDraftApprovalError ? error.status : 500
+    const message = error instanceof Error ? error.message : 'Failed to approve draft'
 
     return NextResponse.json({ error: message }, { status })
   }

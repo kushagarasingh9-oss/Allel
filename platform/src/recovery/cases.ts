@@ -7,21 +7,26 @@ export function constructCaseKey(params: {
   accountId: string;
   objectId?: string | null;
   dateKey?: string;
+  testMode?: boolean;
 }): string {
   const date = params.dateKey || new Date().toISOString().split('T')[0];
+  // Preserve existing live case keys while isolating every test-mode case
+  // from them. This avoids a migration-time collision with already-open live
+  // cases and still prevents test evidence from sharing a case.
+  const testSuffix = params.testMode ? ':test' : '';
   switch (params.triggerType) {
     case 'billing_failure':
-      return `billing_failure:${params.accountId}:${params.objectId || date}`;
+      return `billing_failure:${params.accountId}:${params.objectId || date}${testSuffix}`;
     case 'subscription_cancel':
-      return `subscription_cancel:${params.accountId}:${params.objectId || 'sub'}:${date}`;
+      return `subscription_cancel:${params.accountId}:${params.objectId || 'sub'}:${date}${testSuffix}`;
     case 'cancel_intent':
-      return `cancel_intent:${params.accountId}:${date}`;
+      return `cancel_intent:${params.accountId}:${date}${testSuffix}`;
     case 'usage_decline':
-      return `usage_decline:${params.accountId}:${date}`;
+      return `usage_decline:${params.accountId}:${date}${testSuffix}`;
     case 'compound':
-      return `compound:${params.accountId}:${params.objectId || date}`;
+      return `compound:${params.accountId}:${params.objectId || date}${testSuffix}`;
     default:
-      return `general:${params.accountId}:${date}`;
+      return `general:${params.accountId}:${date}${testSuffix}`;
   }
 }
 
@@ -35,10 +40,12 @@ export async function openOrUpdateRecoveryCase(
     triggerEventType: string;
     triggerEventId?: string | null;
     scenarioId?: string | null;
+    scenarioRunId?: string | null;
     riskDecision: RiskDecision;
     actionDecision: ActionDecision;
     mrrBaselineCents: number;
     evidenceItems: Array<{ id: string; domain: string; claim: string; timestamp: string }>;
+    isTestMode: boolean;
   }
 ): Promise<{ recoveryCase: RecoveryCase; isNew: boolean }> {
   const now = new Date().toISOString();
@@ -83,6 +90,8 @@ export async function openOrUpdateRecoveryCase(
       suppression_reason: params.actionDecision.suppressionReason,
       last_signal_at: now,
       evidence_snapshot: params.evidenceItems,
+      is_test_mode: params.isTestMode,
+      scenario_run_id: params.scenarioRunId || existing.scenario_run_id || null,
       updated_at: now,
     };
 
@@ -116,6 +125,7 @@ export async function openOrUpdateRecoveryCase(
     trigger_event_type: params.triggerEventType,
     trigger_event_id: params.triggerEventId || null,
     scenario_id: params.scenarioId || null,
+    scenario_run_id: params.scenarioRunId || null,
     status: initialStatus,
     severity: params.riskDecision.severity,
     risk_score: params.riskDecision.score ?? 0,
@@ -179,6 +189,7 @@ export function mapDbToRecoveryCase(row: Record<string, any>): RecoveryCase {
     triggerEventType: row.trigger_event_type,
     triggerEventId: row.trigger_event_id,
     scenarioId: row.scenario_id,
+    scenarioRunId: row.scenario_run_id || null,
     status: row.status,
     resolution: row.resolution,
     severity: row.severity,

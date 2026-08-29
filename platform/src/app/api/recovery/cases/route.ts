@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/foundation/database/server';
 import { ensureWorkspaceForUser } from '@/data/workspaces/ensure-workspace';
+import { RecoveryApiError, requireWorkspaceRole } from '@/recovery/api-auth';
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(Number.parseInt(searchParams.get('limit') ?? '40', 10), 100);
 
   try {
+    await requireWorkspaceRole(supabase, { workspaceId: workspace.id, userId: user.id });
     let query = supabase
       .from('recovery_cases')
       .select('*, customer_accounts(name, domain)')
@@ -49,8 +51,11 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('[api/recovery/cases] Failed to load recovery cases', error);
+    if (error instanceof RecoveryApiError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
     return NextResponse.json(
-      { error: 'Failed to load recovery cases', detail: error.message },
+      { error: 'Failed to load recovery cases', code: 'RECOVERY_CASES_UNAVAILABLE' },
       { status: 500 }
     );
   }

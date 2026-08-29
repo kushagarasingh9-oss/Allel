@@ -16,6 +16,7 @@ export const CanonicalProviderEventSchema = z.object({
   primaryExternalIdentity: z.string().nullable(),
   secondaryExternalIdentities: z.array(z.string()).default([]),
   scenarioId: z.string().nullable().default(null),
+  scenarioRunId: z.string().nullable().default(null),
   payloadHash: z.string().min(1),
   payloadVersion: z.number().int().default(1),
   testMode: z.boolean().default(false),

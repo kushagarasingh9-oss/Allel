@@ -2,7 +2,7 @@
  * Intercom Integration Service
  *
  * Full API coverage: conversations, contacts, companies, tags,
- * notes, articles, admins. Uses Intercom REST API v2.14.
+ * notes, articles, admins. Uses Intercom REST API v2.16.
  */
 
 import { getIntegrationMetadata, getIntegrationToken } from '@/integrations/_core/provider-tokens'
@@ -139,10 +139,102 @@ export type IntercomNote = {
 
 type IntercomMetadata = {
   api_base_url?: string
+  region?: IntercomRegion
 }
 
-const DEFAULT_INTERCOM_API_BASE_URL = 'https://api.intercom.io'
-const INTERCOM_VERSION = '2.14'
+export type IntercomRegion = 'us' | 'eu' | 'au'
+
+const INTERCOM_ENDPOINTS: Record<IntercomRegion, { apiBaseUrl: string; authorizationBaseUrl: string }> = {
+  us: {
+    apiBaseUrl: 'https://api.intercom.io',
+    authorizationBaseUrl: 'https://app.intercom.com',
+  },
+  eu: {
+    apiBaseUrl: 'https://api.eu.intercom.io',
+    authorizationBaseUrl: 'https://app.eu.intercom.com',
+  },
+  au: {
+    apiBaseUrl: 'https://api.au.intercom.io',
+    authorizationBaseUrl: 'https://app.au.intercom.com',
+  },
+}
+
+const DEFAULT_INTERCOM_REGION: IntercomRegion = 'us'
+const INTERCOM_VERSION = '2.16'
+
+export type IntercomWorkspaceIdentity = {
+  id: string | null
+  name: string | null
+  type: string | null
+}
+
+export function normalizeIntercomRegion(value: string | null | undefined): IntercomRegion {
+  return value === 'eu' || value === 'au' ? value : DEFAULT_INTERCOM_REGION
+}
+
+export function getIntercomApiBaseUrl(region: IntercomRegion = DEFAULT_INTERCOM_REGION) {
+  return INTERCOM_ENDPOINTS[region].apiBaseUrl
+}
+
+export function getIntercomRedirectUri() {
+  const configured = process.env.INTERCOM_REDIRECT_URI
+  if (configured) return configured
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  return appUrl ? `${appUrl.replace(/\/+$/, '')}/api/integrations/intercom/callback` : ''
+}
+
+export function isIntercomConfigured() {
+  return Boolean(
+    process.env.INTERCOM_CLIENT_ID &&
+    process.env.INTERCOM_CLIENT_SECRET &&
+    getIntercomRedirectUri()
+  )
+}
+
+export function getIntercomOAuthUrl(input: { state: string; region?: IntercomRegion }) {
+  if (!isIntercomConfigured()) {
+    throw new Error('Intercom OAuth is not configured. Set INTERCOM_CLIENT_ID, INTERCOM_CLIENT_SECRET, and INTERCOM_REDIRECT_URI.')
+  }
+
+  const region = input.region ?? DEFAULT_INTERCOM_REGION
+  const params = new URLSearchParams({
+    client_id: process.env.INTERCOM_CLIENT_ID as string,
+    state: input.state,
+  })
+
+  return `${INTERCOM_ENDPOINTS[region].authorizationBaseUrl}/oauth?${params.toString()}`
+}
+
+export async function exchangeIntercomCode(input: {
+  code: string
+  region?: IntercomRegion
+}): Promise<{ accessToken: string }> {
+  if (!isIntercomConfigured()) {
+    throw new Error('Intercom OAuth is not configured')
+  }
+
+  const region = input.region ?? DEFAULT_INTERCOM_REGION
+  const response = await fetch(`${INTERCOM_ENDPOINTS[region].apiBaseUrl}/auth/eagle/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+    body: new URLSearchParams({
+      code: input.code,
+      client_id: process.env.INTERCOM_CLIENT_ID as string,
+      client_secret: process.env.INTERCOM_CLIENT_SECRET as string,
+    }),
+    signal: AbortSignal.timeout(15000),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Intercom OAuth token exchange failed: ${response.status}`)
+  }
+
+  const data = (await response.json()) as { token?: string; access_token?: string }
+  const accessToken = data.access_token ?? data.token
+  if (!accessToken) throw new Error('Intercom OAuth token exchange returned no access token')
+  return { accessToken }
+}
 
 // ============================================================
 //  Core Credentials
@@ -156,10 +248,7 @@ export async function getIntercomCredentials(workspaceId: string): Promise<Inter
 
   return {
     accessToken,
-    apiBaseUrl:
-      typeof metadata.api_base_url === 'string' && metadata.api_base_url.length > 0
-        ? metadata.api_base_url
-        : DEFAULT_INTERCOM_API_BASE_URL,
+    apiBaseUrl: getIntercomApiBaseUrl(normalizeIntercomRegion(metadata.region)),
   }
 }
 
@@ -175,6 +264,7 @@ async function intercomGet<T>(accessToken: string, apiBaseUrl: string, path: str
       'Content-Type': 'application/json',
       'Intercom-Version': INTERCOM_VERSION,
     },
+    signal: AbortSignal.timeout(15000),
   })
 
   if (!response.ok) {
@@ -236,16 +326,35 @@ async function intercomPut<T>(
 //  Validate Token
 // ============================================================
 
-export async function validateIntercomToken(accessToken: string, apiBaseUrl = DEFAULT_INTERCOM_API_BASE_URL) {
+export async function getIntercomWorkspaceIdentity(
+  accessToken: string,
+  region: IntercomRegion = DEFAULT_INTERCOM_REGION
+): Promise<IntercomWorkspaceIdentity> {
+  const response = await fetch(`${getIntercomApiBaseUrl(region)}/me`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: 'application/json',
+      'Intercom-Version': INTERCOM_VERSION,
+    },
+    signal: AbortSignal.timeout(15000),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Intercom verification failed: ${response.status}`)
+  }
+
+  const data = (await response.json()) as { id?: string; name?: string; type?: string }
+  return { id: data.id ?? null, name: data.name ?? null, type: data.type ?? null }
+}
+
+/** @deprecated OAuth is required for customer-connected Intercom workspaces. */
+export async function validateIntercomToken(
+  accessToken: string,
+  region: IntercomRegion = DEFAULT_INTERCOM_REGION
+) {
   try {
-    const response = await fetch(`${apiBaseUrl}/me`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-        'Intercom-Version': INTERCOM_VERSION,
-      },
-    })
-    return response.ok
+    await getIntercomWorkspaceIdentity(accessToken, region)
+    return true
   } catch {
     return false
   }
@@ -259,6 +368,7 @@ export async function validateIntercomToken(accessToken: string, apiBaseUrl = DE
 export async function fetchIntercomContacts(accessToken: string, apiBaseUrl: string) {
   const contacts: IntercomContact[] = []
   let path = '/contacts?per_page=150'
+  let pagesRead = 0
 
   while (path) {
     const data = await intercomGet<{
@@ -269,6 +379,8 @@ export async function fetchIntercomContacts(accessToken: string, apiBaseUrl: str
     contacts.push(...(data.data ?? []))
     const nextCursor = data.pages?.next?.starting_after
     path = nextCursor ? `/contacts?per_page=150&starting_after=${encodeURIComponent(nextCursor)}` : ''
+    pagesRead += 1
+    if (pagesRead >= 50) throw new Error('Intercom contact pagination exceeded safe bound')
   }
 
   return contacts
@@ -332,6 +444,7 @@ export async function updateIntercomContact(
 export async function fetchIntercomOpenConversations(accessToken: string, apiBaseUrl: string) {
   const conversations: IntercomConversation[] = []
   let path = '/conversations?per_page=150&state=open'
+  let pagesRead = 0
 
   while (path) {
     const data = await intercomGet<{
@@ -344,6 +457,8 @@ export async function fetchIntercomOpenConversations(accessToken: string, apiBas
     path = nextCursor
       ? `/conversations?per_page=150&state=open&starting_after=${encodeURIComponent(nextCursor)}`
       : ''
+    pagesRead += 1
+    if (pagesRead >= 50) throw new Error('Intercom conversation pagination exceeded safe bound')
   }
 
   return conversations

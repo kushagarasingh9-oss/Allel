@@ -41,6 +41,7 @@ export async function resolveAccountIdentity(
     .select('customer_account_id, verification_status')
     .eq('workspace_id', params.workspaceId)
     .eq('provider', params.provider)
+    .eq('identity_type', params.identityType)
     .eq('normalized_external_id', normalizedId);
 
   if (!directError && directMatches && directMatches.length > 0) {
@@ -140,12 +141,14 @@ export async function upsertProviderIdentity(
     verificationStatus?: 'verified' | 'inferred' | 'conflict' | 'revoked';
     source: string;
     metadata?: Record<string, unknown>;
+    scenarioId?: string | null;
+    scenarioRunId?: string | null;
   }
 ): Promise<void> {
   const normalizedExternalId = normalizeExternalId(identity.externalId, identity.identityType);
   const now = new Date().toISOString();
 
-  await supabase.from('provider_identities').upsert(
+  const { error } = await supabase.from('provider_identities').upsert(
     {
       workspace_id: identity.workspaceId,
       customer_account_id: identity.customerAccountId,
@@ -157,6 +160,8 @@ export async function upsertProviderIdentity(
       verification_status: identity.verificationStatus ?? 'verified',
       source: identity.source,
       metadata: identity.metadata ?? {},
+      scenario_id: identity.scenarioId || null,
+      scenario_run_id: identity.scenarioRunId || null,
       last_seen_at: now,
       updated_at: now,
     },
@@ -164,4 +169,8 @@ export async function upsertProviderIdentity(
       onConflict: 'workspace_id,provider,identity_type,normalized_external_id',
     }
   );
+
+  if (error) {
+    throw new Error(`Failed to persist provider identity: ${error.message}`);
+  }
 }

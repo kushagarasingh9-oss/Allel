@@ -10,7 +10,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { JobExecutionContext, JobExecutionResult } from '@/jobs/types';
-import { RECOVERY_CONFIG } from '@/recovery/config';
+import { transitionRecoveryCase } from '@/recovery/transitions';
 
 export async function handleReconcileProviderState(
   supabase: SupabaseClient,
@@ -27,42 +27,71 @@ export async function handleReconcileProviderState(
   let reconciledCases = 0;
   let expiredApprovals = 0;
 
-  // 1. Expire stale approvals (approval TTL exceeded → back to awaiting_approval)
-  const approvalDeadline = new Date(
-    Date.now() - RECOVERY_CONFIG.APPROVAL_TTL_HOURS * 60 * 60 * 1000
-  ).toISOString();
-
-  const { data: staleApproved, error: staleErr } = await supabase
-    .from('recovery_cases')
-    .select('id, workspace_id')
+  // 1. Expire the exact draft approval lifetime. Critical cases use a shorter
+  // TTL, so the per-draft timestamp is authoritative rather than a global
+  // back-calculation from the case's approved_at.
+  const { data: expiredDrafts, error: staleErr } = await supabase
+    .from('follow_up_drafts')
+    .select('id, recovery_case_id, content_hash')
     .eq('workspace_id', workspaceId)
-    .eq('status', 'approved')
-    .lt('approved_at', approvalDeadline);
+    .eq('status', 'ready_to_send')
+    .not('recovery_case_id', 'is', null)
+    .lt('approval_expires_at', now);
 
   if (staleErr) throw staleErr;
 
-  for (const staleCase of staleApproved ?? []) {
-    const { error: revertErr } = await supabase
-      .from('recovery_cases')
-      .update({ status: 'awaiting_approval', updated_at: now })
-      .eq('id', staleCase.id);
+  for (const draft of expiredDrafts ?? []) {
+    if (!draft.recovery_case_id) continue;
 
-    if (!revertErr) {
-      await supabase.from('recovery_case_events').insert({
+    await transitionRecoveryCase(supabase, {
+      workspaceId,
+      caseId: draft.recovery_case_id,
+      targetStatus: 'awaiting_approval',
+      actorType: 'system',
+      actorId: 'reconcile_provider_state',
+      eventType: 'approval_expired',
+      detail: { reason: 'Draft-specific approval TTL elapsed; re-verification queued' },
+      workflowJobId: context.job.id,
+    });
+
+    const { error: resetDraftError } = await supabase
+      .from('follow_up_drafts')
+      .update({
+        status: 'needs_review',
+        approved_at: null,
+        approved_by_actor: null,
+        approved_content_hash: null,
+        approval_expires_at: null,
+        approval_metadata: {},
+        send_idempotency_key: null,
+        send_error: null,
+      })
+      .eq('id', draft.id)
+      .eq('workspace_id', workspaceId);
+    if (resetDraftError) throw new Error(`Failed to reset expired draft ${draft.id}: ${resetDraftError.message}`);
+
+    const verifyKey = `ws:${workspaceId}:draft:${draft.id}:verify:expiry:${draft.content_hash}`;
+    const { error: verifyEnqueueError } = await supabase.from('workflow_jobs').upsert(
+      {
         workspace_id: workspaceId,
-        recovery_case_id: staleCase.id,
-        event_type: 'approval_expired',
-        from_status: 'approved',
-        to_status: 'awaiting_approval',
-        actor_type: 'system',
-        actor_id: 'reconcile_provider_state',
-        detail: {
-          reason: 'Approval TTL exceeded during reconciliation',
-          expired_after_hours: RECOVERY_CONFIG.APPROVAL_TTL_HOURS,
+        recovery_case_id: draft.recovery_case_id,
+        job_type: 'verify_case_draft',
+        idempotency_key: verifyKey,
+        status: 'pending',
+        priority: 30,
+        payload: {
+          workspaceId,
+          recoveryCaseId: draft.recovery_case_id,
+          draftId: draft.id,
+          contentHash: draft.content_hash,
+          reason: 'approval_expired',
         },
-      });
-      expiredApprovals += 1;
-    }
+        next_attempt_at: now,
+      },
+      { onConflict: 'idempotency_key', ignoreDuplicates: true }
+    );
+    if (verifyEnqueueError) throw new Error(`Failed to queue re-verification: ${verifyEnqueueError.message}`);
+    expiredApprovals += 1;
   }
 
   // 2. Classify monitoring cases that have passed their outcome deadline

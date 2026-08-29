@@ -38,6 +38,7 @@ export type DraftRecord = {
   id: string
   workspace_id: string
   customer_account_id: string | null
+  recovery_case_id?: string | null
   subject: string
   body_preview: string
   status: string
@@ -174,7 +175,7 @@ async function loadDraftForAccess(
   const { data: draft, error: draftError } = await supabase
     .from('follow_up_drafts')
     .select(
-      'id, workspace_id, customer_account_id, subject, body_preview, status, approved_at, approved_by_actor'
+      'id, workspace_id, customer_account_id, recovery_case_id, subject, body_preview, status, approved_at, approved_by_actor'
     )
     .eq('id', draftId)
     .maybeSingle()
@@ -407,6 +408,13 @@ export async function rejectDraftForActor(input: RejectDraftInput) {
 export async function editDraftForActor(input: EditDraftInput) {
   const draft = await loadDraftForAccess(input.supabase, input.draftId, input.access)
   const updateData: Record<string, string> = {}
+
+  // Recovery drafts carry an exact verified body/hash/case state. The legacy
+  // preview-only editor cannot preserve those invariants, so it must not edit
+  // one in place. A fresh, verified action version is required instead.
+  if (draft.recovery_case_id) {
+    fail('invalid_state', 'Recovery drafts cannot be edited in the legacy editor; regenerate and re-verify the draft.')
+  }
 
   if (draft.status === 'sent') {
     fail('invalid_state', 'Cannot edit a sent draft')

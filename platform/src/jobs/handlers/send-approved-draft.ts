@@ -10,6 +10,9 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { JobExecutionContext, JobExecutionResult } from '@/jobs/types';
 import { transitionRecoveryCase } from '@/recovery/transitions';
 import { sendEmail } from '@/integrations/gmail/gmail';
+import { ensureGmailRecoveryHistoryCursor } from '@/integrations/gmail/gmail-recovery-history';
+import { upsertProviderIdentity } from '@/recovery/identity';
+import { projectAccountFeatures } from '@/recovery/features';
 import { computeContentHash } from './generate-case-draft';
 
 export async function handleSendApprovedDraft(
@@ -35,6 +38,31 @@ export async function handleSendApprovedDraft(
 
   if (draftError || !draft) {
     throw new Error(`Draft ${draftId} not found in workspace ${workspaceId}`);
+  }
+
+  // Recovery sends must always be bound to a case. This prevents the durable
+  // worker from becoming a generic email-sending escape hatch.
+  if (!recoveryCaseId || draft.recovery_case_id !== recoveryCaseId) {
+    throw new Error(`Draft ${draftId} is not bound to the requested recovery case`);
+  }
+
+  // A previous worker may have received Gmail's real IDs and persisted the
+  // draft before crashing during local projection/case transitions. Resume
+  // those idempotent local steps; never call Gmail a second time.
+  if (draft.status === 'sent') {
+    if (!draft.provider_message_id || !draft.provider_thread_id) {
+      throw new Error(`Sent draft ${draftId} is missing its Gmail message or thread ID`);
+    }
+    return finalizeConfirmedSend({
+      supabase,
+      context,
+      workspaceId,
+      recoveryCaseId,
+      draft,
+      providerMessageId: draft.provider_message_id,
+      providerThreadId: draft.provider_thread_id ?? null,
+      sendIdempotencyKey: draft.send_idempotency_key ?? `${workspaceId}:${draftId}:confirmed`,
+    });
   }
 
   // §40.14: Recheck ALL stopping rules before provider execution
@@ -143,11 +171,32 @@ export async function handleSendApprovedDraft(
   const sendIdempotencyKey = `${workspaceId}:${draftId}:${draft.approved_content_hash || recomputedHash}`;
 
   if (draft.send_idempotency_key === sendIdempotencyKey && draft.sent_at) {
-    // Already sent with this exact content — idempotent success
-    return { success: true, workspaceId };
+    // A sent timestamp without the terminal draft status or real Gmail IDs is
+    // inconsistent state, not an idempotent success. Retrying the provider
+    // call here could duplicate a customer email.
+    throw new Error(
+      `GMAIL_SEND_RECONCILIATION_REQUIRED: draft ${draftId} has a recorded send timestamp without confirmed sent state`
+    );
   }
 
-  // §40.14: Persist send_idempotency_key before calling Gmail
+  if (draft.send_idempotency_key === sendIdempotencyKey && !draft.sent_at) {
+    // Gmail does not offer a client idempotency key. Once an attempt has been
+    // recorded but no provider message ID was durably stored, delivery is
+    // uncertain. Retrying would risk a second customer email, so stop for
+    // explicit operator reconciliation instead of guessing.
+    throw new Error(
+      `GMAIL_SEND_RECONCILIATION_REQUIRED: draft ${draftId} has a prior recorded send attempt without a confirmed Gmail message ID`
+    );
+  }
+
+  // Establish the Gmail history watermark before transmission. A very fast
+  // reply can then be observed and routed back through the canonical outcome
+  // pipeline instead of being lost in an unbounded inbox scan. Do this before
+  // recording a delivery attempt so a sync outage does not look like an
+  // uncertain email send.
+  await ensureGmailRecoveryHistoryCursor(workspaceId);
+
+  // §40.14: Persist send_idempotency_key immediately before calling Gmail
   const { error: preSendError } = await supabase
     .from('follow_up_drafts')
     .update({
@@ -162,37 +211,54 @@ export async function handleSendApprovedDraft(
   // 3. Execute Send — §40.14: use the EXACT recipient, subject, body_full
   // that were loaded and verified above. Never re-fetch body_preview or
   // replace recipient_email with whatever account contact is currently primary.
-  const result = await sendEmail(workspaceId, {
-    to: recipientEmail,
-    subject: draft.subject,
-    body: bodyFull,
-  });
+  let result;
+  try {
+    result = await sendEmail(workspaceId, {
+      to: recipientEmail,
+      subject: draft.subject,
+      body: bodyFull,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await supabase
+      .from('follow_up_drafts')
+      .update({
+        send_error: `GMAIL_SEND_RECONCILIATION_REQUIRED: ${message}`.slice(0, 1000),
+      })
+      .eq('id', draftId)
+      .eq('workspace_id', workspaceId);
+    throw new Error(
+      `GMAIL_SEND_RECONCILIATION_REQUIRED: Gmail did not confirm delivery for draft ${draftId}; do not retry automatically`
+    );
+  }
 
   // §40.14: Require the real Gmail message ID — never fabricate
   const providerMessageId = result.messageId;
   const providerThreadId = result.threadId;
 
-  if (!providerMessageId) {
-    // §40.14: Gmail returned uncertain result without ID — do not claim success
+  if (!providerMessageId || !providerThreadId) {
+    // §40.14: Gmail returned incomplete IDs — do not claim success. Both
+    // message and thread IDs are required for deterministic reply attribution.
     const { error: sendErrUpdate } = await supabase
       .from('follow_up_drafts')
       .update({
-        send_error: 'Gmail did not return a message ID — delivery uncertain',
+        send_error: 'Gmail did not return both message and thread IDs — delivery uncertain',
       })
       .eq('id', draftId);
 
     if (sendErrUpdate) {
       console.error('[send-approved-draft] failed to record send error:', sendErrUpdate.message);
     }
-    throw new Error('Gmail send did not return a message ID — cannot confirm delivery');
+    throw new Error('Gmail send did not return both message and thread IDs — cannot confirm delivery');
   }
 
   // §40.14: Store real provider IDs
+  const confirmedAt = new Date().toISOString();
   const { error: postSendError } = await supabase
     .from('follow_up_drafts')
     .update({
       status: 'sent',
-      sent_at: new Date().toISOString(),
+      sent_at: confirmedAt,
       provider_message_id: providerMessageId,
       provider_thread_id: providerThreadId,
       send_error: null,
@@ -200,11 +266,109 @@ export async function handleSendApprovedDraft(
     .eq('id', draftId);
 
   if (postSendError) {
-    console.error('[send-approved-draft] failed to update draft post-send:', postSendError.message);
+    // Do not retry the provider send after its real message ID has been
+    // returned. The durable error makes this reconciliation work visible
+    // without risking a duplicate customer email.
+    throw new Error(`Gmail sent message ${providerMessageId}, but draft persistence failed: ${postSendError.message}`);
   }
 
-  // 4. If case exists, transition approved → sent → monitoring
-  if (recoveryCaseId) {
+  return finalizeConfirmedSend({
+    supabase,
+    context,
+    workspaceId,
+    recoveryCaseId,
+    draft: { ...draft, sent_at: confirmedAt },
+    providerMessageId,
+    providerThreadId,
+    sendIdempotencyKey,
+  });
+}
+
+async function finalizeConfirmedSend(input: {
+  supabase: SupabaseClient;
+  context: JobExecutionContext;
+  workspaceId: string;
+  recoveryCaseId: string;
+  draft: Record<string, any>;
+  providerMessageId: string;
+  providerThreadId: string | null;
+  sendIdempotencyKey: string;
+}): Promise<JobExecutionResult> {
+  const { supabase, context, workspaceId, recoveryCaseId, draft, providerMessageId, providerThreadId, sendIdempotencyKey } = input;
+
+  if (draft.customer_account_id && providerThreadId) {
+    await upsertProviderIdentity(supabase, {
+      workspaceId,
+      customerAccountId: draft.customer_account_id,
+      provider: 'gmail',
+      identityType: 'gmail_thread_id',
+      externalId: providerThreadId,
+      isPrimary: true,
+      source: 'gmail_recovery_send',
+      metadata: { draftId: draft.id, recoveryCaseId, providerMessageId },
+    });
+
+    const { data: existingFeatures, error: featuresError } = await supabase
+      .from('account_features')
+      .select('unreplied_outbound_count')
+      .eq('workspace_id', workspaceId)
+      .eq('customer_account_id', draft.customer_account_id)
+      .maybeSingle();
+    if (featuresError) throw new Error(`Failed to read communication features: ${featuresError.message}`);
+
+    const sentAt = draft.sent_at ?? new Date().toISOString();
+    await projectAccountFeatures(supabase, {
+      workspaceId,
+      customerAccountId: draft.customer_account_id,
+      patch: {
+        communicationAvailable: true,
+        lastOutboundAt: sentAt,
+        communicationFreshAt: sentAt,
+        gmailThreadId: providerThreadId,
+        // The feature row has one tracked recovery thread. This assignment is
+        // idempotent across a crash/retry; incrementing here would not be.
+        unrepliedOutboundCount: Math.max(existingFeatures?.unreplied_outbound_count ?? 0, 1),
+      },
+    });
+
+    const { data: existingTimeline, error: timelineLookupError } = await supabase
+      .from('account_timeline')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .eq('customer_account_id', draft.customer_account_id)
+      .eq('event_type', 'email_sent')
+      .contains('metadata', { gmail_message_id: providerMessageId })
+      .maybeSingle();
+    if (timelineLookupError) throw new Error(`Failed to check Gmail send timeline: ${timelineLookupError.message}`);
+    if (!existingTimeline) {
+      const { error: timelineError } = await supabase.from('account_timeline').insert({
+        workspace_id: workspaceId,
+        customer_account_id: draft.customer_account_id,
+        event_type: 'email_sent',
+        headline: `Recovery email sent: ${draft.subject}`,
+        detail: `Gmail message ${providerMessageId} sent after founder approval.`,
+        source: 'gmail',
+        metadata: {
+          gmail_message_id: providerMessageId,
+          gmail_thread_id: providerThreadId,
+          recovery_case_id: recoveryCaseId,
+          draft_id: draft.id,
+        },
+        event_at: sentAt,
+      });
+      if (timelineError) throw new Error(`Failed to append Gmail send timeline: ${timelineError.message}`);
+    }
+  }
+
+  const { data: caseRow, error: caseError } = await supabase
+    .from('recovery_cases')
+    .select('status, workspace_id')
+    .eq('id', recoveryCaseId)
+    .eq('workspace_id', workspaceId)
+    .single();
+  if (caseError || !caseRow) throw new Error(`Case ${recoveryCaseId} not found while finalizing send`);
+
+  if (caseRow.status === 'approved') {
     await transitionRecoveryCase(supabase, {
       workspaceId,
       caseId: recoveryCaseId,
@@ -213,14 +377,11 @@ export async function handleSendApprovedDraft(
       actorId: context.workerId,
       eventType: 'send_succeeded',
       workflowJobId: context.job.id,
-      detail: {
-        draftId,
-        providerMessageId,
-        providerThreadId,
-        sendIdempotencyKey,
-      },
+      detail: { draftId: draft.id, providerMessageId, providerThreadId, sendIdempotencyKey },
     });
+  }
 
+  if (caseRow.status === 'approved' || caseRow.status === 'sent') {
     await transitionRecoveryCase(supabase, {
       workspaceId,
       caseId: recoveryCaseId,
@@ -230,26 +391,23 @@ export async function handleSendApprovedDraft(
       eventType: 'monitoring_started',
       workflowJobId: context.job.id,
     });
-
-    // §40.14: Enqueue Gmail history sync
-    return {
-      success: true,
-      workspaceId,
-      nextJob: {
-        jobType: 'sync_gmail_history',
-        idempotencyKey: `ws:${workspaceId}:gmail_sync:${draftId}`,
-        workspaceId,
-        recoveryCaseId,
-        payload: {
-          workspaceId,
-          recoveryCaseId,
-          draftId,
-          providerThreadId,
-          providerMessageId,
-        },
-      },
-    };
   }
 
-  return { success: true, workspaceId };
+  return {
+    success: true,
+    workspaceId,
+    nextJob: {
+      jobType: 'sync_gmail_history',
+      idempotencyKey: `ws:${workspaceId}:gmail_sync:${draft.id}`,
+      workspaceId,
+      recoveryCaseId,
+      payload: {
+        workspaceId,
+        recoveryCaseId,
+        draftId: draft.id,
+        providerThreadId,
+        providerMessageId,
+      },
+    },
+  };
 }
