@@ -171,11 +171,11 @@ export function AllelCommandCenter() {
       <div className="flex-1 min-h-0 overflow-y-auto relative flex flex-col items-center justify-between">
         {!hasMessages ? (
           <div className="w-full max-w-[700px] px-4 py-6 flex flex-col items-center my-auto animate-in fade-in zoom-in-95 duration-150">
-            {/* Hero Heading Above Chat Box */}
-            <div className="flex flex-col items-center text-center mb-6">
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white">
-                What do you want to automate?
-              </h1>
+            {/* Clean Minimal Left-Aligned Title Above Chat Box */}
+            <div className="w-full flex items-center justify-start mb-2.5 px-1 select-none">
+              <span className="text-base sm:text-lg font-medium tracking-tight text-zinc-200">
+                What do you want to automate today?
+              </span>
             </div>
 
             {/* Devin Exact Chat Component */}
