@@ -17,6 +17,7 @@ import {
   ArrowUpRight,
   ChevronDown,
   ChevronUp,
+  Loader2,
   Bot,
   RotateCcw,
   ArrowLeft,
@@ -220,17 +221,17 @@ export function AllelCommandCenter() {
 
               {/* Seamless Unified Double-Curved Container */}
               <div className="w-full max-w-[700px] mx-auto bg-[#191919] border border-[#282828] rounded-[24px] p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 transition-all select-none">
-                {/* Attached Task Runner Tray (ONLY renders when isLoading is true) */}
+                {/* Attached Task Runner Tray Header (ONLY renders when isLoading is true) */}
                 {isLoading && (
-                  <div className="w-full bg-[#202020] border border-[#2d2d2d] rounded-[16px] overflow-hidden transition-all">
+                  <div className="w-full flex flex-col items-start transition-all">
                     <button
                       type="button"
                       onClick={() => setIsTaskTrayOpen(!isTaskTrayOpen)}
-                      className="w-full flex items-center justify-between px-3.5 py-2 cursor-pointer hover:bg-[#252525] transition-colors"
+                      className="w-full flex items-center justify-between px-3.5 py-2 rounded-[16px] bg-[#202020] border border-[#2d2d2d] hover:bg-[#252525] transition-all cursor-pointer shadow-xs text-xs select-none"
                     >
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="text-xs font-semibold text-zinc-200">1 task running</span>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
+                        <span className="font-semibold text-zinc-200 text-xs">Processing AI query...</span>
                       </div>
                       <ChevronUp
                         className={cn(
@@ -241,7 +242,7 @@ export function AllelCommandCenter() {
                     </button>
 
                     {isTaskTrayOpen && (
-                      <div className="px-3.5 py-2.5 border-t border-[#2a2a2a] bg-[#161616] animate-in fade-in duration-150 flex items-center gap-3">
+                      <div className="w-full mt-1.5 px-3.5 py-2.5 rounded-[16px] border border-[#2a2a2a] bg-[#161616] animate-in fade-in duration-150 flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-[#222222] border border-[#333333] flex items-center justify-center shrink-0">
                           <img src="/1.png" alt="Task" className="w-4 h-4 object-contain filter brightness-0 invert opacity-70" />
                         </div>
