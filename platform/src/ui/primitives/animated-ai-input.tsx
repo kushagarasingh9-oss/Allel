@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Paperclip, Sparkles, Image as ImageIcon, ChevronDown, SlidersHorizontal, Layers, Trash2, Smile } from "lucide-react";
+import { ArrowUp, Square, Paperclip, Sparkles, Image as ImageIcon, ChevronDown, SlidersHorizontal, Layers, Trash2, Smile } from "lucide-react";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/foundation/utils";
 import type { PersonaId } from "@/agent/personas/personas";
@@ -64,6 +64,7 @@ function useAutoResizeTextarea({
 
 interface AI_PromptProps {
     onSubmit?: (message: string) => void;
+    onStop?: () => void;
     isLoading?: boolean;
     /** @deprecated Persona switching removed — kept for API compat */
     agentId?: PersonaId;
@@ -83,6 +84,7 @@ interface AI_PromptProps {
 
 export function AI_Prompt({
     onSubmit,
+    onStop,
     isLoading = false,
     onResetThread,
 }: AI_PromptProps) {
@@ -96,17 +98,21 @@ export function AI_Prompt({
         maxHeight: 280,
     });
 
-    const handleSubmit = () => {
-        if (!value.trim() || isLoading) return;
+    const handleButtonClick = () => {
+        if (isLoading) {
+            onStop?.();
+            return;
+        }
+        if (!value.trim()) return;
         onSubmit?.(value.trim());
         setValue("");
         adjustHeight(true);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === "Enter" && !e.shiftKey && value.trim()) {
+        if (e.key === "Enter" && !e.shiftKey && value.trim() && !isLoading) {
             e.preventDefault();
-            handleSubmit();
+            handleButtonClick();
         }
     };
 
@@ -267,22 +273,29 @@ export function AI_Prompt({
                             <span>98</span>
                         </div>
 
-                        {/* Submit Arrow Button - Liquid Glass */}
+                        {/* Submit / Stop Button - Liquid Glass */}
                         <button
                             type="button"
-                            disabled={!value.trim() || isLoading}
-                            onClick={handleSubmit}
+                            disabled={!isLoading && !value.trim()}
+                            onClick={handleButtonClick}
                             className={cn(
                                 "w-10 h-10 ml-1.5 rounded-[12px] transition-all duration-300 flex items-center justify-center backdrop-blur-md relative overflow-hidden",
-                                value.trim() && !isLoading
+                                isLoading
+                                    ? "bg-red-500/20 text-red-500 dark:bg-red-500/30 dark:text-red-300 border border-red-500/40 hover:bg-red-500/35 hover:scale-105 active:scale-95 cursor-pointer shadow-[0_0_15px_rgba(239,68,68,0.25)]"
+                                    : value.trim()
                                     ? "bg-neutral-200 text-neutral-900 shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.8),inset_-1.5px_-1.5px_3px_rgba(0,0,0,0.05),0_4px_10px_rgba(0,0,0,0.1)] hover:bg-neutral-300 dark:bg-white/20 dark:text-white dark:shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.4),inset_-1.5px_-1.5px_3px_rgba(0,0,0,0.1),0_4px_10px_rgba(0,0,0,0.15)] dark:hover:bg-white/25 hover:scale-105 active:scale-95 cursor-pointer"
                                     : "bg-neutral-100 text-neutral-400 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-1px_-1px_2px_rgba(0,0,0,0.02)] dark:bg-white/10 dark:text-white/50 dark:shadow-[inset_1px_1px_2px_rgba(255,255,255,0.2),inset_-1px_-1px_2px_rgba(0,0,0,0.05)] cursor-not-allowed"
                             )}
-                            aria-label="Send message"
+                            aria-label={isLoading ? "Stop agent execution" : "Send message"}
+                            title={isLoading ? "Stop agent execution" : "Send message"}
                         >
                             {/* Inner glow element for the bevel */}
                             <div className="absolute inset-0 rounded-[12px] pointer-events-none bg-gradient-to-br from-white/60 dark:from-white/30 to-transparent opacity-50" />
-                            <ArrowUp className="w-4 h-4 stroke-[2.5] relative z-10" />
+                            {isLoading ? (
+                                <Square className="w-3.5 h-3.5 fill-current relative z-10" />
+                            ) : (
+                                <ArrowUp className="w-4 h-4 stroke-[2.5] relative z-10" />
+                            )}
                         </button>
                     </div>
                 </div>

@@ -44,6 +44,7 @@ export type SavedChatSession = {
 type ChatContextType = {
   messages: UIMessage[]
   sendMessage: (params: { text: string }) => void
+  stop: () => void
   status: ChatStatus
   isLoading: boolean
   error: Error | undefined
@@ -568,6 +569,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     () => ({
       messages,
       sendMessage,
+      stop,
       status,
       isLoading,
       error,
@@ -584,6 +586,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     [
       messages,
       sendMessage,
+      stop,
       status,
       isLoading,
       error,

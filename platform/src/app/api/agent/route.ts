@@ -326,6 +326,7 @@ CORE OPERATIONAL DOCTRINE:
         createAgentUIStream({
           agent: agentToRun,
           uiMessages: enrichedMessages,
+          abortSignal: request.signal,
           onStepFinish: async (step) => {
             const toolExpansionRequests: Array<{ domain: string; reason: string }> = []
             for (const call of step.toolCalls) {
@@ -373,11 +374,15 @@ CORE OPERATIONAL DOCTRINE:
                 if (stepText.length > 0) outputText = stepText
               }
 
-              // If the LLM finished without text (content filter or empty completion), synthesize a response
+              // If the LLM finished without text (content filter, aborted, or empty completion)
               if (outputText.trim().length === 0) {
-                const synthesized = calledToolNames.length > 0
+                const synthesized = request.signal.aborted
+                  ? 'Execution stopped by user.'
+                  : calledToolNames.length > 0
                   ? buildFallbackSynthesisForTools(calledToolNames)
-                  : "Hey! What's on your mind today? I'm ready to check your inbox, review billing health, or prepare for upcoming meetings."
+                  : latestUserText && latestUserText.trim().length > 0
+                  ? `I'm ready. What would you like to check across your connected tools?`
+                  : `All systems ready. How can I help you today?`
                 const synthId = `synth-${Date.now()}`
                 writer.write({
                   type: 'text-start',

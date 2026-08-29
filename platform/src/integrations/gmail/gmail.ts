@@ -876,6 +876,10 @@ async function fetchThreadDetailByAccessToken(
     }
   )
 
+  if (response.status === 404) {
+    return null
+  }
+
   if (!response.ok) {
     const error = await response.text()
     throw new Error(`Gmail thread fetch failed: ${error}`)

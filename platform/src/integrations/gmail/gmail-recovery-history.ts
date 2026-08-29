@@ -170,7 +170,15 @@ export async function syncGmailRecoveryHistory(
   let ignoredMessages = 0
 
   for (const historyMessage of history.messages) {
-    const thread = await fetchThreadDetail(workspaceId, historyMessage.threadId)
+    let thread: GmailThread | null = null
+    try {
+      thread = await fetchThreadDetail(workspaceId, historyMessage.threadId)
+    } catch (err) {
+      console.warn(`[gmail-recovery] Could not fetch thread ${historyMessage.threadId}:`, err)
+      ignoredMessages += 1
+      continue
+    }
+
     const message = thread?.messages?.find((candidate) => candidate.id === historyMessage.id)
 
     if (!message || !isCustomerInboundMessage(message, profile.emailAddress)) {
@@ -215,8 +223,11 @@ export async function syncGmailRecoveryHistory(
       p_job_idempotency: `ws:${workspaceId}:event:${message.id}:process:v1`,
     })
 
-    if (error) throw new Error(`Failed to durably ingest Gmail message ${message.id}: ${error.message}`)
-    inboundMessages += 1
+    if (error) {
+      console.warn(`[gmail-recovery] Ingest provider event warning for message ${message.id}: ${error.message}`)
+    } else {
+      inboundMessages += 1
+    }
   }
 
   await writeCursor({ workspaceId, cursor: history.historyId, status: 'idle' })

@@ -3,12 +3,13 @@
 import React, { useState, useRef } from "react";
 import { useChatContext } from "@/ui/chat/chat-provider";
 import { AgentFeed } from "@/ui/chat/agent-feed";
-import { Plus, ArrowUp, ChevronUp, ChevronDown, Loader2, History, Trash2, Search, MessageSquare, ArrowRight } from "lucide-react";
+import { Plus, ArrowUp, Square, ChevronUp, ChevronDown, Loader2, History, Trash2, Search, MessageSquare, ArrowRight } from "lucide-react";
 
 export function HomeAgentPanel() {
   const {
     sendMessage,
     isLoading,
+    stop,
     savedSessions,
     startNewChat,
     loadChatSession,
@@ -53,16 +54,20 @@ export function HomeAgentPanel() {
     window.addEventListener("mouseup", handleMouseUp);
   };
 
-  const handleSend = () => {
-    if (!inputText.trim() || isLoading) return;
+  const handleButtonClick = () => {
+    if (isLoading) {
+      stop();
+      return;
+    }
+    if (!inputText.trim()) return;
     sendMessage({ text: inputText.trim() });
     setInputText("");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !isLoading) {
       e.preventDefault();
-      handleSend();
+      handleButtonClick();
     }
   };
 
@@ -279,15 +284,23 @@ export function HomeAgentPanel() {
                   </button>
 
                   <button
-                    onClick={handleSend}
-                    disabled={!inputText.trim() || isLoading}
+                    onClick={handleButtonClick}
+                    disabled={!inputText.trim() && !isLoading}
+                    aria-label={isLoading ? "Stop agent execution" : "Send message"}
+                    title={isLoading ? "Stop agent execution" : "Send message"}
                     className={`w-9 h-9 rounded-xl transition-all duration-200 flex items-center justify-center ${
-                      inputText.trim() && !isLoading
-                        ? "bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200 cursor-pointer shadow-md"
+                      isLoading
+                        ? "bg-red-500/20 text-red-500 hover:bg-red-500/30 dark:bg-red-500/25 dark:text-red-400 border border-red-500/30 cursor-pointer shadow-md shadow-red-500/10 hover:scale-105 active:scale-95"
+                        : inputText.trim()
+                        ? "bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200 cursor-pointer shadow-md hover:scale-105 active:scale-95"
                         : "bg-neutral-200 text-neutral-400 dark:bg-[#1C1C24] dark:text-neutral-500 cursor-not-allowed border border-transparent dark:border-white/5"
                     }`}
                   >
-                    <ArrowUp className="w-4 h-4" />
+                    {isLoading ? (
+                      <Square className="w-3.5 h-3.5 fill-current" />
+                    ) : (
+                      <ArrowUp className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>

@@ -1154,11 +1154,10 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
     return (
       <div className="w-full relative z-10 pt-2 mb-6">
         <div className="w-full flex flex-col gap-2">
-          <AgentSpeechBlock
-            key={`fallback-${message.id || 'default'}`}
-            text="Hey! What's on your mind today? I can check your inbox, review billing health, or scan for account risks."
-            isStreaming={false}
-          />
+          <div className="text-[13px] text-neutral-400 dark:text-neutral-500 italic py-1 px-1 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 dark:bg-neutral-600 inline-block" />
+            <span>Execution stopped by user.</span>
+          </div>
         </div>
       </div>
     )

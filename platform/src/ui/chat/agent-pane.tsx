@@ -15,7 +15,7 @@ import { AI_Prompt } from "@/ui/primitives/animated-ai-input"
 import { PinnedTodoPanel } from "@/ui/chat/pinned-todo-panel"
 
 export function AgentPane() {
-  const { sendMessage, isLoading, resetActiveThread } = useChatContext()
+  const { sendMessage, isLoading, stop, resetActiveThread } = useChatContext()
 
   // Listen for "Proceed with tasks" events from the left pane
   React.useEffect(() => {
@@ -43,6 +43,7 @@ export function AgentPane() {
       <div className="w-full max-w-2xl px-8 pb-8 mx-auto mt-auto shrink-0 flex justify-center">
         <AI_Prompt
           onSubmit={(text) => sendMessage({ text })}
+          onStop={stop}
           isLoading={isLoading}
           onResetThread={resetActiveThread}
         />

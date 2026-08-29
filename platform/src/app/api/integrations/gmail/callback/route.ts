@@ -19,6 +19,7 @@ import { isSyncableProvider } from '@/integrations/catalog'
 import { encrypt } from '@/integrations/_core/encryption'
 import { verifyGoogleCalendarAccess } from '@/integrations/google-calendar/google-calendar'
 import { mergeIntegrationConnectionMetadata } from '@/integrations/_core/connection-guard'
+import { markIntegrationAuthSucceeded } from '@/integrations/_core/integration-health'
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code')
@@ -148,12 +149,21 @@ export async function GET(request: NextRequest) {
 
     // Only run sync for syncable providers (Gmail has sync, Calendar does not)
     if (isSyncableProvider(provider)) {
-      await runProviderSyncWithHealth({
-        supabase,
-        workspaceId,
-        provider,
-        trigger: 'gmail_oauth_callback',
-      })
+      try {
+        await runProviderSyncWithHealth({
+          supabase,
+          workspaceId,
+          provider,
+          trigger: 'gmail_oauth_callback',
+        })
+      } catch (syncError) {
+        console.error(`[google-callback] Initial sync warning for ${provider} (connection was saved):`, syncError)
+        await markIntegrationAuthSucceeded({
+          supabase,
+          workspaceId,
+          provider,
+        })
+      }
     }
 
     const response = NextResponse.redirect(
