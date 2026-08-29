@@ -845,7 +845,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
   const { sendMessage, status } = useChatContext()
   const isChatStreaming = status === "streaming" || status === "submitted"
   if (message.role === "user") {
-    // User prompt bubble (right-aligned like the mock)
+    // User prompt bubble (right-aligned floating card like Devin)
     const textContent = message.parts
       ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
       .map((p) => p.text)
@@ -853,20 +853,10 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
 
     if (!textContent) return null
 
-    const displayAvatar = avatarUrl || "/user-avatar.svg"
-
     return (
-      <div className="w-full flex justify-end items-start gap-3 relative z-10 mt-6 mb-4 pl-8">
-        <div className="text-[13.5px] font-semibold text-white tracking-tight leading-relaxed break-words text-right max-w-[88%] pt-0.5">
+      <div className="w-full flex justify-end items-center my-3 relative z-10">
+        <div className="bg-[#282828] border border-[#343434] text-zinc-100 text-xs sm:text-sm font-normal px-4 py-3 rounded-[18px] max-w-[85%] sm:max-w-[72%] shadow-sm leading-relaxed break-words">
           {textContent}
-        </div>
-        <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center shrink-0 shadow-sm overflow-hidden p-0.5 mt-0.5" title="You">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={displayAvatar}
-            alt="User Avatar"
-            className="w-full h-full object-contain rounded-full"
-          />
         </div>
       </div>
     )

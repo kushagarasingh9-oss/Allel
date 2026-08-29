@@ -61,7 +61,7 @@ export function DevinChatBox({
   return (
     <div
       className={cn(
-        "w-full max-w-[650px] mx-auto bg-[#1e1e1e] border border-[#2c2c2c] rounded-[22px] p-2 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 transition-all select-none",
+        "w-full max-w-[760px] mx-auto bg-[#1e1e1e] border border-[#2c2c2c] rounded-[22px] p-2 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 transition-all select-none",
         className
       )}
     >
@@ -91,8 +91,12 @@ export function DevinChatBox({
             <span>{modeLabel}</span>
           </button>
 
-          {/* Right Controls (Mic & Send Pill Dropdown Button) */}
+          {/* Right Controls (Construct Devin Prompt Hint + Mic + Send Button) */}
           <div className="flex items-center gap-2">
+            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-zinc-500 font-medium select-none mr-1">
+              Construct Devin Prompt <kbd className="px-1 py-0.5 rounded bg-[#333333] text-[10px] text-zinc-400 font-mono">⌥↵</kbd>
+            </span>
+
             <button
               type="button"
               className="p-1.5 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
@@ -106,18 +110,17 @@ export function DevinChatBox({
               onClick={handleButtonClick}
               disabled={!value.trim() && !isLoading}
               className={cn(
-                "px-2.5 py-1 rounded-full flex items-center gap-1 transition-all cursor-pointer shrink-0 shadow-xs",
+                "w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-xs",
                 value.trim() || isLoading
-                  ? "bg-white text-black hover:bg-zinc-200"
-                  : "bg-[#646464] text-[#1e1e1e] cursor-not-allowed"
+                  ? "bg-white text-black hover:bg-zinc-200 shadow-md"
+                  : "bg-[#5a5a5a] text-[#1c1c1c] cursor-not-allowed"
               )}
             >
               {isLoading ? (
-                <Square className="w-3 h-3 fill-current" />
+                <Square className="w-3.5 h-3.5 fill-current" />
               ) : (
-                <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                <ArrowUp className="w-4 h-4 stroke-[2.5]" />
               )}
-              <ChevronDown className="w-3 h-3 opacity-70" />
             </button>
           </div>
         </div>

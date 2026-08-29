@@ -162,7 +162,7 @@ export function AllelCommandCenter() {
           /* ============================================================
              STATE 1: DEVIN CENTERED CANVAS (EXACT HOME MATCH)
              ============================================================ */
-          <div className="w-full max-w-[650px] px-4 py-6 flex flex-col items-center my-auto animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-[760px] px-4 py-6 flex flex-col items-center my-auto animate-in fade-in zoom-in-95 duration-150">
             {/* Devin Center Emblem Watermark */}
             <div className="flex flex-col items-center gap-3 mb-6 text-center">
               <div className="w-12 h-12 flex items-center justify-center opacity-40 hover:opacity-80 transition-opacity">
@@ -284,21 +284,34 @@ export function AllelCommandCenter() {
           /* ============================================================
              STATE 2: FULL-WIDTH AGENT EXECUTION FEED (ACTIVE RUN)
              ============================================================ */
-          <div className="w-full flex-1 flex flex-col justify-between max-w-4xl px-4 py-6">
+          <div className="w-full flex-1 flex flex-col justify-between max-w-[760px] mx-auto px-4 py-6">
             <div className="flex-1 w-full">
               <AgentFeed />
             </div>
 
             {/* Pinned Bottom Omnibar */}
-            <div className="sticky bottom-6 left-0 right-0 w-full z-20 px-4">
+            <div className="sticky bottom-6 left-0 right-0 w-full z-20 px-4 flex flex-col items-center">
+              {/* Scroll Down Floating Indicator Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const feed = document.querySelector('.custom-scrollbar');
+                  if (feed) feed.scrollTo({ top: feed.scrollHeight, behavior: 'smooth' });
+                }}
+                className="w-7 h-7 rounded-full bg-[#222222] border border-[#333333] hover:bg-[#2a2a2a] text-zinc-400 hover:text-white transition-all flex items-center justify-center mb-2.5 shadow-md cursor-pointer shrink-0"
+                title="Scroll to bottom"
+              >
+                <ArrowDown className="w-3.5 h-3.5" />
+              </button>
+
               <DevinChatBox
                 value={inputText}
                 onChange={setInputText}
                 onSubmit={handleSubmit}
                 isLoading={isLoading}
                 onStop={stop}
-                placeholder="Ask a follow-up or provide instructions..."
-                modeLabel="Normal"
+                placeholder="Ask a follow-up"
+                modeLabel="Auto"
                 statusMessage="Autonomous Engine Active • All 6 integrations synchronized"
                 statusLinkText="Explore automations"
                 onStatusLinkClick={() => window.location.href = "/dashboard/flows"}
