@@ -9,8 +9,11 @@ import {
   Search,
   PanelLeftClose,
   PanelLeftOpen,
+  BookOpen,
   FileText,
   Zap,
+  ShieldCheck,
+  GitPullRequest,
   Plug,
   SlidersHorizontal,
   ChevronDown,
@@ -90,12 +93,12 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
     }
   };
 
-  // Nav list matching user spec: Drafts, Automations, Connections, Customize
+  // Nav list matching exact user spec: Artifacts, Automations, Security, Review, Customize
   const navLinks = [
     {
       label: "Artifacts",
-      href: "/dashboard",
-      icon: FileText,
+      href: "/dashboard/artifacts",
+      icon: BookOpen,
       exact: false,
     },
     {
@@ -105,10 +108,16 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
       exact: false,
     },
     {
-      label: "Connections",
-      href: "/dashboard/settings",
-      icon: Plug,
-      exact: true,
+      label: "Security",
+      href: "/dashboard/security",
+      icon: ShieldCheck,
+      exact: false,
+    },
+    {
+      label: "Review",
+      href: "/dashboard/review",
+      icon: GitPullRequest,
+      exact: false,
     },
     {
       label: "Customize",
@@ -253,23 +262,14 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
               </button>
               {isHistoryOpen && (
                 <div className="flex flex-col gap-0.5 overflow-y-auto pr-1">
-                  <Link
-                    href="/dashboard"
-                    className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-[#181818] transition-colors truncate"
-                  >
-                    Check my inbox & calendar
-                  </Link>
+                  <div className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 font-normal truncate">
+                    Generating title...
+                  </div>
                   <Link
                     href="/dashboard"
                     className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-[#181818] transition-colors truncate"
                   >
-                    Stripe MRR & Churn scan
-                  </Link>
-                  <Link
-                    href="/dashboard"
-                    className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-[#181818] transition-colors truncate"
-                  >
-                    Devin meetup calendar fix
+                    Close integration, draft-send...
                   </Link>
                 </div>
               )}
