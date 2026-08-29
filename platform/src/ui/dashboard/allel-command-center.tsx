@@ -104,6 +104,31 @@ export function AllelCommandCenter() {
   }, [startNewChat]);
 
   const hasMessages = messages.length > 0;
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+
+  useEffect(() => {
+    const checkScroll = () => {
+      const feed = document.querySelector('.overflow-y-auto');
+      if (feed) {
+        const isNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 120;
+        setShowScrollBottom(!isNearBottom);
+      }
+    };
+
+    const feed = document.querySelector('.overflow-y-auto');
+    if (feed) {
+      feed.addEventListener('scroll', checkScroll, { passive: true });
+      return () => feed.removeEventListener('scroll', checkScroll);
+    }
+  }, [hasMessages, messages.length]);
+
+  const handleScrollToBottom = () => {
+    const feed = document.querySelector('.overflow-y-auto');
+    if (feed) {
+      feed.scrollTo({ top: feed.scrollHeight, behavior: 'smooth' });
+    }
+    setShowScrollBottom(false);
+  };
 
   const handleSubmit = (textToSend?: string) => {
     const query = (textToSend || inputText).trim();
@@ -230,18 +255,17 @@ export function AllelCommandCenter() {
 
             {/* Fixed Bottom Omnibar + Attached Top Task Runner Tray (100% Fixed at one place, masks scrolling text beneath) */}
             <div className="absolute bottom-0 left-0 right-0 w-full z-30 px-4 pb-3 pt-8 flex flex-col items-center bg-gradient-to-t from-[#121214] from-70% via-[#121214]/90 to-transparent pointer-events-none [&>*]:pointer-events-auto">
-              {/* Scroll Down Floating Indicator Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  const feed = document.querySelector('.custom-scrollbar');
-                  if (feed) feed.scrollTo({ top: feed.scrollHeight, behavior: 'smooth' });
-                }}
-                className="w-7 h-7 rounded-full bg-[#222222] border border-[#333333] hover:bg-[#2a2a2a] text-zinc-400 hover:text-white transition-all flex items-center justify-center mb-2 shadow-md cursor-pointer shrink-0"
-                title="Scroll to bottom"
-              >
-                <ArrowDown className="w-3.5 h-3.5" />
-              </button>
+              {/* Minimal Scroll Down Indicator Button (Appears ONLY when scrolled above bottom of the chat, without circle cover) */}
+              {showScrollBottom && (
+                <button
+                  type="button"
+                  onClick={handleScrollToBottom}
+                  className="p-1 rounded-full text-zinc-400 hover:text-white hover:bg-white/[0.08] transition-all flex items-center justify-center mb-1.5 cursor-pointer shrink-0 animate-in fade-in zoom-in-90 duration-150"
+                  title="Scroll to bottom"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              )}
 
               {/* Conditional Attached Processing Header (Pops up attached when query is submitted & running) */}
               {isLoading ? (
