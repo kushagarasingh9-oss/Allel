@@ -112,6 +112,10 @@ export function AllelCommandCenter() {
       return;
     }
 
+    if (!hasMessages) {
+      startNewChat();
+    }
+
     sendMessage({ text: query });
     setInputText("");
   };

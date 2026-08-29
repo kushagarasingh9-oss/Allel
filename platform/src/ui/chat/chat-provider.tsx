@@ -445,11 +445,12 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     .join(" ")
     .toLowerCase()
 
-  // Fuzzy domain matching — catches typos like "rveneu", "gamil", "strpi", etc.
+  // Fuzzy domain matching — catches typos like "rveneu", "gamil", "strpi", "intercom", etc.
   const domainRules: [RegExp, string][] = [
     [/\b(e?mail|inbox|gmail|gamil|mial|draft|thread|reply)\b/, "Email & Inbox Management"],
     [/\b(stri?pe?|bill|mrr|churn|reven|subscri|invoice|payment)\b/, "Billing & Revenue"],
     [/\b(posthog|analyt|usage|event|engage|metric|track)\b/, "Product Analytics"],
+    [/\b(intercom|crisp|zendesk|support|ticket|stat|conversation)\b/, "Customer Support & Intercom"],
     [/\b(notion|knowle|docs?|wiki|knowledge|page)\b/, "Knowledge Base"],
     [/\b(linear|issue|bug|ticket|sprint|project)\b/, "Issue Tracking"],
     [/\b(sentry|error|crash|exception|monitor)\b/, "Error Monitoring"],
@@ -467,7 +468,13 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     }
   }
 
-  return "General Discussion"
+  // Smart fallback: Title-case the first 4 words of user input
+  if (allUserText.trim().length > 0) {
+    const words = allUserText.trim().split(/\s+/).slice(0, 4)
+    return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+  }
+
+  return "New Session"
 }
 
   // Auto-save active chat session immediately on user prompt and refresh history
