@@ -142,10 +142,11 @@ export function AllelCommandCenter() {
 
           <button
             type="button"
-            className="p-1 hover:text-white transition-colors cursor-pointer"
-            title="Flag session"
+            className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            title="Share session"
           >
-            <Flag className="w-4 h-4" />
+            <Upload className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Share</span>
           </button>
 
           <button
