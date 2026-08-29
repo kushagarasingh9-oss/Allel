@@ -41,6 +41,10 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProjectsOpen, setIsProjectsOpen] = useState(true);
   const [isHistoryOpen, setIsHistoryOpen] = useState(true);
+  const [historySessions, setHistorySessions] = useState<
+    Array<{ sessionId: string; title: string; updatedAt: string }>
+  >([]);
+  const [isFetchingHistory, setIsFetchingHistory] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,6 +52,31 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   }, []);
 
   const currentTheme = mounted ? (theme ?? resolvedTheme ?? "dark") : "dark";
+
+  // Load history sessions from backend API
+  const loadHistory = async () => {
+    try {
+      setIsFetchingHistory(true);
+      const res = await fetch("/api/agent/sessions");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.sessions)) {
+          setHistorySessions(data.sessions);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load history sessions:", err);
+    } finally {
+      setIsFetchingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
+    const handleRefresh = () => loadHistory();
+    window.addEventListener("allel:refresh-history", handleRefresh);
+    return () => window.removeEventListener("allel:refresh-history", handleRefresh);
+  }, []);
 
   useEffect(() => {
     async function loadUser() {
@@ -249,16 +278,42 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 )}
               </button>
               {isHistoryOpen && (
-                <div className="flex flex-col gap-0.5 overflow-y-auto pr-1">
-                  <div className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 font-normal truncate">
-                    Generating title...
-                  </div>
-                  <Link
-                    href="/dashboard"
-                    className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-[#181818] transition-colors truncate"
-                  >
-                    Close integration, draft-send...
-                  </Link>
+                <div className="flex flex-col gap-0.5 overflow-y-auto pr-1 max-h-[220px] custom-scrollbar">
+                  {isFetchingHistory && historySessions.length === 0 ? (
+                    <div className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-500 font-normal truncate">
+                      Loading history...
+                    </div>
+                  ) : historySessions.length === 0 ? (
+                    <div className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-500 font-normal truncate">
+                      No previous sessions
+                    </div>
+                  ) : (
+                    historySessions.map((session) => {
+                      const activeSessionId = typeof window !== "undefined"
+                        ? new URLSearchParams(window.location.search).get("sessionId")
+                        : null;
+                      const isSelected = activeSessionId === session.sessionId;
+
+                      return (
+                        <button
+                          key={session.sessionId}
+                          type="button"
+                          onClick={() => {
+                            window.location.href = `/dashboard?sessionId=${encodeURIComponent(session.sessionId)}`;
+                          }}
+                          className={cn(
+                            "w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 truncate cursor-pointer",
+                            isSelected
+                              ? "bg-[#1c1c1c] text-white font-medium border border-[#262626]"
+                              : "text-zinc-400 hover:text-white hover:bg-[#181818]"
+                          )}
+                          title={session.title}
+                        >
+                          {session.title}
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               )}
             </div>
