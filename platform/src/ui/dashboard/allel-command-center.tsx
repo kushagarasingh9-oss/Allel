@@ -229,7 +229,7 @@ export function AllelCommandCenter() {
                       className="w-full flex items-center justify-between px-2 py-1 bg-transparent border-0 hover:opacity-80 transition-opacity cursor-pointer text-xs select-none"
                     >
                       <div className="flex items-center gap-2">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white shrink-0" />
                         <span className="font-semibold text-zinc-200 text-xs">Processing AI query...</span>
                       </div>
                       <ChevronUp
@@ -242,7 +242,7 @@ export function AllelCommandCenter() {
 
                     {isTaskTrayOpen && (
                       <div className="w-full px-2 py-1.5 animate-in fade-in duration-150 flex items-center gap-2 text-xs text-zinc-400 select-none">
-                        <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
                         <span className="text-xs text-zinc-400 font-normal">Executing tool calls across connected integrations...</span>
                       </div>
                     )}
