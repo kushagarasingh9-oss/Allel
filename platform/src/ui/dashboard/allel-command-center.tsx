@@ -242,14 +242,9 @@ export function AllelCommandCenter() {
                     </button>
 
                     {isTaskTrayOpen && (
-                      <div className="w-full mt-1.5 px-3.5 py-2.5 rounded-[16px] border border-[#2a2a2a] bg-[#161616] animate-in fade-in duration-150 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-[#222222] border border-[#333333] flex items-center justify-center shrink-0">
-                          <img src="/1.png" alt="Task" className="w-4 h-4 object-contain filter brightness-0 invert opacity-70" />
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-xs font-medium text-zinc-200 truncate">Autonomous execution in progress</span>
-                          <span className="text-[11px] text-zinc-500 truncate">Orchestrating agent toolcalls across connected stack</span>
-                        </div>
+                      <div className="w-full px-2 py-1.5 animate-in fade-in duration-150 flex items-center gap-2 text-xs text-zinc-400 select-none">
+                        <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                        <span className="text-xs text-zinc-400 font-normal">Executing tool calls across connected integrations...</span>
                       </div>
                     )}
                   </div>
