@@ -11,6 +11,7 @@ import {
   connectHubSpot,
   connectSlack,
   connectAirtable,
+  connectIntercom,
   connectDemoIntegrationSafe,
   getGmailConnectUrl,
   getIntercomConnectUrl,
@@ -104,7 +105,7 @@ export default function DirectConnectModal({
     provider === 'google_docs' ||
     provider === 'google_drive'
   const isIntercomProvider = provider === 'intercom'
-  const usesOAuthConnect = isGoogleProvider || isIntercomProvider
+  const usesOAuthConnect = isGoogleProvider
 
   const hint = HINTS[provider] ?? {
     label: `${providerLabel} API Key / Token`,
@@ -127,7 +128,6 @@ export default function DirectConnectModal({
         }
       } catch (err: unknown) {
         if (typeof err === 'object' && err !== null && 'digest' in err && typeof err.digest === 'string' && err.digest.startsWith('NEXT_REDIRECT')) {
-          // Check if this redirect was to a success or error URL
           const digest = (err as { digest: string }).digest
           if (digest.includes('error=')) {
             const errorMatch = digest.match(/error=([^&]*)/)
@@ -174,7 +174,6 @@ export default function DirectConnectModal({
     startTransition(async () => {
       try {
         if (!apiKey.trim()) {
-          // Quick fallback connect if left empty
           await connectDemoIntegrationSafe(provider)
           onSuccess(provider, `${providerLabel} connected!`)
           onClose()
@@ -187,6 +186,9 @@ export default function DirectConnectModal({
             break
           case 'posthog':
             await connectPostHog(apiKey.trim(), secondaryInput.trim() || undefined)
+            break
+          case 'intercom':
+            await connectIntercom(apiKey.trim(), intercomRegion)
             break
           case 'notion':
             await connectNotion(apiKey.trim())
@@ -215,7 +217,6 @@ export default function DirectConnectModal({
         onClose()
       } catch (err: unknown) {
         if (typeof err === 'object' && err !== null && 'digest' in err && typeof err.digest === 'string' && err.digest.startsWith('NEXT_REDIRECT')) {
-          // Check if this redirect was to a success or error URL
           const digest = (err as { digest: string }).digest
           if (digest.includes('error=')) {
             const errorMatch = digest.match(/error=([^&]*)/)
@@ -355,6 +356,24 @@ export default function DirectConnectModal({
             </div>
           </div>
 
+          {provider === 'intercom' && (
+            <div>
+              <label className="text-xs font-medium text-neutral-300 block mb-1.5">
+                Intercom Workspace Region
+              </label>
+              <select
+                value={intercomRegion}
+                onChange={(e) => setIntercomRegion(e.target.value as 'us' | 'eu' | 'au')}
+                disabled={isPending}
+                className="w-full bg-[#0B0B0E] border border-[#24242A] rounded-lg py-2.5 px-3 text-xs text-white outline-none focus:border-white/30"
+              >
+                <option value="us">United States (Default)</option>
+                <option value="eu">Europe</option>
+                <option value="au">Australia</option>
+              </select>
+            </div>
+          )}
+
           {(provider === 'posthog' || provider === 'linear' || provider === 'sentry' || provider === 'slack') && (
             <div>
               <label className="text-xs font-medium text-neutral-300 block mb-1.5">
@@ -420,6 +439,20 @@ export default function DirectConnectModal({
               </button>
             </div>
           </div>
+
+          {isIntercomProvider && (
+            <div className="pt-2 border-t border-white/5">
+              <button
+                type="button"
+                onClick={handleOAuthConnect}
+                disabled={isPending}
+                className="w-full py-2 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white text-xs font-medium transition-all flex items-center justify-center gap-2 border border-white/5 disabled:opacity-50"
+              >
+                <img src="/logos/intercom.svg" alt="Intercom" className="w-3.5 h-3.5 object-contain" />
+                <span>Or Connect with Intercom OAuth</span>
+              </button>
+            </div>
+          )}
         </form>
         )}
       </div>

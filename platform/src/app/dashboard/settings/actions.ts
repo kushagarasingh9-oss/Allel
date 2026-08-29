@@ -813,9 +813,74 @@ export async function getGmailConnectUrl(provider: string = 'gmail') {
 }
 
 /**
- * Starts the Intercom OAuth installation flow. We intentionally do not accept
- * a customer-supplied personal access token: Intercom requires OAuth when an
- * app connects to another workspace's data.
+ * Connects Intercom directly via personal/workspace access token.
+ */
+export async function connectIntercom(accessToken: string, regionInput: string = 'us') {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      redirect(buildSettingsRedirect({ error: 'Sign in again to connect Intercom.' }))
+    }
+
+    const { workspaceId } = await getWorkspaceIdForUser(user)
+    const { normalizeIntercomRegion, validateIntercomToken } = await import(
+      '@/integrations/intercom/intercom'
+    )
+    const region = normalizeIntercomRegion(regionInput)
+    const isValid = await validateIntercomToken(accessToken, region)
+    if (!isValid) {
+      redirect(
+        buildSettingsRedirect({
+          error: 'Intercom rejected that access token. Make sure the token is active and valid for the selected region.',
+        })
+      )
+    }
+
+    await saveEncryptedToken({
+      supabase,
+      workspaceId,
+      provider: 'intercom',
+      value: accessToken,
+    })
+
+    await upsertConnection({
+      supabase,
+      workspaceId,
+      provider: 'intercom',
+      metadata: {
+        coverage: 'Direct Intercom token connected',
+        region,
+      },
+    })
+
+    const { message } = await runConnectedProviderSync({
+      supabase,
+      workspaceId,
+      provider: 'intercom',
+      trigger: 'manual_connect',
+    })
+
+    revalidateDashboardSurfaces()
+    redirect(
+      buildSettingsRedirect({
+        success: `Intercom connected. ${message}`,
+      })
+    )
+  } catch (error) {
+    unstable_rethrow(error)
+    redirect(
+      buildSettingsRedirect({
+        error: formatSettingsError(error, 'Could not connect Intercom token.'),
+      })
+    )
+  }
+}
+
+/**
+ * Starts the Intercom OAuth installation flow.
  */
 export async function getIntercomConnectUrl(regionInput: string = 'us') {
   const supabase = await createClient()
@@ -836,7 +901,7 @@ export async function getIntercomConnectUrl(regionInput: string = 'us') {
 
   if (!isIntercomConfigured()) {
     throw new Error(
-      'Intercom OAuth is not configured on this deployment. Set INTERCOM_CLIENT_ID, INTERCOM_CLIENT_SECRET, and INTERCOM_REDIRECT_URI first.'
+      'Intercom OAuth is not configured on this deployment. Set INTERCOM_CLIENT_ID, INTERCOM_CLIENT_SECRET, and INTERCOM_REDIRECT_URI in your .env.local, or connect directly using your Intercom Access Token below.'
     )
   }
 
@@ -858,3 +923,4 @@ export async function getIntercomConnectUrl(regionInput: string = 'us') {
 
   return { authUrl: getIntercomOAuthUrl({ state, region }) }
 }
+
