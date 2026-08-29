@@ -288,15 +288,19 @@ export function DevinChatBox({
               >
                 <div
                   onClick={() => window.location.href = "/dashboard/connections"}
-                  className="w-5.5 h-5.5 rounded-full bg-[#1c1c1c] border border-[#2a2a2a] flex items-center justify-center p-1 shadow-sm transition-all hover:z-30 hover:scale-110 hover:border-zinc-400 cursor-pointer"
-                  title={item.name}
+                  className={cn(
+                    "w-5.5 h-5.5 rounded-full bg-[#1c1c1c] border border-[#2a2a2a] flex items-center justify-center p-1 shadow-sm transition-all duration-150 cursor-pointer relative",
+                    hoveredLogo === item.id
+                      ? "z-40 scale-125 border-zinc-400 shadow-md ring-1 ring-white/20"
+                      : "z-10 hover:z-20 hover:scale-110 hover:border-zinc-500"
+                  )}
                 >
                   <img src={item.icon} alt={item.name} className="w-3.5 h-3.5 object-contain shrink-0" />
                 </div>
 
                 {/* Hover Tooltip Popover Card (Interactive) */}
                 {hoveredLogo === item.id && (
-                  <div className="absolute bottom-8 -left-16 z-50 w-[220px] bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-xs text-zinc-300 select-none">
+                  <div className="absolute bottom-9 -left-20 z-50 w-[220px] bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-xs text-zinc-300 select-none">
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-1.5">
                         <img src={item.icon} alt={item.name} className="w-3.5 h-3.5 object-contain" />
