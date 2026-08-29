@@ -130,6 +130,18 @@ export function ChatProvider({
   const storageUserId = storageScope?.userId ?? null
   const storageWorkspaceId = storageScope?.workspaceId ?? null
   const [activeSessionId, setActiveSessionId] = React.useState<string | null>(null)
+  const [savedSessions, setSavedSessions] = React.useState<SavedChatSession[]>([])
+  const [currentSessionId, setCurrentSessionId] = React.useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const stored = window.localStorage.getItem("allel.current-session-id") || window.sessionStorage.getItem("allel.current-session-id")
+      if (stored) return stored
+    }
+    const fresh = `session-${Date.now()}`
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("allel.current-session-id", fresh)
+    }
+    return fresh
+  })
   const pendingLoadRef = React.useRef<UIMessage[] | null>(null)
   const skipHydrationRef = React.useRef(false)
 
@@ -381,20 +393,6 @@ export function ChatProvider({
   ])
 
   // ── Saved Chat History Management ──
-  const [savedSessions, setSavedSessions] = React.useState<SavedChatSession[]>([])
-  const [currentSessionId, setCurrentSessionId] = React.useState<string>(() => {
-    // Restore session ID from localStorage to prevent resetting history on reload
-    if (typeof window !== "undefined") {
-      const stored = window.localStorage.getItem("allel.current-session-id") || window.sessionStorage.getItem("allel.current-session-id")
-      if (stored) return stored
-    }
-    const fresh = `session-${Date.now()}`
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("allel.current-session-id", fresh)
-    }
-    return fresh
-  })
-
   // Load saved sessions from localStorage on mount, re-title and deduplicate
   React.useEffect(() => {
     if (typeof window === "undefined") return
