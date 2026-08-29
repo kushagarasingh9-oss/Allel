@@ -26,6 +26,44 @@ export interface DevinChatBoxProps {
   className?: string;
 }
 
+const INTEGRATIONS_TOOLTIPS = [
+  {
+    id: "gmail",
+    name: "Gmail",
+    icon: "/logos/gmail.svg",
+    connected: true,
+    desc: "Connected to triage inbox threads and draft email replies.",
+  },
+  {
+    id: "stripe",
+    name: "Stripe",
+    icon: "/logos/stripe.svg",
+    connected: true,
+    desc: "Connected to monitor failed invoice retries & MRR churn risk.",
+  },
+  {
+    id: "calendar",
+    name: "Google Calendar",
+    icon: "/logos/google-calendar.svg",
+    connected: true,
+    desc: "Connected to sync daily meeting briefs & schedule events.",
+  },
+  {
+    id: "posthog",
+    name: "PostHog",
+    icon: "/logos/posthog.svg",
+    connected: false,
+    desc: "Connect to track user telemetry & feature usage analytics.",
+  },
+  {
+    id: "slack",
+    name: "Slack",
+    icon: "/logos/slack.svg",
+    connected: true,
+    desc: "Connected to send real-time agent notifications and alerts.",
+  },
+];
+
 export function DevinChatBox({
   value,
   onChange,
@@ -43,6 +81,7 @@ export function DevinChatBox({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
   const [selectedMode, setSelectedMode] = useState<string>(modeLabel || "Normal");
+  const [hoveredLogo, setHoveredLogo] = useState<string | null>(null);
   const modeMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -238,23 +277,53 @@ export function DevinChatBox({
             {statusMessage}
           </span>
 
-          {/* Overlapping 40-50% Official Integration Logos */}
-          <div className="flex items-center -space-x-2 ml-1.5 shrink-0">
-            <div className="w-5 h-5 rounded-full bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center p-0.5 shadow-sm transition-transform hover:z-10 hover:scale-110" title="Gmail">
-              <SiGmail className="w-3 h-3 text-[#EA4335]" />
-            </div>
-            <div className="w-5 h-5 rounded-full bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center p-0.5 shadow-sm transition-transform hover:z-10 hover:scale-110" title="Stripe">
-              <SiStripe className="w-3 h-3 text-[#635BFF]" />
-            </div>
-            <div className="w-5 h-5 rounded-full bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center p-0.5 shadow-sm transition-transform hover:z-10 hover:scale-110" title="Google Calendar">
-              <SiGooglecalendar className="w-3 h-3 text-[#4285F4]" />
-            </div>
-            <div className="w-5 h-5 rounded-full bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center p-0.5 shadow-sm transition-transform hover:z-10 hover:scale-110" title="PostHog">
-              <SiPosthog className="w-3 h-3 text-[#F54E00]" />
-            </div>
-            <div className="w-5 h-5 rounded-full bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center p-0.5 shadow-sm transition-transform hover:z-10 hover:scale-110" title="GitHub">
-              <SiGithub className="w-3 h-3 text-white" />
-            </div>
+          {/* Overlapping 40-50% Official Integration SVG Logos with Hover Popover Cards */}
+          <div className="flex items-center -space-x-2 ml-1.5 shrink-0 relative">
+            {INTEGRATIONS_TOOLTIPS.map((item) => (
+              <div
+                key={item.id}
+                className="relative group"
+                onMouseEnter={() => setHoveredLogo(item.id)}
+                onMouseLeave={() => setHoveredLogo(null)}
+              >
+                <div
+                  onClick={() => window.location.href = "/dashboard/connections"}
+                  className="w-5.5 h-5.5 rounded-full bg-[#1c1c1c] border border-[#2a2a2a] flex items-center justify-center p-1 shadow-sm transition-all hover:z-30 hover:scale-110 hover:border-zinc-400 cursor-pointer"
+                  title={item.name}
+                >
+                  <img src={item.icon} alt={item.name} className="w-3.5 h-3.5 object-contain shrink-0" />
+                </div>
+
+                {/* Hover Tooltip Popover Card */}
+                {hoveredLogo === item.id && (
+                  <div className="absolute bottom-7 -left-16 z-50 w-[210px] bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-xs text-zinc-300 pointer-events-none select-none">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <img src={item.icon} alt={item.name} className="w-3.5 h-3.5 object-contain" />
+                        <span className="font-semibold text-white">{item.name}</span>
+                      </div>
+                      <span className={cn(
+                        "text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1",
+                        item.connected
+                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                          : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                      )}>
+                        <span className={cn("w-1.5 h-1.5 rounded-full", item.connected ? "bg-emerald-400" : "bg-amber-400")} />
+                        {item.connected ? "Connected" : "Connect"}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-zinc-400 leading-snug mb-2">
+                      {item.desc}
+                    </p>
+
+                    <div className="text-[10px] font-semibold text-[#38bdf8] flex items-center gap-1">
+                      <span>{item.connected ? "Manage connection →" : "Connect now →"}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
