@@ -122,7 +122,17 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
         }
       });
 
-      setHistorySessions(Array.from(map.values()));
+      // Strict title deduplication: keep only 1 entry per distinct title
+      const titleSeen = new Set<string>();
+      const finalUniqueSessions: Array<{ sessionId: string; title: string; updatedAt: string }> = [];
+      for (const s of map.values()) {
+        if (s.title && !titleSeen.has(s.title)) {
+          titleSeen.add(s.title);
+          finalUniqueSessions.push(s);
+        }
+      }
+
+      setHistorySessions(finalUniqueSessions);
     } catch (err) {
       console.error("Failed to load history sessions:", err);
     } finally {
