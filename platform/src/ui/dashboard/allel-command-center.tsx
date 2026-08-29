@@ -174,11 +174,11 @@ export function AllelCommandCenter() {
              STATE 1: DEVIN CENTERED CANVAS (EXACT HOME MATCH)
              ============================================================ */
           <div className="w-full max-w-[760px] px-4 py-6 flex flex-col items-center my-auto animate-in fade-in zoom-in-95 duration-150">
-            {/* Devin Center Emblem Watermark */}
-            <div className="flex flex-col items-center gap-3 mb-6 text-center">
-              <div className="w-12 h-12 flex items-center justify-center opacity-40 hover:opacity-80 transition-opacity">
-                <img src="/1.png" alt="Allel Emblem" className="w-8 h-8 object-contain filter grayscale" />
-              </div>
+            {/* Heading Text in Place of Logo Watermark */}
+            <div className="flex flex-col items-center gap-2 mb-6 text-center">
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white">
+                What do you want to automate today?
+              </h1>
             </div>
 
             {/* Devin Exact Chat Component */}
@@ -194,39 +194,6 @@ export function AllelCommandCenter() {
               statusLinkText="Explore automations"
               onStatusLinkClick={() => window.location.href = "/dashboard/flows"}
             />
-
-            {/* Quick 1-Click Action Cards Grid (Devin Dual-Curved Card Style) */}
-            <div className="w-full mt-6">
-              <div className="flex items-center justify-between mb-2.5 px-1 text-xs font-medium text-zinc-400">
-                <span>Suggested Autonomous Workflows</span>
-                <span className="text-[11px] text-zinc-500">1-Click Launch</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-                {QUICK_ACTIONS.map((action) => (
-                  <button
-                    key={action.id}
-                    type="button"
-                    onClick={() => handleSubmit(action.prompt)}
-                    className="flex flex-col text-left p-1.5 rounded-2xl bg-[#1e1e1e] border border-[#2a2a2a] hover:border-zinc-500 transition-all cursor-pointer group shadow-lg shadow-black/40"
-                  >
-                    <div className="w-full bg-[#292929] border border-[#363636] rounded-xl p-3 flex flex-col gap-1.5 transition-colors group-hover:bg-[#2e2e2e]">
-                      <div className="flex items-center justify-between w-full">
-                        <span className="text-xs font-semibold text-zinc-200 group-hover:text-white transition-colors">
-                          {action.title}
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.06] text-zinc-300 font-medium">
-                          {action.badge}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-zinc-400 leading-snug line-clamp-2">
-                        {action.desc}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {/* Recent Sessions Box below Omnibar (Devin Dual-Curved Card Style) */}
             <div className="w-full mt-6">
