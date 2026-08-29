@@ -25,23 +25,7 @@ export async function GET(request: NextRequest) {
       .limit(30);
 
     if (error || !rows || rows.length === 0) {
-      // Fallback default mock/demo sessions if DB table has no rows yet
-      return NextResponse.json({
-        sessions: [
-          {
-            sessionId: "session-1788035215812",
-            personaId: "alex",
-            title: "Close integration, draft-send...",
-            updatedAt: new Date().toISOString(),
-          },
-          {
-            sessionId: "session-1788034900120",
-            personaId: "alex",
-            title: "Setup Stripe failed payment workflow",
-            updatedAt: new Date(Date.now() - 3600000).toISOString(),
-          },
-        ]
-      });
+      return NextResponse.json({ sessions: [] });
     }
 
     const sessions = rows.map((row) => {
