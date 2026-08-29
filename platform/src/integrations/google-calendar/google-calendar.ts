@@ -64,6 +64,20 @@ export type CalendarListEntry = {
 //  Access Token — Independent Google Calendar OAuth
 // ============================================================
 
+/** Safety margin so a token cannot expire mid-request. */
+export const CALENDAR_TOKEN_EXPIRY_MARGIN_MS = 60_000
+
+/**
+ * A null, malformed, or imminently expiring `expires_at` counts as expired.
+ */
+export function isCalendarAccessTokenUsable(
+  expiresAt: string | null | undefined,
+  now: number = Date.now()
+): boolean {
+  const expiresAtMs = expiresAt ? new Date(expiresAt).getTime() : Number.NaN
+  return Number.isFinite(expiresAtMs) && expiresAtMs > now + CALENDAR_TOKEN_EXPIRY_MARGIN_MS
+}
+
 async function getCalendarAccessToken(workspaceId: string, forceRefresh: boolean = false): Promise<string> {
   const supabase = createServiceClient()
 
@@ -90,13 +104,7 @@ async function getCalendarAccessToken(workspaceId: string, forceRefresh: boolean
     throw new Error(errorMsg)
   }
 
-  // Keep a safety margin so the token cannot expire during an API request.
-  // A null or non-finite expires_at MUST be treated as expired.
-  const expiresAtMs = accessRow.expires_at
-    ? new Date(accessRow.expires_at).getTime()
-    : Number.NaN
-  const isTokenValid = !forceRefresh && Number.isFinite(expiresAtMs) && expiresAtMs > Date.now() + 60_000
-  if (isTokenValid) {
+  if (!forceRefresh && isCalendarAccessTokenUsable(accessRow.expires_at)) {
     return decrypt(accessRow.encrypted_value, accessRow.iv, accessRow.auth_tag)
   }
 
@@ -154,34 +162,52 @@ async function getCalendarAccessToken(workspaceId: string, forceRefresh: boolean
   }
 }
 
+export type CalendarAccessDeps = {
+  getAccessToken: (workspaceId: string, forceRefresh: boolean) => Promise<string>
+  markAuthSucceeded: (workspaceId: string) => Promise<void>
+  markAuthFailed: (workspaceId: string, errorMessage: string) => Promise<void>
+}
+
+function defaultCalendarAccessDeps(): CalendarAccessDeps {
+  const supabase = createServiceClient()
+  return {
+    getAccessToken: getCalendarAccessToken,
+    markAuthSucceeded: async (workspaceId) => {
+      await markIntegrationAuthSucceeded({ supabase, workspaceId, provider: 'google_calendar' })
+    },
+    markAuthFailed: async (workspaceId, errorMessage) => {
+      await markIntegrationAuthFailed({
+        supabase,
+        workspaceId,
+        provider: 'google_calendar',
+        errorMessage,
+      })
+    },
+  }
+}
+
 export async function executeWithCalendarAccessToken<T>(
   workspaceId: string,
-  fn: (accessToken: string) => Promise<T>
+  fn: (accessToken: string) => Promise<T>,
+  deps: CalendarAccessDeps = defaultCalendarAccessDeps()
 ): Promise<T> {
-  const supabase = createServiceClient()
-
   try {
-    const accessToken = await getCalendarAccessToken(workspaceId, false)
+    const accessToken = await deps.getAccessToken(workspaceId, false)
     const result = await fn(accessToken)
-    await markIntegrationAuthSucceeded({ supabase, workspaceId, provider: 'google_calendar' })
+    await deps.markAuthSucceeded(workspaceId)
     return result
   } catch (error) {
     // Shared detector so Calendar, Gmail, and the chat-boundary guard all agree
     // on what an auth failure is — and all correctly exclude a 403 rate limit.
     if (isProviderAuthFailure(error)) {
       try {
-        const freshAccessToken = await getCalendarAccessToken(workspaceId, true)
+        const freshAccessToken = await deps.getAccessToken(workspaceId, true)
         const result = await fn(freshAccessToken)
-        await markIntegrationAuthSucceeded({ supabase, workspaceId, provider: 'google_calendar' })
+        await deps.markAuthSucceeded(workspaceId)
         return result
       } catch (retryError) {
         const msg = retryError instanceof Error ? retryError.message : String(retryError)
-        await markIntegrationAuthFailed({
-          supabase,
-          workspaceId,
-          provider: 'google_calendar',
-          errorMessage: `Google Calendar 401 retry failed: ${msg}`,
-        })
+        await deps.markAuthFailed(workspaceId, `Google Calendar 401 retry failed: ${msg}`)
         throw retryError
       }
     }

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "bash -c 'shopt -s globstar; exec tsx --test src/**/*.test.ts'",
     "scenario:evaluate": "tsx -e \"import { exportScenarioEvaluationReport } from './src/lib/recovery/scenarios/export'; console.log(exportScenarioEvaluationReport().markdownTable)\""
   },
   "dependencies": {
@@ -16,7 +16,6 @@
     "@ai-sdk/react": "^3.0.151",
     "@base-ui/react": "^1.4.0",
     "@icons-pack/react-simple-icons": "^13.11.1",
-    "@pipedream/sdk": "^2.4.5",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-slot": "^1.2.4",
     "@supabase/ssr": "^0.10.0",

@@ -14,7 +14,7 @@
 
 import { createServiceClient } from '@/foundation/database/service'
 import { logAgentRun } from '@/agent/runtime/run-logger'
-import { getPostHogCredentials } from '@/integrations/posthog/posthog'
+import { getPostHogCredentials, POSTHOG_DEFAULT_HOST } from '@/integrations/posthog/posthog'
 import { generateWorkspaceBrief } from '@/intelligence/briefs/generate-workspace-brief'
 import { mergeIntegrationConnectionMetadata } from '@/integrations/_core/connection-guard'
 import { upsertProviderIdentity, resolveAccountIdentity } from '@/recovery/identity'
@@ -175,7 +175,7 @@ function usageDeltaPercent(currentEvents: number, previousEvents: number): numbe
 async function fetchAllPersons(
   apiKey: string,
   projectId: string,
-  apiHost: string = 'https://us.posthog.com'
+  apiHost: string = POSTHOG_DEFAULT_HOST
 ): Promise<PostHogPerson[]> {
   let nextUrl: string | null = `${apiHost}/api/projects/${projectId}/persons/?limit=200`
   const people: PostHogPerson[] = []
@@ -203,7 +203,7 @@ async function fetchIncrementalEvents(
   apiKey: string,
   projectId: string,
   afterIso: string,
-  apiHost: string = 'https://us.posthog.com'
+  apiHost: string = POSTHOG_DEFAULT_HOST
 ): Promise<PostHogEvent[]> {
   // §13.12: Bounded overlap window to tolerate late-arriving events
   const overlapMs = RECOVERY_CONFIG.POSTHOG_LATE_EVENT_OVERLAP_HOURS * 60 * 60 * 1000

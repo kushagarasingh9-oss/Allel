@@ -198,7 +198,17 @@ import {
   webMapTool,
 } from '@/integrations/web-research/web-research'
 
-const DEFAULT_AGENT_MODEL_ID = process.env.OPENAI_MODEL_ID ?? process.env.AGENT_MODEL_ID ?? 'gpt-5.6'
+const FALLBACK_AGENT_MODEL_ID = 'gpt-5.6'
+
+function envModelId(value: string | undefined): string | undefined {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : undefined
+}
+
+const DEFAULT_AGENT_MODEL_ID =
+  envModelId(process.env.OPENAI_MODEL_ID) ??
+  envModelId(process.env.AGENT_MODEL_ID) ??
+  FALLBACK_AGENT_MODEL_ID
 const MODEL_PRICING_CENTS_PER_MILLION = [
   { prefixes: ['Kimi-K2'], input: 95, output: 400 },
   { prefixes: ['gpt-5.6'], input: 600, output: 3500 },
@@ -1536,12 +1546,24 @@ function cacheSet(key: string, agent: ToolLoopAgent) {
   agentCache.set(key, agent)
 }
 
-export function resolveAgentModelId(_options?: {
+/**
+ * Chat and automation runs can be pointed at different deployments through
+ * `AGENT_CHAT_MODEL_ID` / `AGENT_AUTOMATION_MODEL_ID`; both fall back to the
+ * shared default.
+ */
+export function resolveAgentModelId(options?: {
   personaId?: PersonaId
   runType?: string
   channel?: 'chat' | 'automation'
 }) {
-  return process.env.OPENAI_MODEL_ID || 'gpt-5.6'
+  const channelModelId =
+    options?.channel === 'chat'
+      ? envModelId(process.env.AGENT_CHAT_MODEL_ID)
+      : options?.channel === 'automation'
+        ? envModelId(process.env.AGENT_AUTOMATION_MODEL_ID)
+        : undefined
+
+  return channelModelId ?? DEFAULT_AGENT_MODEL_ID
 }
 
 /**

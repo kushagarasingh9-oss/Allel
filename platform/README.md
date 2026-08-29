@@ -33,7 +33,7 @@ Founder-facing retention operations app built with Next.js, Supabase, and the AI
 - Supabase for auth, storage, and product state
 - AI SDK 6 + OpenAI
 - Tailwind CSS 4
-- Direct API connections for Stripe and PostHog; OAuth for Gmail, Calendar, and Intercom. The former Pipedream connect flow has been removed; `@pipedream/sdk` remains a declared but unimported dependency.
+- Direct API connections for Stripe and PostHog; OAuth for Gmail, Calendar, and Intercom. The former Pipedream connect flow has been removed.
 
 ## Local Development
 
@@ -45,7 +45,13 @@ npm install
 
 2. Set up environment variables in `.env.local`.
 
-> `web/.env.example` is matched by `web/.gitignore` (`.env*`) and is therefore **not tracked by git**, so a fresh clone has no template. It is also incomplete. Use the list below.
+> Copy the tracked template `.env.example.template` to `.env.local` and fill in the values:
+>
+> ```bash
+> cp .env.example.template .env.local
+> ```
+>
+> It contains every key listed below.
 
 Required:
 - `NEXT_PUBLIC_SUPABASE_URL`
@@ -69,11 +75,9 @@ Integrations and delivery:
 - `NEXT_PUBLIC_APP_URL`
 
 Optional model overrides:
-- `OPENAI_MODEL_ID` (the only one currently honoured at runtime)
+- `OPENAI_MODEL_ID`, `AGENT_MODEL_ID` — global default model
+- `AGENT_CHAT_MODEL_ID`, `AGENT_AUTOMATION_MODEL_ID` — per-channel overrides applied to chat and automation runs respectively
 - `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT` or `AZURE_OPENAI_BASE_URL`
-- `AGENT_MODEL_ID`, `AGENT_CHAT_MODEL_ID`, `AGENT_AUTOMATION_MODEL_ID` — declared in `agent.ts` but not routed per run type
-
-The `PIPEDREAM_*` keys still present in `.env.example` are read by no code.
 
 3. Run the ordered Supabase SQL migrations from `../database/migrations` (or `node scripts/apply-migrations.cjs` after configuring `.env.local`).
 

@@ -282,7 +282,7 @@ test('Task 9b: Sarah owns the full calendar lifecycle, Henry stays read-only', (
 
 test('P0.2: model failure classification decides retry, fallback, or surface', () => {
   const { classifyModelFailure, classifyModelFailureClass, isFallbackEligibleFailure } =
-    require('./error-classifier')
+    require('../runtime/error-classifier')
 
   assert.equal(classifyModelFailure(new Error('Azure returned 503 service unavailable')), 'retry')
   assert.equal(classifyModelFailureClass(new Error('request timed out')), 'transient_upstream')
@@ -316,7 +316,7 @@ test('Task 3.2: classifyAndSanitizeServerError strips vendor URLs and request ID
 })
 
 test('Task 5: inspectIntegrationConnectionsTool maps provider connection status and guard verdicts', async () => {
-  const { resolveConnectionStatus, isUnverifiedConnection } = require('../integrations/connection-guard')
+  const { resolveConnectionStatus, isUnverifiedConnection } = require('../../integrations/_core/connection-guard')
 
   const connectionRow = {
     provider: 'google_calendar',
@@ -338,7 +338,7 @@ test('Task 5: inspectIntegrationConnectionsTool maps provider connection status 
 })
 
 test('Task 8.1: resolveConnectionStatus unifies status verdicts with the chat guard', () => {
-  const { resolveConnectionStatus, isUnverifiedConnection } = require('../integrations/connection-guard')
+  const { resolveConnectionStatus, isUnverifiedConnection } = require('../../integrations/_core/connection-guard')
 
   const unverifiedCalendar = {
     provider: 'google_calendar',
@@ -358,7 +358,7 @@ test('Task 8.1: resolveConnectionStatus unifies status verdicts with the chat gu
 })
 
 test('Task 9: getGmailThreadDetailTool is registered and mapped to gmail provider', () => {
-  const { ALL_TOOLS, getIntegrationProviderForTool } = require('./agent')
+  const { ALL_TOOLS, getIntegrationProviderForTool } = require('../runtime/agent')
   assert.ok(ALL_TOOLS.getGmailThreadDetailTool, 'getGmailThreadDetailTool must be registered in ALL_TOOLS')
   assert.equal(
     getIntegrationProviderForTool('getGmailThreadDetailTool'),
@@ -399,7 +399,7 @@ test('Task 11: Google Docs tools return non-fixture not-implemented results', as
 })
 
 test('extractToolNamesFromHistory extracts tool names from nested toolInvocation parts', () => {
-  const { extractToolNamesFromHistory } = require('./agent')
+  const { extractToolNamesFromHistory } = require('../runtime/agent')
   const sampleMessages = [
     {
       role: 'assistant',

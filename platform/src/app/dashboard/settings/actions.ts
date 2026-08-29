@@ -10,7 +10,11 @@ import { createClient } from '@/foundation/database/server'
 import { encrypt } from '@/integrations/_core/encryption'
 import { validateStripeKey } from '@/integrations/stripe/stripe'
 import { validateAirtableToken } from '@/integrations/airtable/airtable'
-import { validatePostHogKey, validateAndResolvePostHog } from '@/integrations/posthog/posthog'
+import {
+  validatePostHogKey,
+  validateAndResolvePostHog,
+  POSTHOG_DEFAULT_HOST,
+} from '@/integrations/posthog/posthog'
 import { validateHubSpotToken } from '@/integrations/hubspot/hubspot'
 import { validateSlackBotToken } from '@/integrations/slack/slack'
 import { validateSentryToken } from '@/integrations/sentry/sentry'
@@ -240,7 +244,7 @@ export async function connectPostHog(apiKey: string, projectId?: string) {
     }
 
     const effectiveProjectId = result.resolvedProjectId || trimmedProject || 'default'
-    const effectiveHost = result.resolvedHost || 'https://us.posthog.com'
+    const effectiveHost = result.resolvedHost || POSTHOG_DEFAULT_HOST
 
     await saveEncryptedToken({ supabase, workspaceId, provider: 'posthog', value: trimmedKey })
     await upsertConnection({
