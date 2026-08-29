@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/foundation/database/client";
 import {
+  SquarePen,
   Plus,
   ArrowUp,
   Search,
@@ -345,9 +346,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
             )}
             title="New task"
           >
-            <div className="w-4 h-4 rounded-full border border-zinc-400 group-hover:border-white flex items-center justify-center shrink-0 transition-colors">
-              <Plus className="w-3 h-3 text-zinc-300 group-hover:text-white transition-colors" />
-            </div>
+            <SquarePen className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors shrink-0" />
             {!collapsed && <span>New task</span>}
           </button>
 
