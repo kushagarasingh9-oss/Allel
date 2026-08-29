@@ -10,13 +10,10 @@ import {
   Search,
   PanelLeftClose,
   PanelLeftOpen,
-  BookOpen,
-  FileText,
+  Bot,
   Zap,
-  ShieldCheck,
-  GitPullRequest,
   Plug,
-  SlidersHorizontal,
+  MessageSquare,
   ChevronDown,
   ChevronRight,
   Bell,
@@ -96,12 +93,12 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
     }
   };
 
-  // Nav list matching exact user spec: Artifacts, Automations, Security, Review, Customize
+  // Nav list matching user spec: Agents, Automations, Connections, Sessions
   const navLinks = [
     {
-      label: "Artifacts",
-      href: "/dashboard/artifacts",
-      icon: BookOpen,
+      label: "Agents",
+      href: "/dashboard/agents",
+      icon: Bot,
       exact: false,
     },
     {
@@ -111,21 +108,15 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
       exact: false,
     },
     {
-      label: "Security",
-      href: "/dashboard/security",
-      icon: ShieldCheck,
+      label: "Connections",
+      href: "/dashboard/connections",
+      icon: Plug,
       exact: false,
     },
     {
-      label: "Review",
-      href: "/dashboard/review",
-      icon: GitPullRequest,
-      exact: false,
-    },
-    {
-      label: "Customize",
-      href: "/dashboard/customize",
-      icon: SlidersHorizontal,
+      label: "Sessions",
+      href: "/dashboard/history",
+      icon: MessageSquare,
       exact: false,
     },
   ];
@@ -140,7 +131,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
         )}
       >
         {/* Top Header & Navigation */}
-        <div className="flex flex-col gap-4 min-h-0 flex-1">
+        <div className="flex flex-col min-h-0 flex-1">
           {/* Header Row: Logo & Icons */}
           {collapsed ? (
             /* Minimized Top Header: Logo converts to PanelLeftOpen Expand icon on hover */
@@ -193,7 +184,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
             </div>
           )}
 
-          {/* + New task / session Action Button (Highlighted Box ONLY on Hover) */}
+          {/* + New task Action Button (Shifted down a bit with mt-3.5 mb-1) */}
           <button
             type="button"
             onClick={() => {
@@ -204,9 +195,9 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
               }
             }}
             className={cn(
-              "group flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer border border-transparent",
+              "group flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer border border-transparent mt-3.5 mb-1",
               "text-zinc-300 hover:text-white hover:bg-[#1c1c1c] hover:border-[#262626]",
-              collapsed && "justify-center px-0"
+              collapsed && "justify-center px-0 mt-3 mb-1"
             )}
             title="New task"
           >
