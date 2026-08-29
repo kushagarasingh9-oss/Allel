@@ -460,26 +460,11 @@ function generateRefinedTitle(messages: UIMessage[]): string {
   return "General Discussion"
 }
 
-  // Notify sidebar on session initialization and auto-save active chat session when status is ready
+  // Auto-save active chat session immediately on user prompt and refresh history
   React.useEffect(() => {
     if (typeof window === "undefined" || messages.length === 0) return
     const hasUserMsg = messages.some((m) => m.role === "user")
     if (!hasUserMsg) return
-
-    if (status === "submitted" || status === "streaming") {
-      const isExistingSession = savedSessions.some((s) => s.id === currentSessionId)
-      const userMsgCount = messages.filter((m) => m.role === "user").length
-      if (!isExistingSession && userMsgCount <= 1) {
-        window.dispatchEvent(
-          new CustomEvent("allel:session-starting", {
-            detail: { sessionId: currentSessionId }
-          })
-        )
-      }
-      return
-    }
-
-    if (status !== "ready") return
 
     const title = generateRefinedTitle(messages)
 
