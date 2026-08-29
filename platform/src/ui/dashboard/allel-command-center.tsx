@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useChatContext } from "@/ui/chat/chat-provider";
 import { AgentFeed } from "@/ui/chat/agent-feed";
+import { DevinChatBox } from "@/ui/primitives/devin-chat-box";
 import {
   ArrowUp,
   Square,
@@ -169,104 +170,19 @@ export function AllelCommandCenter() {
               </div>
             </div>
 
-            {/* Devin Exact Centered Omnibar Container */}
-            <div className="w-full bg-[#212121] border border-[#2c2c2c] rounded-2xl shadow-2xl shadow-black/80 focus-within:border-zinc-500 transition-all overflow-hidden">
-              {/* Top Text Area */}
-              <div className="p-3.5 pb-2">
-                <textarea
-                  ref={textareaRef}
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  rows={2}
-                  placeholder='Tip: Try typing "megaplan" to plan deeply before building'
-                  className="w-full bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-500 resize-none outline-none focus:outline-none min-h-[48px] max-h-[160px] leading-relaxed"
-                />
-              </div>
-
-              {/* Action Row Inside Omnibar */}
-              <div className="flex items-center justify-between px-3 pb-3 text-xs">
-                <div className="flex items-center gap-2 text-zinc-400">
-                  <button
-                    type="button"
-                    className="p-1 hover:text-white rounded bg-white/[0.04] border border-white/[0.06] transition-colors cursor-pointer"
-                    title="Add context"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    type="button"
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/[0.04] border border-white/[0.06] text-[11px] font-medium hover:text-white transition-colors cursor-pointer"
-                  >
-                    <Code2 className="w-3 h-3 text-zinc-400" />
-                    <span>Code</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setModelName(modelName === "SWE-1.6 Slow" ? "SWE-1.6 Fast" : "SWE-1.6 Slow")}
-                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-zinc-300 hover:text-white transition-colors cursor-pointer"
-                  >
-                    <span>{modelName}</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2 text-zinc-400">
-                  <div className="flex items-center gap-1 text-[11px] font-medium text-zinc-300 px-2 py-1 rounded-md bg-white/[0.04]">
-                    <Sparkles className="w-3 h-3 text-blue-400" />
-                    <span>Allel Local</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="p-1 hover:text-white rounded transition-colors cursor-pointer"
-                    title="Voice input"
-                  >
-                    <Mic className="w-3.5 h-3.5 text-zinc-400" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSubmit()}
-                    disabled={!inputText.trim() && !isLoading}
-                    className={cn(
-                      "w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer",
-                      inputText.trim() || isLoading
-                        ? "bg-white text-black hover:bg-zinc-200"
-                        : "bg-white/10 text-zinc-500 cursor-not-allowed"
-                    )}
-                  >
-                    {isLoading ? (
-                      <Square className="w-3 h-3 fill-current" />
-                    ) : (
-                      <ArrowUp className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Sub-bar inside Omnibar (Devin Footer Bar) */}
-              <div className="flex items-center justify-between px-3.5 py-2 border-t border-[#2a2a2a] bg-[#1c1c1c] text-[11px] text-zinc-400">
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1 hover:text-zinc-200 cursor-pointer">
-                    <Laptop className="w-3 h-3" /> Local
-                  </span>
-                  <span className="flex items-center gap-1 hover:text-zinc-200 cursor-pointer">
-                    <Folder className="w-3 h-3" /> Choose folder
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => window.location.href = "/dashboard/flows"}
-                  className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
-                >
-                  <span>Go to agent manager</span>
-                  <ArrowUpRight className="w-3 h-3" />
-                </button>
-              </div>
-            </div>
+            {/* Devin Exact Chat Component */}
+            <DevinChatBox
+              value={inputText}
+              onChange={setInputText}
+              onSubmit={handleSubmit}
+              isLoading={isLoading}
+              onStop={stop}
+              placeholder="Ask Allel to build features, fix bugs, or work on your code"
+              modeLabel="Normal"
+              statusMessage="Autonomous Engine Active • All integrations synchronized"
+              statusLinkText="Explore automations"
+              onStatusLinkClick={() => window.location.href = "/dashboard/flows"}
+            />
 
             {/* Quick 1-Click Action Cards Grid (Runable & Devin style) */}
             <div className="w-full mt-6">
@@ -366,42 +282,18 @@ export function AllelCommandCenter() {
 
             {/* Pinned Bottom Omnibar */}
             <div className="sticky bottom-4 left-0 right-0 w-full pt-4 bg-gradient-to-t from-[#141414] via-[#141414]/95 to-transparent z-20">
-              <div className="w-full bg-[#212121] border border-[#2c2c2c] rounded-2xl p-2.5 shadow-2xl shadow-black/80 focus-within:border-zinc-500 transition-all">
-                <textarea
-                  ref={textareaRef}
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  rows={1}
-                  placeholder="Ask a follow-up or provide instructions..."
-                  className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 resize-none outline-none focus:outline-none min-h-[38px] max-h-[140px] px-2 py-1 leading-relaxed"
-                />
-
-                <div className="flex items-center justify-between pt-1.5 border-t border-[#2a2a2a] px-1 text-xs">
-                  <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    <span>Live Context Sync</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSubmit()}
-                    disabled={!inputText.trim() && !isLoading}
-                    className={cn(
-                      "w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer",
-                      inputText.trim() || isLoading
-                        ? "bg-white text-black hover:bg-zinc-200"
-                        : "bg-white/10 text-zinc-500 cursor-not-allowed"
-                    )}
-                  >
-                    {isLoading ? (
-                      <Square className="w-3 h-3 fill-current" />
-                    ) : (
-                      <ArrowUp className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-                </div>
-              </div>
+              <DevinChatBox
+                value={inputText}
+                onChange={setInputText}
+                onSubmit={handleSubmit}
+                isLoading={isLoading}
+                onStop={stop}
+                placeholder="Ask a follow-up or provide instructions..."
+                modeLabel="Normal"
+                statusMessage="Autonomous Engine Active • All integrations synchronized"
+                statusLinkText="View automations"
+                onStatusLinkClick={() => window.location.href = "/dashboard/flows"}
+              />
             </div>
           </div>
         )}
