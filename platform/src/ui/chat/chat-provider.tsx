@@ -558,7 +558,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
       try {
         const url = new URL(window.location.href)
         url.pathname = "/dashboard"
-        url.searchParams.set("sessionId", newSessionId)
+        url.searchParams.delete("sessionId")
         window.history.pushState({}, "", url.toString())
       } catch {
         // Ignore

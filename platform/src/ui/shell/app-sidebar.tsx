@@ -300,6 +300,16 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
           <button
             type="button"
             onClick={() => {
+              if (typeof window !== "undefined") {
+                try {
+                  const url = new URL(window.location.href);
+                  url.pathname = "/dashboard";
+                  url.searchParams.delete("sessionId");
+                  window.history.pushState({}, "", url.toString());
+                } catch {
+                  // Ignore
+                }
+              }
               if (window.location.pathname !== "/dashboard") {
                 window.location.href = "/dashboard";
               } else {
@@ -384,10 +394,13 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                     </div>
                   ) : (
                     historySessions.map((session) => {
-                      const activeSessionId = chatContext?.currentSessionId || (typeof window !== "undefined"
-                        ? new URLSearchParams(window.location.search).get("sessionId")
-                        : null);
-                      const isSelected = activeSessionId === session.sessionId;
+                      const hasActiveMessages = Boolean(chatContext?.messages && chatContext.messages.length > 0);
+                      const activeSessionId = hasActiveMessages
+                        ? (chatContext?.currentSessionId || (typeof window !== "undefined"
+                            ? new URLSearchParams(window.location.search).get("sessionId")
+                            : null))
+                        : null;
+                      const isSelected = Boolean(hasActiveMessages && activeSessionId === session.sessionId);
 
                       return (
                         <div key={session.sessionId} className="relative group w-full">
