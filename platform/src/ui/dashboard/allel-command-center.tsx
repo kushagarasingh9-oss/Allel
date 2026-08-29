@@ -172,7 +172,7 @@ export function AllelCommandCenter() {
       </header>
 
       {/* Main Space Workspace Body */}
-      <div className="flex-1 min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
+      <div className="flex-1 h-full min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
         {!hasMessages ? (
           <div className="w-full max-w-[700px] px-4 py-6 flex flex-col items-center my-auto animate-in fade-in zoom-in-95 duration-150">
             {/* Clean Minimal Left-Aligned Title Above Chat Box */}
@@ -199,8 +199,8 @@ export function AllelCommandCenter() {
           /* ============================================================
              STATE 2: FULL-WIDTH AGENT EXECUTION FEED (ACTIVE RUN)
              ============================================================ */
-          <div className="w-full flex-1 flex flex-col justify-between max-w-[760px] mx-auto px-4 py-4 animate-in fade-in duration-200 relative">
-            <div className="flex-1 w-full min-h-0 flex flex-col">
+          <div className="w-full h-full flex-1 min-h-0 flex flex-col justify-between max-w-[760px] mx-auto px-4 py-2 animate-in fade-in duration-200 relative">
+            <div className="flex-1 h-full min-h-0 w-full flex flex-col relative overflow-hidden">
               <AgentFeed />
             </div>
 

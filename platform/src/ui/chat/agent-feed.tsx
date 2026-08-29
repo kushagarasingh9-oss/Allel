@@ -1664,7 +1664,7 @@ export function AgentFeed() {
   }
 
   return (
-    <div ref={feedRef} className="flex-1 overflow-y-auto px-6 py-6 flex flex-col custom-scrollbar scroll-smooth">
+    <div ref={feedRef} className="w-full h-full flex-1 min-h-0 overflow-y-auto px-6 py-6 flex flex-col custom-scrollbar scroll-smooth">
       <div className="w-full flex flex-col gap-4 pb-48">
         {displayMessages.map((message, idx) => (
           <AgentMessageBubble
