@@ -23,6 +23,7 @@ export interface DevinChatBoxProps {
   statusMessage?: string;
   statusLinkText?: string;
   onStatusLinkClick?: () => void;
+  hideStatusBanner?: boolean;
   className?: string;
 }
 
@@ -64,25 +65,49 @@ const INTEGRATIONS_TOOLTIPS = [
   },
 ];
 
+const DYNAMIC_STACK_ITEMS = [
+  { name: "Gmail", icon: "/logos/gmail.svg" },
+  { name: "Stripe", icon: "/logos/stripe.svg" },
+  { name: "Google Calendar", icon: "/logos/google-calendar.svg" },
+  { name: "PostHog", icon: "/logos/posthog.svg" },
+  { name: "Slack", icon: "/logos/slack.svg" },
+  { name: "Linear", icon: "/logos/linear.svg" },
+  { name: "Intercom", icon: "/logos/intercom.svg" },
+  { name: "HubSpot", icon: "/logos/hubspot.svg" },
+  { name: "Sentry", icon: "/logos/sentry-light.svg" },
+  { name: "Airtable", icon: "/logos/airtable.svg" },
+  { name: "Notion", icon: "/logos/notion.svg" },
+];
+
 export function DevinChatBox({
   value,
   onChange,
   onSubmit,
   isLoading = false,
   onStop,
-  placeholder = "Ask Allel to build features, fix bugs, or work on your code",
+  placeholder,
   modeLabel = "Normal",
   onModeToggle,
   statusMessage = "Connect your stack to automate your workflows",
   statusLinkText = "+more",
   onStatusLinkClick,
+  hideStatusBanner = false,
   className,
 }: DevinChatBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
   const [selectedMode, setSelectedMode] = useState<string>(modeLabel || "Normal");
   const [hoveredLogo, setHoveredLogo] = useState<string | null>(null);
+  const [stackIndex, setStackIndex] = useState(0);
   const modeMenuRef = useRef<HTMLDivElement>(null);
+
+  // Cycle dynamic placeholder integration names & monochrome SVG logos
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setStackIndex((prev) => (prev + 1) % DYNAMIC_STACK_ITEMS.length);
+    }, 2800);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -120,12 +145,30 @@ export function DevinChatBox({
   return (
     <div
       className={cn(
-        "w-full max-w-[700px] mx-auto bg-[#191919] border border-[#282828] rounded-[24px] p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 transition-all select-none",
+        "w-full max-w-[700px] mx-auto transition-all select-none",
+        hideStatusBanner
+          ? "bg-transparent border-0 p-0 shadow-none gap-0"
+          : "bg-[#191919] border border-[#282828] rounded-[24px] p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5",
         className
       )}
     >
       {/* 1. UPPER INNER FLOATING INPUT CARD */}
-      <div className="w-full bg-[#292929] border border-[#363636] rounded-[18px] p-3.5 sm:p-4 focus-within:border-zinc-400 transition-all flex flex-col justify-between min-h-[102px]">
+      <div className="w-full bg-[#292929] border border-[#363636] rounded-[18px] p-3.5 sm:p-4 focus-within:border-zinc-400 transition-all flex flex-col justify-between min-h-[102px] relative">
+        {/* Animated Custom Monochrome Placeholder Overlay */}
+        {!value && !placeholder && (
+          <div className="absolute top-3.5 sm:top-4 left-3.5 sm:left-4 pointer-events-none flex items-center gap-1.5 text-xs text-zinc-500 font-sans tracking-tight select-none z-10">
+            <span>Ask Allel to work across your</span>
+            <div className="flex items-center gap-1 transition-all duration-300">
+              <img
+                src={DYNAMIC_STACK_ITEMS[stackIndex].icon}
+                alt={DYNAMIC_STACK_ITEMS[stackIndex].name}
+                className="w-3 h-3 object-contain grayscale opacity-60 filter brightness-150 shrink-0"
+              />
+              <span className="text-zinc-400 font-medium">{DYNAMIC_STACK_ITEMS[stackIndex].name}...</span>
+            </div>
+          </div>
+        )}
+
         {/* Textarea Input */}
         <textarea
           ref={textareaRef}
@@ -133,8 +176,8 @@ export function DevinChatBox({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={2}
-          placeholder={placeholder}
-          className="w-full bg-transparent text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 resize-none outline-none focus:outline-none min-h-[44px] max-h-[140px] leading-relaxed font-sans px-0.5 tracking-tight"
+          placeholder={placeholder ? placeholder : ""}
+          className="w-full bg-transparent text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 transition-all duration-300 resize-none outline-none focus:outline-none min-h-[44px] max-h-[140px] leading-relaxed font-sans px-0.5 tracking-tight relative z-20"
         />
 
         {/* Action Controls Row Inside Inner Card */}
@@ -268,85 +311,87 @@ export function DevinChatBox({
       </div>
 
       {/* 2. OUTER CARD STATUS FOOTER BANNER */}
-      <div className="flex items-center justify-between px-3.5 pt-2 pb-2.5 text-xs">
-        <div className="flex items-center gap-2 text-zinc-300 font-medium truncate">
-          <span className="w-3.5 h-3.5 rounded-full border border-zinc-400 flex items-center justify-center text-[10px] text-zinc-400 shrink-0 font-semibold">
-            !
-          </span>
-          <span className="truncate text-xs text-zinc-300 font-medium">
-            {statusMessage}
-          </span>
+      {!hideStatusBanner && (
+        <div className="flex items-center justify-between px-3.5 pt-2 pb-2.5 text-xs">
+          <div className="flex items-center gap-2 text-zinc-300 font-medium truncate">
+            <span className="w-3.5 h-3.5 rounded-full border border-zinc-400 flex items-center justify-center text-[10px] text-zinc-400 shrink-0 font-semibold">
+              !
+            </span>
+            <span className="truncate text-xs text-zinc-300 font-medium">
+              {statusMessage}
+            </span>
 
-          {/* Overlapping 40-50% Official Integration SVG Logos with Hover Popover Cards */}
-          <div className="flex items-center -space-x-2 ml-1.5 shrink-0 relative">
-            {INTEGRATIONS_TOOLTIPS.map((item) => (
-              <div
-                key={item.id}
-                className={cn("relative transition-all duration-150", hoveredLogo === item.id ? "z-30" : "z-10")}
-                onMouseEnter={() => setHoveredLogo(item.id)}
-                onMouseLeave={() => setHoveredLogo(null)}
-              >
+            {/* Overlapping 40-50% Official Integration SVG Logos with Hover Popover Cards */}
+            <div className="flex items-center -space-x-2 ml-1.5 shrink-0 relative">
+              {INTEGRATIONS_TOOLTIPS.map((item) => (
                 <div
-                  onClick={() => window.location.href = "/dashboard/connections"}
-                  className={cn(
-                    "w-5.5 h-5.5 rounded-full flex items-center justify-center p-1 shadow-sm transition-all duration-150 cursor-pointer",
-                    hoveredLogo === item.id
-                      ? "scale-115 bg-[#252525] border border-zinc-300 shadow-xl"
-                      : "bg-[#1c1c1c] border border-[#2a2a2a]"
-                  )}
+                  key={item.id}
+                  className={cn("relative transition-all duration-150", hoveredLogo === item.id ? "z-30" : "z-10")}
+                  onMouseEnter={() => setHoveredLogo(item.id)}
+                  onMouseLeave={() => setHoveredLogo(null)}
                 >
-                  <img src={item.icon} alt={item.name} className="w-3.5 h-3.5 object-contain shrink-0" />
-                </div>
-
-                {/* Hover Tooltip Popover Card (Interactive) */}
-                {hoveredLogo === item.id && (
-                  <div className="absolute bottom-9 -left-20 z-50 w-[220px] bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-xs text-zinc-300 select-none">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <img src={item.icon} alt={item.name} className="w-3.5 h-3.5 object-contain" />
-                        <span className="font-semibold text-white">{item.name}</span>
-                      </div>
-                      <span className={cn(
-                        "text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1",
-                        item.connected
-                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                      )}>
-                        <span className={cn("w-1.5 h-1.5 rounded-full", item.connected ? "bg-emerald-400" : "bg-amber-400")} />
-                        {item.connected ? "Connected" : "Connect"}
-                      </span>
-                    </div>
-
-                    <p className="text-[11px] text-zinc-400 leading-snug mb-2.5">
-                      {item.desc}
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.location.href = `/dashboard/connections?provider=${item.id}`;
-                      }}
-                      className="w-full py-1.5 px-2.5 rounded-lg bg-white text-black font-semibold text-[11px] hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
-                    >
-                      <span>{item.connected ? "Configure connection" : `Connect ${item.name}`}</span>
-                    </button>
+                  <div
+                    onClick={() => window.location.href = "/dashboard/connections"}
+                    className={cn(
+                      "w-5.5 h-5.5 rounded-full flex items-center justify-center p-1 shadow-sm transition-all duration-150 cursor-pointer",
+                      hoveredLogo === item.id
+                        ? "scale-115 bg-[#252525] border border-zinc-300 shadow-xl"
+                        : "bg-[#1c1c1c] border border-[#2a2a2a]"
+                    )}
+                  >
+                    <img src={item.icon} alt={item.name} className="w-3.5 h-3.5 object-contain shrink-0" />
                   </div>
-                )}
-              </div>
-            ))}
 
-            {/* Inline +more link directly after the 5th logo icon */}
-            <button
-              type="button"
-              onClick={onStatusLinkClick || (() => window.location.href = "/dashboard/connections")}
-              className="text-xs font-semibold text-[#38bdf8] hover:underline cursor-pointer shrink-0 ml-3.5 pl-1"
-            >
-              +more
-            </button>
+                  {/* Hover Tooltip Popover Card (Interactive) */}
+                  {hoveredLogo === item.id && (
+                    <div className="absolute bottom-9 -left-20 z-50 w-[220px] bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-xs text-zinc-300 select-none">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <img src={item.icon} alt={item.name} className="w-3.5 h-3.5 object-contain" />
+                          <span className="font-semibold text-white">{item.name}</span>
+                        </div>
+                        <span className={cn(
+                          "text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1",
+                          item.connected
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                            : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                        )}>
+                          <span className={cn("w-1.5 h-1.5 rounded-full", item.connected ? "bg-emerald-400" : "bg-amber-400")} />
+                          {item.connected ? "Connected" : "Connect"}
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] text-zinc-400 leading-snug mb-2.5">
+                        {item.desc}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.location.href = `/dashboard/connections?provider=${item.id}`;
+                        }}
+                        className="w-full py-1.5 px-2.5 rounded-lg bg-white text-black font-semibold text-[11px] hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                      >
+                        <span>{item.connected ? "Configure connection" : `Connect ${item.name}`}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Inline +more link directly after the 5th logo icon */}
+              <button
+                type="button"
+                onClick={onStatusLinkClick || (() => window.location.href = "/dashboard/connections")}
+                className="text-xs font-semibold text-[#38bdf8] hover:underline cursor-pointer shrink-0 ml-3.5 pl-1"
+              >
+                +more
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

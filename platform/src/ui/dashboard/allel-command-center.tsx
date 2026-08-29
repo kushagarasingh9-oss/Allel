@@ -16,6 +16,8 @@ import {
   Laptop,
   ArrowUpRight,
   ChevronDown,
+  ChevronUp,
+  Bot,
   RotateCcw,
   ArrowLeft,
   ArrowRight,
@@ -74,6 +76,7 @@ export function AllelCommandCenter() {
   } = useChatContext();
 
   const [inputText, setInputText] = useState("");
+  const [isTaskTrayOpen, setIsTaskTrayOpen] = useState(false);
   const [modelName, setModelName] = useState("SWE-1.6 Slow");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -173,7 +176,7 @@ export function AllelCommandCenter() {
           <div className="w-full max-w-[700px] px-4 py-6 flex flex-col items-center my-auto animate-in fade-in zoom-in-95 duration-150">
             {/* Clean Minimal Left-Aligned Title Above Chat Box */}
             <div className="w-full flex items-center justify-start mb-2.5 px-1 select-none">
-              <span className="text-base sm:text-lg font-medium tracking-tight text-zinc-200">
+              <span className="text-base sm:text-lg font-medium tracking-tight silver-shimmer-text">
                 What do you want to automate today?
               </span>
             </div>
@@ -185,7 +188,6 @@ export function AllelCommandCenter() {
               onSubmit={handleSubmit}
               isLoading={isLoading}
               onStop={stop}
-              placeholder="Ask Allel to build features, fix bugs, or work on your code"
               modeLabel="Normal"
               statusMessage="Connect your stack to automate your workflows"
               statusLinkText="+more"
@@ -196,13 +198,13 @@ export function AllelCommandCenter() {
           /* ============================================================
              STATE 2: FULL-WIDTH AGENT EXECUTION FEED (ACTIVE RUN)
              ============================================================ */
-          <div className="w-full flex-1 flex flex-col justify-between max-w-[760px] mx-auto px-4 py-6">
-            <div className="flex-1 w-full">
+          <div className="w-full flex-1 flex flex-col justify-between max-w-[760px] mx-auto px-4 py-4">
+            <div className="flex-1 w-full overflow-y-auto">
               <AgentFeed />
             </div>
 
-            {/* Pinned Bottom Omnibar */}
-            <div className="sticky bottom-6 left-0 right-0 w-full z-20 px-4 flex flex-col items-center">
+            {/* Pinned Bottom Omnibar + Attached Top Task Runner Tray */}
+            <div className="sticky bottom-6 left-0 right-0 w-full z-20 px-0 flex flex-col items-center">
               {/* Scroll Down Floating Indicator Button */}
               <button
                 type="button"
@@ -210,24 +212,60 @@ export function AllelCommandCenter() {
                   const feed = document.querySelector('.custom-scrollbar');
                   if (feed) feed.scrollTo({ top: feed.scrollHeight, behavior: 'smooth' });
                 }}
-                className="w-7 h-7 rounded-full bg-[#222222] border border-[#333333] hover:bg-[#2a2a2a] text-zinc-400 hover:text-white transition-all flex items-center justify-center mb-2.5 shadow-md cursor-pointer shrink-0"
+                className="w-7 h-7 rounded-full bg-[#222222] border border-[#333333] hover:bg-[#2a2a2a] text-zinc-400 hover:text-white transition-all flex items-center justify-center mb-2 shadow-md cursor-pointer shrink-0"
                 title="Scroll to bottom"
               >
                 <ArrowDown className="w-3.5 h-3.5" />
               </button>
 
-              <DevinChatBox
-                value={inputText}
-                onChange={setInputText}
-                onSubmit={handleSubmit}
-                isLoading={isLoading}
-                onStop={stop}
-                placeholder="Ask a follow-up"
-                modeLabel="Auto"
-                statusMessage="Autonomous Engine Active • All 6 integrations synchronized"
-                statusLinkText="Explore automations"
-                onStatusLinkClick={() => window.location.href = "/dashboard/flows"}
-              />
+              {/* Seamless Unified Double-Curved Container */}
+              <div className="w-full max-w-[700px] mx-auto bg-[#191919] border border-[#282828] rounded-[24px] p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 transition-all select-none">
+                {/* Attached Task Runner Tray (ONLY renders when isLoading is true) */}
+                {isLoading && (
+                  <div className="w-full bg-[#202020] border border-[#2d2d2d] rounded-[16px] overflow-hidden transition-all">
+                    <button
+                      type="button"
+                      onClick={() => setIsTaskTrayOpen(!isTaskTrayOpen)}
+                      className="w-full flex items-center justify-between px-3.5 py-2 cursor-pointer hover:bg-[#252525] transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-xs font-semibold text-zinc-200">1 task running</span>
+                      </div>
+                      <ChevronUp
+                        className={cn(
+                          "w-3.5 h-3.5 text-zinc-400 transition-transform duration-200",
+                          !isTaskTrayOpen && "rotate-180"
+                        )}
+                      />
+                    </button>
+
+                    {isTaskTrayOpen && (
+                      <div className="px-3.5 py-2.5 border-t border-[#2a2a2a] bg-[#161616] animate-in fade-in duration-150 flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-[#222222] border border-[#333333] flex items-center justify-center shrink-0">
+                          <img src="/1.png" alt="Task" className="w-4 h-4 object-contain filter brightness-0 invert opacity-70" />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-medium text-zinc-200 truncate">Autonomous execution in progress</span>
+                          <span className="text-[11px] text-zinc-500 truncate">Orchestrating agent toolcalls across connected stack</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <DevinChatBox
+                  value={inputText}
+                  onChange={setInputText}
+                  onSubmit={handleSubmit}
+                  isLoading={isLoading}
+                  onStop={stop}
+                  placeholder="Ask a follow-up..."
+                  modeLabel="Auto"
+                  hideStatusBanner={true}
+                  className="max-w-none w-full bg-transparent border-0 p-0 shadow-none"
+                />
+              </div>
             </div>
           </div>
         )}
