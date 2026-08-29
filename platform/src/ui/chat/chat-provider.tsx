@@ -425,53 +425,79 @@ export function ChatProvider({
 
 function generateRefinedTitle(messages: UIMessage[]): string {
   const userMsgs = messages.filter((m) => m.role === "user")
-  if (userMsgs.length === 0) return "Casual Greeting"
+  if (userMsgs.length === 0) return "New Conversation"
 
-  // Collect all user text, strip greeting prefixes
-  const allUserText = userMsgs
-    .map((m) => {
-      const textPart = Array.isArray(m.parts)
-        ? m.parts.find((p) => p.type === "text")
-        : null
-      return textPart && "text" in textPart ? textPart.text : (m as unknown as { content?: string }).content
-    })
-    .filter((txt): txt is string => typeof txt === "string" && txt.trim().length > 0)
-    .map((txt) =>
-      txt
-        .trim()
-        .replace(/^(hey|hi|hello|yo|heyyy|bruv|bro|sup)(\s+(brother|bro|man|friend|fam|dude))?,?\s*/i, "")
-        .trim()
-    )
-    .join(" ")
-    .toLowerCase()
-
-  // Fuzzy domain matching — catches typos like "rveneu", "gamil", "strpi", "intercom", etc.
-  const domainRules: [RegExp, string][] = [
-    [/\b(e?mail|inbox|gmail|gamil|mial|draft|thread|reply)\b/, "Email & Inbox Management"],
-    [/\b(stri?pe?|bill|mrr|churn|reven|subscri|invoice|payment)\b/, "Billing & Revenue"],
-    [/\b(posthog|analyt|usage|event|engage|metric|track)\b/, "Product Analytics"],
-    [/\b(intercom|crisp|zendesk|support|ticket|stat|conversation)\b/, "Customer Support & Intercom"],
-    [/\b(notion|knowle|docs?|wiki|knowledge|page)\b/, "Knowledge Base"],
-    [/\b(linear|issue|bug|ticket|sprint|project)\b/, "Issue Tracking"],
-    [/\b(sentry|error|crash|exception|monitor)\b/, "Error Monitoring"],
-    [/\b(hubspot|crm|contact|deal|sales|lead|pipeline)\b/, "CRM & Sales"],
-    [/\b(discount|rescue|coupon|save|retain)\b/, "Rescue & Retention"],
-    [/\b(what can|capabilit|feature|integrat|connect)\b/, "Exploring Capabilities"],
-    [/\b(onboard|signup|activat|convert|funnel)\b/, "Onboarding & Activation"],
-    [/\b(compet|market|benchmark|research|trend)\b/, "Market Research"],
-    [/\b(team|hire|ops|process|workflow)\b/, "Operations & Team"],
-  ]
-
-  for (const [pattern, title] of domainRules) {
-    if (pattern.test(allUserText)) {
-      return title
+  // Collect raw text from user messages
+  const userTexts: string[] = []
+  for (const m of userMsgs) {
+    const textPart = Array.isArray(m.parts)
+      ? m.parts.find((p) => p.type === "text")
+      : null
+    const txt = textPart && "text" in textPart ? textPart.text : (m as unknown as { content?: string }).content
+    if (typeof txt === "string" && txt.trim().length > 0) {
+      userTexts.push(txt.trim())
     }
   }
 
-  // Smart fallback: Title-case the first 4 words of user input
-  if (allUserText.trim().length > 0) {
-    const words = allUserText.trim().split(/\s+/).slice(0, 4)
-    return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+  if (userTexts.length === 0) return "New Conversation"
+
+  const combinedRaw = userTexts.join(" ")
+
+  // Clean prompt: strip leading dots, punctuation, greetings, bot names, filler phrases
+  let cleaned = combinedRaw
+    .replace(/^[^a-zA-Z0-9]+/, "")
+    .replace(/^(hey|hi|hello|yo|heyyy|bruv|bro|sup|please|can\s+you|could\s+you|get\s+me|show\s+me|check|triage|look\s+at)\b[.,!?\s]*/i, "")
+    .replace(/^[^a-zA-Z0-9]+/, "")
+    .replace(/^(allel|alex|bot|ai|agent)\b[.,!?\s]*/i, "")
+    .replace(/^[^a-zA-Z0-9]+/, "")
+    .replace(/^(hey|hi|hello|get\s+me|show\s+me|check)\b[.,!?\s]*/i, "")
+    .replace(/^[^a-zA-Z0-9]+/, "")
+    .trim()
+
+  if (!cleaned) {
+    cleaned = combinedRaw.replace(/^[^a-zA-Z0-9]+/, "").trim()
+  }
+
+  const lower = (cleaned + " " + combinedRaw).toLowerCase()
+
+  // Domain matching rules
+  if (/\b(e?mails?|inbox|gmail|gamil|mials?|drafts?|threads?|repl(y|ies)|newsletters?)\b/i.test(lower)) {
+    return "Email & Inbox Management"
+  }
+  if (/\b(stri?pe?|bills?|billing|mrr|churn|revenues?|subscri(be|ption|ptions)|invoices?|payments?)\b/i.test(lower)) {
+    return "Billing & Revenue"
+  }
+  if (/\b(posthogs?|analytics?|telemetr(y|ies)|cohorts?|events?|funnels?|metrics?|insights?|tracking)\b/i.test(lower)) {
+    return "Product Analytics"
+  }
+  if (/\b(intercoms?|crisp|zendesk|support|tickets?|helpdesk|conversations?|chats?)\b/i.test(lower)) {
+    return "Customer Support & Intercom"
+  }
+  if (/\b(calendars?|meetings?|schedules?|events?|briefs?|agendas?|sync)\b/i.test(lower)) {
+    return "Calendar & Meetings"
+  }
+  if (/\b(notions?|knowledges?|docs?|wikis?|pages?|notes?)\b/i.test(lower)) {
+    return "Knowledge Base"
+  }
+  if (/\b(linears?|issues?|bugs?|tickets?|sprints?|tasks?|projects?)\b/i.test(lower)) {
+    return "Issue Tracking"
+  }
+  if (/\b(sentry|errors?|crash(es)?|exceptions?|monitors?|alerts?)\b/i.test(lower)) {
+    return "Error Monitoring"
+  }
+  if (/\b(hubspots?|crms?|contacts?|deals?|sales?|leads?|pipelines?)\b/i.test(lower)) {
+    return "CRM & Sales"
+  }
+
+  // Clean fallback: Capitalize first 4 words of cleaned prompt
+  const words = cleaned
+    .replace(/[^\w\s]/g, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 4)
+
+  if (words.length > 0) {
+    return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ")
   }
 
   return "New Session"

@@ -113,6 +113,12 @@ export function AllelCommandCenter() {
     }
 
     if (!hasMessages) {
+      const freshId = `session-${Date.now()}`;
+      window.dispatchEvent(
+        new CustomEvent("allel:session-starting", {
+          detail: { sessionId: freshId }
+        })
+      );
       startNewChat();
     }
 
