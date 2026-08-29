@@ -1,17 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useState } from "react";
-import {
-  Plus,
-  Mic,
-  ArrowUp,
-  Square,
-  Code2,
-  Sparkles,
-  Laptop,
-  Folder,
-  ArrowUpRight,
-} from "lucide-react";
+import { Plus, Mic, ArrowUp, Square, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { cn } from "@/foundation/utils";
 
 export interface DevinChatBoxProps {
@@ -21,6 +11,11 @@ export interface DevinChatBoxProps {
   isLoading?: boolean;
   onStop?: () => void;
   placeholder?: string;
+  modeLabel?: string;
+  onModeToggle?: () => void;
+  statusMessage?: string;
+  statusLinkText?: string;
+  onStatusLinkClick?: () => void;
   className?: string;
 }
 
@@ -30,11 +25,15 @@ export function DevinChatBox({
   onSubmit,
   isLoading = false,
   onStop,
-  placeholder = 'Tip: Try typing "megaplan" to plan deeply before building',
+  placeholder = "Ask Allel to build features, fix bugs, or work on your code",
+  modeLabel = "Normal",
+  onModeToggle,
+  statusMessage = "Autonomous Engine Active • All 6 integrations synchronized",
+  statusLinkText = "Explore automations",
+  onStatusLinkClick,
   className,
 }: DevinChatBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [modelName, setModelName] = useState("SWE-1.6 Slow");
 
   // Auto-resize textarea
   useEffect(() => {
@@ -62,12 +61,12 @@ export function DevinChatBox({
   return (
     <div
       className={cn(
-        "w-full max-w-[650px] mx-auto bg-[#1c1c1c] border border-white/[0.08] rounded-[22px] p-2 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 transition-all select-none",
+        "w-full max-w-[650px] mx-auto bg-[#1e1e1e] border border-[#2c2c2c] rounded-[22px] p-2 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 transition-all select-none",
         className
       )}
     >
       {/* 1. UPPER INNER FLOATING INPUT CARD */}
-      <div className="w-full bg-[#272727] border border-white/[0.07] rounded-[16px] p-3.5 focus-within:border-white/25 focus-within:ring-1 focus-within:ring-white/10 transition-all flex flex-col justify-between min-h-[92px]">
+      <div className="w-full bg-[#292929] border border-[#363636] rounded-[16px] p-3.5 focus-within:border-zinc-400 transition-all flex flex-col justify-between min-h-[92px]">
         {/* Textarea Input */}
         <textarea
           ref={textareaRef}
@@ -81,17 +80,18 @@ export function DevinChatBox({
 
         {/* Action Controls Row Inside Inner Card */}
         <div className="flex items-center justify-between text-xs pt-1">
-          {/* Left Controls (+ Normal) */}
+          {/* Left Controls (+ Sliders Normal) */}
           <button
             type="button"
-            onClick={() => setModelName(modelName === "Normal" ? "Fast" : "Normal")}
+            onClick={onModeToggle}
             className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5 text-zinc-400" />
-            <span>{modelName}</span>
+            <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-400" />
+            <span>{modeLabel}</span>
           </button>
 
-          {/* Right Controls (Mic & Send Button) */}
+          {/* Right Controls (Mic & Send Pill Dropdown Button) */}
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -106,17 +106,18 @@ export function DevinChatBox({
               onClick={handleButtonClick}
               disabled={!value.trim() && !isLoading}
               className={cn(
-                "w-7.5 h-7.5 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0",
+                "px-2.5 py-1 rounded-full flex items-center gap-1 transition-all cursor-pointer shrink-0 shadow-xs",
                 value.trim() || isLoading
-                  ? "bg-white text-black hover:bg-zinc-200 shadow-md"
-                  : "bg-[#5a5a5a] text-[#1c1c1c] cursor-not-allowed"
+                  ? "bg-white text-black hover:bg-zinc-200"
+                  : "bg-[#646464] text-[#1e1e1e] cursor-not-allowed"
               )}
             >
               {isLoading ? (
                 <Square className="w-3 h-3 fill-current" />
               ) : (
-                <ArrowUp className="w-4 h-4" />
+                <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
               )}
+              <ChevronDown className="w-3 h-3 opacity-70" />
             </button>
           </div>
         </div>
@@ -129,16 +130,16 @@ export function DevinChatBox({
             !
           </span>
           <span className="truncate text-xs text-zinc-300 font-medium">
-            Autonomous Engine Active • All 6 integrations synchronized
+            {statusMessage}
           </span>
         </div>
 
         <button
           type="button"
-          onClick={() => window.location.href = "/dashboard/flows"}
+          onClick={onStatusLinkClick}
           className="text-xs font-semibold text-[#38bdf8] hover:underline cursor-pointer shrink-0 ml-2"
         >
-          Explore automations
+          {statusLinkText}
         </button>
       </div>
     </div>
