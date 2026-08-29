@@ -51,6 +51,7 @@ type ChatContextType = {
   agentId: PersonaId
   setAgentId: (id: PersonaId) => void
   resetActiveThread: () => Promise<void>
+  activeSessionTitle: string | null
   threadStateByAgent: Record<PersonaId, {
     messageCount: number
     status: ChatStatus
@@ -611,6 +612,13 @@ function generateRefinedTitle(messages: UIMessage[]): string {
     }
   }, [currentSessionId, startNewChat])
 
+  const activeSessionTitle = React.useMemo(() => {
+    if (!messages || messages.length === 0) return null
+    const existing = savedSessions.find((s) => s.id === currentSessionId)
+    if (existing && existing.title) return existing.title
+    return generateRefinedTitle(messages)
+  }, [messages, savedSessions, currentSessionId])
+
   const contextValue = React.useMemo<ChatContextType>(
     () => ({
       messages,
@@ -622,6 +630,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
       agentId: AGENT_ID,
       setAgentId,
       resetActiveThread,
+      activeSessionTitle,
       threadStateByAgent: threadState,
       hydrationStatus,
       savedSessions,
@@ -638,6 +647,7 @@ function generateRefinedTitle(messages: UIMessage[]): string {
       error,
       setAgentId,
       resetActiveThread,
+      activeSessionTitle,
       threadState,
       hydrationStatus,
       savedSessions,

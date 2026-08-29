@@ -69,11 +69,13 @@ export function AllelCommandCenter() {
     messages,
     sendMessage,
     isLoading,
+    status,
     stop,
     savedSessions,
     startNewChat,
     loadChatSession,
     resetActiveThread,
+    activeSessionTitle,
   } = useChatContext();
 
   const [inputText, setInputText] = useState("");
@@ -98,6 +100,8 @@ export function AllelCommandCenter() {
     window.addEventListener("allel:new-session", handleNewSession);
     return () => window.removeEventListener("allel:new-session", handleNewSession);
   }, [startNewChat]);
+
+  const hasMessages = messages.length > 0;
 
   const handleSubmit = (textToSend?: string) => {
     const query = (textToSend || inputText).trim();
@@ -126,9 +130,21 @@ export function AllelCommandCenter() {
       {/* Top Header Bar (Devin Style: No Border Divider + Pure Icon Cluster) */}
       <header className="h-11 px-4 flex items-center justify-between shrink-0 bg-[#0f0f10] z-20">
         <div className="flex items-center gap-3">
-          <span className="text-xs sm:text-sm font-medium text-zinc-300">
-            {hasMessages ? "Operational Run" : "Generate new automation"}
-          </span>
+          {!hasMessages ? (
+            <span className="text-xs sm:text-sm font-medium text-zinc-300">
+              Generate new automation
+            </span>
+          ) : (isLoading && (!activeSessionTitle || activeSessionTitle === "Chat session")) ? (
+            <div className="flex items-center gap-2 select-none animate-in fade-in duration-200">
+              <div className="relative overflow-hidden w-36 h-4 rounded bg-zinc-800/80 shrink-0">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-skeleton-shimmer" />
+              </div>
+            </div>
+          ) : (
+            <span className="text-xs sm:text-sm font-medium text-zinc-200 truncate max-w-[400px] animate-in fade-in duration-300">
+              {activeSessionTitle || "Operational Run"}
+            </span>
+          )}
         </div>
 
         {/* Right Header Pure Icon Cluster (Flag, More Options, PanelRight - No Borders, No Covers) */}
