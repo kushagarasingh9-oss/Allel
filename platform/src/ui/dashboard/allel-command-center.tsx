@@ -122,9 +122,9 @@ export function AllelCommandCenter() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#0e0e0e] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
+    <div className="flex flex-col h-full w-full bg-[#0a0a0a] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
       {/* Top Header Bar (Devin Style: No Border Divider + Pure Icon Cluster) */}
-      <header className="h-11 px-4 flex items-center justify-between shrink-0 bg-[#0e0e0e] z-20">
+      <header className="h-11 px-4 flex items-center justify-between shrink-0 bg-[#0a0a0a] z-20">
         <div className="flex items-center gap-3">
           <span className="text-xs sm:text-sm font-medium text-zinc-300">
             {hasMessages ? "Operational Run" : "Generate new automation"}
@@ -220,7 +220,7 @@ export function AllelCommandCenter() {
               </button>
 
               {/* Seamless Unified Double-Curved Container */}
-              <div className="w-full max-w-[700px] mx-auto bg-[#191919] border border-[#282828] rounded-[24px] p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 transition-all select-none">
+              <div className="w-full max-w-[700px] mx-auto bg-[#121212] border border-[#222222] rounded-[24px] p-1.5 shadow-[0_16px_48px_rgba(0,0,0,0.85)] flex flex-col gap-1.5 transition-all select-none">
                 {/* Attached Task Runner Tray Header (ONLY renders when isLoading is true) */}
                 {isLoading && (
                   <div className="w-full flex flex-col items-start transition-all px-1 pt-0.5">
