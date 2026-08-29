@@ -11,9 +11,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Bot,
-  Zap,
-  Plug,
-  MessageSquare,
+  Workflow,
+  Cable,
+  MessagesSquare,
   ChevronDown,
   ChevronRight,
   MoreHorizontal,
@@ -216,19 +216,19 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
     {
       label: "Automations",
       href: "/dashboard/flows",
-      icon: Zap,
+      icon: Workflow,
       exact: false,
     },
     {
       label: "Connections",
       href: "/dashboard/connections",
-      icon: Plug,
+      icon: Cable,
       exact: false,
     },
     {
       label: "Sessions",
       href: "/dashboard/history",
-      icon: MessageSquare,
+      icon: MessagesSquare,
       exact: false,
     },
   ];
@@ -256,7 +256,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   });
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#09090b] text-[#F4F4F5] transition-colors relative p-2 gap-2">
+    <div className="flex h-screen w-full overflow-hidden bg-[#09090b] text-[#F4F4F5] transition-colors relative p-1.5 gap-1.5">
       {/* Sidebar Pane — External background environment */}
       <aside
         className={cn(
@@ -597,8 +597,8 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
         )}
       </aside>
 
-      {/* Main Workspace Panel Container — Rounded Floating Canvas with Subtle Border & Depth */}
-      <main className="flex-1 h-full min-w-0 bg-[#121214] border border-white/[0.08] rounded-2xl relative overflow-hidden flex flex-col shadow-2xl">
+      {/* Main Workspace Panel Container — Sharp yet subtly rounded floating canvas */}
+      <main className="flex-1 h-full min-w-0 bg-[#121214] border border-white/[0.08] rounded-[10px] relative overflow-hidden flex flex-col shadow-2xl">
         {children}
       </main>
     </div>
