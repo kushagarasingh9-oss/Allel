@@ -282,17 +282,17 @@ export function DevinChatBox({
             {INTEGRATIONS_TOOLTIPS.map((item) => (
               <div
                 key={item.id}
-                className="relative group"
+                className={cn("relative transition-all duration-150", hoveredLogo === item.id ? "z-30" : "z-10")}
                 onMouseEnter={() => setHoveredLogo(item.id)}
                 onMouseLeave={() => setHoveredLogo(null)}
               >
                 <div
                   onClick={() => window.location.href = "/dashboard/connections"}
                   className={cn(
-                    "w-5.5 h-5.5 rounded-full bg-[#1c1c1c] border border-[#2a2a2a] flex items-center justify-center p-1 shadow-sm transition-all duration-150 cursor-pointer relative",
+                    "w-5.5 h-5.5 rounded-full flex items-center justify-center p-1 shadow-sm transition-all duration-150 cursor-pointer",
                     hoveredLogo === item.id
-                      ? "z-40 scale-125 border-zinc-400 shadow-md ring-1 ring-white/20"
-                      : "z-10 hover:z-20 hover:scale-110 hover:border-zinc-500"
+                      ? "scale-115 bg-[#252525] border border-zinc-300 shadow-xl"
+                      : "bg-[#1c1c1c] border border-[#2a2a2a]"
                   )}
                 >
                   <img src={item.icon} alt={item.name} className="w-3.5 h-3.5 object-contain shrink-0" />
