@@ -297,21 +297,29 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
           )}
         </div>
 
-        {/* Bottom Footer Toolbar (Devin Style: Upgrade Link + Settings / Download / Help Icons) */}
+        {/* Bottom Footer Toolbar (Devin Style: Account Link + Settings / Download / Help Icons) */}
         {!collapsed && (
-          <div className="pt-2 px-1 relative flex items-center justify-between gap-1 border-t border-[#1a1a1a]" ref={menuRef}>
-            {/* Left Upgrade / Account Action Link */}
+          <div className="pt-2 px-1 relative flex items-center justify-between gap-1" ref={menuRef}>
+            {/* Left User Account Action Link */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                 onMouseEnter={() => setIsProfileMenuOpen(true)}
-                className="flex items-center gap-2 text-xs font-medium text-[#38bdf8] hover:underline cursor-pointer group"
+                className="flex items-center gap-2 text-xs font-medium text-zinc-300 hover:text-white transition-colors cursor-pointer group max-w-[125px] truncate"
               >
-                <div className="w-4 h-4 rounded-full border border-[#38bdf8] flex items-center justify-center shrink-0">
-                  <ArrowUp className="w-2.5 h-2.5 text-[#38bdf8] stroke-[2.5]" />
-                </div>
-                <span>Upgrade</span>
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={userName}
+                    className="w-5 h-5 rounded-full object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-amber-600 to-red-500 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                    {userName.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <span className="truncate text-xs">{userName}</span>
               </button>
 
               {/* Connected Account Info Card Popover (Shown on hover/click) */}
