@@ -290,7 +290,7 @@ export function AllelCommandCenter() {
             </div>
 
             {/* Pinned Bottom Omnibar */}
-            <div className="sticky bottom-4 left-0 right-0 w-full pt-4 bg-gradient-to-t from-[#141414] via-[#141414]/95 to-transparent z-20">
+            <div className="sticky bottom-6 left-0 right-0 w-full z-20 px-4">
               <DevinChatBox
                 value={inputText}
                 onChange={setInputText}
@@ -299,8 +299,8 @@ export function AllelCommandCenter() {
                 onStop={stop}
                 placeholder="Ask a follow-up or provide instructions..."
                 modeLabel="Normal"
-                statusMessage="Autonomous Engine Active • All integrations synchronized"
-                statusLinkText="View automations"
+                statusMessage="Autonomous Engine Active • All 6 integrations synchronized"
+                statusLinkText="Explore automations"
                 onStatusLinkClick={() => window.location.href = "/dashboard/flows"}
               />
             </div>
