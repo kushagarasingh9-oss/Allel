@@ -171,11 +171,11 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   ];
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#141414] text-[#F4F4F5] transition-colors">
-      {/* Sidebar Pane — Runable exact #101010 surface */}
+    <div className="flex h-screen w-full overflow-hidden bg-[#0e0e0e] text-[#F4F4F5] transition-colors">
+      {/* Sidebar Pane — Deep obsidian #0a0a0a surface */}
       <aside
         className={cn(
-          "flex flex-col justify-between h-full bg-[#101010] border-r border-[#1f1f1f] transition-all duration-300 ease-in-out shrink-0 py-3 px-3 relative select-none",
+          "flex flex-col justify-between h-full bg-[#0a0a0a] border-r border-[#161616] transition-all duration-300 ease-in-out shrink-0 py-3 px-3 relative select-none",
           collapsed ? "w-[60px]" : "w-[240px]"
         )}
       >
@@ -344,19 +344,19 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                             </div>
                           </button>
 
-                          {/* Session Actions Popover Menu */}
+                          {/* Session Actions Popover Menu (Minimal Clean) */}
                           {openMenuSessionId === session.sessionId && (
                             <div
-                              className="absolute top-8 right-1 z-50 w-36 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-1 shadow-2xl animate-in fade-in zoom-in-95 duration-150 select-none text-xs"
+                              className="absolute top-7 right-1 z-50 bg-[#181818] border border-[#282828] rounded-lg p-1 shadow-2xl animate-in fade-in zoom-in-95 duration-100 select-none text-xs"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <button
                                 type="button"
                                 onClick={(e) => handleDeleteSession(session.sessionId, e)}
-                                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors cursor-pointer text-left font-medium"
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors cursor-pointer whitespace-nowrap"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
-                                <span>Delete session</span>
+                                <span>Delete</span>
                               </button>
                             </div>
                           )}

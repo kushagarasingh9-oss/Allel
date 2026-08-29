@@ -122,9 +122,9 @@ export function AllelCommandCenter() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#121212] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
-      {/* Top Header Bar (Devin Style: No Border Divider + Pure Icon Cluster matching media_1788036132936.png) */}
-      <header className="h-11 px-4 flex items-center justify-between shrink-0 bg-[#121212] z-20">
+    <div className="flex flex-col h-full w-full bg-[#0e0e0e] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
+      {/* Top Header Bar (Devin Style: No Border Divider + Pure Icon Cluster) */}
+      <header className="h-11 px-4 flex items-center justify-between shrink-0 bg-[#0e0e0e] z-20">
         <div className="flex items-center gap-3">
           <span className="text-xs sm:text-sm font-medium text-zinc-300">
             {hasMessages ? "Operational Run" : "Generate new automation"}
