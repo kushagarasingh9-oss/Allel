@@ -306,20 +306,20 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 type="button"
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                 onMouseEnter={() => setIsProfileMenuOpen(true)}
-                className="flex items-center gap-2 text-xs font-medium text-zinc-300 hover:text-white transition-colors cursor-pointer group max-w-[125px] truncate"
+                className="flex items-center gap-2 text-xs font-medium text-zinc-300 hover:text-white transition-colors cursor-pointer group"
               >
                 {avatarUrl ? (
                   <img
                     src={avatarUrl}
-                    alt={userName}
+                    alt="Account"
                     className="w-5 h-5 rounded-full object-cover shrink-0"
                   />
                 ) : (
                   <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-amber-600 to-red-500 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
-                    {userName.slice(0, 2).toUpperCase()}
+                    KU
                   </div>
                 )}
-                <span className="truncate text-xs">{userName}</span>
+                <span className="text-xs">Account</span>
               </button>
 
               {/* Connected Account Info Card Popover (Shown on hover/click) */}
