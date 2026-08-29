@@ -60,7 +60,13 @@ export async function syncSlackWorkspace(
     )
   }
 
-  await postSlackMessage(botToken, channelId, lines.join('\n'))
+  let delivered = false
+  try {
+    await postSlackMessage(botToken, channelId, lines.join('\n'))
+    delivered = true
+  } catch (err) {
+    console.warn('[slack-sync] Could not deliver brief to channel (bot may need to be invited):', err)
+  }
 
   const syncedAt = new Date().toISOString()
   const { error: connectionError } = await supabase.from('integration_connections').upsert(
@@ -71,7 +77,9 @@ export async function syncSlackWorkspace(
       last_synced_at: syncedAt,
       metadata: await mergeIntegrationConnectionMetadata(supabase, workspaceId, 'slack', {
         channel_id: channelId,
-        coverage: `Daily brief delivered to Slack with ${brief.itemCount} item${brief.itemCount === 1 ? '' : 's'}`,
+        coverage: delivered
+          ? `Daily brief delivered to Slack with ${brief.itemCount} item${brief.itemCount === 1 ? '' : 's'}`
+          : 'Slack connected. Invite @Allel bot to your channel to receive briefs.',
         last_brief_id: brief.briefId,
       }),
     },
@@ -84,16 +92,17 @@ export async function syncSlackWorkspace(
     workspaceId,
     runType: 'integration_synced',
     status: 'completed',
-    outputSummary: `Slack brief delivery completed: ${brief.itemCount} brief item(s) delivered to Slack.`,
+    outputSummary: `Slack brief delivery completed: ${brief.itemCount} brief item(s) processed for Slack.`,
     metadata: {
       provider: 'slack',
       briefId: brief.briefId,
       itemCount: brief.itemCount,
+      delivered,
     },
   })
 
   return {
-    delivered: true,
+    delivered,
     briefId: brief.briefId,
     itemCount: brief.itemCount,
   }

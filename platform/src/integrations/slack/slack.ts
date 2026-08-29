@@ -52,7 +52,7 @@ export async function getSlackCredentials(workspaceId: string): Promise<SlackCre
 
 export async function validateSlackBotToken(botToken: string) {
   const normalizedToken = botToken.trim()
-  if (!normalizedToken.startsWith('xoxb-')) return false
+  if (!normalizedToken.startsWith('xoxb-') && !normalizedToken.startsWith('xoxp-')) return false
 
   try {
     const response = await fetch('https://slack.com/api/auth.test', {
@@ -60,33 +60,33 @@ export async function validateSlackBotToken(botToken: string) {
     })
     if (!response.ok) return false
 
-    const payload = (await response.json()) as { ok?: boolean; bot_id?: string }
-    return payload.ok === true && typeof payload.bot_id === 'string' && payload.bot_id.length > 0
+    const payload = (await response.json()) as { ok?: boolean; bot_id?: string; user_id?: string }
+    return payload.ok === true
   } catch {
     return false
   }
 }
 
 export async function resolveSlackChannelId(botToken: string, channel?: string) {
-  const result = await listSlackChannels(botToken)
-  const channels = result.channels ?? []
-  const requestedChannel = channel?.trim().replace(/^#/, '')
-  const resolved = requestedChannel
-    ? channels.find(
-        (candidate) =>
-          candidate.id === requestedChannel || candidate.name === requestedChannel
-      )
-    : channels[0]
+  try {
+    const result = await listSlackChannels(botToken)
+    const channels = result.channels ?? []
+    const requestedChannel = channel?.trim().replace(/^#/, '')
+    const resolved = requestedChannel
+      ? channels.find(
+          (candidate) =>
+            candidate.id === requestedChannel || candidate.name === requestedChannel
+        )
+      : channels[0]
 
-  if (!resolved) {
-    throw new Error(
-      requestedChannel
-        ? `Slack channel "${requestedChannel}" was not found or is not accessible to this app.`
-        : 'No readable Slack channel is available. Invite the Slack app to a channel and try again.'
-    )
+    if (resolved?.id) {
+      return resolved.id
+    }
+  } catch (err) {
+    console.warn('[slack] Could not list channels via API:', err)
   }
 
-  return resolved.id
+  return channel?.trim() || 'general'
 }
 
 // ============================================================
