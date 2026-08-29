@@ -6,8 +6,8 @@ import {
   SiGithub,
   SiStripe,
   SiPosthog,
-  SiSentry,
-  SiLinear,
+  SiGmail,
+  SiGooglecalendar,
 } from "@icons-pack/react-simple-icons";
 import { cn } from "@/foundation/utils";
 
@@ -35,7 +35,7 @@ export function DevinChatBox({
   placeholder = "Ask Allel to build features, fix bugs, or work on your code",
   modeLabel = "Normal",
   onModeToggle,
-  statusMessage = "Connect with your stack to automate them",
+  statusMessage = "Connect your stack to orchestrate automations",
   statusLinkText = "+5 more",
   onStatusLinkClick,
   className,
@@ -238,22 +238,22 @@ export function DevinChatBox({
             {statusMessage}
           </span>
 
-          {/* Overlapping Stacked Integration Icons (5 Stacked Logos) */}
-          <div className="flex items-center -space-x-1.5 ml-1 shrink-0">
-            <div className="w-4.5 h-4.5 rounded-full bg-[#242424] border border-[#333333] flex items-center justify-center text-white p-0.5 shadow-xs" title="GitHub">
-              <SiGithub className="w-2.5 h-2.5 text-white" />
+          {/* Overlapping 40-50% Official Integration Logos */}
+          <div className="flex items-center -space-x-2 ml-1.5 shrink-0">
+            <div className="w-5 h-5 rounded-full bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center p-0.5 shadow-sm transition-transform hover:z-10 hover:scale-110" title="Gmail">
+              <SiGmail className="w-3 h-3 text-[#EA4335]" />
             </div>
-            <div className="w-4.5 h-4.5 rounded-full bg-[#242424] border border-[#333333] flex items-center justify-center text-[#635BFF] p-0.5 shadow-xs" title="Stripe">
-              <SiStripe className="w-2.5 h-2.5 text-[#635BFF]" />
+            <div className="w-5 h-5 rounded-full bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center p-0.5 shadow-sm transition-transform hover:z-10 hover:scale-110" title="Stripe">
+              <SiStripe className="w-3 h-3 text-[#635BFF]" />
             </div>
-            <div className="w-4.5 h-4.5 rounded-full bg-[#242424] border border-[#333333] flex items-center justify-center text-[#F54E00] p-0.5 shadow-xs" title="PostHog">
-              <SiPosthog className="w-2.5 h-2.5 text-[#F54E00]" />
+            <div className="w-5 h-5 rounded-full bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center p-0.5 shadow-sm transition-transform hover:z-10 hover:scale-110" title="Google Calendar">
+              <SiGooglecalendar className="w-3 h-3 text-[#4285F4]" />
             </div>
-            <div className="w-4.5 h-4.5 rounded-full bg-[#242424] border border-[#333333] flex items-center justify-center text-white p-0.5 shadow-xs" title="Sentry">
-              <SiSentry className="w-2.5 h-2.5 text-white" />
+            <div className="w-5 h-5 rounded-full bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center p-0.5 shadow-sm transition-transform hover:z-10 hover:scale-110" title="PostHog">
+              <SiPosthog className="w-3 h-3 text-[#F54E00]" />
             </div>
-            <div className="w-4.5 h-4.5 rounded-full bg-[#242424] border border-[#333333] flex items-center justify-center text-[#5E6AD2] p-0.5 shadow-xs" title="Linear">
-              <SiLinear className="w-2.5 h-2.5 text-[#5E6AD2]" />
+            <div className="w-5 h-5 rounded-full bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center p-0.5 shadow-sm transition-transform hover:z-10 hover:scale-110" title="GitHub">
+              <SiGithub className="w-3 h-3 text-white" />
             </div>
           </div>
         </div>
