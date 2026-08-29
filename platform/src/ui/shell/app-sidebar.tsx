@@ -16,6 +16,8 @@ import {
   MessageSquare,
   ChevronDown,
   ChevronRight,
+  MoreHorizontal,
+  Trash2,
   Bell,
   Monitor,
   Settings,
@@ -41,11 +43,29 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProjectsOpen, setIsProjectsOpen] = useState(true);
   const [isHistoryOpen, setIsHistoryOpen] = useState(true);
+  const [openMenuSessionId, setOpenMenuSessionId] = useState<string | null>(null);
   const [historySessions, setHistorySessions] = useState<
     Array<{ sessionId: string; title: string; updatedAt: string }>
   >([]);
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setHistorySessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
+      setOpenMenuSessionId(null);
+      await fetch(`/api/agent/sessions?sessionId=${encodeURIComponent(sessionId)}`, {
+        method: "DELETE",
+      });
+      const activeSessionId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sessionId") : null;
+      if (activeSessionId === sessionId) {
+        window.location.href = "/dashboard";
+      }
+    } catch (err) {
+      console.error("Failed to delete session:", err);
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -295,22 +315,52 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                       const isSelected = activeSessionId === session.sessionId;
 
                       return (
-                        <button
-                          key={session.sessionId}
-                          type="button"
-                          onClick={() => {
-                            window.location.href = `/dashboard?sessionId=${encodeURIComponent(session.sessionId)}`;
-                          }}
-                          className={cn(
-                            "w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 truncate cursor-pointer",
-                            isSelected
-                              ? "bg-[#1c1c1c] text-white font-medium border border-[#262626]"
-                              : "text-zinc-400 hover:text-white hover:bg-[#181818]"
+                        <div key={session.sessionId} className="relative group w-full">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              window.location.href = `/dashboard?sessionId=${encodeURIComponent(session.sessionId)}`;
+                            }}
+                            className={cn(
+                              "w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 truncate cursor-pointer flex items-center justify-between gap-1",
+                              isSelected
+                                ? "bg-[#1c1c1c] text-white font-medium border border-[#262626]"
+                                : "text-zinc-400 hover:text-white hover:bg-[#181818]"
+                            )}
+                            title={session.title}
+                          >
+                            <span className="truncate pr-1">{session.title}</span>
+
+                            {/* Three-dot menu button on hover */}
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuSessionId(openMenuSessionId === session.sessionId ? null : session.sessionId);
+                              }}
+                              className="p-0.5 rounded hover:bg-zinc-700/60 text-zinc-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity shrink-0 cursor-pointer"
+                              title="Session options"
+                            >
+                              <MoreHorizontal className="w-3.5 h-3.5" />
+                            </div>
+                          </button>
+
+                          {/* Session Actions Popover Menu */}
+                          {openMenuSessionId === session.sessionId && (
+                            <div
+                              className="absolute top-8 right-1 z-50 w-36 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-1 shadow-2xl animate-in fade-in zoom-in-95 duration-150 select-none text-xs"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteSession(session.sessionId, e)}
+                                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors cursor-pointer text-left font-medium"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete session</span>
+                              </button>
+                            </div>
                           )}
-                          title={session.title}
-                        >
-                          {session.title}
-                        </button>
+                        </div>
                       );
                     })
                   )}

@@ -68,3 +68,34 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ sessions: [] });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const { searchParams } = new URL(request.url);
+    const sessionId = searchParams.get('sessionId');
+
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
+    }
+
+    if (user) {
+      const workspace = await ensureWorkspaceForUser(user);
+      await supabase
+        .from('agent_conversations')
+        .delete()
+        .eq('workspace_id', workspace.id)
+        .eq('user_id', user.id)
+        .eq('session_id', sessionId);
+    }
+
+    return NextResponse.json({ success: true, message: 'Session deleted' });
+  } catch (err) {
+    console.error('Error deleting session:', err);
+    return NextResponse.json({ success: true });
+  }
+}
