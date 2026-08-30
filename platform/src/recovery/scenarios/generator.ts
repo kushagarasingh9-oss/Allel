@@ -245,7 +245,7 @@ export function generateScenarios(options: {
           seats: Math.max(5, Math.floor(c.initialMrrCents / 2500)),
           initialMrrCents: c.initialMrrCents,
           currentMrrCents: c.featuresPatch.currentMrrCents ?? c.initialMrrCents,
-          renewalAt: new Date(Date.now() + 86400000 * 30).toISOString(),
+          renewalAt: new Date(new Date(refTime).getTime() + 86400000 * 30).toISOString(),
         },
         primaryContact: {
           name: contact.name,
@@ -403,7 +403,7 @@ export function generateScenarios(options: {
         seats: Math.max(5, Math.floor(initialMrr / 3000)),
         initialMrrCents: initialMrr,
         currentMrrCents: currentMrr,
-        renewalAt: new Date(Date.now() + 86400000 * 45).toISOString(),
+        renewalAt: new Date(new Date(refTime).getTime() + 86400000 * 45).toISOString(),
       },
       primaryContact: {
         name: contact.name,

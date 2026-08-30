@@ -10,6 +10,7 @@ describe("Cross-Platform Scenario Generator", () => {
       workspaceId: "ws-test-1",
       scenarioRunId: "run-1",
       seed: "fixed-seed-xyz",
+      referenceTime: "2026-08-30T12:00:00.000Z",
     });
 
     const run2 = generateScenarios({
@@ -17,6 +18,7 @@ describe("Cross-Platform Scenario Generator", () => {
       workspaceId: "ws-test-1",
       scenarioRunId: "run-1",
       seed: "fixed-seed-xyz",
+      referenceTime: "2026-08-30T12:00:00.000Z",
     });
 
     assert.strictEqual(run1.length, 50);

@@ -368,6 +368,68 @@ export async function upsertProviderIdentity(
     });
 
     if (rpcError) {
+      if (rpcError.code === 'PGRST202') {
+        // Safe direct fallback when RPC is not deployed to Supabase instance
+        const { data: existing } = await supabase
+          .from('provider_identities')
+          .select('id, customer_account_id, verification_status')
+          .eq('workspace_id', identity.workspaceId)
+          .eq('provider', identity.provider)
+          .eq('identity_type', identity.identityType)
+          .eq('normalized_external_id', normalizedExternalId)
+          .maybeSingle();
+
+        if (!existing) {
+          const { error: insertErr } = await supabase.from('provider_identities').insert({
+            workspace_id: identity.workspaceId,
+            customer_account_id: identity.customerAccountId,
+            provider: identity.provider,
+            identity_type: identity.identityType,
+            external_id: identity.externalId,
+            normalized_external_id: normalizedExternalId,
+            is_primary: identity.isPrimary ?? false,
+            verification_status: identity.verificationStatus ?? 'inferred',
+            source: identity.source,
+            scenario_id: identity.scenarioId ?? null,
+            scenario_run_id: identity.scenarioRunId ?? null,
+            metadata: identity.metadata ?? {},
+            first_seen_at: new Date().toISOString(),
+            last_seen_at: new Date().toISOString(),
+          });
+          if (insertErr) return { status: 'error', error: insertErr.message };
+          return { status: 'ok', accountId: identity.customerAccountId, created: true, verificationStatus: identity.verificationStatus ?? 'inferred' };
+        }
+
+        if (existing.customer_account_id === identity.customerAccountId) {
+          const newStatus = existing.verification_status === 'inferred' && identity.verificationStatus === 'verified'
+            ? 'verified'
+            : existing.verification_status;
+          await supabase.from('provider_identities').update({
+            verification_status: newStatus,
+            last_seen_at: new Date().toISOString(),
+            metadata: { ...((existing as any).metadata ?? {}), ...(identity.metadata ?? {}) },
+          }).eq('id', existing.id);
+          return { status: 'ok', accountId: identity.customerAccountId, created: false, verificationStatus: newStatus as any };
+        }
+
+        // Conflict
+        const { data: conflictRow } = await supabase.from('identity_conflicts').insert({
+          workspace_id: identity.workspaceId,
+          provider: identity.provider,
+          existing_account_id: existing.customer_account_id,
+          candidate_account_id: identity.customerAccountId,
+          reason: `Provider identity collision on ${identity.provider}:${identity.identityType}:${normalizedExternalId}`,
+          status: 'pending',
+        }).select('id').single();
+
+        return {
+          status: 'conflict',
+          conflictId: conflictRow?.id || 'conflict_recorded',
+          existingAccountId: existing.customer_account_id,
+          candidateAccountId: identity.customerAccountId,
+          reason: `Identity collision on ${identity.provider}:${identity.identityType}`,
+        };
+      }
       return { status: 'error', error: `RPC link_provider_identity_safely error: ${rpcError.message}` };
     }
 
@@ -433,6 +495,56 @@ export async function linkContactSafely(
     });
 
     if (rpcError) {
+      if (rpcError.code === 'PGRST202') {
+        const { data: existing } = await supabase
+          .from('account_contacts')
+          .select('id, customer_account_id, is_primary')
+          .eq('workspace_id', contact.workspaceId)
+          .eq('email', normalizedEmail)
+          .maybeSingle();
+
+        if (!existing) {
+          const { error: insertErr } = await supabase.from('account_contacts').insert({
+            workspace_id: contact.workspaceId,
+            customer_account_id: contact.customerAccountId,
+            email: normalizedEmail,
+            name: contact.name ?? null,
+            role: contact.role ?? null,
+            is_primary: contact.isPrimary ?? false,
+            external_ids: contact.externalIds ?? {},
+          });
+          if (insertErr) return { status: 'error', error: insertErr.message };
+          return { status: 'ok', accountId: contact.customerAccountId, created: true };
+        }
+
+        if (existing.customer_account_id === contact.customerAccountId) {
+          await supabase.from('account_contacts').update({
+            name: contact.name ?? undefined,
+            role: contact.role ?? undefined,
+            is_primary: contact.isPrimary ?? existing.is_primary,
+            external_ids: { ...((existing as any).external_ids ?? {}), ...(contact.externalIds ?? {}) },
+          }).eq('id', existing.id);
+          return { status: 'ok', accountId: contact.customerAccountId, created: false };
+        }
+
+        // Conflict
+        const { data: conflictRow } = await supabase.from('identity_conflicts').insert({
+          workspace_id: contact.workspaceId,
+          provider: 'email',
+          existing_account_id: existing.customer_account_id,
+          candidate_account_id: contact.customerAccountId,
+          reason: `Email address collision on ${normalizedEmail}`,
+          status: 'pending',
+        }).select('id').single();
+
+        return {
+          status: 'conflict',
+          conflictId: conflictRow?.id || 'conflict_recorded',
+          existingAccountId: existing.customer_account_id,
+          candidateAccountId: contact.customerAccountId,
+          reason: `Email collision on ${normalizedEmail}`,
+        };
+      }
       return { status: 'error', error: `RPC link_account_contact_safely error: ${rpcError.message}` };
     }
 
