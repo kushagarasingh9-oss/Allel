@@ -310,7 +310,6 @@ export function ChatProvider({
   // ── Server Hydration ──
   React.useEffect(() => {
     if (typeof window === "undefined" || !resolvedStorageScope || !chatRef.current) return
-    if (hydrationStatus !== "idle") return
     // Skip server hydration when explicitly loading from local history
     if (skipHydrationRef.current) {
       skipHydrationRef.current = false
@@ -318,9 +317,6 @@ export function ChatProvider({
       return
     }
     // Deliberately no "local state already populated, skip the fetch" shortcut.
-    // Local Restore runs first (it is declared above this effect), so that
-    // shortcut meant the lossy sessionStorage copy always beat the canonical
-    // server record and earlier turns disappeared on reload.
     let cancelled = false
     setHydrationStatus("loading")
 

@@ -234,6 +234,31 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
     },
   ];
 
+  const [urlSessionId, setUrlSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const updateUrlSession = () => {
+        const id = new URLSearchParams(window.location.search).get("sessionId");
+        setUrlSessionId(id);
+      };
+      updateUrlSession();
+      window.addEventListener("popstate", updateUrlSession);
+      const handleLoad = (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        if (detail?.sessionId) setUrlSessionId(detail.sessionId);
+      };
+      const handleNew = () => setUrlSessionId(null);
+      window.addEventListener("allel:load-session", handleLoad);
+      window.addEventListener("allel:new-session", handleNew);
+      return () => {
+        window.removeEventListener("popstate", updateUrlSession);
+        window.removeEventListener("allel:load-session", handleLoad);
+        window.removeEventListener("allel:new-session", handleNew);
+      };
+    }
+  }, [pathname]);
+
   const isResolving = Boolean(
     pendingSessionId ||
     (chatContext?.isLoading &&
@@ -242,16 +267,11 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
      !chatContext.messages.some((m) => m.role === "assistant" && (m.parts?.some((p) => p.type === "text" && typeof (p as { text?: string }).text === "string" && (p as { text?: string }).text!.trim().length > 0))))
   );
 
-  const hasActiveMessages = Boolean(chatContext?.messages && chatContext.messages.length > 0);
-  const activeSessionId = hasActiveMessages
-    ? (chatContext?.currentSessionId || (typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).get("sessionId")
-        : null))
-    : null;
+  const activeSessionId = pathname === "/dashboard" ? urlSessionId : null;
 
   const isNewTaskSelected = Boolean(
     pathname === "/dashboard" &&
-    !hasActiveMessages &&
+    !urlSessionId &&
     !isResolving
   );
 
@@ -426,7 +446,6 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                       const isSelected = Boolean(
                         pathname === "/dashboard" &&
                         !isResolving &&
-                        hasActiveMessages &&
                         activeSessionId === session.sessionId
                       );
                       return (

@@ -273,11 +273,32 @@ export default function WorkflowsPage() {
   }
 
   const filteredCases = cases.filter((c) => {
-    const matchesStatus = statusFilter === 'all' || c.status === statusFilter || c.resolution === statusFilter;
+    let matchesStatus = false;
+    if (statusFilter === 'all') {
+      matchesStatus = true;
+    } else if (statusFilter === 'awaiting_approval') {
+      matchesStatus = c.status === 'awaiting_approval' || c.status === 'open';
+    } else if (statusFilter === 'monitoring') {
+      matchesStatus = c.status === 'monitoring';
+    } else if (statusFilter === 'strictly_recovered' || statusFilter === 'recovered') {
+      matchesStatus =
+        (c.status === 'resolved' && Boolean(c.attribution?.outcomeType?.toLowerCase().includes('recovered'))) ||
+        c.resolution === 'recovered' ||
+        c.resolution === 'strictly_recovered';
+    } else if (statusFilter === 'protected') {
+      matchesStatus =
+        (c.status === 'resolved' && Boolean(c.attribution?.outcomeType?.toLowerCase().includes('protected'))) ||
+        c.resolution === 'protected';
+    } else {
+      matchesStatus = c.status === statusFilter || c.resolution === statusFilter;
+    }
+
     const matchesSearch =
+      searchQuery.trim() === '' ||
       c.accountName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.contactEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.id.toLowerCase().includes(searchQuery.toLowerCase());
+
     return matchesStatus && matchesSearch;
   });
 
