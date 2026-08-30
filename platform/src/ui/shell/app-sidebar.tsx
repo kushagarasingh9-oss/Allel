@@ -273,55 +273,37 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
       >
         {/* Top Header & Navigation */}
         <div className="flex flex-col min-h-0 flex-1">
-          {/* Header Row: Logo & Icons */}
+          {/* Header Row: Icons (without upper logo) */}
           {collapsed ? (
-            /* Minimized Top Header: Logo converts to PanelLeftOpen Expand icon on hover */
+            /* Minimized Top Header: PanelLeftOpen Expand icon */
             <div className="flex justify-center items-center py-1">
               <button
                 type="button"
                 onClick={() => setCollapsed(false)}
-                className="group relative w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/[0.1] transition-colors cursor-pointer"
+                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-white transition-colors cursor-pointer"
                 title="Expand sidebar"
               >
-                <img
-                  src="/1.png"
-                  alt="Allel"
-                  className="w-5 h-5 object-contain shrink-0 filter brightness-0 invert transition-all duration-150 group-hover:opacity-0 group-hover:scale-95"
-                />
-                <PanelLeftOpen className="w-4 h-4 text-white absolute opacity-0 group-hover:opacity-100 transition-all duration-150 group-hover:scale-100 scale-90" />
+                <PanelLeftOpen className="w-4 h-4" />
               </button>
             </div>
           ) : (
-            /* Expanded Top Header: Logo + Search + PanelLeftClose icon */
-            <div className="flex items-center justify-between px-1">
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 transition-opacity hover:opacity-80 group"
+            /* Expanded Top Header: Search + PanelLeftClose icon */
+            <div className="flex items-center justify-end px-1 gap-1 text-zinc-400">
+              <button
+                type="button"
+                className="p-1 hover:text-white rounded-md hover:bg-white/[0.08] transition-colors cursor-pointer"
+                title="Search"
               >
-                <img
-                  src="/1.png"
-                  alt="Allel"
-                  className="w-5.5 h-5.5 object-contain shrink-0 filter brightness-0 invert"
-                />
-              </Link>
-
-              <div className="flex items-center gap-1 text-zinc-400">
-                <button
-                  type="button"
-                  className="p-1 hover:text-white rounded-md hover:bg-white/[0.08] transition-colors cursor-pointer"
-                  title="Search"
-                >
-                  <Search className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCollapsed(true)}
-                  className="p-1 hover:text-white rounded-md hover:bg-white/[0.08] transition-colors cursor-pointer"
-                  title="Collapse sidebar"
-                >
-                  <PanelLeftClose className="w-4 h-4" />
-                </button>
-              </div>
+                <Search className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCollapsed(true)}
+                className="p-1 hover:text-white rounded-md hover:bg-white/[0.08] transition-colors cursor-pointer"
+                title="Collapse sidebar"
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </button>
             </div>
           )}
 
