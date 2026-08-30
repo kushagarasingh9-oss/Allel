@@ -25,6 +25,7 @@ import {
   type ResolvedChatStorageScope,
   type ChatStorageScope,
 } from "@/ui/chat/chat-storage"
+import { generateRefinedTitle, generateChatSessionTitle } from "@/intelligence/chat-titles"
 
 type ChatStatus = "ready" | "submitted" | "streaming" | "error"
 
@@ -453,86 +454,6 @@ export function ChatProvider({
       // Ignore storage read error
     }
   }, [])
-
-function generateRefinedTitle(messages: UIMessage[]): string {
-  const userMsgs = messages.filter((m) => m.role === "user")
-  if (userMsgs.length === 0) return "New Conversation"
-
-  // Collect raw text from user messages
-  const userTexts: string[] = []
-  for (const m of userMsgs) {
-    const textPart = Array.isArray(m.parts)
-      ? m.parts.find((p) => p.type === "text")
-      : null
-    const txt = textPart && "text" in textPart ? textPart.text : (m as unknown as { content?: string }).content
-    if (typeof txt === "string" && txt.trim().length > 0) {
-      userTexts.push(txt.trim())
-    }
-  }
-
-  if (userTexts.length === 0) return "New Conversation"
-
-  const combinedRaw = userTexts.join(" ")
-
-  // Clean prompt: strip leading dots, punctuation, greetings, bot names, filler phrases
-  let cleaned = combinedRaw
-    .replace(/^[^a-zA-Z0-9]+/, "")
-    .replace(/^(hey|hi|hello|yo|heyyy|bruv|bro|sup|please|can\s+you|could\s+you|get\s+me|show\s+me|check|triage|look\s+at)\b[.,!?\s]*/i, "")
-    .replace(/^[^a-zA-Z0-9]+/, "")
-    .replace(/^(allel|alex|bot|ai|agent)\b[.,!?\s]*/i, "")
-    .replace(/^[^a-zA-Z0-9]+/, "")
-    .replace(/^(hey|hi|hello|get\s+me|show\s+me|check)\b[.,!?\s]*/i, "")
-    .replace(/^[^a-zA-Z0-9]+/, "")
-    .trim()
-
-  if (!cleaned) {
-    cleaned = combinedRaw.replace(/^[^a-zA-Z0-9]+/, "").trim()
-  }
-
-  const lower = (cleaned + " " + combinedRaw).toLowerCase()
-
-  // Domain matching rules
-  if (/\b(e?mails?|inbox|gmail|gamil|mials?|drafts?|threads?|repl(y|ies)|newsletters?)\b/i.test(lower)) {
-    return "Email & Inbox Management"
-  }
-  if (/\b(stri?pe?|bills?|billing|mrr|churn|revenues?|subscri(be|ption|ptions)|invoices?|payments?)\b/i.test(lower)) {
-    return "Billing & Revenue"
-  }
-  if (/\b(posthogs?|analytics?|telemetr(y|ies)|cohorts?|events?|funnels?|metrics?|insights?|tracking)\b/i.test(lower)) {
-    return "Product Analytics"
-  }
-  if (/\b(intercoms?|crisp|zendesk|support|tickets?|helpdesk|conversations?|chats?)\b/i.test(lower)) {
-    return "Customer Support & Intercom"
-  }
-  if (/\b(calendars?|meetings?|schedules?|events?|briefs?|agendas?|sync)\b/i.test(lower)) {
-    return "Calendar & Meetings"
-  }
-  if (/\b(notions?|knowledges?|docs?|wikis?|pages?|notes?)\b/i.test(lower)) {
-    return "Knowledge Base"
-  }
-  if (/\b(linears?|issues?|bugs?|tickets?|sprints?|tasks?|projects?)\b/i.test(lower)) {
-    return "Issue Tracking"
-  }
-  if (/\b(sentry|errors?|crash(es)?|exceptions?|monitors?|alerts?)\b/i.test(lower)) {
-    return "Error Monitoring"
-  }
-  if (/\b(hubspots?|crms?|contacts?|deals?|sales?|leads?|pipelines?)\b/i.test(lower)) {
-    return "CRM & Sales"
-  }
-
-  // Clean fallback: Capitalize first 4 words of cleaned prompt
-  const words = cleaned
-    .replace(/[^\w\s]/g, "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 4)
-
-  if (words.length > 0) {
-    return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ")
-  }
-
-  return "New Session"
-}
 
   // Auto-save active chat session immediately on user prompt and refresh history
   React.useEffect(() => {

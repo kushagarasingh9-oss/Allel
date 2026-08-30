@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/foundation/database/server';
 import { ensureWorkspaceForUser } from '@/data/workspaces/ensure-workspace';
+import { generateChatSessionTitle } from '@/intelligence/chat-titles';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
     // Fetch conversation sessions ordered by most recent updated_at
     const { data: rows, error } = await supabase
       .from('agent_conversations')
-      .select('session_id, persona_id, messages, updated_at')
+      .select('session_id, persona_id, message_history, updated_at')
       .eq('workspace_id', workspace.id)
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
@@ -28,15 +29,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ sessions: [] });
     }
 
-    const sessions = rows.map((row) => {
-      let title = "Chat session";
-      if (Array.isArray(row.messages) && row.messages.length > 0) {
-        const firstUserMsg = row.messages.find((m: any) => m.role === 'user' || m.source === 'USER_EXPLICIT');
-        if (firstUserMsg && (firstUserMsg.content || firstUserMsg.text)) {
-          const text = (firstUserMsg.content || firstUserMsg.text || "").trim();
-          title = text.length > 32 ? text.slice(0, 32) + "..." : text;
-        }
-      }
+    const sessions = rows.map((row: any) => {
+      const historyList = Array.isArray(row.message_history) ? row.message_history : [];
+      const title = generateChatSessionTitle(historyList);
 
       return {
         sessionId: row.session_id || "default",
