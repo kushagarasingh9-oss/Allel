@@ -43,18 +43,76 @@ const APPEAR_CSS = `
     transform: none !important;
   }
 
-  /* Primary CTA Buttons high contrast text */
-  .framer-1k966j4-container a p,
-  .framer-1k966j4-container a span,
-  .framer-1k966j4-container a div,
-  .framer-stxpj7-container a p,
-  .framer-stxpj7-container a span,
-  .framer-stxpj7-container a div,
-  .framer-agn54-container button p,
-  .framer-agn54-container button span,
-  .framer-agn54-container button div {
-    color: #111111 !important;
-    -webkit-text-fill-color: #111111 !important;
+  /* High-contrast dark theme variables for landing page */
+  :root, body, .landing-page-container {
+    --token-42377e4c-6aff-45af-80cf-861971d3bff6: #070708 !important;
+    --token-10e74244-94d1-431e-87d0-281bc16f26b9: #121214 !important;
+    --token-fc3e2144-81ca-48e6-9365-4417af9831c9: #27272a !important;
+    --token-ead5ee04-8072-43a8-8b63-6c52f5667fd6: #27272a !important;
+    --token-4b5c2631-4675-4701-82c8-51d44ba443f5: #f4f4f5 !important;
+    --token-a858697d-e879-4ab9-8f8f-ff96d21fdb35: #a1a1aa !important;
+    --token-4e477fa6-3a4a-4dca-ae8d-06a59b9bf0d6: #60a5fa !important;
+    --token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0: #f4f4f5 !important;
+    --token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7: #09090b !important;
+    --token-839f404f-2485-4df4-989d-84c9778f6e7d: #27272a !important;
+  }
+
+  /* Force headings and hero text to be crisp, bright white */
+  .landing-page-container h1,
+  .landing-page-container h1 span,
+  .landing-page-container h2,
+  .landing-page-container h3,
+  .landing-page-container .framer-b04lcy h1,
+  .landing-page-container .framer-b04lcy h1 span {
+    color: #f4f4f5 !important;
+    -webkit-text-fill-color: #f4f4f5 !important;
+  }
+
+  /* Force subheadings and body copy to be legible silver/grey */
+  .landing-page-container p,
+  .landing-page-container .framer-wxav3g p,
+  .landing-page-container .framer-mz184g a {
+    color: #a1a1aa !important;
+    -webkit-text-fill-color: #a1a1aa !important;
+  }
+
+  /* Navigation brand logo */
+  .landing-page-container [data-framer-name="Logo"] p {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    font-weight: 700 !important;
+  }
+
+  .landing-page-container .framer-mz184g a:hover {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+  }
+
+  /* Primary CTA Buttons high contrast */
+  .landing-page-container .framer-1k966j4-container a,
+  .landing-page-container .framer-stxpj7-container a {
+    background-color: #f4f4f5 !important;
+  }
+
+  .landing-page-container .framer-1k966j4-container a p,
+  .landing-page-container .framer-1k966j4-container a span,
+  .landing-page-container .framer-stxpj7-container a p,
+  .landing-page-container .framer-stxpj7-container a span {
+    color: #09090b !important;
+    -webkit-text-fill-color: #09090b !important;
+    font-weight: 600 !important;
+  }
+
+  /* Secondary button styling */
+  .landing-page-container .framer-1cxrd4f-container a {
+    background-color: #18181b !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  }
+
+  .landing-page-container .framer-1cxrd4f-container a p,
+  .landing-page-container .framer-1cxrd4f-container a span {
+    color: #f4f4f5 !important;
+    -webkit-text-fill-color: #f4f4f5 !important;
   }
 
   /* Ensure ticker is visible */
