@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "test": "tsx --test $(find src -name \"*.test.ts\")",
-    "scenario:evaluate": "tsx -e \"import { exportScenarioEvaluationReport } from './src/recovery/scenarios/export'; console.log(exportScenarioEvaluationReport().markdownTable)\""
+    "scenario:evaluate": "tsx -e \"import { exportScenarioEvaluationReport } from './src/recovery/scenarios/export'; console.log(exportScenarioEvaluationReport().markdownTable)\"",
+    "demo:data:plan": "tsx src/recovery/scenarios/cli.ts plan",
+    "demo:data:seed": "tsx src/recovery/scenarios/cli.ts seed",
+    "demo:data:inspect": "tsx src/recovery/scenarios/cli.ts inspect",
+    "demo:data:reset": "tsx src/recovery/scenarios/cli.ts reset",
+    "demo:data:evaluate": "tsx src/recovery/scenarios/cli.ts evaluate"
   },
   "dependencies": {
     "@ai-sdk/azure": "^4.0.37",

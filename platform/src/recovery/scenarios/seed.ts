@@ -20,13 +20,12 @@ export async function seedScenarios(
   for (const def of SCENARIO_MANIFEST_V1) {
     const domain = `${def.scenarioId.toLowerCase()}.example.com`;
 
-    // 1. Find existing account by domain or name
+    // 1. Find existing account by workspace_id and name or scenario_id
     const { data: existingAccount } = await supabase
       .from('customer_accounts')
       .select('id')
       .eq('workspace_id', workspaceId)
-      .eq('scenario_run_id', scenarioRunId)
-      .eq('scenario_id', def.scenarioId)
+      .or(`scenario_id.eq.${def.scenarioId},name.eq.${def.accountName}`)
       .limit(1)
       .maybeSingle();
 
@@ -73,7 +72,7 @@ export async function seedScenarios(
       .from('account_contacts')
       .select('id')
       .eq('workspace_id', workspaceId)
-      .eq('customer_account_id', accountId)
+      .or(`customer_account_id.eq.${accountId},email.eq.${def.contactEmail.toLowerCase()}`)
       .limit(1)
       .maybeSingle();
 
@@ -143,22 +142,41 @@ export async function seedScenarios(
 
     // 4. Upsert contact policy if present
     if (def.contactPolicy) {
-      const { error: policyError } = await supabase.from('contact_policies').upsert(
-        {
-          workspace_id: workspaceId,
-          customer_account_id: accountId,
-          channel: 'email',
-          address: def.contactEmail.toLowerCase(),
-          policy: def.contactPolicy,
-          reason: 'Configured scenario policy',
-          source: 'scenario_seed',
-          scenario_id: def.scenarioId,
-          scenario_run_id: scenarioRunId,
-        },
-        { onConflict: 'workspace_id,customer_account_id,channel' }
-      );
-      if (policyError) {
-        throw new Error(`Failed to persist scenario contact policy: ${policyError.message}`);
+      const { data: existingPolicy } = await supabase
+        .from('contact_policies')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .eq('customer_account_id', accountId)
+        .eq('channel', 'email')
+        .maybeSingle();
+
+      const policyPayload = {
+        workspace_id: workspaceId,
+        customer_account_id: accountId,
+        channel: 'email',
+        address: def.contactEmail.toLowerCase(),
+        policy: def.contactPolicy,
+        reason: 'Configured scenario policy',
+        source: 'scenario_seed',
+        scenario_id: def.scenarioId,
+        scenario_run_id: scenarioRunId,
+      };
+
+      if (existingPolicy?.id) {
+        const { error: updatePolicyError } = await supabase
+          .from('contact_policies')
+          .update(policyPayload)
+          .eq('id', existingPolicy.id);
+        if (updatePolicyError) {
+          throw new Error(`Failed to update scenario contact policy: ${updatePolicyError.message}`);
+        }
+      } else {
+        const { error: insertPolicyError } = await supabase
+          .from('contact_policies')
+          .insert(policyPayload);
+        if (insertPolicyError) {
+          throw new Error(`Failed to insert scenario contact policy: ${insertPolicyError.message}`);
+        }
       }
     }
 
