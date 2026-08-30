@@ -249,6 +249,12 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
         : null))
     : null;
 
+  const isNewTaskSelected = Boolean(
+    pathname === "/dashboard" &&
+    !hasActiveMessages &&
+    !isResolving
+  );
+
   const visibleHistorySessions = historySessions.filter((s) => {
     if (isResolving && (s.sessionId === chatContext?.currentSessionId || s.sessionId === pendingSessionId)) {
       return false;
@@ -319,7 +325,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
             </div>
           )}
 
-          {/* + New task Action Button */}
+          {/* + New task Action Button (with clean distance mb-3) */}
           <button
             type="button"
             onClick={() => {
@@ -340,9 +346,11 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
               }
             }}
             className={cn(
-              "group flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer border border-transparent mt-3.5 mb-1",
-              "text-zinc-300 hover:text-white hover:bg-white/[0.08] hover:border-white/[0.12]",
-              collapsed && "justify-center px-0 mt-3 mb-1"
+              "group flex items-center gap-3 px-2.5 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer border border-transparent mt-6 mb-1.5",
+              isNewTaskSelected
+                ? "bg-[#18181a] text-white border-[#242428] shadow-xs font-semibold"
+                : "text-zinc-400 hover:text-white hover:bg-[#141416]",
+              collapsed && "justify-center px-0 mt-6 mb-1.5"
             )}
             title="New task"
           >
@@ -350,8 +358,8 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
             {!collapsed && <span>New task</span>}
           </button>
 
-          {/* Nav List with Increased Breathing Room */}
-          <nav className="flex flex-col gap-1.5 py-1">
+          {/* Nav List with Matching Consistent Spacing */}
+          <nav className="flex flex-col gap-1.5">
             {navLinks.map((link) => {
               const IconComp = link.icon;
               const isActive = link.exact
@@ -500,13 +508,14 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 <span className="text-xs">Account</span>
               </button>
 
-              {/* Connected Account Info Card Popover (Shown on hover/click) */}
+              {/* Connected Account Info Card Popover */}
               {isProfileMenuOpen && (
                 <div
                   onMouseLeave={() => setIsProfileMenuOpen(false)}
-                  className="absolute bottom-9 left-0 z-50 w-64 bg-[#161616] border border-[#262626] rounded-xl p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-150 select-none"
+                  className="absolute bottom-10 left-0 z-50 w-64 bg-[#121214] border border-white/[0.08] rounded-xl p-2.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 select-none backdrop-blur-md"
                 >
-                  <div className="flex items-center gap-2.5 p-2 mb-2 bg-[#202020] rounded-lg border border-[#282828]">
+                  {/* User Profile Header */}
+                  <div className="flex items-center gap-2.5 p-2 rounded-lg bg-white/[0.03] border border-white/[0.04] mb-2">
                     <img
                       src={avatarUrl || `https://unavatar.io/${encodeURIComponent(userEmail)}`}
                       alt={userName}
@@ -515,53 +524,58 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                       }}
                       className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/10"
                     />
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-medium text-white truncate">
-                        {userName}
-                      </span>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-semibold text-white truncate">
+                          {userName}
+                        </span>
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                          Free
+                        </span>
+                      </div>
                       <span className="text-[11px] text-zinc-400 truncate">
                         {userEmail}
                       </span>
                     </div>
                   </div>
 
-                  <div className="px-2 py-1 mb-2 text-[11px] text-zinc-400 flex items-center justify-between border-t border-b border-[#242424]">
-                    <span>Connected Account:</span>
-                    <span className="text-emerald-400 font-medium">Active (Free Tier)</span>
+                  {/* Actions Section */}
+                  <div className="flex flex-col gap-0.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setTheme(currentTheme === "dark" ? "light" : "dark")}
+                      className="flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        {currentTheme === "light" ? (
+                          <Sun className="w-3.5 h-3.5 text-amber-400" />
+                        ) : (
+                          <Moon className="w-3.5 h-3.5 text-zinc-400" />
+                        )}
+                        <span>Theme</span>
+                      </div>
+                      <span className="capitalize text-[11px] text-zinc-400">{currentTheme === "light" ? "Light" : "Dark"}</span>
+                    </button>
+
+                    <Link
+                      href="/dashboard/settings"
+                      onClick={() => setIsProfileMenuOpen(false)}
+                      className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-white/[0.05] transition-colors"
+                    >
+                      <Settings className="w-3.5 h-3.5 text-zinc-400" />
+                      <span>Account Settings</span>
+                    </Link>
+
+                    <div className="h-[1px] bg-white/[0.06] my-1" />
+
+                    <button
+                      onClick={handleSignOut}
+                      className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer"
+                    >
+                      <LogOut className="w-3.5 h-3.5 text-red-400" />
+                      <span>Sign Out</span>
+                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setTheme(currentTheme === "dark" ? "light" : "dark")}
-                    className="flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-[#202020] transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      {currentTheme === "light" ? (
-                        <Sun className="w-3.5 h-3.5 text-amber-500" />
-                      ) : (
-                        <Moon className="w-3.5 h-3.5 text-neutral-400" />
-                      )}
-                      <span>Theme</span>
-                    </div>
-                    <span className="capitalize text-[11px] text-zinc-400">{currentTheme === "light" ? "Light" : "Dark"}</span>
-                  </button>
-
-                  <Link
-                    href="/dashboard/settings"
-                    onClick={() => setIsProfileMenuOpen(false)}
-                    className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-[#202020] transition-colors"
-                  >
-                    <Settings className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>Account Settings</span>
-                  </Link>
-
-                  <button
-                    onClick={handleSignOut}
-                    className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors mt-0.5 cursor-pointer"
-                  >
-                    <LogOut className="w-3.5 h-3.5 text-red-400" />
-                    <span>Sign Out</span>
-                  </button>
                 </div>
               )}
             </div>
