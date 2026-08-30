@@ -1,0 +1,461 @@
+{
+  "version": "1.0.0",
+  "profile": "showcase",
+  "seed": "allel-buildathon-v1",
+  "referenceTime": "2026-08-30T20:23:11.135Z",
+  "workspaceId": "6d0fdc4d-6f0a-4328-8c5e-d34255617c21",
+  "scenarioRunId": "run_1788121391135",
+  "accountCount": 50,
+  "scenarios": [
+    {
+      "scenarioId": "SHOWCASE-001",
+      "name": "Northstar Labs",
+      "contact": "maya.chen@northstarlabs.io",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-002",
+      "name": "AtlasDesk",
+      "contact": "daniel.okafor@atlasdesk.com",
+      "expectedSeverity": "high",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 201100,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-003",
+      "name": "BeaconFlow",
+      "contact": "priya.raman@beaconflow.ai",
+      "expectedSeverity": "critical",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-004",
+      "name": "Copper Ridge Analytics",
+      "contact": "elena.garc.a@copperridge.co",
+      "expectedSeverity": "high",
+      "expectedAction": "usage_checkin_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-005",
+      "name": "Juniper Health Systems",
+      "contact": "noah.williams@juniperhealth.org",
+      "expectedSeverity": "critical",
+      "expectedAction": "cancellation_rescue_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 60900
+    },
+    {
+      "scenarioId": "SHOWCASE-006",
+      "name": "Orbital Ledger",
+      "contact": "amara.johnson@orbitalledger.net",
+      "expectedSeverity": "critical",
+      "expectedAction": "compound_recovery_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-007",
+      "name": "SummitOps",
+      "contact": "leo.martins@summitops.io",
+      "expectedSeverity": "high",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-008",
+      "name": "BlueHarbor Security",
+      "contact": "sofia.patel@blueharbor.dev",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-009",
+      "name": "LatticeForge",
+      "contact": "lucas.bennett@latticeforge.com",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 37500,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-010",
+      "name": "Fieldstone Commerce",
+      "contact": "aria.thorne@fieldstone.shop",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 46100
+    },
+    {
+      "scenarioId": "SHOWCASE-011",
+      "name": "NimbusRoute",
+      "contact": "kai.takahashi@nimbusroute.app",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-012",
+      "name": "Redwood Metrics",
+      "contact": "zoe.alverez@redwoodmetrics.io",
+      "expectedSeverity": "high",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 74100,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-013",
+      "name": "SignalNest",
+      "contact": "marcus.vance@signalnest.com",
+      "expectedSeverity": "critical",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-014",
+      "name": "CedarStack",
+      "contact": "chloe.dupont@cedarstack.tech",
+      "expectedSeverity": "high",
+      "expectedAction": "usage_checkin_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-015",
+      "name": "Brightwell AI",
+      "contact": "julian.sterling@brightwell.ai",
+      "expectedSeverity": "critical",
+      "expectedAction": "cancellation_rescue_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 150200
+    },
+    {
+      "scenarioId": "SHOWCASE-016",
+      "name": "Harborline Systems",
+      "contact": "maya.chen@harborline.io",
+      "expectedSeverity": "critical",
+      "expectedAction": "compound_recovery_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-017",
+      "name": "Kinetic Cloud",
+      "contact": "daniel.okafor@kineticcloud.net",
+      "expectedSeverity": "high",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-018",
+      "name": "AuroraBridge",
+      "contact": "priya.raman@aurorabridge.com",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-019",
+      "name": "TandemWorks",
+      "contact": "elena.garc.a@tandemworks.co",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 150700,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-020",
+      "name": "VanguardStream",
+      "contact": "noah.williams@vanguardstream.io",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 40200
+    },
+    {
+      "scenarioId": "SHOWCASE-021",
+      "name": "Solstice Bio",
+      "contact": "amara.johnson@solsticebio.com",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-022",
+      "name": "Kestrel Pay",
+      "contact": "leo.martins@kestrelpay.co",
+      "expectedSeverity": "high",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 211100,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-023",
+      "name": "StrataCore",
+      "contact": "sofia.patel@stratacore.cloud",
+      "expectedSeverity": "critical",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-024",
+      "name": "Ironclad Logic",
+      "contact": "lucas.bennett@ironcladlogic.com",
+      "expectedSeverity": "high",
+      "expectedAction": "usage_checkin_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-025",
+      "name": "NovaScale",
+      "contact": "aria.thorne@novascale.io",
+      "expectedSeverity": "critical",
+      "expectedAction": "cancellation_rescue_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 239900
+    },
+    {
+      "scenarioId": "SHOWCASE-026",
+      "name": "Prism Dynamics",
+      "contact": "kai.takahashi@prismdynamics.net",
+      "expectedSeverity": "critical",
+      "expectedAction": "compound_recovery_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-027",
+      "name": "Vertex AI Labs",
+      "contact": "zoe.alverez@vertexlabs.tech",
+      "expectedSeverity": "high",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-028",
+      "name": "Hyperion Fleet",
+      "contact": "marcus.vance@hyperionfleet.com",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-029",
+      "name": "Axiom Freight",
+      "contact": "chloe.dupont@axiomfreight.io",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 226500,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-030",
+      "name": "PulseGrid",
+      "contact": "julian.sterling@pulsegrid.energy",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 202300
+    },
+    {
+      "scenarioId": "SHOWCASE-031",
+      "name": "Meridian Flow",
+      "contact": "maya.chen@meridianflow.io",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-032",
+      "name": "Apex Protocol",
+      "contact": "daniel.okafor@apexprotocol.org",
+      "expectedSeverity": "high",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 201600,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-033",
+      "name": "Aegis Data",
+      "contact": "priya.raman@aegisdata.co",
+      "expectedSeverity": "critical",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-034",
+      "name": "Horizon Studio",
+      "contact": "elena.garc.a@horizonstudio.design",
+      "expectedSeverity": "high",
+      "expectedAction": "usage_checkin_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-035",
+      "name": "Zenith Cloud",
+      "contact": "noah.williams@zenithcloud.io",
+      "expectedSeverity": "critical",
+      "expectedAction": "cancellation_rescue_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 233400
+    },
+    {
+      "scenarioId": "SHOWCASE-036",
+      "name": "Cobalt Wire",
+      "contact": "amara.johnson@cobaltwire.com",
+      "expectedSeverity": "critical",
+      "expectedAction": "compound_recovery_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-037",
+      "name": "Crestview Capital Tools",
+      "contact": "leo.martins@crestviewtools.com",
+      "expectedSeverity": "high",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-038",
+      "name": "EchoWave",
+      "contact": "sofia.patel@echowave.audio",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-039",
+      "name": "Silverback Ops",
+      "contact": "lucas.bennett@silverbackops.com",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 96600,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-040",
+      "name": "Foundry9",
+      "contact": "aria.thorne@foundry9.build",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 159500
+    },
+    {
+      "scenarioId": "SHOWCASE-041",
+      "name": "Verve Mobility",
+      "contact": "kai.takahashi@vervemobility.io",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-042",
+      "name": "Opal Metrics",
+      "contact": "zoe.alverez@opalmetrics.co",
+      "expectedSeverity": "high",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 249000,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-043",
+      "name": "Titanium DB",
+      "contact": "marcus.vance@titaniumdb.org",
+      "expectedSeverity": "critical",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-044",
+      "name": "Zephyr Energy",
+      "contact": "chloe.dupont@zephyrenergy.io",
+      "expectedSeverity": "high",
+      "expectedAction": "usage_checkin_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-045",
+      "name": "Crestline Health",
+      "contact": "julian.sterling@crestlinehealth.care",
+      "expectedSeverity": "critical",
+      "expectedAction": "cancellation_rescue_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 230900
+    },
+    {
+      "scenarioId": "SHOWCASE-046",
+      "name": "Vortex Intelligence",
+      "contact": "maya.chen@vortexintel.ai",
+      "expectedSeverity": "critical",
+      "expectedAction": "compound_recovery_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-047",
+      "name": "Quarry Logic",
+      "contact": "daniel.okafor@quarrylogic.com",
+      "expectedSeverity": "high",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-048",
+      "name": "Lumina Security",
+      "contact": "priya.raman@luminasec.io",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-049",
+      "name": "Pinecone Logistics",
+      "contact": "elena.garc.a@pineconelogistics.net",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 222000,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "SHOWCASE-050",
+      "name": "Starlight Comms",
+      "contact": "noah.williams@starlightcomms.com",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 51100
+    }
+  ]
+}
