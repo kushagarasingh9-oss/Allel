@@ -50,19 +50,36 @@ const SERVICE_KEY = env['SUPABASE_SERVICE_ROLE_KEY']
 const DATABASE_URL = env['DATABASE_URL'] || env['SUPABASE_DB_URL']
 const MANAGEMENT_TOKEN = env['SUPABASE_ACCESS_TOKEN'] || env['SUPABASE_MANAGEMENT_TOKEN']
 
-const MIGRATIONS = [
-  '../../database/migrations/20260822_recovery_core.sql',
-  '../../database/migrations/20260822_recovery_hardening.sql',
-  '../../database/migrations/20260822_recovery_queue.sql',
-  '../../database/migrations/20260822_recovery_rls_and_rpc.sql',
-  '../../database/migrations/20260829_recovery_workflow_integrity.sql',
-  '../../database/migrations/20260829_recovery_scenario_runs.sql',
-  '../../database/migrations/20260830_recovery_authoritative_integrity.sql',
-  '../../database/migrations/20260831_identity_hardening.sql',
-  '../../database/migrations/20260831_identity_atomic_rpcs.sql',
-  '../../database/migrations/20260901_identity_security_and_integrity.sql',
-  '../../database/migrations/20260902_identity_integrity_hardening.sql',
+const MIGRATIONS_DIR = path.join(__dirname, '../../database/migrations')
+const MIGRATION_ORDER = [
+  '20260822_recovery_core.sql',
+  '20260822_recovery_hardening.sql',
+  '20260822_recovery_queue.sql',
+  '20260822_recovery_rls_and_rpc.sql',
+  '20260829_recovery_workflow_integrity.sql',
+  '20260829_recovery_scenario_runs.sql',
+  '20260830_recovery_authoritative_integrity.sql',
+  '20260831_identity_hardening.sql',
+  '20260831_identity_atomic_rpcs.sql',
+  '20260901_identity_security_and_integrity.sql',
+  '20260902_identity_integrity_hardening.sql',
 ]
+
+function discoverMigrations() {
+  const migrations = MIGRATION_ORDER.map(file => path.join(MIGRATIONS_DIR, file))
+  for (const filePath of migrations) {
+    if (!fs.existsSync(filePath)) throw new Error(`Migration file not found: ${filePath}`)
+  }
+  return migrations
+}
+
+function migrationVersion(filePath) {
+  return path.basename(filePath, '.sql')
+}
+
+function sqlLiteral(value) {
+  return `'${String(value).replace(/'/g, "''")}'`
+}
 
 function computeChecksum(content) {
   return crypto.createHash('sha256').update(content).digest('hex')
@@ -158,8 +175,68 @@ async function executeSql(sql, label) {
   return false
 }
 
+async function querySql(sql, label) {
+  if (DATABASE_URL) {
+    try {
+      const { Client } = require('pg')
+      const client = new Client({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } })
+      await client.connect()
+      try {
+        const result = await client.query(sql)
+        await client.end()
+        return { ok: true, rows: result.rows || [] }
+      } catch (err) {
+        await client.end()
+        console.error(`  ❌ SQL query error in ${label}:`, err.message)
+        return { ok: false, rows: [] }
+      }
+    } catch {
+      // Fall through to the HTTP execution paths.
+    }
+  }
+
+  if (MANAGEMENT_TOKEN && SUPABASE_URL) {
+    const projectRef = SUPABASE_URL.replace('https://', '').split('.')[0]
+    const res = await httpsPost(
+      'api.supabase.com',
+      `/v1/projects/${projectRef}/database/query`,
+      { Authorization: `Bearer ${MANAGEMENT_TOKEN}` },
+      { query: sql }
+    )
+    if (res.status === 200 || res.status === 201) {
+      return { ok: true, rows: Array.isArray(res.body) ? res.body : [] }
+    }
+    return { ok: false, rows: [] }
+  }
+
+  if (SUPABASE_URL && SERVICE_KEY) {
+    const projectRef = SUPABASE_URL.replace('https://', '').split('.')[0]
+    const res = await httpsPost(
+      `${projectRef}.supabase.co`,
+      '/rest/v1/rpc/exec_sql',
+      { Authorization: `Bearer ${SERVICE_KEY}`, apikey: SERVICE_KEY },
+      { sql }
+    )
+    if (res.status === 200 || res.status === 204) {
+      return { ok: true, rows: Array.isArray(res.body) ? res.body : [] }
+    }
+  }
+
+  console.error(`  ❌ SQL query unavailable for ${label}`)
+  return { ok: false, rows: [] }
+}
+
 async function main() {
   console.log('\n🗄️  Allel Migration Runner (Validated & Schema-Tracked)\n')
+
+  const migrations = discoverMigrations()
+  if (process.argv.includes('--plan')) {
+    console.log(`Discovered ${migrations.length} ordered migrations:`)
+    for (const filePath of migrations) {
+      console.log(`  - ${migrationVersion(filePath)}`)
+    }
+    return
+  }
 
   // Bootstrap migration tracking table
   const trackingTableSql = `
@@ -179,41 +256,60 @@ async function main() {
     return
   }
 
-  for (const f of MIGRATIONS) {
-    const filePath = path.join(__dirname, f)
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`Migration file not found: ${filePath}`)
-    }
-
+  for (const filePath of migrations) {
     const sql = fs.readFileSync(filePath, 'utf8')
-    const label = path.basename(f)
-    const version = label.split('_')[0]
+    const label = path.basename(filePath)
+    const version = migrationVersion(filePath)
     const checksum = computeChecksum(sql)
 
     console.log(`\nChecking migration: ${label}`)
 
-    const wrappedSql = `
-      DO $$
-      BEGIN
-        IF NOT EXISTS (SELECT 1 FROM public._schema_migrations WHERE version = '${version}') THEN
-          ${sql.replace(/\\/g, '\\\\').replace(/'/g, "''")}
-          INSERT INTO public._schema_migrations (version, name, checksum)
-          VALUES ('${version}', '${label}', '${checksum}');
-        END IF;
-      END $$;
-    `
+    const existing = await querySql(
+      `SELECT version, name, checksum FROM public._schema_migrations WHERE version = ${sqlLiteral(version)} LIMIT 1;`,
+      `check ${label}`
+    )
+    if (!existing.ok) {
+      throw new Error(`Could not inspect migration state for ${label}`)
+    }
 
-    const applied = await executeSql(wrappedSql, label)
+    const appliedRow = existing.rows[0]
+    if (appliedRow) {
+      if (appliedRow.checksum !== checksum) {
+        throw new Error(
+          `Checksum mismatch for applied migration ${label}; create a forward migration instead of editing history`
+        )
+      }
+      console.log(`  ✅ ${label} already applied`)
+      continue
+    }
+
+    const transactionalSql = `
+BEGIN;
+${sql}
+INSERT INTO public._schema_migrations (version, name, checksum)
+VALUES (${sqlLiteral(version)}, ${sqlLiteral(label)}, ${sqlLiteral(checksum)});
+COMMIT;
+`
+    const applied = await executeSql(transactionalSql, label)
     if (!applied) {
       throw new Error(`Migration failed: ${label}`)
     }
-    console.log(`  ✅ ${label} verified / applied`)
+    console.log(`  ✅ ${label} applied`)
   }
 
   console.log('\n✅ All migrations verified and up to date.\n')
 }
 
-main().catch(err => {
-  console.error('\n💥 Migration execution stopped:', err.message)
-  process.exit(1)
-})
+if (require.main === module) {
+  main().catch(err => {
+    console.error('\n💥 Migration execution stopped:', err.message)
+    process.exit(1)
+  })
+}
+
+module.exports = {
+  computeChecksum,
+  discoverMigrations,
+  migrationVersion,
+  sqlLiteral,
+}

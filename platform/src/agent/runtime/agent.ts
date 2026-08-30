@@ -1049,8 +1049,14 @@ const INTENT_CORE_TOOLS: Array<{
       tools: ['getRecoveryCases', 'getRecoveryMetrics'],
     },
     {
-      verbs: /\b(analyse|analyze|breakdown|score|why|reason|explain|diagnose)\b/i,
-      tools: ['getAccountMemory', 'getAccountTimeline', 'getChurnScoreHistory'],
+      verbs: /\b(investigate|deep.?dive|complete profile|everything on|how is|situation|analyse|analyze|breakdown|score|why|reason|explain|diagnose)\b/i,
+      tools: [
+        'getAccountFullProfile',
+        'getRecoveryCaseDetail',
+        'getAccountMemory',
+        'getAccountTimeline',
+        'getChurnScoreHistory',
+      ],
     },
     {
       verbs: /\b(sync|refresh|update|reconnect)\b/i,
@@ -1179,6 +1185,8 @@ export function selectRelevantToolsForPrompt(
     'getAccountDetails',
     'getAccountMemory',
     'getAllAccounts',
+    'getAccountFullProfile',
+    'getFleetHealthSummary',
     'getAccountTimeline',
     'getExistingDrafts',
     'resolveAccountByContact',

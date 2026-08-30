@@ -238,19 +238,31 @@ function transformReasoningSSEStream(rawStream: ReadableStream<Uint8Array>): Rea
   }
 }
 
+export function normalizeAzureModelBaseUrl(azureEndpoint: string) {
+  let baseURL = azureEndpoint
+    .replace(/\/chat\/completions\/?$/, '')
+    .replace(/\/responses\/?$/, '')
+    .replace(/\/+$/, '')
+
+  // Microsoft Foundry model-inference resources expose the OpenAI-compatible
+  // contract at /models/chat/completions. Azure OpenAI resources use /openai/v1.
+  if (/\.services\.ai\.azure\.com(?:\/|$)/i.test(baseURL)) {
+    return baseURL.endsWith('/models') ? baseURL : `${baseURL}/models`
+  }
+
+  if (!baseURL.endsWith('/openai/v1') && !baseURL.endsWith('/v1')) {
+    baseURL = baseURL.replace(/\/openai\/?$/, '') + '/openai/v1'
+  }
+  return baseURL
+}
+
 export function getLanguageModel(modelIdOverride?: string) {
   const modelId = modelIdOverride || process.env.OPENAI_MODEL_ID || 'gpt-4o'
   const apiKey = process.env.AZURE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || ''
   const azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT || process.env.AZURE_OPENAI_BASE_URL
 
   if (azureEndpoint) {
-    let baseURL = azureEndpoint
-      .replace(/\/chat\/completions\/?$/, '')
-      .replace(/\/responses\/?$/, '')
-      .replace(/\/+$/, '')
-    if (!baseURL.endsWith('/openai/v1') && !baseURL.endsWith('/v1')) {
-      baseURL = baseURL.replace(/\/openai\/?$/, '') + '/openai/v1'
-    }
+    const baseURL = normalizeAzureModelBaseUrl(azureEndpoint)
     const azureOpenAI = createOpenAI({
       apiKey,
       baseURL,

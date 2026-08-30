@@ -25,7 +25,7 @@ export async function GET(
     // 1. Fetch case details
     const { data: recoveryCase, error: caseError } = await supabase
       .from('recovery_cases')
-      .select('id, case_key, status, resolution, severity, risk_score, score_confidence, revenue_priority, mrr_baseline_cents, trigger_provider, trigger_event_type, scenario_id, scenario_run_id, action_type, action_reason, suppression_reason, evidence_snapshot, opened_at, approved_at, sent_at, resolved_at, failed_at, updated_at, customer_accounts(name, domain)')
+      .select('id, customer_account_id, case_key, status, resolution, severity, risk_score, score_confidence, revenue_priority, mrr_baseline_cents, trigger_provider, trigger_event_type, scenario_id, scenario_run_id, action_type, action_reason, suppression_reason, evidence_snapshot, opened_at, approved_at, sent_at, resolved_at, failed_at, updated_at, customer_accounts(name, domain)')
       .eq('id', caseId)
       .eq('workspace_id', workspace.id)
       .single();
@@ -33,6 +33,12 @@ export async function GET(
     if (caseError || !recoveryCase) {
       return NextResponse.json({ error: 'Case not found' }, { status: 404 });
     }
+
+    const accountRelation = recoveryCase.customer_accounts as unknown as
+      | { name?: string | null; domain?: string | null }
+      | Array<{ name?: string | null; domain?: string | null }>
+      | null
+    const customerAccountId = (recoveryCase as { customer_account_id?: string | null }).customer_account_id
 
     // 2. Fetch inspectable, non-provider-payload evidence.
     const { data: events, error: eventsError } = await supabase
@@ -65,12 +71,32 @@ export async function GET(
       .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: true });
 
-    if (eventsError || draftsError || outcomesError || jobsError) {
+    const [{ data: contacts, error: contactsError }, { data: features, error: featuresError }] =
+      customerAccountId
+        ? await Promise.all([
+            supabase
+              .from('account_contacts')
+              .select('email, is_primary, is_provisional')
+              .eq('workspace_id', workspace.id)
+              .eq('customer_account_id', customerAccountId)
+              .order('is_primary', { ascending: false }),
+            supabase
+              .from('account_features')
+              .select('failed_payment_count_30d, last_payment_succeeded_at, usage_delta_percent, unreplied_outbound_count')
+              .eq('workspace_id', workspace.id)
+              .eq('customer_account_id', customerAccountId)
+              .maybeSingle(),
+          ])
+        : [{ data: [], error: null }, { data: null, error: null }];
+
+    if (eventsError || draftsError || outcomesError || jobsError || contactsError || featuresError) {
       console.error(`[api/recovery/cases/${caseId}] Failed to load related case records`, {
         eventsError: eventsError?.message,
         draftsError: draftsError?.message,
         outcomesError: outcomesError?.message,
         jobsError: jobsError?.message,
+        contactsError: contactsError?.message,
+        featuresError: featuresError?.message,
       });
       throw new Error('Related case records could not be loaded');
     }
@@ -81,6 +107,9 @@ export async function GET(
       drafts: drafts || [],
       outcomes: outcomes || [],
       jobs: jobs || [],
+      contacts: contacts || [],
+      features: features || null,
+      account: Array.isArray(accountRelation) ? accountRelation[0] ?? null : accountRelation,
       workspaceId: workspace.id,
     });
   } catch (error: any) {

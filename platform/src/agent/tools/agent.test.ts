@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { classifyAndSanitizeServerError } from '@/agent/runtime/error-classifier'
+import { normalizeAzureModelBaseUrl } from '@/foundation/ai/ai'
 import { formatCleanErrorMessage } from '@/ui/chat/agent-feed'
 import {
   createRequestMoreToolsTool,
@@ -278,6 +279,21 @@ test('Task 9b: Sarah owns the full calendar lifecycle, Henry stays read-only', (
   for (const sendTool of ['sendGmailReply', 'composeNewEmail'] as const) {
     assert.equal(henryTools.has(sendTool), false, `Henry drafts but does not send; ${sendTool} must stay out`)
   }
+})
+
+test('P0.1b: model endpoint normalization supports Foundry and Azure OpenAI resources', () => {
+  assert.equal(
+    normalizeAzureModelBaseUrl('https://example.services.ai.azure.com'),
+    'https://example.services.ai.azure.com/models'
+  )
+  assert.equal(
+    normalizeAzureModelBaseUrl('https://example.openai.azure.com'),
+    'https://example.openai.azure.com/openai/v1'
+  )
+  assert.equal(
+    normalizeAzureModelBaseUrl('https://example.openai.azure.com/openai/v1'),
+    'https://example.openai.azure.com/openai/v1'
+  )
 })
 
 test('P0.2: model failure classification decides retry, fallback, or surface', () => {
@@ -600,6 +616,19 @@ test('TC-2.8: selectRelevantToolsForPrompt routes recovery tools on risk/metrics
 
   const metricTools = selectRelevantToolsForPrompt('How much revenue did we recover this month and what are the metrics?', alexEligible, undefined, { channel: 'chat' })
   assert.ok(metricTools.includes('getRecoveryMetrics'), 'Metrics query must route getRecoveryMetrics')
+})
+
+test('TC-2.8b: single-account investigations expose the composite profile tool', () => {
+  const alexEligible = getAvailableToolNamesForPersona('alex', undefined, { channel: 'automation' })
+  const selected = selectRelevantToolsForPrompt(
+    'Investigate AtlasDesk and give me the complete profile across providers',
+    alexEligible,
+    undefined,
+    { channel: 'automation' }
+  )
+
+  assert.ok(selected.includes('getAccountFullProfile'), 'Deep dives must start with the composite profile')
+  assert.ok(selected.includes('getRecoveryCaseDetail'), 'Root-cause investigations must expose case detail')
 })
 
 test('TC-2.9: Sarah and Alex personas have access to all 4 recovery pipeline tools', () => {

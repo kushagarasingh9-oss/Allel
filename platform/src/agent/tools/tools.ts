@@ -230,36 +230,31 @@ async function listLiveStripeAccounts(workspaceId: string): Promise<LiveStripeAc
   const byCustomer = new Map<string, typeof subscriptions>()
 
   for (const subscription of subscriptions) {
-    const key =
-      subscription.customerName?.trim().toLowerCase() ||
-      subscription.customerEmail?.trim().toLowerCase() ||
-      subscription.stripeCustomerId
-    const existing = byCustomer.get(key) ?? []
+    const existing = byCustomer.get(subscription.stripeCustomerId) ?? []
     existing.push(subscription)
-    byCustomer.set(key, existing)
+    byCustomer.set(subscription.stripeCustomerId, existing)
   }
 
   // Internal IDs are only used as a bridge to founder-owned workflow actions
-  // (drafts, notes, approval records). They are never used for billing facts.
+  // (drafts, notes, approval records). Billing facts still come from Stripe.
+  // Only an exact verified provider identity may establish this bridge.
   const supabase = createServiceClient()
-  const { data: contacts, error: contactsError } = await supabase
-    .from('account_contacts')
-    .select('customer_account_id, external_ids')
+  const { data: identities, error: identitiesError } = await supabase
+    .from('provider_identities')
+    .select('customer_account_id, normalized_external_id')
     .eq('workspace_id', workspaceId)
-    .not('external_ids', 'is', null)
+    .eq('provider', 'stripe')
+    .eq('identity_type', 'customer_id')
+    .eq('verification_status', 'verified')
 
-  if (contactsError) throw contactsError
+  if (identitiesError) throw identitiesError
 
   const internalAccountIdByStripeCustomerId = new Map<string, string>()
-  for (const contact of contacts ?? []) {
-    const stripeCustomerId =
-      typeof contact.external_ids?.stripe_customer_id === 'string'
-        ? contact.external_ids.stripe_customer_id
-        : null
-    if (stripeCustomerId) {
+  for (const identity of identities ?? []) {
+    if (identity.normalized_external_id && identity.customer_account_id) {
       internalAccountIdByStripeCustomerId.set(
-        stripeCustomerId,
-        contact.customer_account_id
+        identity.normalized_external_id,
+        identity.customer_account_id
       )
     }
   }
