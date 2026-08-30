@@ -178,7 +178,7 @@ async function resolveWorkspaceForPostHog(
   distinctId: string | null,
   payload: PostHogWebhookPayload
 ): Promise<string | null> {
-  // 1. provider_identities match for distinct_id
+  // 1. provider_identities match for distinct_id (verified only)
   if (distinctId) {
     const { data: identity } = await supabase
       .from('provider_identities')
@@ -186,6 +186,7 @@ async function resolveWorkspaceForPostHog(
       .eq('provider', 'posthog')
       .eq('identity_type', 'distinct_id')
       .eq('normalized_external_id', distinctId.trim())
+      .eq('verification_status', 'verified')
       .limit(2)
 
     if (identity && identity.length === 1) {
@@ -193,12 +194,13 @@ async function resolveWorkspaceForPostHog(
     }
   }
 
-  // 2. Email fallback — unique match only
+  // 2. Email fallback — unique non-provisional match only
   const email = resolvePayloadEmail(payload)
   if (email) {
     const { data: contact } = await supabase
       .from('account_contacts')
       .select('workspace_id')
+      .eq('is_provisional', false)
       .eq('email', email)
       .limit(2)
 

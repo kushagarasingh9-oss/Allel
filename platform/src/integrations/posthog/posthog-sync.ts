@@ -300,16 +300,21 @@ export async function syncPostHogWorkspace(
       .eq('workspace_id', workspaceId),
     supabase
       .from('account_contacts')
-      .select('email, customer_account_id, external_ids')
+      .select('email, customer_account_id, external_ids, is_provisional')
       .eq('workspace_id', workspaceId),
   ])
 
   const existingAccounts: ExistingAccount[] = existingAccountsRes.data ?? []
-  const existingContacts: ExistingContact[] = existingContactsRes.data ?? []
+  const existingContacts: (ExistingContact & { is_provisional?: boolean })[] = existingContactsRes.data ?? []
 
   const accountsById = new Map(existingAccounts.map((a) => [a.id, a]))
   const accountsByName = new Map(existingAccounts.map((a) => [normalizeName(a.name), a]))
-  const contactsByEmail = new Map(existingContacts.map((c) => [c.email.toLowerCase(), c]))
+  // Only non-provisional contacts can be used for verified identity resolution
+  const contactsByEmail = new Map(
+    existingContacts
+      .filter((c) => !c.is_provisional)
+      .map((c) => [c.email.toLowerCase(), c])
+  )
 
   // §10.3: Primary distinct_id lookup from provider_identities (authoritative)
   const { data: posthogIdentities } = await supabase
@@ -499,7 +504,7 @@ export async function syncPostHogWorkspace(
     // Upsert account_contacts: provisional accounts create provisional contacts (§do.md §6)
     if (email) {
       const isProvisionalContact = (account as any).is_provisional === true || !resolvedAccountId
-      await linkContactSafely(supabase, {
+      const contactResult = await linkContactSafely(supabase, {
         workspaceId,
         customerAccountId: account.id,
         email,
@@ -513,8 +518,15 @@ export async function syncPostHogWorkspace(
         isProvisional: isProvisionalContact,
       })
 
-      contactsByEmail.set(email, { email, customer_account_id: account.id, external_ids: null })
-      syncedContacts += 1
+      if (contactResult.status === 'ok') {
+        contactsByEmail.set(email, { email, customer_account_id: account.id, external_ids: null })
+        syncedContacts += 1
+      } else if (contactResult.status === 'conflict') {
+        console.warn(`[posthog-sync] contact conflict for ${email}:`, contactResult.reason)
+        identityConflicts += 1
+      } else if (contactResult.status === 'error') {
+        console.error(`[posthog-sync] contact write error for ${email}:`, contactResult.error)
+      }
     }
   }
 
@@ -660,6 +672,9 @@ export async function syncPostHogWorkspace(
         coverage: `${people.length} people synced across ${syncedAccounts} account(s)`,
         synced_people: people.length,
         synced_accounts: syncedAccounts,
+        identity_conflicts: identityConflicts,
+        provisional_accounts: provisionalAccounts,
+        identity_health: identityConflicts > 0 ? 'degraded' : 'healthy',
       }),
     },
     { onConflict: 'workspace_id,provider' }

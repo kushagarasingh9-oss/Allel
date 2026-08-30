@@ -50,6 +50,12 @@ export type ProviderIdentity = {
   updatedAt: string;
 };
 
+export type ScenarioResolutionMetadata = {
+  scenarioId?: string | null;
+  scenarioRunId?: string | null;
+  customerAccountId?: string | null;
+};
+
 export type IdentityResolutionResult = {
   status: 'verified' | 'inferred' | 'conflict' | 'unmapped';
   customerAccountId: string | null;
@@ -58,13 +64,33 @@ export type IdentityResolutionResult = {
   matchedIdentity: string | null;
   candidateAccountIds?: string[];
   conflictReason?: string;
+  scenarioRunId?: string | null;
 };
 
-/** Returned by upsertProviderIdentity and linkContactSafely to surface conflicts explicitly. */
+/** Returned by upsertProviderIdentity, linkContactSafely, and atomic RPCs */
 export type SyncIdentityResult =
-  | { status: 'ok' }
-  | { status: 'conflict'; conflictId: string; reason: string }
+  | { status: 'ok'; accountId?: string; created?: boolean; verificationStatus?: VerificationStatus; isProvisional?: boolean }
+  | { status: 'conflict'; conflictId: string; existingAccountId?: string; candidateAccountId?: string; reason: string }
   | { status: 'error'; error: string };
+
+export type PromoteIdentityResult =
+  | { status: 'ok'; accountId: string; promoted: boolean }
+  | { status: 'conflict'; conflictId?: string; reason: string }
+  | { status: 'error'; error: string };
+
+export type IntegrationIdentityHealthMetadata = {
+  verifiedIdentities: number;
+  inferredIdentities: number;
+  unmappedCount: number;
+  conflictCount: number;
+  errorCount: number;
+  provisionalAccounts: number;
+  provisionalContacts: number;
+  promotedAccounts: number;
+  lastSyncedAt: string;
+  identityCoveragePercent: number;
+  healthStatus: 'healthy' | 'degraded' | 'attention_needed';
+};
 
 /** Stored in the identity_conflicts table for founder review. */
 export type IdentityConflict = {

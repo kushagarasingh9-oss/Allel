@@ -13,6 +13,7 @@ import { sendEmail } from '@/integrations/gmail/gmail';
 import { ensureGmailRecoveryHistoryCursor } from '@/integrations/gmail/gmail-recovery-history';
 import { upsertProviderIdentity } from '@/recovery/identity';
 import { projectAccountFeatures } from '@/recovery/features';
+import { validateSendRecipient } from '@/drafts/recipient-validator';
 import { computeContentHash } from './generate-case-draft';
 
 export async function handleSendApprovedDraft(
@@ -97,31 +98,19 @@ export async function handleSendApprovedDraft(
     throw new Error(`Draft ${draftId} has invalid recipient: ${recipientEmail}`);
   }
 
-  // §40.14: Check contact policy still permits email — fail-closed on DB errors
-  if (draft.customer_account_id) {
-    const { data: policyRows, error: policyError } = await supabase
-      .from('contact_policies')
-      .select('policy, address, expires_at')
-      .eq('workspace_id', workspaceId)
-      .eq('customer_account_id', draft.customer_account_id)
-      .eq('channel', 'email');
+  if (!draft.customer_account_id) {
+    throw new Error(`Draft ${draftId} is missing customer_account_id`);
+  }
 
-    if (policyError) {
-      // §40.14: DB error on policy check = fail closed. Never send without confirmed policy.
-      throw new Error(`Contact policy DB error for account ${draft.customer_account_id}: ${policyError.message}`);
-    }
+  // §40.14: Revalidate recipient identity and policy immediately prior to send (TOCTOU protection)
+  const recipientValidation = await validateSendRecipient(supabase, {
+    workspaceId,
+    customerAccountId: draft.customer_account_id,
+    recipientEmail,
+  });
 
-    // Apply most restrictive active policy.
-    const now = new Date();
-    const blocked = (policyRows ?? []).some((p) => {
-      if (p.expires_at && new Date(p.expires_at) < now) return false; // expired
-      // For a revenue-recovery email: do_not_contact and transactional_only both block.
-      return p.policy === 'do_not_contact' || p.policy === 'transactional_only';
-    });
-
-    if (blocked) {
-      throw new Error(`Contact policy blocks email for account ${draft.customer_account_id}`);
-    }
+  if (!recipientValidation.valid) {
+    throw new Error(`Pre-send recipient validation failed for draft ${draftId}: ${recipientValidation.reason}`);
   }
 
   // §40.14: Check Gmail is connected and healthy

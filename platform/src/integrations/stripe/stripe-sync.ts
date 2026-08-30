@@ -16,7 +16,12 @@ import { logAgentRun } from '@/agent/runtime/run-logger'
 import { syncSubscriptions } from '@/integrations/stripe/stripe'
 import { generateWorkspaceBrief } from '@/intelligence/briefs/generate-workspace-brief'
 import { mergeIntegrationConnectionMetadata } from '@/integrations/_core/connection-guard'
-import { upsertProviderIdentity, linkContactSafely, SyncIdentityResult } from '@/recovery/identity'
+import {
+  upsertProviderIdentity,
+  linkContactSafely,
+  promoteCustomerIdentitySafely,
+  SyncIdentityResult,
+} from '@/recovery/identity'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,11 +36,13 @@ type ExistingAccount = {
   renewal_at: string | null
   account_status: string
   mrr_cents: number
+  is_provisional?: boolean
 }
 
 type ExistingContact = {
   email: string
   customer_account_id: string
+  is_provisional?: boolean
 }
 
 export type StripeWorkspaceSyncResult = {
@@ -92,11 +99,11 @@ export async function syncStripeWorkspace(
     await Promise.all([
       supabase
         .from('customer_accounts')
-        .select('id, name, usage_delta_percent, open_issue, last_touch_at, renewal_at, account_status, mrr_cents')
+        .select('id, name, usage_delta_percent, open_issue, last_touch_at, renewal_at, account_status, mrr_cents, is_provisional')
         .eq('workspace_id', workspaceId),
       supabase
         .from('account_contacts')
-        .select('email, customer_account_id')
+        .select('email, customer_account_id, is_provisional')
         .eq('workspace_id', workspaceId),
     ])
 
@@ -112,8 +119,11 @@ export async function syncStripeWorkspace(
       a,
     ])
   )
+  // Only non-provisional contacts can be used for verified cross-provider resolution
   const contactsByEmail = new Map(
-    ((existingContacts as ExistingContact[] | null) ?? []).map((c) => [c.email.toLowerCase(), c])
+    ((existingContacts as ExistingContact[] | null) ?? [])
+      .filter((c) => !c.is_provisional)
+      .map((c) => [c.email.toLowerCase(), c])
   )
 
   // Also resolve by provider_identities (Stripe customer_id → account)
@@ -147,7 +157,7 @@ export async function syncStripeWorkspace(
     const accountStatus = normalizeAccountStatus(subscription.status)
     const renewalAt = subscription.currentPeriodEnd.toISOString()
 
-    // §10.2: Resolution order — Stripe customer ID first, then verified contact email.
+    // §10.2: Resolution order — Stripe customer ID first, then verified non-provisional contact email.
     // Name matching MUST NEVER mutate an existing account (§do.md §2).
     const byStripeId = stripeIdToAccountId.get(subscription.stripeCustomerId)
     const existingContact = subscription.customerEmail
@@ -179,8 +189,6 @@ export async function syncStripeWorkspace(
       ? (existingAccount?.mrr_cents ?? subscription.mrrCents)
       : null
 
-    // §14.1: No risk_score or risk_level computed here.
-    // Billing facts only — decision engine owns scoring.
     const accountPayload = {
       workspace_id: workspaceId,
       name: accountName,
@@ -188,7 +196,6 @@ export async function syncStripeWorkspace(
       plan_name: subscription.planName,
       account_status: accountStatus,
       mrr_cents: isNowCancelled ? 0 : subscription.mrrCents,
-      // Preserve existing risk fields — do not overwrite them here
       usage_delta_percent: existingAccount?.usage_delta_percent ?? 0,
       open_issue: existingAccount?.open_issue ?? null,
       next_action: buildNextAction(accountStatus),
@@ -198,14 +205,8 @@ export async function syncStripeWorkspace(
 
     let customerAccountId = existingAccount?.id ?? null
 
-    if (customerAccountId) {
-      const { error: updateError } = await supabase
-        .from('customer_accounts')
-        .update(accountPayload)
-        .eq('id', customerAccountId)
-
-      if (updateError) throw updateError
-    } else {
+    // Step 1: If creating a new account, insert it first as non-provisional
+    if (!customerAccountId) {
       const { data: insertedAccount, error: insertError } = await supabase
         .from('customer_accounts')
         .insert({ ...accountPayload, is_provisional: false })
@@ -229,51 +230,108 @@ export async function syncStripeWorkspace(
         renewal_at: renewalAt,
         account_status: accountStatus,
         mrr_cents: isNowCancelled ? 0 : subscription.mrrCents,
+        is_provisional: false,
       }
       accountsById.set(insertedId, record)
       accountsByName.set(accountName, record)
+    } else if (existingAccount?.is_provisional === true) {
+      // Step 1b: If account was provisional, promote it safely with authoritative Stripe evidence
+      await promoteCustomerIdentitySafely(supabase, {
+        workspaceId,
+        customerAccountId,
+        source: 'stripe_sync',
+        evidence: { stripe_customer_id: subscription.stripeCustomerId },
+      })
     }
 
-    // §10.2: Write Stripe customer_id to provider_identities
-    if (customerAccountId) {
-      try {
-        const custResult = await upsertProviderIdentity(supabase, {
-          workspaceId,
-          customerAccountId,
-          provider: 'stripe',
-          identityType: 'customer_id',
-          externalId: subscription.stripeCustomerId,
-          isPrimary: true,
-          verificationStatus: 'verified',
-          source: 'stripe_sync',
-          metadata: { subscription_id: subscription.subscriptionId },
-        })
+    // Step 2: Establish Stripe customer_id identity safely BEFORE projecting billing facts
+    let hasIdentityConflict = false
 
-        if (custResult.status === 'ok') {
-          stripeIdToAccountId.set(subscription.stripeCustomerId, customerAccountId)
-        } else if (custResult.status === 'conflict') {
-          console.warn(`[stripe-sync] identity conflict for stripe customer ${subscription.stripeCustomerId}:`, custResult.reason)
-          identityConflicts += 1
-        }
-      } catch (e) {
-        console.warn('[stripe-sync] identity write warning:', e instanceof Error ? e.message : e)
-      }
+    const custResult = await upsertProviderIdentity(supabase, {
+      workspaceId,
+      customerAccountId,
+      provider: 'stripe',
+      identityType: 'customer_id',
+      externalId: subscription.stripeCustomerId,
+      isPrimary: true,
+      verificationStatus: 'verified',
+      source: 'stripe_sync',
+      metadata: { subscription_id: subscription.subscriptionId },
+    })
 
-      // §10.2: Subscription ID as secondary identity
-      try {
-        await upsertProviderIdentity(supabase, {
-          workspaceId,
-          customerAccountId,
-          provider: 'stripe',
-          identityType: 'subscription_id',
-          externalId: subscription.subscriptionId,
-          isPrimary: false,
-          verificationStatus: 'verified',
-          source: 'stripe_sync',
+    if (custResult.status === 'ok') {
+      stripeIdToAccountId.set(subscription.stripeCustomerId, customerAccountId)
+    } else if (custResult.status === 'conflict') {
+      console.warn(`[stripe-sync] identity conflict for stripe customer ${subscription.stripeCustomerId}:`, custResult.reason)
+      identityConflicts += 1
+      hasIdentityConflict = true
+    } else if (custResult.status === 'error') {
+      console.error(`[stripe-sync] identity write error for stripe customer ${subscription.stripeCustomerId}:`, custResult.error)
+      hasIdentityConflict = true
+    }
+
+    // Link contact safely
+    if (subscription.customerEmail && customerAccountId && !hasIdentityConflict) {
+      const contactResult = await linkContactSafely(supabase, {
+        workspaceId,
+        customerAccountId,
+        email: subscription.customerEmail,
+        name: subscription.customerName ?? null,
+        role: 'billing',
+        isPrimary: true,
+        externalIds: {
+          stripe_customer_id: subscription.stripeCustomerId,
+          stripe_subscription_id: subscription.subscriptionId,
+        },
+        source: 'stripe_sync',
+        isProvisional: false,
+      })
+
+      if (contactResult.status === 'ok') {
+        contactsByEmail.set(subscription.customerEmail.toLowerCase(), {
+          email: subscription.customerEmail,
+          customer_account_id: customerAccountId,
+          is_provisional: false,
         })
-      } catch (e) {
-        console.warn('[stripe-sync] identity write warning:', e instanceof Error ? e.message : e)
+        updatedContacts += 1
+      } else if (contactResult.status === 'conflict') {
+        console.warn(`[stripe-sync] contact conflict for ${subscription.customerEmail}:`, contactResult.reason)
+        identityConflicts += 1
+        hasIdentityConflict = true
+      } else {
+        console.error(`[stripe-sync] contact write error for ${subscription.customerEmail}:`, contactResult.error)
       }
+    }
+
+    // §do.md §4: If identity or contact conflict occurred, DO NOT project billing facts, signals, or feature jobs
+    if (hasIdentityConflict) {
+      continue
+    }
+
+    // Update existing account billing facts
+    if (existingAccount) {
+      const { error: updateError } = await supabase
+        .from('customer_accounts')
+        .update(accountPayload)
+        .eq('id', customerAccountId)
+
+      if (updateError) throw updateError
+    }
+
+    // §10.2: Subscription ID as secondary identity
+    try {
+      await upsertProviderIdentity(supabase, {
+        workspaceId,
+        customerAccountId,
+        provider: 'stripe',
+        identityType: 'subscription_id',
+        externalId: subscription.subscriptionId,
+        isPrimary: false,
+        verificationStatus: 'verified',
+        source: 'stripe_sync',
+      })
+    } catch (e) {
+      console.warn('[stripe-sync] identity write warning:', e instanceof Error ? e.message : e)
     }
 
     // Billing attention: write timeline and account_signals for changed status
@@ -298,7 +356,6 @@ export async function syncStripeWorkspace(
         .maybeSingle()
 
       if (!existingSignal) {
-        // Use 'medium' as a conservative default — decision engine will compute the real label
         const { error: signalError } = await supabase.from('account_signals').insert({
           workspace_id: workspaceId,
           customer_account_id: customerAccountId,
@@ -311,7 +368,7 @@ export async function syncStripeWorkspace(
             `Plan: ${subscription.planName ?? 'Unknown plan'}`,
             ...(preCancelMrr ? [`MRR at cancellation: $${(preCancelMrr / 100).toFixed(0)}`] : []),
           ],
-          risk_level: 'medium', // conservative placeholder — decision engine scores this
+          risk_level: 'medium',
         })
 
         if (signalError) throw signalError
@@ -378,7 +435,7 @@ export async function syncStripeWorkspace(
               stripeSubscriptionId: subscription.subscriptionId,
               currentMrrCents: isNowCancelled ? 0 : subscription.mrrCents,
               ...(preCancelMrr !== null ? { preCancelMrrCents: preCancelMrr } : {}),
-              cancelAtPeriodEnd: null, // reconciliation will set this from live subscription
+              cancelAtPeriodEnd: null,
               billingFreshAt: syncRunStart,
               ...(subscription.status === 'trialing' ? { billingStatus: 'trial' } : {}),
             },
@@ -407,37 +464,6 @@ export async function syncStripeWorkspace(
     }
 
     syncedAccounts += 1
-
-    // Upsert account_contacts — conflict-aware; never moves an email to a different account.
-    if (subscription.customerEmail && customerAccountId) {
-      const contactResult = await linkContactSafely(supabase, {
-        workspaceId,
-        customerAccountId,
-        email: subscription.customerEmail,
-        name: subscription.customerName ?? null,
-        role: 'billing',
-        isPrimary: true,
-        externalIds: {
-          stripe_customer_id: subscription.stripeCustomerId,
-          stripe_subscription_id: subscription.subscriptionId,
-        },
-        source: 'stripe_sync',
-        isProvisional: false,
-      })
-
-      if (contactResult.status === 'ok') {
-        contactsByEmail.set(subscription.customerEmail.toLowerCase(), {
-          email: subscription.customerEmail,
-          customer_account_id: customerAccountId,
-        })
-        updatedContacts += 1
-      } else if (contactResult.status === 'conflict') {
-        console.warn(`[stripe-sync] contact conflict for ${subscription.customerEmail}:`, contactResult.reason)
-        identityConflicts += 1
-      } else {
-        console.error(`[stripe-sync] contact write error for ${subscription.customerEmail}:`, contactResult.error)
-      }
-    }
   }
 
   const syncedAt = new Date().toISOString()
@@ -455,6 +481,9 @@ export async function syncStripeWorkspace(
             : 'Connected, but no subscriptions were found',
         synced_accounts: syncedAccounts,
         high_risk_accounts: highRiskAccounts,
+        identity_conflicts: identityConflicts,
+        provisional_accounts: provisionalAccounts,
+        identity_health: identityConflicts > 0 ? 'degraded' : 'healthy',
       }),
     },
     { onConflict: 'workspace_id,provider' }
@@ -466,12 +495,14 @@ export async function syncStripeWorkspace(
     workspaceId,
     runType: 'integration_synced',
     status: 'completed',
-    outputSummary: `Stripe sync completed: ${syncedAccounts} account(s), ${updatedContacts} contact(s), ${highRiskAccounts} accounts with billing issues queued for scoring.`,
+    outputSummary: `Stripe sync completed: ${syncedAccounts} account(s), ${updatedContacts} contact(s), ${identityConflicts} conflict(s), ${highRiskAccounts} accounts with billing issues queued for scoring.`,
     metadata: {
       provider: 'stripe',
       syncedAccounts,
       updatedContacts,
       highRiskAccounts,
+      identityConflicts,
+      provisionalAccounts,
     },
   })
 

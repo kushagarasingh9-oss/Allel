@@ -8,6 +8,7 @@ import {
 import { refreshAccountMemory } from '@/agent/memory/account-memory'
 import { logAgentRun } from '@/agent/runtime/run-logger'
 import { recordDraftSent } from '@/drafts/outcome-tracker'
+import { validateSendRecipient } from '@/drafts/recipient-validator'
 
 type DraftRecord = {
   id: string
@@ -67,6 +68,17 @@ export async function sendDraftWithGmail(
   const bodyFull = typedDraft.body_full
   if (!bodyFull) {
     throw new Error('Draft has no full body — refusing to send preview content')
+  }
+
+  // Pre-send recipient validation (TOCTOU prevention)
+  const recipientValidation = await validateSendRecipient(supabase, {
+    workspaceId: typedDraft.workspace_id,
+    customerAccountId: typedDraft.customer_account_id,
+    recipientEmail,
+  })
+
+  if (!recipientValidation.valid) {
+    throw new Error(`Pre-send recipient validation failed: ${recipientValidation.reason}`)
   }
 
   if (!isGmailConfigured()) {

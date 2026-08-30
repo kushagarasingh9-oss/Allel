@@ -169,20 +169,24 @@ export async function syncGmailRecoveryHistory(
   const supabase = createServiceClient()
   let inboundMessages = 0
   let ignoredMessages = 0
+  let ingestionFailed = false
+  let failureReason: string | null = null
 
   for (const historyMessage of history.messages) {
     let thread: GmailThreadSummary | null = null
     try {
       thread = await fetchThreadDetail(workspaceId, historyMessage.threadId)
     } catch (err) {
-      console.warn(`[gmail-recovery] Could not fetch thread ${historyMessage.threadId}:`, err)
-      ignoredMessages += 1
-      continue
+      ingestionFailed = true
+      failureReason = `Failed to fetch thread detail for ${historyMessage.threadId}: ${err instanceof Error ? err.message : String(err)}`
+      console.error(`[gmail-recovery] ${failureReason}`)
+      break
     }
 
     const message = thread?.messages?.find((candidate: GmailThreadMessage) => candidate.id === historyMessage.id)
 
     if (!message || !isCustomerInboundMessage(message, profile.emailAddress)) {
+      // Deliberately ignored message (automated, outbound, or non-matching) -> safe to continue
       ignoredMessages += 1
       continue
     }
@@ -225,12 +229,27 @@ export async function syncGmailRecoveryHistory(
     })
 
     if (error) {
-      console.warn(`[gmail-recovery] Ingest provider event warning for message ${message.id}: ${error.message}`)
+      ingestionFailed = true
+      failureReason = `Ingest provider event error for message ${message.id}: ${error.message}`
+      console.error(`[gmail-recovery] ${failureReason}`)
+      break
     } else {
       inboundMessages += 1
     }
   }
 
+  // §do.md §8: If ingestion failed, preserve previous cursor so failed messages remain retryable.
+  if (ingestionFailed) {
+    await writeCursor({
+      workspaceId,
+      cursor: initialCursor,
+      status: 'failed',
+      error: failureReason,
+    })
+    throw new Error(failureReason ?? 'Gmail recovery history ingestion failed')
+  }
+
+  // All messages in batch succeeded or were safely ignored -> advance cursor
   await writeCursor({ workspaceId, cursor: history.historyId, status: 'idle' })
   return {
     observedMessages: history.messages.length,

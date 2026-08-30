@@ -1,6 +1,20 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { IdentityType, IdentityResolutionResult, Provider, SyncIdentityResult } from './types';
-export type { IdentityType, IdentityResolutionResult, Provider, SyncIdentityResult };
+import {
+  IdentityType,
+  IdentityResolutionResult,
+  Provider,
+  SyncIdentityResult,
+  PromoteIdentityResult,
+  ScenarioResolutionMetadata,
+} from './types';
+export type {
+  IdentityType,
+  IdentityResolutionResult,
+  Provider,
+  SyncIdentityResult,
+  PromoteIdentityResult,
+  ScenarioResolutionMetadata,
+};
 import { RECOVERY_CONFIG } from './config';
 
 // ---------------------------------------------------------------------------
@@ -41,10 +55,10 @@ export async function resolveAccountIdentity(
     externalId: string;
     /**
      * scenarioMetadata is only honoured when RECOVERY_CONFIG.TEST_MODE is true AND a matching
-     * provider_identities row with the given scenario_id exists in the database.
-     * It is never trusted blindly.
+     * active recovery_scenario_runs record and matching row exist in the database.
+     * It is never trusted blindly in production or across workspaces.
      */
-    scenarioMetadata?: { customerAccountId?: string; scenarioId?: string };
+    scenarioMetadata?: ScenarioResolutionMetadata;
     fallbackEmail?: string | null;
   }
 ): Promise<IdentityResolutionResult> {
@@ -83,36 +97,94 @@ export async function resolveAccountIdentity(
     }
   }
 
-  // 2. Scenario metadata bypass — only in TEST_MODE, and only when there is a matching
-  //    provider_identities row with the given scenario_id (no blind trust).
+  // 2. Scenario metadata bypass — only in TEST_MODE, and only when there is a valid,
+  //    active recovery_scenario_runs row in the same workspace AND matching DB row.
   if (
     RECOVERY_CONFIG.TEST_MODE &&
-    params.scenarioMetadata?.customerAccountId &&
     params.scenarioMetadata?.scenarioId
   ) {
-    const { data: scenarioRow } = await supabase
-      .from('provider_identities')
-      .select('customer_account_id')
-      .eq('workspace_id', params.workspaceId)
-      .eq('customer_account_id', params.scenarioMetadata.customerAccountId)
-      .eq('scenario_id', params.scenarioMetadata.scenarioId)
-      .eq('provider', params.provider)
-      .maybeSingle();
+    const scenarioId = params.scenarioMetadata.scenarioId;
+    const scenarioRunId = params.scenarioMetadata.scenarioRunId;
 
-    if (scenarioRow) {
-      return {
-        status: 'verified',
-        customerAccountId: scenarioRow.customer_account_id,
-        confidence: 0.95,
-        matchType: 'trusted_scenario_metadata',
-        matchedIdentity: normalizedId,
-      };
+    if (scenarioRunId) {
+      const { data: runRow } = await supabase
+        .from('recovery_scenario_runs')
+        .select('id, status, test_mode')
+        .eq('id', scenarioRunId)
+        .eq('workspace_id', params.workspaceId)
+        .eq('test_mode', true)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (runRow) {
+        // Query provider_identities row for this scenario + scenario_run
+        const { data: scenarioIdentity } = await supabase
+          .from('provider_identities')
+          .select('customer_account_id')
+          .eq('workspace_id', params.workspaceId)
+          .eq('scenario_id', scenarioId)
+          .eq('scenario_run_id', scenarioRunId)
+          .eq('provider', params.provider)
+          .maybeSingle();
+
+        if (scenarioIdentity) {
+          return {
+            status: 'verified',
+            customerAccountId: scenarioIdentity.customer_account_id,
+            confidence: 0.95,
+            matchType: 'trusted_scenario_metadata',
+            matchedIdentity: normalizedId,
+            scenarioRunId,
+          };
+        }
+
+        // Check if customer_accounts exists for this scenario run
+        if (params.scenarioMetadata.customerAccountId) {
+          const { data: scenarioAccount } = await supabase
+            .from('customer_accounts')
+            .select('id')
+            .eq('workspace_id', params.workspaceId)
+            .eq('id', params.scenarioMetadata.customerAccountId)
+            .eq('scenario_id', scenarioId)
+            .eq('scenario_run_id', scenarioRunId)
+            .maybeSingle();
+
+          if (scenarioAccount) {
+            return {
+              status: 'verified',
+              customerAccountId: scenarioAccount.id,
+              confidence: 0.95,
+              matchType: 'trusted_scenario_metadata',
+              matchedIdentity: normalizedId,
+              scenarioRunId,
+            };
+          }
+        }
+      }
+    } else if (params.scenarioMetadata.customerAccountId) {
+      // Legacy backward compatibility in tests where only customerAccountId + scenarioId were passed
+      const { data: legacyRow } = await supabase
+        .from('provider_identities')
+        .select('customer_account_id')
+        .eq('workspace_id', params.workspaceId)
+        .eq('customer_account_id', params.scenarioMetadata.customerAccountId)
+        .eq('scenario_id', scenarioId)
+        .eq('provider', params.provider)
+        .maybeSingle();
+
+      if (legacyRow) {
+        return {
+          status: 'verified',
+          customerAccountId: legacyRow.customer_account_id,
+          confidence: 0.95,
+          matchType: 'trusted_scenario_metadata',
+          matchedIdentity: normalizedId,
+        };
+      }
     }
   }
 
   // 3. Exact normalized email lookup against account_contacts.
-  //    Use .eq() (not .ilike()) because normalizeExternalId already lowercases emails,
-  //    and ilike performs pattern matching that can match substrings.
   const candidateEmail =
     params.identityType === 'person_email' || params.identityType === 'email_address'
       ? normalizedId
@@ -178,20 +250,18 @@ export async function resolveAccountIdentity(
 }
 
 // ---------------------------------------------------------------------------
-// upsertProviderIdentity — conflict-aware write-path
+// upsertProviderIdentity — atomic transactional write-path
 // ---------------------------------------------------------------------------
 
 /**
- * Persists a provider identity to `provider_identities`.
+ * Persists a provider identity to `provider_identities` using atomic PostgreSQL RPC.
  *
  * Safety contract:
- * - Same workspace + provider + identity_type + normalized_external_id AND same account → safe
- *   update (last_seen_at, metadata only).
- * - Same key but DIFFERENT account → writes a conflict row to `identity_conflicts`, returns
+ * - Same workspace + provider + identity_type + normalized_external_id AND same account -> safe
+ *   enrichment (last_seen_at, metadata). Never downgrades verified to inferred.
+ * - Same key but DIFFERENT account -> writes a conflict row to `identity_conflicts`, returns
  *   { status: 'conflict' }. The existing row is NOT modified.
- * - New row → insert.
- *
- * Never silently reassigns a provider identity to a different account.
+ * - New row -> insert.
  */
 export async function upsertProviderIdentity(
   supabase: SupabaseClient,
@@ -207,13 +277,67 @@ export async function upsertProviderIdentity(
     metadata?: Record<string, unknown>;
     scenarioId?: string | null;
     scenarioRunId?: string | null;
+    isProvisional?: boolean;
   }
 ): Promise<SyncIdentityResult> {
   const normalizedExternalId = normalizeExternalId(identity.externalId, identity.identityType);
   const now = new Date().toISOString();
 
   try {
-    // 1. Read any existing row for this unique key
+    // 1. Try atomic PostgreSQL RPC first
+    if (typeof supabase.rpc === 'function') {
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('link_provider_identity_safely', {
+        p_workspace_id: identity.workspaceId,
+        p_customer_account_id: identity.customerAccountId,
+        p_provider: identity.provider,
+        p_identity_type: identity.identityType,
+        p_normalized_external_id: normalizedExternalId,
+        p_is_primary: identity.isPrimary ?? false,
+        p_verification_status: identity.verificationStatus ?? 'inferred',
+        p_source: identity.source,
+        p_scenario_id: identity.scenarioId ?? null,
+        p_scenario_run_id: identity.scenarioRunId ?? null,
+        p_metadata: identity.metadata ?? {},
+        p_is_provisional: identity.isProvisional ?? false,
+      });
+
+      if (!rpcError && rpcResult && typeof rpcResult === 'object') {
+        const res = rpcResult as {
+          status: 'ok' | 'conflict' | 'error';
+          accountId?: string;
+          created?: boolean;
+          verificationStatus?: 'verified' | 'inferred' | 'conflict' | 'revoked';
+          conflictId?: string;
+          existingAccountId?: string;
+          candidateAccountId?: string;
+          reason?: string;
+          error?: string;
+        };
+
+        if (res.status === 'ok') {
+          return {
+            status: 'ok',
+            accountId: res.accountId ?? identity.customerAccountId,
+            created: res.created,
+            verificationStatus: res.verificationStatus,
+          };
+        }
+        if (res.status === 'conflict') {
+          return {
+            status: 'conflict',
+            conflictId: res.conflictId ?? 'unknown',
+            existingAccountId: res.existingAccountId,
+            candidateAccountId: res.candidateAccountId ?? identity.customerAccountId,
+            reason: res.reason ?? 'Provider identity collision',
+          };
+        }
+        if (res.status === 'error') {
+          return { status: 'error', error: res.error ?? 'RPC error' };
+        }
+      }
+    }
+
+    // 2. TypeScript transactional fallback (when RPC is unavailable or in mock test suites)
     const { data: existing, error: readError } = await supabase
       .from('provider_identities')
       .select('id, customer_account_id, verification_status')
@@ -228,7 +352,6 @@ export async function upsertProviderIdentity(
     }
 
     if (existing) {
-      // 2a. Same account — safe to update last_seen_at and metadata
       if (existing.customer_account_id === identity.customerAccountId) {
         const { error: updateError } = await supabase
           .from('provider_identities')
@@ -236,23 +359,24 @@ export async function upsertProviderIdentity(
             last_seen_at: now,
             updated_at: now,
             metadata: { ...(identity.metadata ?? {}) },
-            // Only escalate verification_status, never downgrade
-            ...(
-              identity.verificationStatus === 'verified' &&
-              existing.verification_status !== 'verified'
-                ? { verification_status: 'verified' }
-                : {}
-            ),
+            ...(identity.verificationStatus === 'verified' && existing.verification_status !== 'verified'
+              ? { verification_status: 'verified', is_provisional: false }
+              : {}),
           })
           .eq('id', existing.id);
 
         if (updateError) {
           return { status: 'error', error: `Update failed: ${updateError.message}` };
         }
-        return { status: 'ok' };
+        return {
+          status: 'ok',
+          accountId: identity.customerAccountId,
+          created: false,
+          verificationStatus: identity.verificationStatus === 'verified' ? 'verified' : existing.verification_status,
+        };
       }
 
-      // 2b. Different account — record conflict, do NOT reassign
+      // Conflict: Different account owns this provider identity
       const reason =
         `Provider ${identity.provider}/${identity.identityType} ` +
         `"${normalizedExternalId}" already belongs to account ${existing.customer_account_id}. ` +
@@ -278,15 +402,26 @@ export async function upsertProviderIdentity(
         .single();
 
       if (conflictError) {
-        // Non-fatal: log but don't throw — we already know not to reassign
         console.error('[identity] failed to write conflict row:', conflictError.message);
-        return { status: 'conflict', conflictId: 'unknown', reason };
+        return {
+          status: 'conflict',
+          conflictId: 'unknown',
+          existingAccountId: existing.customer_account_id,
+          candidateAccountId: identity.customerAccountId,
+          reason,
+        };
       }
 
-      return { status: 'conflict', conflictId: conflictRow.id, reason };
+      return {
+        status: 'conflict',
+        conflictId: conflictRow.id,
+        existingAccountId: existing.customer_account_id,
+        candidateAccountId: identity.customerAccountId,
+        reason,
+      };
     }
 
-    // 3. New row — insert
+    // Insert new row
     const { error: insertError } = await supabase.from('provider_identities').insert({
       workspace_id: identity.workspaceId,
       customer_account_id: identity.customerAccountId,
@@ -300,6 +435,7 @@ export async function upsertProviderIdentity(
       metadata: identity.metadata ?? {},
       scenario_id: identity.scenarioId ?? null,
       scenario_run_id: identity.scenarioRunId ?? null,
+      is_provisional: identity.isProvisional ?? false,
       first_seen_at: now,
       last_seen_at: now,
       created_at: now,
@@ -310,7 +446,12 @@ export async function upsertProviderIdentity(
       return { status: 'error', error: `Insert failed: ${insertError.message}` };
     }
 
-    return { status: 'ok' };
+    return {
+      status: 'ok',
+      accountId: identity.customerAccountId,
+      created: true,
+      verificationStatus: identity.verificationStatus ?? 'inferred',
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { status: 'error', error: message };
@@ -318,19 +459,17 @@ export async function upsertProviderIdentity(
 }
 
 // ---------------------------------------------------------------------------
-// linkContactSafely — conflict-aware account_contacts write-path
+// linkContactSafely — atomic transactional account_contacts write-path
 // ---------------------------------------------------------------------------
 
 /**
  * Links an email address to a customer account in account_contacts.
  *
  * Safety contract:
- * - Email absent → insert new contact row.
- * - Email present + same account → enrich (update external_ids, name, role).
- * - Email present + DIFFERENT account → write conflict row, return { status: 'conflict' }.
- *   The existing contact is NOT moved.
- *
- * Never silently reassigns a contact email to a different account.
+ * - Email absent -> insert new contact row.
+ * - Email present + same account -> enrich safely.
+ * - Email present + DIFFERENT account -> write conflict row, return { status: 'conflict' }.
+ * - Non-authoritative sources (intercom, posthog, gmail_bootstrap) can NEVER set is_primary = true.
  */
 export async function linkContactSafely(
   supabase: SupabaseClient,
@@ -353,7 +492,57 @@ export async function linkContactSafely(
   const now = new Date().toISOString();
 
   try {
-    // 1. Read existing contact for this workspace + email
+    // 1. Try atomic PostgreSQL RPC first
+    if (typeof supabase.rpc === 'function') {
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('link_account_contact_safely', {
+        p_workspace_id: contact.workspaceId,
+        p_customer_account_id: contact.customerAccountId,
+        p_email: normalizedEmail,
+        p_name: contact.name ?? null,
+        p_role: contact.role ?? 'billing',
+        p_is_primary: contact.isPrimary ?? false,
+        p_external_ids: contact.externalIds ?? {},
+        p_source: contact.source,
+        p_is_provisional: contact.isProvisional ?? false,
+      });
+
+      if (!rpcError && rpcResult && typeof rpcResult === 'object') {
+        const res = rpcResult as {
+          status: 'ok' | 'conflict' | 'error';
+          accountId?: string;
+          created?: boolean;
+          isProvisional?: boolean;
+          conflictId?: string;
+          existingAccountId?: string;
+          candidateAccountId?: string;
+          reason?: string;
+          error?: string;
+        };
+
+        if (res.status === 'ok') {
+          return {
+            status: 'ok',
+            accountId: res.accountId ?? contact.customerAccountId,
+            created: res.created,
+            isProvisional: res.isProvisional,
+          };
+        }
+        if (res.status === 'conflict') {
+          return {
+            status: 'conflict',
+            conflictId: res.conflictId ?? 'unknown',
+            existingAccountId: res.existingAccountId,
+            candidateAccountId: res.candidateAccountId ?? contact.customerAccountId,
+            reason: res.reason ?? 'Contact email collision',
+          };
+        }
+        if (res.status === 'error') {
+          return { status: 'error', error: res.error ?? 'RPC error' };
+        }
+      }
+    }
+
+    // 2. TypeScript fallback
     const { data: existing, error: readError } = await supabase
       .from('account_contacts')
       .select('id, customer_account_id, external_ids, is_primary, name, is_provisional')
@@ -366,17 +555,12 @@ export async function linkContactSafely(
     }
 
     if (existing) {
-      // 2a. Same account — safe to enrich
       if (existing.customer_account_id === contact.customerAccountId) {
         const mergedExternalIds = {
           ...(existing.external_ids ?? {}),
           ...(contact.externalIds ?? {}),
         };
 
-        // Explicit promotion rule (§do.md §7):
-        // Provisional contacts (is_provisional = true) can only be promoted to verified (is_provisional = false)
-        // when confirmed by a direct API provider sync with authority (e.g. stripe_sync).
-        // Never promote because of a name/domain guess.
         const canPromote =
           existing.is_provisional === true &&
           contact.isProvisional === false &&
@@ -388,12 +572,18 @@ export async function linkContactSafely(
           ? false
           : (contact.isProvisional ?? true);
 
+        const isPrimaryAllowed =
+          contact.source === 'intercom_sync' || contact.source === 'posthog_sync' || contact.source === 'gmail_bootstrap'
+            ? false
+            : contact.isPrimary ?? false;
+
         const { error: updateError } = await supabase
           .from('account_contacts')
           .update({
             external_ids: mergedExternalIds,
             ...(contact.name ? { name: contact.name } : {}),
             ...(contact.role ? { role: contact.role } : {}),
+            is_primary: isPrimaryAllowed ? true : existing.is_primary,
             is_provisional: nextProvisionalState,
             updated_at: now,
           })
@@ -402,10 +592,15 @@ export async function linkContactSafely(
         if (updateError) {
           return { status: 'error', error: `Contact update failed: ${updateError.message}` };
         }
-        return { status: 'ok' };
+        return {
+          status: 'ok',
+          accountId: contact.customerAccountId,
+          created: false,
+          isProvisional: nextProvisionalState,
+        };
       }
 
-      // 2b. Different account — record conflict, do NOT move the contact
+      // Conflict: Contact already belongs to a different account
       const reason =
         `Email "${normalizedEmail}" is already linked to account ${existing.customer_account_id}. ` +
         `Candidate account ${contact.customerAccountId} rejected. Source: ${contact.source}.`;
@@ -431,20 +626,37 @@ export async function linkContactSafely(
 
       if (conflictError) {
         console.error('[identity] failed to write contact conflict row:', conflictError.message);
-        return { status: 'conflict', conflictId: 'unknown', reason };
+        return {
+          status: 'conflict',
+          conflictId: 'unknown',
+          existingAccountId: existing.customer_account_id,
+          candidateAccountId: contact.customerAccountId,
+          reason,
+        };
       }
 
-      return { status: 'conflict', conflictId: conflictRow.id, reason };
+      return {
+        status: 'conflict',
+        conflictId: conflictRow.id,
+        existingAccountId: existing.customer_account_id,
+        candidateAccountId: contact.customerAccountId,
+        reason,
+      };
     }
 
-    // 3. No existing row — insert
+    // Insert new contact
+    const isPrimaryAllowed =
+      contact.source === 'intercom_sync' || contact.source === 'posthog_sync' || contact.source === 'gmail_bootstrap'
+        ? false
+        : contact.isPrimary ?? false;
+
     const { error: insertError } = await supabase.from('account_contacts').insert({
       workspace_id: contact.workspaceId,
       customer_account_id: contact.customerAccountId,
       email: normalizedEmail,
       name: contact.name ?? null,
       role: contact.role ?? 'billing',
-      is_primary: contact.isPrimary ?? false,
+      is_primary: isPrimaryAllowed,
       external_ids: contact.externalIds ?? {},
       is_provisional: contact.isProvisional ?? false,
       created_at: now,
@@ -455,7 +667,99 @@ export async function linkContactSafely(
       return { status: 'error', error: `Contact insert failed: ${insertError.message}` };
     }
 
-    return { status: 'ok' };
+    return {
+      status: 'ok',
+      accountId: contact.customerAccountId,
+      created: true,
+      isProvisional: contact.isProvisional ?? false,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { status: 'error', error: message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// promoteCustomerIdentitySafely — explicit deterministic promotion
+// ---------------------------------------------------------------------------
+
+/**
+ * Promotes an isolated provisional account and its confirmed contacts/identities
+ * to non-provisional canonical status when verified evidence is supplied.
+ */
+export async function promoteCustomerIdentitySafely(
+  supabase: SupabaseClient,
+  params: {
+    workspaceId: string;
+    customerAccountId: string;
+    source: string;
+    evidence?: Record<string, unknown>;
+  }
+): Promise<PromoteIdentityResult> {
+  const now = new Date().toISOString();
+
+  try {
+    // 1. Try atomic PostgreSQL RPC first
+    if (typeof supabase.rpc === 'function') {
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('promote_customer_identity_safely', {
+        p_workspace_id: params.workspaceId,
+        p_customer_account_id: params.customerAccountId,
+        p_source: params.source,
+        p_evidence: params.evidence ?? {},
+      });
+
+      if (!rpcError && rpcResult && typeof rpcResult === 'object') {
+        const res = rpcResult as { status: 'ok' | 'conflict' | 'error'; accountId?: string; promoted?: boolean; reason?: string; error?: string };
+        if (res.status === 'ok') {
+          return { status: 'ok', accountId: res.accountId ?? params.customerAccountId, promoted: res.promoted ?? true };
+        }
+        if (res.status === 'conflict') {
+          return { status: 'conflict', reason: res.reason ?? 'Promotion conflict' };
+        }
+        if (res.status === 'error') {
+          return { status: 'error', error: res.error ?? 'Promotion failed' };
+        }
+      }
+    }
+
+    // 2. TypeScript fallback
+    const { data: account, error: accError } = await supabase
+      .from('customer_accounts')
+      .select('id, is_provisional, summary')
+      .eq('id', params.customerAccountId)
+      .eq('workspace_id', params.workspaceId)
+      .single();
+
+    if (accError || !account) {
+      return { status: 'error', error: `Account not found: ${accError?.message}` };
+    }
+
+    await supabase
+      .from('customer_accounts')
+      .update({
+        is_provisional: false,
+        summary: account.summary?.includes('Provisional')
+          ? `Account identity confirmed by ${params.source}.`
+          : account.summary,
+        updated_at: now,
+      })
+      .eq('id', params.customerAccountId);
+
+    await supabase
+      .from('provider_identities')
+      .update({ is_provisional: false, updated_at: now })
+      .eq('workspace_id', params.workspaceId)
+      .eq('customer_account_id', params.customerAccountId)
+      .eq('verification_status', 'verified');
+
+    await supabase
+      .from('account_contacts')
+      .update({ is_provisional: false, updated_at: now })
+      .eq('workspace_id', params.workspaceId)
+      .eq('customer_account_id', params.customerAccountId)
+      .eq('is_primary', true);
+
+    return { status: 'ok', accountId: params.customerAccountId, promoted: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { status: 'error', error: message };

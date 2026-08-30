@@ -12,6 +12,7 @@ import { getLanguageModel } from '@/foundation/ai/ai';
 import { JobExecutionContext, JobExecutionResult } from '@/jobs/types';
 import { RecoveryDraftSchema } from '@/recovery/schemas';
 import { RecoveryDraft } from '@/recovery/types';
+import { validateSendRecipient } from '@/drafts/recipient-validator';
 
 export function computeContentHash(params: {
   workspaceId?: string;
@@ -115,6 +116,16 @@ export async function handleGenerateCaseDraft(
   // §40.11: Never send to provisional/unverified or placeholder emails
   if (!recipientEmail || recipientEmail === 'customer@example.com') {
     throw new Error(`No verified, non-provisional recipient for case ${recoveryCaseId}`);
+  }
+
+  const recipientValidation = await validateSendRecipient(supabase, {
+    workspaceId,
+    customerAccountId: caseRow.customer_account_id,
+    recipientEmail,
+  });
+
+  if (!recipientValidation.valid) {
+    throw new Error(`Recipient validation failed for case ${recoveryCaseId}: ${recipientValidation.reason}`);
   }
 
   // §40.5.5: Make generation idempotent by case + action_version

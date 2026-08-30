@@ -40,6 +40,7 @@ import { syncLinearWorkspace } from '@/integrations/linear/linear-sync'
 import { generateWorkspaceBrief } from '@/intelligence/briefs/generate-workspace-brief'
 import { runProviderSyncWithHealth } from '@/integrations/_core/connection-state'
 import { isIntegrationConnected } from '@/integrations/_core/connection-guard'
+import { linkContactSafely } from '@/recovery/identity'
 import {
   getStripeClient,
   createRescueCoupon,
@@ -2433,45 +2434,27 @@ export const addAccountContact = tool({
 
     if (!account) return { error: 'Account not found' }
 
-    // Check if contact email already exists for this workspace
-    const { data: existing } = await supabase
-      .from('account_contacts')
-      .select('id, customer_account_id')
-      .eq('workspace_id', workspaceId)
-      .eq('email', email.toLowerCase())
-      .maybeSingle()
+    // Link contact safely using atomic conflict-aware helper
+    const contactResult = await linkContactSafely(supabase, {
+      workspaceId,
+      customerAccountId: accountId,
+      email,
+      name: name ?? null,
+      role: role ?? 'billing',
+      isPrimary: isPrimary ?? false,
+      source: 'agent_tool',
+      isProvisional: false,
+    })
 
-    if (existing) {
+    if (contactResult.status === 'conflict') {
       return {
-        skipped: true,
-        reason: `Contact ${email} already exists in the workspace`,
-        existingContactId: existing.id,
+        error: `Contact conflict: email ${email} is already linked to another account`,
+        conflictId: contactResult.conflictId,
       }
     }
-
-    // If setting as primary, unset any existing primary contact
-    if (isPrimary) {
-      await supabase
-        .from('account_contacts')
-        .update({ is_primary: false })
-        .eq('customer_account_id', accountId)
-        .eq('is_primary', true)
+    if (contactResult.status === 'error') {
+      return { error: contactResult.error }
     }
-
-    const { data: contact, error } = await supabase
-      .from('account_contacts')
-      .insert({
-        workspace_id: workspaceId,
-        customer_account_id: accountId,
-        email: email.toLowerCase(),
-        name: name ?? null,
-        role: role ?? null,
-        is_primary: isPrimary ?? false,
-      })
-      .select('id')
-      .single()
-
-    if (error) return { error: error.message }
 
     // Log to timeline
     await supabase.from('account_timeline').insert({
@@ -2487,7 +2470,7 @@ export const addAccountContact = tool({
 
     return {
       success: true,
-      contactId: contact.id,
+      contactId: (contactResult as any).contactId ?? contactResult.accountId,
       accountName: account.name,
       email,
       name,

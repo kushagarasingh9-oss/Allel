@@ -118,7 +118,12 @@ export async function handleProcessProviderEvent(
     provider,
     identityType,
     externalId,
-    scenarioMetadata: eventRow.scenario_id ? { scenarioId: eventRow.scenario_id } : undefined,
+    scenarioMetadata: eventRow.scenario_id
+      ? {
+          scenarioId: eventRow.scenario_id,
+          scenarioRunId: eventRow.scenario_run_id ?? null,
+        }
+      : undefined,
     fallbackEmail,
   });
 

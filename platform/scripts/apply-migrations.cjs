@@ -39,6 +39,7 @@ const MIGRATIONS = [
   '../../database/migrations/20260829_recovery_scenario_runs.sql',
   '../../database/migrations/20260830_recovery_authoritative_integrity.sql',
   '../../database/migrations/20260831_identity_hardening.sql',
+  '../../database/migrations/20260831_identity_atomic_rpcs.sql',
 ]
 
 function post(host, path, token, body) {
@@ -83,8 +84,8 @@ async function runSQL(sql, label) {
     console.log(`  ✅ Applied via management API`)
     return true
   }
-  console.log(`  Status: ${res2.status}`)
-  console.log(`  Response:`, JSON.stringify(res2.body).slice(0, 200))
+  console.error(`  ❌ Migration failed: status ${res2.status}`)
+  console.error(`  Response:`, typeof res2.body === 'string' ? res2.body.slice(0, 300) : JSON.stringify(res2.body).slice(0, 300))
   return false
 }
 
@@ -92,11 +93,20 @@ async function main() {
   console.log('\n🗄️  Applying Allel Recovery Migrations\n')
   for (const f of MIGRATIONS) {
     const filePath = path.join(__dirname, f)
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Migration file not found: ${filePath}`)
+    }
     const sql = fs.readFileSync(filePath, 'utf8')
     const label = path.basename(f)
-    await runSQL(sql, label)
+    const applied = await runSQL(sql, label)
+    if (!applied) {
+      throw new Error(`Migration failed: ${label}`)
+    }
   }
   console.log('\n✅ All recovery migrations applied successfully.\n')
 }
 
-main().catch(console.error)
+main().catch((err) => {
+  console.error('\n💥 Migration execution failed:', err.message)
+  process.exit(1)
+})

@@ -151,7 +151,7 @@ async function resolveWorkspaceForStripeEvent(
   customerId: string | null,
   eventObj: Record<string, unknown>
 ): Promise<string | null> {
-  // 1. provider_identities match for Stripe customer ID
+  // 1. provider_identities match for Stripe customer ID (verified only)
   if (customerId) {
     const { data: identity, error: identityError } = await supabase
       .from('provider_identities')
@@ -159,6 +159,7 @@ async function resolveWorkspaceForStripeEvent(
       .eq('provider', 'stripe')
       .eq('identity_type', 'customer_id')
       .eq('normalized_external_id', customerId.trim())
+      .eq('verification_status', 'verified')
       .limit(2)
 
     if (!identityError && identity && identity.length === 1) {
@@ -171,11 +172,12 @@ async function resolveWorkspaceForStripeEvent(
     }
   }
 
-  // 2. Legacy account_contacts.external_ids match
+  // 2. Legacy account_contacts.external_ids match (non-provisional only)
   if (customerId) {
     const { data: contact, error: contactError } = await supabase
       .from('account_contacts')
       .select('workspace_id')
+      .eq('is_provisional', false)
       .contains('external_ids', { stripe_customer_id: customerId })
       .limit(2)
 
@@ -184,7 +186,7 @@ async function resolveWorkspaceForStripeEvent(
     }
   }
 
-  // 3. Email fallback
+  // 3. Email fallback (non-provisional only)
   let email: string | null = null
   if (typeof eventObj.customer_email === 'string') {
     email = eventObj.customer_email
@@ -196,6 +198,7 @@ async function resolveWorkspaceForStripeEvent(
     const { data: contact, error: contactError } = await supabase
       .from('account_contacts')
       .select('workspace_id')
+      .eq('is_provisional', false)
       .eq('email', email.toLowerCase())
       .limit(2)
 

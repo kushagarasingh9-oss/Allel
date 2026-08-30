@@ -10,6 +10,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { JobExecutionContext, JobExecutionResult } from '@/jobs/types';
 import { transitionRecoveryCase } from '@/recovery/transitions';
 import { RECOVERY_CONFIG } from '@/recovery/config';
+import { validateSendRecipient } from '@/drafts/recipient-validator';
 import { computeContentHash } from './generate-case-draft';
 
 export async function handleVerifyCaseDraft(
@@ -57,55 +58,35 @@ export async function handleVerifyCaseDraft(
   const subject = draft.subject || '';
   const recipientEmail = draft.recipient_email || '';
 
-  // Check 1: Recipient email is valid
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const emailValid = emailRegex.test(recipientEmail);
+  // §40.12: Check recipient is valid, non-provisional, and contact policy permits email
+  const recipientValidation = await validateSendRecipient(supabase, {
+    workspaceId,
+    customerAccountId: caseRow.customer_account_id,
+    recipientEmail,
+  });
+
   checks.push({
     ruleId: 'valid_recipient_email',
-    passed: emailValid,
-    detail: emailValid ? 'Valid recipient email' : `Invalid email format: ${recipientEmail}`,
+    passed: recipientValidation.valid || !recipientValidation.reason?.includes('format'),
+    detail: recipientValidation.valid
+      ? 'Valid recipient email format'
+      : recipientValidation.reason ?? 'Invalid recipient email format',
   });
 
-  // §40.12: Check recipient is still a verified account contact
-  if (emailValid) {
-    const { data: contact } = await supabase
-      .from('account_contacts')
-      .select('id')
-      .eq('workspace_id', workspaceId)
-      .eq('customer_account_id', caseRow.customer_account_id)
-      .eq('email', recipientEmail.toLowerCase())
-      .maybeSingle();
-
-    checks.push({
-      ruleId: 'recipient_is_verified_contact',
-      passed: !!contact,
-      detail: contact ? 'Recipient is a verified contact' : 'Recipient email not found in verified contacts',
-    });
-  }
-
-  // §40.12: Check contact policy still permits email
-  const { data: policyRows, error: policyError } = await supabase
-    .from('contact_policies')
-    .select('policy, expires_at')
-    .eq('workspace_id', workspaceId)
-    .eq('customer_account_id', caseRow.customer_account_id)
-    .eq('channel', 'email');
-
-  // A policy lookup error must never be interpreted as permission to send.
-  // Recovery email is non-transactional, so all active restrictive policies
-  // block verification and force a visible, inspectable failure.
-  const policyAllows = !policyError && !(policyRows ?? []).some((policy) => {
-    if (policy.expires_at && new Date(policy.expires_at) < new Date()) return false;
-    return policy.policy !== 'allow';
+  checks.push({
+    ruleId: 'recipient_is_verified_contact',
+    passed: recipientValidation.valid,
+    detail: recipientValidation.valid
+      ? 'Recipient is a verified non-provisional contact'
+      : recipientValidation.reason ?? 'Recipient email not found in verified contacts',
   });
+
   checks.push({
     ruleId: 'contact_policy_allows_email',
-    passed: policyAllows,
-    detail: policyAllows
+    passed: recipientValidation.valid || !recipientValidation.reason?.includes('contact policy'),
+    detail: recipientValidation.valid
       ? 'Contact policy allows email'
-      : policyError
-        ? `Contact policy could not be verified: ${policyError.message}`
-        : 'Contact policy blocks email for this customer',
+      : recipientValidation.reason ?? 'Contact policy blocks email for this customer',
   });
 
   // §40.12: Check Gmail is connected and healthy

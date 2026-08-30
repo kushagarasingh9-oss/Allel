@@ -12,12 +12,14 @@ export function computeDedupeKey(params: {
   provider: Provider;
   providerEventId: string;
   scenarioId?: string | null;
+  scenarioRunId?: string | null;
 }): string {
   const parts = [
     params.workspaceId || 'global',
     params.provider,
     params.providerEventId,
     params.scenarioId || '',
+    params.scenarioRunId || '',
   ].filter(Boolean);
   return parts.join(':');
 }
@@ -69,6 +71,7 @@ export function buildCanonicalProviderEvent(params: {
     provider: params.provider,
     providerEventId: params.providerEventId,
     scenarioId: params.scenarioId,
+    scenarioRunId: params.scenarioRunId,
   });
 
   return {

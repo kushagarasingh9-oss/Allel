@@ -5,6 +5,7 @@ import {
   resolveAccountIdentity,
   upsertProviderIdentity,
   linkContactSafely,
+  promoteCustomerIdentitySafely,
 } from './identity';
 import { RECOVERY_CONFIG } from './config';
 
@@ -303,12 +304,18 @@ describe('resolveAccountIdentity', () => {
     assert.equal(checkCanMutate('conflict'), false);
   });
 
-  it('L. Scenario bypass requires TEST_MODE and matching DB row', async () => {
-    // When TEST_MODE is active and scenario row exists in DB
+  it('L. Scenario bypass requires TEST_MODE, valid scenario run, and matching DB row', async () => {
     const originalTestMode = RECOVERY_CONFIG.TEST_MODE;
     (RECOVERY_CONFIG as any).TEST_MODE = true;
 
+    // Sub-case 1: Valid active scenario run and matching provider_identities row -> trusted bypass
     const supabaseWithScenario = createMockSupabase((table) => {
+      if (table === 'recovery_scenario_runs') {
+        return createChainableMock({
+          data: { id: 'run-active-1', workspace_id: 'ws-test', scenario_id: 'sc-123', status: 'active' },
+          error: null,
+        });
+      }
       if (table === 'provider_identities') {
         return createChainableMock({
           data: { customer_account_id: 'acc-scenario-target' },
@@ -326,12 +333,39 @@ describe('resolveAccountIdentity', () => {
       scenarioMetadata: {
         customerAccountId: 'acc-scenario-target',
         scenarioId: 'sc-123',
+        scenarioRunId: 'run-active-1',
       },
     });
 
     assert.equal(result.status, 'verified');
     assert.equal(result.matchType, 'trusted_scenario_metadata');
     assert.equal(result.customerAccountId, 'acc-scenario-target');
+
+    // Sub-case 2: Inactive scenario run -> rejected (unmapped)
+    const supabaseWithInactiveScenario = createMockSupabase((table) => {
+      if (table === 'recovery_scenario_runs') {
+        return createChainableMock({
+          data: null, // inactive or not found
+          error: null,
+        });
+      }
+      return createChainableMock({ data: null, error: null });
+    });
+
+    const inactiveResult = await resolveAccountIdentity(supabaseWithInactiveScenario, {
+      workspaceId: 'ws-test',
+      provider: 'stripe',
+      identityType: 'customer_id',
+      externalId: 'cus_scenario_1',
+      scenarioMetadata: {
+        customerAccountId: 'acc-scenario-target',
+        scenarioId: 'sc-123',
+        scenarioRunId: 'run-stale-2',
+      },
+    });
+
+    assert.equal(inactiveResult.status, 'unmapped');
+    assert.equal(inactiveResult.customerAccountId, null);
 
     // Reset TEST_MODE
     (RECOVERY_CONFIG as any).TEST_MODE = originalTestMode;
@@ -514,5 +548,49 @@ describe('upsertProviderIdentity & linkContactSafely conflict safety', () => {
 
     assert.equal(result.status, 'error');
     assert.ok((result as any).error.includes('unique_violation'));
+  });
+
+  it('P. promoteCustomerIdentitySafely promotes provisional account and contacts', async () => {
+    let accountUpdated: any = null;
+    let contactsUpdated: any = null;
+
+    const supabase = createMockSupabase((table) => {
+      if (table === 'customer_accounts') {
+        const mock = createChainableMock({
+          data: { id: 'acc-provisional-1', is_provisional: true },
+          error: null,
+        });
+        mock.update = (payload: any) => {
+          accountUpdated = payload;
+          return mock;
+        };
+        return mock;
+      }
+      if (table === 'account_contacts') {
+        const mock = createChainableMock({
+          data: [{ id: 'cnt-1', is_provisional: true }],
+          error: null,
+        });
+        mock.update = (payload: any) => {
+          contactsUpdated = payload;
+          return mock;
+        };
+        return mock;
+      }
+      return createChainableMock({ data: null, error: null });
+    });
+
+    const result = await promoteCustomerIdentitySafely(supabase, {
+      workspaceId: 'ws-1',
+      customerAccountId: 'acc-provisional-1',
+      source: 'stripe_sync',
+    });
+
+    assert.equal(result.status, 'ok');
+    assert.equal(result.promoted, true);
+    assert.notEqual(accountUpdated, null);
+    assert.equal(accountUpdated.is_provisional, false);
+    assert.notEqual(contactsUpdated, null);
+    assert.equal(contactsUpdated.is_provisional, false);
   });
 });

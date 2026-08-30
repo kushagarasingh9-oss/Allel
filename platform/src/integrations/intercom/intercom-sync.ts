@@ -15,6 +15,7 @@ type ExistingContact = {
   customer_account_id: string
   is_primary: boolean
   external_ids: Record<string, unknown> | null
+  is_provisional?: boolean
 }
 
 type AccountSupportAggregate = {
@@ -27,6 +28,7 @@ export type IntercomWorkspaceSyncResult = {
   syncedAccounts: number
   syncedContacts: number
   openConversations: number
+  identityConflicts: number
 }
 
 function conversationHeadline(conversation: IntercomConversation) {
@@ -57,7 +59,7 @@ export async function syncIntercomWorkspace(
     fetchIntercomOpenConversations(accessToken, apiBaseUrl),
     supabase
       .from('account_contacts')
-      .select('email, customer_account_id, is_primary, external_ids')
+      .select('email, customer_account_id, is_primary, external_ids, is_provisional')
       .eq('workspace_id', workspaceId),
   ])
 
@@ -65,10 +67,16 @@ export async function syncIntercomWorkspace(
 
   const existingContacts = (existingContactsRes.data as ExistingContact[] | null) ?? []
 
-  const contactsByEmail = new Map(existingContacts.map((contact) => [contact.email.toLowerCase(), contact]))
+  // Only non-provisional contacts can be used for verified identity resolution
+  const contactsByEmail = new Map(
+    existingContacts
+      .filter((c) => !c.is_provisional)
+      .map((contact) => [contact.email.toLowerCase(), contact])
+  )
   const intercomContactIdToAccountId = new Map<string, string>()
 
   let syncedContacts = 0
+  let identityConflicts = 0
 
   for (const contact of contacts) {
     const email = contact.email?.toLowerCase().trim()
@@ -302,6 +310,8 @@ export async function syncIntercomWorkspace(
         coverage: `${conversations.length} open conversation(s) across ${syncedAccounts} account(s)`,
         synced_contacts: syncedContacts,
         synced_accounts: syncedAccounts,
+        identity_conflicts: identityConflicts,
+        identity_health: identityConflicts > 0 ? 'degraded' : 'healthy',
       }),
     },
     { onConflict: 'workspace_id,provider' }
@@ -313,12 +323,13 @@ export async function syncIntercomWorkspace(
     workspaceId,
     runType: 'integration_synced',
     status: 'completed',
-    outputSummary: `Intercom sync completed: ${conversations.length} open conversation(s), ${syncedAccounts} matched account(s), ${syncedContacts} synced contact(s).`,
+    outputSummary: `Intercom sync completed: ${conversations.length} open conversation(s), ${syncedAccounts} matched account(s), ${syncedContacts} synced contact(s), ${identityConflicts} conflict(s).`,
     metadata: {
       provider: 'intercom',
       openConversations: conversations.length,
       syncedAccounts,
       syncedContacts,
+      identityConflicts,
     },
   })
 
@@ -328,5 +339,6 @@ export async function syncIntercomWorkspace(
     syncedAccounts,
     syncedContacts,
     openConversations: conversations.length,
+    identityConflicts,
   }
 }
