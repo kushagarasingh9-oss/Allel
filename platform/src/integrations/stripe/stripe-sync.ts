@@ -87,12 +87,20 @@ function buildNextAction(accountStatus: string): string {
 // Main sync function
 // ---------------------------------------------------------------------------
 
+import type { SupabaseClient } from '@supabase/supabase-js'
+
 export async function syncStripeWorkspace(
   workspaceId: string,
-  options?: { refreshBrief?: boolean }
+  options?: {
+    refreshBrief?: boolean
+    supabaseClient?: SupabaseClient
+    syncSubscriptionsFn?: (workspaceId: string) => Promise<any[]>
+  }
 ): Promise<StripeWorkspaceSyncResult> {
-  const supabase = createServiceClient()
-  const subscriptions = await syncSubscriptions(workspaceId)
+  const supabase = options?.supabaseClient ?? createServiceClient()
+  const subscriptions = options?.syncSubscriptionsFn
+    ? await options.syncSubscriptionsFn(workspaceId)
+    : await syncSubscriptions(workspaceId)
   const syncRunStart = new Date().toISOString()
 
   const [{ data: existingAccounts, error: accountsError }, { data: existingContacts, error: contactsError }] =
@@ -234,17 +242,9 @@ export async function syncStripeWorkspace(
       }
       accountsById.set(insertedId, record)
       accountsByName.set(accountName, record)
-    } else if (existingAccount?.is_provisional === true) {
-      // Step 1b: If account was provisional, promote it safely with authoritative Stripe evidence
-      await promoteCustomerIdentitySafely(supabase, {
-        workspaceId,
-        customerAccountId,
-        source: 'stripe_sync',
-        evidence: { stripe_customer_id: subscription.stripeCustomerId },
-      })
     }
 
-    // Step 2: Establish Stripe customer_id identity safely BEFORE projecting billing facts
+    // Step 2: Establish verified Stripe customer_id identity safely BEFORE promoting or projecting billing facts
     let hasIdentityConflict = false
 
     const custResult = await upsertProviderIdentity(supabase, {
@@ -270,8 +270,31 @@ export async function syncStripeWorkspace(
       hasIdentityConflict = true
     }
 
-    // Link contact safely
-    if (subscription.customerEmail && customerAccountId && !hasIdentityConflict) {
+    // Halt downstream projection if customer_id identity failed or conflicted
+    if (hasIdentityConflict) {
+      continue
+    }
+
+    // Step 3: If account was provisional, promote it safely with authoritative Stripe evidence
+    if (existingAccount?.is_provisional === true) {
+      const promoResult = await promoteCustomerIdentitySafely(supabase, {
+        workspaceId,
+        customerAccountId,
+        source: 'stripe_sync',
+        evidence: {
+          provider: 'stripe',
+          identity_type: 'customer_id',
+          stripe_customer_id: subscription.stripeCustomerId,
+        },
+      })
+      if (promoResult.status !== 'ok') {
+        console.error(`[stripe-sync] failed to promote provisional account ${customerAccountId}:`, promoResult)
+        continue
+      }
+    }
+
+    // Step 4: Link contact safely
+    if (subscription.customerEmail && customerAccountId) {
       const contactResult = await linkContactSafely(supabase, {
         workspaceId,
         customerAccountId,
@@ -300,11 +323,33 @@ export async function syncStripeWorkspace(
         hasIdentityConflict = true
       } else {
         console.error(`[stripe-sync] contact write error for ${subscription.customerEmail}:`, contactResult.error)
+        hasIdentityConflict = true
       }
     }
 
-    // §do.md §4: If identity or contact conflict occurred, DO NOT project billing facts, signals, or feature jobs
+    // Halt downstream projection if contact linking failed or conflicted
     if (hasIdentityConflict) {
+      continue
+    }
+
+    // Step 5: Secondary subscription_id identity
+    const subResult = await upsertProviderIdentity(supabase, {
+      workspaceId,
+      customerAccountId,
+      provider: 'stripe',
+      identityType: 'subscription_id',
+      externalId: subscription.subscriptionId,
+      isPrimary: false,
+      verificationStatus: 'verified',
+      source: 'stripe_sync',
+    })
+
+    if (subResult.status === 'conflict') {
+      console.warn(`[stripe-sync] subscription_id conflict for ${subscription.subscriptionId}:`, subResult.reason)
+      identityConflicts += 1
+      continue
+    } else if (subResult.status === 'error') {
+      console.error(`[stripe-sync] subscription_id write error for ${subscription.subscriptionId}:`, subResult.error)
       continue
     }
 
@@ -318,21 +363,7 @@ export async function syncStripeWorkspace(
       if (updateError) throw updateError
     }
 
-    // §10.2: Subscription ID as secondary identity
-    try {
-      await upsertProviderIdentity(supabase, {
-        workspaceId,
-        customerAccountId,
-        provider: 'stripe',
-        identityType: 'subscription_id',
-        externalId: subscription.subscriptionId,
-        isPrimary: false,
-        verificationStatus: 'verified',
-        source: 'stripe_sync',
-      })
-    } catch (e) {
-      console.warn('[stripe-sync] identity write warning:', e instanceof Error ? e.message : e)
-    }
+    syncedAccounts += 1
 
     // Billing attention: write timeline and account_signals for changed status
     const needsBillingAttention = accountStatus === 'past_due' || accountStatus === 'cancelled'
@@ -462,8 +493,6 @@ export async function syncStripeWorkspace(
 
       if (isCriticalEvent) highRiskAccounts += 1
     }
-
-    syncedAccounts += 1
   }
 
   const syncedAt = new Date().toISOString()

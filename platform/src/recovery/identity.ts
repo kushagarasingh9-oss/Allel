@@ -251,13 +251,31 @@ export async function resolveAccountIdentity(
       const distinctVerifiedAccountIds = Array.from(new Set(verifiedContacts.map((c) => c.customer_account_id)));
 
       if (distinctVerifiedAccountIds.length === 1) {
-        return {
-          status: 'verified',
-          customerAccountId: distinctVerifiedAccountIds[0],
-          confidence: RECOVERY_CONFIG.VERIFIED_EMAIL_CONFIDENCE,
-          matchType: 'exact_unique_verified_email',
-          matchedIdentity: candidateEmail,
-        };
+        const candidateAccId = distinctVerifiedAccountIds[0];
+        const { data: accRow } = await supabase
+          .from('customer_accounts')
+          .select('is_provisional')
+          .eq('id', candidateAccId)
+          .eq('workspace_id', params.workspaceId)
+          .maybeSingle();
+
+        if (accRow && accRow.is_provisional !== true) {
+          return {
+            status: 'verified',
+            customerAccountId: candidateAccId,
+            confidence: RECOVERY_CONFIG.VERIFIED_EMAIL_CONFIDENCE,
+            matchType: 'exact_unique_verified_email',
+            matchedIdentity: candidateEmail,
+          };
+        } else {
+          return {
+            status: 'inferred',
+            customerAccountId: candidateAccId,
+            confidence: 0.6,
+            matchType: 'exact_provisional_email',
+            matchedIdentity: candidateEmail,
+          };
+        }
       }
       if (distinctVerifiedAccountIds.length > 1) {
         return {

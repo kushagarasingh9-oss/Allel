@@ -100,18 +100,28 @@ function buildFallbackSynthesisForTools(calledToolNames: string[]): string {
 }
 
 async function resolveAgentRequestContext(request: Request) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user: { id: string; email?: string | null } | null = null
 
-  if (!user) {
-    return { response: new Response('Unauthorized', { status: 401 }) }
+  try {
+    const supabase = await createClient()
+    const { data } = await supabase.auth.getUser()
+    user = data?.user ?? null
+  } catch (err) {
+    console.warn('[agent-api] Supabase auth check warning:', err)
   }
 
-  // Rate limit: 10 requests per minute per user
+  // Local development / demo fallback user so dashboard chat works out of the box
+  if (!user) {
+    if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
+      user = { id: '00000000-0000-0000-0000-000000000000', email: 'founder@acme.corp' }
+    } else {
+      return { response: new Response('Unauthorized', { status: 401 }) }
+    }
+  }
+
+  // Rate limit: 60 requests per minute per user in dev, 10 in prod
   const rateLimit = checkRateLimit(`agent:${user.id}`, {
-    maxRequests: 10,
+    maxRequests: process.env.NODE_ENV !== 'production' ? 60 : 10,
     windowMs: 60_000,
   })
   if (!rateLimit.allowed) {

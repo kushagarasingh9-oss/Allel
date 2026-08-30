@@ -75,6 +75,7 @@ export async function sendDraftWithGmail(
     workspaceId: typedDraft.workspace_id,
     customerAccountId: typedDraft.customer_account_id,
     recipientEmail,
+    requirePrimary: true,
   })
 
   if (!recipientValidation.valid) {

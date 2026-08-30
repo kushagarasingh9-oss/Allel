@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "bash -c 'shopt -s globstar; exec tsx --test src/**/*.test.ts'",
+    "test": "tsx --test $(find src -name \"*.test.ts\")",
     "scenario:evaluate": "tsx -e \"import { exportScenarioEvaluationReport } from './src/recovery/scenarios/export'; console.log(exportScenarioEvaluationReport().markdownTable)\""
   },
   "dependencies": {

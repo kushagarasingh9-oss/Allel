@@ -61,20 +61,35 @@ export async function validateSendRecipient(
   }
 
   // 2. Check contact exists and belongs to the exact workspace + account
-  const { data: contact, error: contactError } = await supabase
+  const { data: contactMatches, error: contactError } = await supabase
     .from('account_contacts')
-    .select('id, name, is_primary, is_provisional')
+    .select('id, name, is_primary, is_provisional, external_ids')
     .eq('workspace_id', params.workspaceId)
     .eq('customer_account_id', params.customerAccountId)
-    .eq('email', email)
-    .maybeSingle();
+    .eq('email', email);
 
-  if (contactError || !contact) {
+  if (contactError) {
+    return {
+      valid: false,
+      reason: `Failed to query account contact: ${contactError.message}`,
+    };
+  }
+
+  if (!contactMatches || contactMatches.length === 0) {
     return {
       valid: false,
       reason: `Recipient email "${email}" is not linked to customer account ${params.customerAccountId}`,
     };
   }
+
+  if (contactMatches.length > 1) {
+    return {
+      valid: false,
+      reason: `Ambiguous contact: multiple contact rows found for email "${email}" on account ${params.customerAccountId}`,
+    };
+  }
+
+  const contact = contactMatches[0];
 
   // 3. Enforce that contact must NOT be provisional
   if (contact.is_provisional === true) {
@@ -84,7 +99,32 @@ export async function validateSendRecipient(
     };
   }
 
-  // 4. If primary is required, check primary status
+  // 4. Enforce that recipient email is backed by verified email identity proof
+  const { data: verifiedEmailIdentities, error: idError } = await supabase
+    .from('provider_identities')
+    .select('id, provider, verification_status')
+    .eq('workspace_id', params.workspaceId)
+    .eq('customer_account_id', params.customerAccountId)
+    .in('identity_type', ['person_email', 'email_address'])
+    .eq('normalized_external_id', email)
+    .eq('verification_status', 'verified');
+
+  const hasDirectVerifiedIdentity = !idError && verifiedEmailIdentities && verifiedEmailIdentities.length > 0;
+  const hasAuthoritativeBillingEvidence = Boolean(
+    contact.external_ids &&
+      typeof contact.external_ids === 'object' &&
+      ((contact.external_ids as Record<string, unknown>).stripe_customer_id ||
+        (contact.external_ids as Record<string, unknown>).stripe_subscription_id)
+  );
+
+  if (!hasDirectVerifiedIdentity && !hasAuthoritativeBillingEvidence) {
+    return {
+      valid: false,
+      reason: `Recipient email "${email}" lacks verified provider identity evidence for account ${params.customerAccountId}`,
+    };
+  }
+
+  // 5. If primary is required, check primary status
   if (params.requirePrimary && !contact.is_primary) {
     return {
       valid: false,
@@ -92,7 +132,7 @@ export async function validateSendRecipient(
     };
   }
 
-  // 5. Check active contact policies permit email channel
+  // 6. Check active contact policies permit email channel
   const { data: policies, error: policyError } = await supabase
     .from('contact_policies')
     .select('policy, expires_at')

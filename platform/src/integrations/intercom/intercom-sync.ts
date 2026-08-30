@@ -47,12 +47,19 @@ function buildSupportNextAction(openConversationCount: number) {
   return 'Review the open support thread as context; it does not authorize outreach.'
 }
 
+import type { SupabaseClient } from '@supabase/supabase-js'
+
 export async function syncIntercomWorkspace(
   workspaceId: string,
-  options?: { refreshBrief?: boolean }
+  options?: {
+    refreshBrief?: boolean
+    supabaseClient?: SupabaseClient
+    credentialsOverride?: { accessToken: string; apiBaseUrl: string }
+  }
 ): Promise<IntercomWorkspaceSyncResult> {
-  const supabase = createServiceClient()
-  const { accessToken, apiBaseUrl } = await getIntercomCredentials(workspaceId)
+  const supabase = options?.supabaseClient ?? createServiceClient()
+  const creds = options?.credentialsOverride ?? (await getIntercomCredentials(workspaceId))
+  const { accessToken, apiBaseUrl } = creds
 
   const [contacts, conversations, existingContactsRes] = await Promise.all([
     fetchIntercomContacts(accessToken, apiBaseUrl),
@@ -82,9 +89,11 @@ export async function syncIntercomWorkspace(
     const email = contact.email?.toLowerCase().trim()
     if (!email) continue
 
-    // Step 0: Check provider_identities for known Intercom contact_id
+    // Step 0: Check provider_identities for verified Intercom contact_id (authoritative only)
     const rawIntercomContactId = String(contact.id ?? '')
     let accountId: string | null = null
+    let isDirectlyVerified = false
+
     if (rawIntercomContactId) {
       const { data: idRow } = await supabase
         .from('provider_identities')
@@ -93,17 +102,18 @@ export async function syncIntercomWorkspace(
         .eq('provider', 'intercom')
         .eq('identity_type', 'contact_id')
         .eq('normalized_external_id', rawIntercomContactId)
-        .in('verification_status', ['verified', 'inferred'])
+        .eq('verification_status', 'verified')
         .maybeSingle()
       if (idRow) {
         accountId = idRow.customer_account_id
+        isDirectlyVerified = true
       }
     }
 
     const existingContact = contactsByEmail.get(email)
     if (!accountId) {
       // Intercom support context is never allowed to guess account ownership.
-      // Only an existing exact, workspace-scoped email contact can be enriched.
+      // Only an existing exact, non-provisional email contact can be enriched.
       accountId = existingContact?.customer_account_id ?? null
     }
 
@@ -111,7 +121,9 @@ export async function syncIntercomWorkspace(
       continue
     }
 
-    // Persist Intercom contact_id as inferred identity (email match, not direct API verification)
+    // Persist Intercom contact_id:
+    // If exact email already belongs to a verified non-provisional contact, write as 'verified'
+    // Otherwise, write as 'inferred'
     let hasIdentityConflict = false
     if (accountId && rawIntercomContactId) {
       const idResult = await upsertProviderIdentity(supabase, {
@@ -121,19 +133,22 @@ export async function syncIntercomWorkspace(
         identityType: 'contact_id',
         externalId: rawIntercomContactId,
         isPrimary: false,
-        verificationStatus: 'inferred',
+        verificationStatus: existingContact && !existingContact.is_provisional ? 'verified' : 'inferred',
         source: 'intercom_sync',
       })
       if (idResult.status === 'conflict') {
         console.warn('[intercom-sync] contact_id identity conflict:', idResult.reason)
+        identityConflicts += 1
         hasIdentityConflict = true
       } else if (idResult.status === 'error') {
         console.warn('[intercom-sync] contact_id write error:', idResult.error)
+        hasIdentityConflict = true
       }
     }
 
-    // If an identity conflict occurred, do not attribute conversations or link contacts (§do.md §8)
+    // If an identity conflict or error occurred, do not attribute conversations or link contacts (§do.md §8)
     if (hasIdentityConflict) {
+      contactsByEmail.delete(email)
       continue
     }
 
@@ -156,9 +171,13 @@ export async function syncIntercomWorkspace(
 
     if (contactResult.status === 'conflict') {
       console.warn('[intercom-sync] contact conflict:', contactResult.reason)
+      identityConflicts += 1
+      contactsByEmail.delete(email)
       continue
     } else if (contactResult.status === 'error') {
       console.error('[intercom-sync] contact write error:', contactResult.error)
+      contactsByEmail.delete(email)
+      continue
     }
 
     contactsByEmail.set(email, {

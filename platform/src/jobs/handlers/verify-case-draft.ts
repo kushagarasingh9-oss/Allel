@@ -58,11 +58,12 @@ export async function handleVerifyCaseDraft(
   const subject = draft.subject || '';
   const recipientEmail = draft.recipient_email || '';
 
-  // §40.12: Check recipient is valid, non-provisional, and contact policy permits email
+  // §40.12: Check recipient is valid, non-provisional, primary, and contact policy permits email
   const recipientValidation = await validateSendRecipient(supabase, {
     workspaceId,
     customerAccountId: caseRow.customer_account_id,
     recipientEmail,
+    requirePrimary: true,
   });
 
   checks.push({

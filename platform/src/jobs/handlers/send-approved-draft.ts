@@ -107,6 +107,7 @@ export async function handleSendApprovedDraft(
     workspaceId,
     customerAccountId: draft.customer_account_id,
     recipientEmail,
+    requirePrimary: true,
   });
 
   if (!recipientValidation.valid) {
