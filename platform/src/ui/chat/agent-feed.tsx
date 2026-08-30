@@ -1560,51 +1560,67 @@ export function AgentFeed() {
     }
   }, [])
 
-  const bottomAnchorRef = React.useRef<HTMLDivElement>(null)
   const isUserScrolledUpRef = React.useRef(false)
+  const prevMessagesLengthRef = React.useRef(messages.length)
 
-  // Track user manual scroll so we don't yank the screen down while they are reading
+  // Track user manual scroll intent immediately via wheel, touchmove, and scroll
   React.useEffect(() => {
     const container = feedRef.current
     if (!container) return
 
+    const handleWheel = (e: WheelEvent) => {
+      // If user scrolls up with trackpad/mouse, immediately lock auto-scroll
+      if (e.deltaY < 0) {
+        isUserScrolledUpRef.current = true
+      }
+    }
+
+    const handleTouchMove = () => {
+      isUserScrolledUpRef.current = true
+    }
+
     const handleScroll = () => {
       const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
-      if (distanceFromBottom > 80) {
+      if (distanceFromBottom > 40) {
         isUserScrolledUpRef.current = true
-      } else {
+      } else if (distanceFromBottom <= 10) {
         isUserScrolledUpRef.current = false
       }
     }
 
+    container.addEventListener("wheel", handleWheel, { passive: true })
+    container.addEventListener("touchmove", handleTouchMove, { passive: true })
     container.addEventListener("scroll", handleScroll, { passive: true })
-    return () => container.removeEventListener("scroll", handleScroll)
+    return () => {
+      container.removeEventListener("wheel", handleWheel)
+      container.removeEventListener("touchmove", handleTouchMove)
+      container.removeEventListener("scroll", handleScroll)
+    }
   }, [])
 
-  // Smooth auto-scroll on new messages, streaming updates, and expanding nodes (only when user is at bottom)
-  const scrollToBottom = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
-    isUserScrolledUpRef.current = false
-    if (feedRef.current) {
-      if (displayMessages === DEMO_SEED_MESSAGES) {
-        feedRef.current.scrollTop = 0
-      } else {
-        feedRef.current.scrollTo({
-          top: feedRef.current.scrollHeight,
-          behavior,
-        })
+  // When a new user message is sent, unlock and scroll down immediately
+  React.useEffect(() => {
+    if (messages.length > prevMessagesLengthRef.current) {
+      const lastMsg = messages[messages.length - 1]
+      if (lastMsg && lastMsg.role === "user") {
+        isUserScrolledUpRef.current = false
+        if (feedRef.current) {
+          feedRef.current.scrollTop = feedRef.current.scrollHeight
+        }
       }
     }
-  }, [displayMessages])
+    prevMessagesLengthRef.current = messages.length
+  }, [messages.length])
 
-  // Track DOM mutations and size changes during streaming/rendering to auto-scroll smoothly without jitter
+  // Track DOM mutations and size changes only during active generation to scroll without fighting
   React.useEffect(() => {
     const container = feedRef.current
     if (!container) return
 
     let rafId: number | null = null
-    const scheduleScroll = (behavior: ScrollBehavior = 'smooth') => {
-      // Do not hijack scroll if user is scrolled up reading earlier turns
-      if (isUserScrolledUpRef.current) return
+    const scheduleScroll = () => {
+      // Do not hijack scroll if user is scrolled up or if agent is not actively running
+      if (isUserScrolledUpRef.current || (!isLoading && status !== "streaming" && status !== "submitted")) return
 
       if (rafId) return
       rafId = requestAnimationFrame(() => {
@@ -1612,25 +1628,20 @@ export function AgentFeed() {
           if (displayMessages === DEMO_SEED_MESSAGES) {
             container.scrollTop = 0
           } else {
-            container.scrollTo({
-              top: container.scrollHeight,
-              behavior,
-            })
+            container.scrollTop = container.scrollHeight
           }
         }
         rafId = null
       })
     }
 
-    scheduleScroll('smooth')
-
     const resizeObserver = new ResizeObserver(() => {
-      scheduleScroll('smooth')
+      scheduleScroll()
     })
     resizeObserver.observe(container)
 
     const mutationObserver = new MutationObserver(() => {
-      scheduleScroll('smooth')
+      scheduleScroll()
     })
     mutationObserver.observe(container, {
       childList: true,
@@ -1662,7 +1673,7 @@ export function AgentFeed() {
   }
 
   return (
-    <div id="agent-chat-feed" ref={feedRef} className="w-full h-full flex-1 min-h-0 overflow-y-auto px-6 py-6 flex flex-col [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden scroll-smooth">
+    <div id="agent-chat-feed" ref={feedRef} className="w-full h-full flex-1 min-h-0 overflow-y-auto px-6 py-6 flex flex-col [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
       <div className="w-full flex flex-col gap-4 pb-52">
         {displayMessages.map((message, idx) => (
           <AgentMessageBubble
