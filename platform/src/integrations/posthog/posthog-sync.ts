@@ -17,7 +17,8 @@ import { logAgentRun } from '@/agent/runtime/run-logger'
 import { getPostHogCredentials, POSTHOG_DEFAULT_HOST } from '@/integrations/posthog/posthog'
 import { generateWorkspaceBrief } from '@/intelligence/briefs/generate-workspace-brief'
 import { mergeIntegrationConnectionMetadata } from '@/integrations/_core/connection-guard'
-import { upsertProviderIdentity, resolveAccountIdentity } from '@/recovery/identity'
+import { upsertProviderIdentity, linkContactSafely } from '@/recovery/identity'
+import { PERSONAL_EMAIL_DOMAINS } from '@/integrations/_core/account-match'
 import { RECOVERY_CONFIG } from '@/recovery/config'
 
 // ---------------------------------------------------------------------------
@@ -82,17 +83,12 @@ export type PostHogWorkspaceSyncResult = {
   syncedContacts: number
   trackedUsers: number
   highRiskAccounts: number
+  identityConflicts: number
+  provisionalAccounts: number
 }
 
 // ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
-
-const PERSONAL_EMAIL_DOMAINS = new Set([
-  'gmail.com', 'googlemail.com', 'yahoo.com', 'hotmail.com',
-  'outlook.com', 'icloud.com', 'proton.me', 'protonmail.com',
-])
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -315,13 +311,30 @@ export async function syncPostHogWorkspace(
   const accountsByName = new Map(existingAccounts.map((a) => [normalizeName(a.name), a]))
   const contactsByEmail = new Map(existingContacts.map((c) => [c.email.toLowerCase(), c]))
 
-  // Build distinct_id → account_id from account_contacts.external_ids (legacy bridge)
-  const distinctIdToAccountId = new Map<string, string>()
+  // §10.3: Primary distinct_id lookup from provider_identities (authoritative)
+  const { data: posthogIdentities } = await supabase
+    .from('provider_identities')
+    .select('normalized_external_id, customer_account_id')
+    .eq('workspace_id', workspaceId)
+    .eq('provider', 'posthog')
+    .eq('identity_type', 'distinct_id')
+    .eq('verification_status', 'verified')
+
+  const distinctIdToAccountId = new Map<string, string>(
+    (posthogIdentities ?? []).map((r: { normalized_external_id: string; customer_account_id: string }) => [
+      r.normalized_external_id,
+      r.customer_account_id,
+    ])
+  )
+
+  // Secondary bridge: legacy account_contacts.external_ids (do not overwrite keys already in map)
   for (const contact of existingContacts) {
     const posthogIds = (contact.external_ids as Record<string, unknown> | null)?.posthog_distinct_ids
     if (Array.isArray(posthogIds)) {
       for (const id of posthogIds) {
-        if (typeof id === 'string') distinctIdToAccountId.set(id, contact.customer_account_id)
+        if (typeof id === 'string' && !distinctIdToAccountId.has(id)) {
+          distinctIdToAccountId.set(id, contact.customer_account_id)
+        }
       }
     }
   }
@@ -333,6 +346,8 @@ export async function syncPostHogWorkspace(
   const personEmailByDistinctId = new Map<string, string>()
   const aggregates = new Map<string, AccountAggregate>()
   let syncedContacts = 0
+  let provisionalAccounts = 0
+  let identityConflicts = 0
 
   for (const person of people) {
     const properties = person.properties ?? {}
@@ -344,25 +359,32 @@ export async function syncPostHogWorkspace(
     const distinctIds = person.distinct_ids ?? []
     const lastSeenAt = extractLastSeen(properties, person.created_at)
 
-    // §10.3: Resolve by distinct_id first (from provider_identities), then email, then name
-    // Step 1: Check provider_identities for any of this person's distinct_ids
+    // §10.3: Resolve by distinct_id first (from provider_identities), then verified email.
+    // Name matching MUST NEVER attribute usage to an existing account (§do.md §3).
     let resolvedAccountId: string | null = null
     for (const distinctId of distinctIds) {
       const existing = distinctIdToAccountId.get(distinctId)
       if (existing) { resolvedAccountId = existing; break }
     }
 
-    // Step 2: Email lookup against account_contacts (legacy bridge + identity resolution)
+    // Step 2: Email lookup against account_contacts (only non-provisional contacts)
     if (!resolvedAccountId && email) {
       const contact = contactsByEmail.get(email)
       if (contact) resolvedAccountId = contact.customer_account_id
     }
 
-    // Step 3: Name-based fallback (only for account creation, not outreach decisions)
+    // Step 3: Name match is for conflict detection only — never mutates an existing account
     let account = resolvedAccountId ? accountsById.get(resolvedAccountId) : undefined
-    if (!account) account = accountsByName.get(normalizedAccountName)
+    if (!account) {
+      const nameCandidate = accountsByName.get(normalizedAccountName)
+      if (nameCandidate) {
+        console.warn(`[posthog-sync] PostHog person "${accountName}" matches existing account name ${nameCandidate.id}, but has no verified identity. Creating isolated provisional account.`)
+        identityConflicts += 1
+      }
+    }
 
-    // Step 4: Create a new account row if we can't match (§13.12 allows new accounts from PostHog)
+    // Step 4: No verified match found — create an isolated provisional account to hold usage data.
+    // Provisional accounts cannot trigger outbound actions; they await a verified identity.
     if (!account) {
       const { data: insertedAccount, error: insertAccountError } = await supabase
         .from('customer_accounts')
@@ -372,11 +394,11 @@ export async function syncPostHogWorkspace(
           segment: 'PostHog usage',
           account_status: 'active',
           mrr_cents: 0,
-          risk_level: 'low',   // §14.1: only the decision engine may set a scored value — low is the safe default
-          risk_score: 0,
+          // §14.1: Do NOT set risk_level or risk_score here. Decision engine owns scoring.
           usage_delta_percent: 0,
           next_action: 'Wait for more product activity before taking action.',
-          summary: 'Initial PostHog account created from live usage identity.',
+          summary: 'Provisional PostHog account created from live usage identity.',
+          is_provisional: true,
         })
         .select('id, name, account_status, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, summary, last_touch_at, renewal_at')
         .single()
@@ -385,45 +407,58 @@ export async function syncPostHogWorkspace(
       account = insertedAccount as ExistingAccount
       accountsByName.set(normalizedAccountName, account)
       accountsById.set(account.id, account)
+      provisionalAccounts += 1
     }
 
-    // §10.3: Write each distinct_id to provider_identities (machine identity table)
+    // §10.3: Write each distinct_id to provider_identities.
+    // If a conflict occurs, that distinct_id MUST NOT enter in-memory maps or aggregates (§do.md §4).
+    const validDistinctIds: string[] = []
     for (const distinctId of distinctIds) {
-      try {
-        await upsertProviderIdentity(supabase, {
-          workspaceId,
-          customerAccountId: account.id,
-          provider: 'posthog',
-          identityType: 'distinct_id',
-          externalId: distinctId,
-          isPrimary: distinctId === distinctIds[0],
-          verificationStatus: 'verified',
-          source: 'posthog_sync',
-          metadata: { person_id: person.id ?? null },
-        })
+      const idResult = await upsertProviderIdentity(supabase, {
+        workspaceId,
+        customerAccountId: account.id,
+        provider: 'posthog',
+        identityType: 'distinct_id',
+        externalId: distinctId,
+        isPrimary: distinctId === distinctIds[0],
+        verificationStatus: 'verified',
+        source: 'posthog_sync',
+        metadata: { person_id: person.id ?? null },
+      })
+
+      if (idResult.status === 'ok') {
         distinctIdToAccountId.set(distinctId, account.id)
-      } catch {
-        // Non-fatal — conflict already logged by upsert
+        validDistinctIds.push(distinctId)
+      } else if (idResult.status === 'conflict') {
+        console.warn(`[posthog-sync] identity conflict for distinct_id ${distinctId}:`, idResult.reason)
+        identityConflicts += 1
+        // Do NOT add to distinctIdToAccountId or validDistinctIds!
+      } else if (idResult.status === 'error') {
+        console.warn(`[posthog-sync] identity write error for distinct_id ${distinctId}:`, idResult.error)
       }
     }
 
     // §10.3: Write person email as a secondary identity
     if (email) {
-      try {
-        await upsertProviderIdentity(supabase, {
-          workspaceId,
-          customerAccountId: account.id,
-          provider: 'posthog',
-          identityType: 'person_email',
-          externalId: email,
-          isPrimary: false,
-          verificationStatus: 'verified',
-          source: 'posthog_sync',
-        })
-      } catch { /* conflict handled by upsert */ }
+      const idResult = await upsertProviderIdentity(supabase, {
+        workspaceId,
+        customerAccountId: account.id,
+        provider: 'posthog',
+        identityType: 'person_email',
+        externalId: email,
+        isPrimary: false,
+        verificationStatus: 'inferred',
+        source: 'posthog_sync',
+      })
+      if (idResult.status === 'conflict') {
+        console.warn(`[posthog-sync] identity conflict for person_email ${email}:`, idResult.reason)
+        identityConflicts += 1
+      } else if (idResult.status === 'error') {
+        console.warn(`[posthog-sync] identity write error for person_email ${email}:`, idResult.error)
+      }
     }
 
-    // Build aggregate
+    // Build aggregate only with valid, non-conflicting distinct IDs
     let aggregate = aggregates.get(account.id)
     if (!aggregate) {
       aggregate = {
@@ -446,11 +481,10 @@ export async function syncPostHogWorkspace(
     aggregate.totalUsers += 1
     if (email) {
       aggregate.emails.add(email)
-      personEmailByDistinctId.set(distinctIds[0] ?? email, email)
+      personEmailByDistinctId.set(validDistinctIds[0] ?? email, email)
     }
-    distinctIds.forEach((id) => {
+    validDistinctIds.forEach((id) => {
       aggregate!.distinctIds.add(id)
-      distinctIdToAccountId.set(id, account!.id)
     })
 
     if (lastSeenAt) {
@@ -462,34 +496,23 @@ export async function syncPostHogWorkspace(
       }
     }
 
-    // Upsert account_contacts for display name and role (§9.2: account_contacts remains human contact table)
+    // Upsert account_contacts: provisional accounts create provisional contacts (§do.md §6)
     if (email) {
-      const existingContact = contactsByEmail.get(email)
-      const mergedDistinctIds = Array.from(new Set([
-        ...(Array.isArray(existingContact?.external_ids?.posthog_distinct_ids)
-          ? (existingContact!.external_ids!.posthog_distinct_ids as string[])
-          : []),
-        ...distinctIds,
-      ]))
-
-      const { error: contactUpsertError } = await supabase.from('account_contacts').upsert(
-        {
-          workspace_id: workspaceId,
-          customer_account_id: account.id,
-          email,
-          name: personName,
-          role: 'product_user',
-          is_primary: existingContact?.customer_account_id === account.id,
-          external_ids: {
-            ...(existingContact?.external_ids ?? {}),
-            posthog_person_id: person.id ?? null,
-            posthog_distinct_ids: mergedDistinctIds,
-          },
+      const isProvisionalContact = (account as any).is_provisional === true || !resolvedAccountId
+      await linkContactSafely(supabase, {
+        workspaceId,
+        customerAccountId: account.id,
+        email,
+        name: personName ?? undefined,
+        role: 'product_user',
+        externalIds: {
+          posthog_person_id: person.id ?? null,
+          posthog_distinct_ids: validDistinctIds,
         },
-        { onConflict: 'workspace_id,email' }
-      )
+        source: 'posthog_sync',
+        isProvisional: isProvisionalContact,
+      })
 
-      if (contactUpsertError) throw contactUpsertError
       contactsByEmail.set(email, { email, customer_account_id: account.id, external_ids: null })
       syncedContacts += 1
     }
@@ -667,5 +690,7 @@ export async function syncPostHogWorkspace(
     syncedContacts,
     trackedUsers: people.length,
     highRiskAccounts,
+    identityConflicts,
+    provisionalAccounts,
   }
 }

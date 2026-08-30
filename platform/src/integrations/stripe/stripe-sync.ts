@@ -16,7 +16,7 @@ import { logAgentRun } from '@/agent/runtime/run-logger'
 import { syncSubscriptions } from '@/integrations/stripe/stripe'
 import { generateWorkspaceBrief } from '@/intelligence/briefs/generate-workspace-brief'
 import { mergeIntegrationConnectionMetadata } from '@/integrations/_core/connection-guard'
-import { upsertProviderIdentity } from '@/recovery/identity'
+import { upsertProviderIdentity, linkContactSafely, SyncIdentityResult } from '@/recovery/identity'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,6 +42,8 @@ export type StripeWorkspaceSyncResult = {
   syncedAccounts: number
   updatedContacts: number
   highRiskAccounts: number
+  identityConflicts: number
+  provisionalAccounts: number
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +107,10 @@ export async function syncStripeWorkspace(
     ((existingAccounts as ExistingAccount[] | null) ?? []).map((a) => [a.id, a])
   )
   const accountsByName = new Map(
-    ((existingAccounts as ExistingAccount[] | null) ?? []).map((a) => [a.name, a])
+    ((existingAccounts as ExistingAccount[] | null) ?? []).map((a) => [
+      a.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' '),
+      a,
+    ])
   )
   const contactsByEmail = new Map(
     ((existingContacts as ExistingContact[] | null) ?? []).map((c) => [c.email.toLowerCase(), c])
@@ -130,6 +135,8 @@ export async function syncStripeWorkspace(
   let syncedAccounts = 0
   let updatedContacts = 0
   let highRiskAccounts = 0
+  let identityConflicts = 0
+  let provisionalAccounts = 0
 
   for (const subscription of subscriptions) {
     const accountName =
@@ -140,16 +147,30 @@ export async function syncStripeWorkspace(
     const accountStatus = normalizeAccountStatus(subscription.status)
     const renewalAt = subscription.currentPeriodEnd.toISOString()
 
-    // §10.2: Resolution order — Stripe customer ID first, email fallback
+    // §10.2: Resolution order — Stripe customer ID first, then verified contact email.
+    // Name matching MUST NEVER mutate an existing account (§do.md §2).
     const byStripeId = stripeIdToAccountId.get(subscription.stripeCustomerId)
     const existingContact = subscription.customerEmail
       ? contactsByEmail.get(subscription.customerEmail.toLowerCase())
       : undefined
-    const existingAccount =
-      (byStripeId ? accountsById.get(byStripeId) : undefined) ??
-      (existingContact ? accountsById.get(existingContact.customer_account_id) : undefined) ??
-      accountsByName.get(accountName) ??
-      null
+
+    let resolvedAccount: ExistingAccount | null = null
+    if (byStripeId) {
+      resolvedAccount = accountsById.get(byStripeId) ?? null
+    } else if (existingContact) {
+      resolvedAccount = accountsById.get(existingContact.customer_account_id) ?? null
+    } else {
+      // Check if name matches an existing account only for conflict reporting
+      const normalizedName = accountName.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ')
+      const nameCandidate = accountsByName.get(normalizedName)
+      if (nameCandidate) {
+        console.warn(`[stripe-sync] Stripe customer "${accountName}" (${subscription.stripeCustomerId}) shares name with account ${nameCandidate.id}, but has no verified identity. Creating isolated account.`)
+        identityConflicts += 1
+      }
+      // resolvedAccount remains null -> creates a clean isolated account for this Stripe customer
+    }
+
+    const existingAccount = resolvedAccount ?? null
 
     // §13.5: Capture pre-cancel MRR before setting current to 0
     const isNowCancelled = accountStatus === 'cancelled'
@@ -187,7 +208,7 @@ export async function syncStripeWorkspace(
     } else {
       const { data: insertedAccount, error: insertError } = await supabase
         .from('customer_accounts')
-        .insert(accountPayload)
+        .insert({ ...accountPayload, is_provisional: false })
         .select('id')
         .single()
 
@@ -216,7 +237,7 @@ export async function syncStripeWorkspace(
     // §10.2: Write Stripe customer_id to provider_identities
     if (customerAccountId) {
       try {
-        await upsertProviderIdentity(supabase, {
+        const custResult = await upsertProviderIdentity(supabase, {
           workspaceId,
           customerAccountId,
           provider: 'stripe',
@@ -227,9 +248,15 @@ export async function syncStripeWorkspace(
           source: 'stripe_sync',
           metadata: { subscription_id: subscription.subscriptionId },
         })
-        stripeIdToAccountId.set(subscription.stripeCustomerId, customerAccountId)
-      } catch {
-        // Non-fatal — upsert handles conflicts
+
+        if (custResult.status === 'ok') {
+          stripeIdToAccountId.set(subscription.stripeCustomerId, customerAccountId)
+        } else if (custResult.status === 'conflict') {
+          console.warn(`[stripe-sync] identity conflict for stripe customer ${subscription.stripeCustomerId}:`, custResult.reason)
+          identityConflicts += 1
+        }
+      } catch (e) {
+        console.warn('[stripe-sync] identity write warning:', e instanceof Error ? e.message : e)
       }
 
       // §10.2: Subscription ID as secondary identity
@@ -244,7 +271,9 @@ export async function syncStripeWorkspace(
           verificationStatus: 'verified',
           source: 'stripe_sync',
         })
-      } catch { /* non-fatal */ }
+      } catch (e) {
+        console.warn('[stripe-sync] identity write warning:', e instanceof Error ? e.message : e)
+      }
     }
 
     // Billing attention: write timeline and account_signals for changed status
@@ -258,23 +287,35 @@ export async function syncStripeWorkspace(
           ? `${accountName} no longer has an active Stripe subscription.`
           : `${accountName} is now ${accountStatus.replace('_', ' ')} in Stripe.`
 
-      // Use 'medium' as a conservative default — decision engine will compute the real label
-      const { error: signalError } = await supabase.from('account_signals').insert({
-        workspace_id: workspaceId,
-        customer_account_id: customerAccountId,
-        signal_type: 'billing',
-        headline,
-        detail,
-        next_step: buildNextAction(accountStatus),
-        evidence: [
-          `Stripe subscription status: ${subscription.status}`,
-          `Plan: ${subscription.planName ?? 'Unknown plan'}`,
-          ...(preCancelMrr ? [`MRR at cancellation: $${(preCancelMrr / 100).toFixed(0)}`] : []),
-        ],
-        risk_level: 'medium', // conservative placeholder — decision engine scores this
-      })
+      // Dedup signal: only insert if no signal for this account+type+status exists today
+      const { data: existingSignal } = await supabase
+        .from('account_signals')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .eq('customer_account_id', customerAccountId)
+        .eq('signal_type', 'billing')
+        .eq('headline', headline)
+        .maybeSingle()
 
-      if (signalError) throw signalError
+      if (!existingSignal) {
+        // Use 'medium' as a conservative default — decision engine will compute the real label
+        const { error: signalError } = await supabase.from('account_signals').insert({
+          workspace_id: workspaceId,
+          customer_account_id: customerAccountId,
+          signal_type: 'billing',
+          headline,
+          detail,
+          next_step: buildNextAction(accountStatus),
+          evidence: [
+            `Stripe subscription status: ${subscription.status}`,
+            `Plan: ${subscription.planName ?? 'Unknown plan'}`,
+            ...(preCancelMrr ? [`MRR at cancellation: $${(preCancelMrr / 100).toFixed(0)}`] : []),
+          ],
+          risk_level: 'medium', // conservative placeholder — decision engine scores this
+        })
+
+        if (signalError) throw signalError
+      }
 
       // Deduplicated timeline entry
       const { data: existingTimeline } = await supabase
@@ -367,31 +408,35 @@ export async function syncStripeWorkspace(
 
     syncedAccounts += 1
 
-    // Upsert account_contacts for human display (email is the bridge to PostHog identity)
+    // Upsert account_contacts — conflict-aware; never moves an email to a different account.
     if (subscription.customerEmail && customerAccountId) {
-      const { error: contactUpsertError } = await supabase.from('account_contacts').upsert(
-        {
-          workspace_id: workspaceId,
-          customer_account_id: customerAccountId,
-          email: subscription.customerEmail,
-          name: subscription.customerName,
-          role: 'billing',
-          is_primary: true,
-          external_ids: {
-            stripe_customer_id: subscription.stripeCustomerId,
-            stripe_subscription_id: subscription.subscriptionId,
-          },
-        },
-        { onConflict: 'workspace_id,email' }
-      )
-
-      if (contactUpsertError) throw contactUpsertError
-
-      contactsByEmail.set(subscription.customerEmail.toLowerCase(), {
+      const contactResult = await linkContactSafely(supabase, {
+        workspaceId,
+        customerAccountId,
         email: subscription.customerEmail,
-        customer_account_id: customerAccountId,
+        name: subscription.customerName ?? null,
+        role: 'billing',
+        isPrimary: true,
+        externalIds: {
+          stripe_customer_id: subscription.stripeCustomerId,
+          stripe_subscription_id: subscription.subscriptionId,
+        },
+        source: 'stripe_sync',
+        isProvisional: false,
       })
-      updatedContacts += 1
+
+      if (contactResult.status === 'ok') {
+        contactsByEmail.set(subscription.customerEmail.toLowerCase(), {
+          email: subscription.customerEmail,
+          customer_account_id: customerAccountId,
+        })
+        updatedContacts += 1
+      } else if (contactResult.status === 'conflict') {
+        console.warn(`[stripe-sync] contact conflict for ${subscription.customerEmail}:`, contactResult.reason)
+        identityConflicts += 1
+      } else {
+        console.error(`[stripe-sync] contact write error for ${subscription.customerEmail}:`, contactResult.error)
+      }
     }
   }
 
@@ -436,5 +481,7 @@ export async function syncStripeWorkspace(
     syncedAccounts,
     updatedContacts,
     highRiskAccounts,
+    identityConflicts,
+    provisionalAccounts,
   }
 }

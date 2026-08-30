@@ -1,3 +1,4 @@
+import { linkContactSafely, upsertProviderIdentity } from '@/recovery/identity'
 import { generateWorkspaceBrief } from '@/intelligence/briefs/generate-workspace-brief'
 import { logAgentRun } from '@/agent/runtime/run-logger'
 import { selectAction } from '@/intelligence/scoring/action-selector'
@@ -209,6 +210,7 @@ async function bootstrapAccountsFromInbox(params: {
           summary: 'Recent Gmail conversation imported to bootstrap founder follow-up context.',
           last_touch_at: null,
           renewal_at: null,
+          is_provisional: true,
         })
         .select(
           'id, name, account_status, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, summary, last_touch_at, renewal_at'
@@ -239,11 +241,22 @@ async function bootstrapAccountsFromInbox(params: {
         },
       }
 
-      const { error: upsertContactError } = await supabase
-        .from('account_contacts')
-        .upsert(contactPayload, { onConflict: 'workspace_id,email' })
-
-      if (upsertContactError) throw upsertContactError
+      // Bootstrap contacts are provisional until a verified identity confirms them.
+      const contactResult = await linkContactSafely(supabase, {
+        workspaceId,
+        customerAccountId: account.id,
+        email: contact.email,
+        name: contact.name ?? null,
+        role: 'billing',
+        isPrimary: contactPayload.is_primary ?? false,
+        source: 'gmail_bootstrap',
+        isProvisional: true,
+      })
+      if (contactResult.status === 'conflict') {
+        console.warn('[gmail-sync] bootstrap contact conflict:', contactResult.reason)
+      } else if (contactResult.status === 'error') {
+        console.error('[gmail-sync] bootstrap contact write error:', contactResult.error)
+      }
 
       if (!existingContact) {
         const insertedContact: ExistingContact = {
@@ -521,6 +534,24 @@ async function syncLegacyGmailInboxForTriage(
 
     syncedAccounts += 1
     syncedThreads += relatedThreads.length
+
+    for (const thread of relatedThreads) {
+      if (account.id && thread.threadId) {
+        const threadResult = await upsertProviderIdentity(supabase, {
+          workspaceId,
+          customerAccountId: account.id,
+          provider: 'gmail',
+          identityType: 'gmail_thread_id',
+          externalId: thread.threadId,
+          isPrimary: false,
+          verificationStatus: 'inferred',
+          source: 'gmail_sync',
+        })
+        if (threadResult.status === 'conflict') {
+          console.warn('[gmail-sync] thread_id conflict:', threadResult.reason)
+        }
+      }
+    }
 
     const pendingThreads = relatedThreads.filter((thread) =>
       threadNeedsReply(thread, profile.emailAddress, account.last_touch_at)

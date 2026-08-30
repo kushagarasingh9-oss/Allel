@@ -8,7 +8,12 @@ type MatchableContact = {
   customer_account_id: string
 }
 
-const PERSONAL_EMAIL_DOMAINS = new Set([
+/**
+ * Canonical set of personal email provider domains.
+ * Exported so that all integration sync modules share one definition.
+ * Do NOT duplicate this set in individual sync files.
+ */
+export const PERSONAL_EMAIL_DOMAINS = new Set([
   'gmail.com',
   'googlemail.com',
   'yahoo.com',
@@ -47,6 +52,15 @@ export function buildAccountsByName(accounts: MatchableAccount[]) {
   return new Map(accounts.map((account) => [normalizeMatchText(account.name), account]))
 }
 
+/**
+ * Fuzzy text-based account matcher for UI display disambiguation only.
+ *
+ * ⚠️ WARNING: This function MUST NOT be used for verified identity resolution.
+ * Name substring matching is not deterministic evidence of account ownership.
+ * It can produce false positives when two accounts share similar names or domains.
+ * Only use this for: display helpers, search UI, and non-write read paths.
+ * For identity writes, use resolveAccountIdentity() from @/recovery/identity instead.
+ */
 export function matchAccountIdFromText(
   text: string,
   accountsByName: Map<string, MatchableAccount>,

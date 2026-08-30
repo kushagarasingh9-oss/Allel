@@ -37,6 +37,8 @@ const MIGRATIONS = [
   '../../database/migrations/20260822_recovery_rls_and_rpc.sql',
   '../../database/migrations/20260829_recovery_workflow_integrity.sql',
   '../../database/migrations/20260829_recovery_scenario_runs.sql',
+  '../../database/migrations/20260830_recovery_authoritative_integrity.sql',
+  '../../database/migrations/20260831_identity_hardening.sql',
 ]
 
 function post(host, path, token, body) {
@@ -94,7 +96,7 @@ async function main() {
     const label = path.basename(f)
     await runSQL(sql, label)
   }
-  console.log('\n✅ Done. Re-run: npx tsx scripts/seed-recovery-demo.ts\n')
+  console.log('\n✅ All recovery migrations applied successfully.\n')
 }
 
 main().catch(console.error)

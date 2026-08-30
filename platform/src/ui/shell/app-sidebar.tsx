@@ -423,18 +423,27 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                     </div>
                   ) : (
                     visibleHistorySessions.map((session) => {
-                      const isSelected = Boolean(!isResolving && hasActiveMessages && activeSessionId === session.sessionId);
+                      const isSelected = Boolean(
+                        pathname === "/dashboard" &&
+                        !isResolving &&
+                        hasActiveMessages &&
+                        activeSessionId === session.sessionId
+                      );
                       return (
                         <div key={session.sessionId} className="relative group w-full">
                           <button
                             type="button"
                             onClick={() => {
                               if (typeof window !== "undefined") {
-                                const url = new URL(window.location.href);
-                                url.pathname = "/dashboard";
-                                url.searchParams.set("sessionId", session.sessionId);
-                                window.history.pushState({}, "", url.toString());
-                                window.dispatchEvent(new CustomEvent("allel:load-session", { detail: { sessionId: session.sessionId } }));
+                                if (window.location.pathname !== "/dashboard") {
+                                  window.location.href = `/dashboard?sessionId=${encodeURIComponent(session.sessionId)}`;
+                                } else {
+                                  const url = new URL(window.location.href);
+                                  url.pathname = "/dashboard";
+                                  url.searchParams.set("sessionId", session.sessionId);
+                                  window.history.pushState({}, "", url.toString());
+                                  window.dispatchEvent(new CustomEvent("allel:load-session", { detail: { sessionId: session.sessionId } }));
+                                }
                               }
                             }}
                             className={cn(

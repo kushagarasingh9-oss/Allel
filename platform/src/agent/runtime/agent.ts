@@ -190,6 +190,10 @@ import {
   listRecoveryCasesBySeverity,
   suppressRecoveryCase,
   updateRecoveryCaseNote,
+  // Composite + Behavioral Intent tools
+  getPostHogBehavioralIntentSignals,
+  getAccountFullProfile,
+  getFleetHealthSummary,
 } from '@/agent/tools/tools'
 import {
   webSearchTool,
@@ -392,6 +396,10 @@ export const ALL_TOOLS = {
   listRecoveryCasesBySeverity,
   suppressRecoveryCase,
   updateRecoveryCaseNote,
+  // Composite + Behavioral Intent tools
+  getPostHogBehavioralIntentSignals,
+  getAccountFullProfile,
+  getFleetHealthSummary,
 }
 
 export type AgentToolName = keyof typeof ALL_TOOLS
@@ -423,6 +431,7 @@ const INTEGRATION_PROVIDER_BY_TOOL: Partial<Record<AgentToolName, string>> = {
 
   syncPostHogWorkspaceTool: 'posthog',
   getPostHogAccountUsage: 'posthog',
+  getPostHogBehavioralIntentSignals: 'posthog',
   createPostHogAnnotation: 'posthog',
   listPostHogFeatureFlags: 'posthog',
   togglePostHogFeatureFlag: 'posthog',

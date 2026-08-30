@@ -6264,7 +6264,6 @@ export const getAccountRecoveryStatus = tool({
 
     const active = cases.find(c => !['resolved', 'suppressed'].includes(c.status))
     const latest = cases[0]
-
     return {
       hasActiveCase: !!active,
       activeCaseId: active?.id ?? null,
@@ -6284,3 +6283,401 @@ export const getAccountRecoveryStatus = tool({
   },
 })
 
+// ----- Tool: Get PostHog Behavioral Intent Signals -----
+
+/**
+ * Checks PostHog for concrete cancellation-intent events for a specific account.
+ * Returns a clean yes/no + timestamps instead of forcing the agent to guess event names.
+ */
+export const getPostHogBehavioralIntentSignals = tool({
+  description:
+    'Check PostHog for cancellation-intent behavioral signals for a specific account: ' +
+    'cancel-page views, cancel-button clicks, and session-time trend over the last 30 days. ' +
+    'Use this when a founder asks: "Is X thinking about cancelling?", "Did they hit the cancel page?", ' +
+    '"Is there behavioral evidence of churn intent?", or when assembling a full account profile. ' +
+    'Returns a clean yes/no cancellation-intent flag plus timestamps — never requires the agent to guess PostHog event names.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    accountId: z.string().uuid().describe('The customer account UUID'),
+  }),
+  execute: async ({ workspaceId, accountId }) => {
+    try {
+      const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
+      if (!projectId) return { error: 'PostHog project ID is missing' }
+
+      const supabase = createServiceClient()
+      const { data: contacts, error: contactsError } = await supabase
+        .from('account_contacts')
+        .select('email, external_ids')
+        .eq('workspace_id', workspaceId)
+        .eq('customer_account_id', accountId)
+
+      if (contactsError) return { error: contactsError.message }
+      if (!contacts || contacts.length === 0) {
+        return { error: 'No live-linked contacts found for this account' }
+      }
+
+      const distinctIds: string[] = []
+      for (const contact of contacts) {
+        const ids = contact.external_ids?.posthog_distinct_ids
+        if (Array.isArray(ids)) {
+          distinctIds.push(...ids.filter((id): id is string => typeof id === 'string'))
+        }
+      }
+
+      if (distinctIds.length === 0) {
+        return { error: 'No PostHog identities linked to this account' }
+      }
+
+      // Canonical cancel-intent event names covering the most common SaaS naming conventions.
+      const CANCEL_PAGE_EVENTS = [
+        'cancel_page_viewed',
+        'cancellation_page_viewed',
+        'cancel_subscription_viewed',
+        'viewed_cancel_page',
+        '$pageview',
+      ]
+      const CANCEL_BUTTON_EVENTS = [
+        'cancel_subscription_clicked',
+        'cancel_button_clicked',
+        'clicked_cancel_subscription',
+        'cancellation_initiated',
+        'cancel_intent_confirmed',
+      ]
+
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+      const host = apiHost || POSTHOG_DEFAULT_HOST
+
+      let cancelPageAt: string | null = null
+      let cancelButtonAt: string | null = null
+      let totalChecked = 0
+      let sessionsLast7d = 0
+      let sessionsPrev7d = 0
+
+      for (const distinctId of distinctIds.slice(0, 5)) {
+        const url =
+          `${host}/api/projects/${projectId}/events/?distinct_id=${encodeURIComponent(distinctId)}` +
+          `&limit=200&after=${encodeURIComponent(thirtyDaysAgo)}`
+
+        const response = await fetch(url, {
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          redirect: 'follow',
+          signal: AbortSignal.timeout(10_000),
+        })
+
+        if (!response.ok) {
+          throw new Error(`PostHog API error: ${response.status} ${response.statusText}`)
+        }
+
+        const data = (await response.json()) as {
+          results?: Array<{ event?: string; timestamp?: string; properties?: Record<string, unknown> }>
+        }
+
+        for (const ev of data.results ?? []) {
+          if (!ev.timestamp || !ev.event) continue
+          totalChecked++
+
+          if (ev.timestamp >= sevenDaysAgo) sessionsLast7d++
+          else if (ev.timestamp >= fourteenDaysAgo) sessionsPrev7d++
+
+          if (
+            CANCEL_PAGE_EVENTS.includes(ev.event) &&
+            (ev.event !== '$pageview' ||
+              String(ev.properties?.['$current_url'] ?? '').toLowerCase().includes('cancel'))
+          ) {
+            if (!cancelPageAt || ev.timestamp > cancelPageAt) cancelPageAt = ev.timestamp
+          }
+
+          if (CANCEL_BUTTON_EVENTS.includes(ev.event)) {
+            if (!cancelButtonAt || ev.timestamp > cancelButtonAt) cancelButtonAt = ev.timestamp
+          }
+        }
+      }
+
+      let sessionTimeTrend: 'increasing' | 'decreasing' | 'stable' | 'insufficient_data' =
+        'insufficient_data'
+      if (totalChecked >= 10) {
+        if (sessionsLast7d < sessionsPrev7d * 0.7) sessionTimeTrend = 'decreasing'
+        else if (sessionsLast7d > sessionsPrev7d * 1.3) sessionTimeTrend = 'increasing'
+        else sessionTimeTrend = 'stable'
+      }
+
+      const hasCancelIntent = !!(cancelPageAt || cancelButtonAt)
+
+      return {
+        source: 'posthog_live',
+        observedAt: new Date().toISOString(),
+        hasCancelIntent,
+        cancelPageViewedAt: cancelPageAt,
+        cancelButtonClickedAt: cancelButtonAt,
+        sessionTimeTrend,
+        sessionsLast7d,
+        sessionsPrev7d,
+        note: hasCancelIntent
+          ? 'Concrete cancellation-intent signal detected. Combine with billing and support data to determine root cause before acting.'
+          : 'No cancellation-intent events detected in the last 30 days.',
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'PostHog behavioral signal check failed' }
+    }
+  },
+})
+
+// ----- Tool: Get Account Full Profile (Composite) -----
+
+/**
+ * Composite tool: pulls Stripe billing state, PostHog usage, Intercom conversation summary,
+ * and recovery case status for one account in a single call.
+ * Preferred over calling each provider tool individually for any single-account question.
+ */
+export const getAccountFullProfile = tool({
+  description:
+    'Fetch a complete cross-provider profile for one customer account in a single call. ' +
+    'Combines: live Stripe billing state, PostHog usage (events 7d/30d, last seen), ' +
+    'latest Intercom conversation summary, and active recovery case status. ' +
+    'Use this whenever the founder asks about a specific account: ' +
+    '"How is Acme doing?", "What\'s the situation with TechCorp?", "Is FinCo at risk?", ' +
+    '"Give me everything on X", or any root-cause / why-are-they-churning question. ' +
+    'Prefer this over calling getStripeAccountState + getPostHogAccountUsage + listIntercomConvos separately.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    accountId: z.string().uuid().describe('The customer account UUID'),
+  }),
+  execute: async ({ workspaceId, accountId }) => {
+    const supabase = createServiceClient()
+
+    const [stripeRes, posthogRes, intercomRes, recoveryRes] = await Promise.allSettled([
+      // 1. Stripe billing state
+      (async () => {
+        const accounts = await listLiveStripeAccounts(workspaceId)
+        const account = accounts.find(
+          a => a.accountId === accountId || a.stripeCustomerId === accountId
+        )
+        if (!account) return null
+        return {
+          name: account.name,
+          email: account.email,
+          plan: account.plan,
+          status: account.status,
+          mrr: formatLiveMrr(account.mrrCents),
+          riskLevel: account.riskLevel,
+          cancelAtPeriodEnd: account.cancelAtPeriodEnd,
+          nextAction: liveStripeNextAction(account),
+        }
+      })(),
+
+      // 2. PostHog usage
+      (async () => {
+        try {
+          const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
+          if (!projectId) return null
+          const { data: contacts } = await supabase
+            .from('account_contacts')
+            .select('external_ids')
+            .eq('workspace_id', workspaceId)
+            .eq('customer_account_id', accountId)
+          const distinctIds: string[] = []
+          for (const c of contacts ?? []) {
+            const ids = c.external_ids?.posthog_distinct_ids
+            if (Array.isArray(ids))
+              distinctIds.push(...ids.filter((id): id is string => typeof id === 'string'))
+          }
+          if (distinctIds.length === 0) return null
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+          const host = apiHost || POSTHOG_DEFAULT_HOST
+          let events7d = 0
+          let events30d = 0
+          let lastSeen: string | null = null
+          for (const id of distinctIds.slice(0, 3)) {
+            const url = `${host}/api/projects/${projectId}/events/?distinct_id=${encodeURIComponent(id)}&limit=100&after=${encodeURIComponent(thirtyDaysAgo)}`
+            const resp = await fetch(url, {
+              headers: { Authorization: `Bearer ${apiKey}` },
+              signal: AbortSignal.timeout(8_000),
+            })
+            if (!resp.ok) continue
+            const d = (await resp.json()) as { results?: Array<{ timestamp?: string }> }
+            for (const ev of d.results ?? []) {
+              if (!ev.timestamp) continue
+              events30d++
+              if (ev.timestamp >= sevenDaysAgo) events7d++
+              if (!lastSeen || ev.timestamp > lastSeen) lastSeen = ev.timestamp
+            }
+          }
+          return { events7d, events30d, lastSeen, distinctIdCount: distinctIds.length }
+        } catch {
+          return null
+        }
+      })(),
+
+      // 3. Latest Intercom conversations for this account
+      (async () => {
+        try {
+          const { data: contacts } = await supabase
+            .from('account_contacts')
+            .select('email')
+            .eq('workspace_id', workspaceId)
+            .eq('customer_account_id', accountId)
+            .limit(3)
+          const emails = (contacts ?? []).map(c => c.email).filter(Boolean)
+          if (emails.length === 0) return null
+          const { data: convos } = await supabase
+            .from('intercom_conversations')
+            .select('id, subject, state, updated_at')
+            .eq('workspace_id', workspaceId)
+            .in('contact_email', emails)
+            .order('updated_at', { ascending: false })
+            .limit(3)
+          if (!convos?.length) return null
+          return convos.map(c => ({
+            id: c.id,
+            subject: c.subject,
+            state: c.state,
+            updatedAt: c.updated_at,
+          }))
+        } catch {
+          return null
+        }
+      })(),
+
+      // 4. Active recovery case
+      (async () => {
+        const { data: cases } = await supabase
+          .from('recovery_cases')
+          .select(
+            'id, status, severity, mrr_baseline_cents, trigger_event_type, opened_at, root_cause_summary'
+          )
+          .eq('workspace_id', workspaceId)
+          .eq('customer_account_id', accountId)
+          .not('status', 'in', '("resolved","suppressed")')
+          .order('opened_at', { ascending: false })
+          .limit(1)
+        return cases?.[0] ?? null
+      })(),
+    ])
+
+    const billing = stripeRes.status === 'fulfilled' ? stripeRes.value : null
+    const usage = posthogRes.status === 'fulfilled' ? posthogRes.value : null
+    const support = intercomRes.status === 'fulfilled' ? intercomRes.value : null
+    const recovery = recoveryRes.status === 'fulfilled' ? recoveryRes.value : null
+
+    return {
+      source: 'composite_live',
+      observedAt: new Date().toISOString(),
+      accountId,
+      billing: billing ?? { error: 'Stripe data unavailable or account not found' },
+      usage: usage ?? { note: 'PostHog data unavailable or account not linked' },
+      support: support ?? { note: 'No Intercom conversations found' },
+      recovery: recovery
+        ? {
+            caseId: recovery.id,
+            status: recovery.status,
+            severity: recovery.severity,
+            mrrAtRisk: '$' + ((recovery.mrr_baseline_cents ?? 0) / 100).toFixed(0),
+            trigger: recovery.trigger_event_type,
+            openedAt: recovery.opened_at,
+            rootCauseSummary: recovery.root_cause_summary ?? null,
+          }
+        : { note: 'No active recovery case' },
+    }
+  },
+})
+
+// ----- Tool: Get Fleet Health Summary (Composite) -----
+
+/**
+ * Composite tool: workspace-wide portfolio health across all accounts.
+ * Pulls live Stripe billing + recovery pipeline metrics in one call.
+ */
+export const getFleetHealthSummary = tool({
+  description:
+    'Get a workspace-wide portfolio health summary across all customer accounts in one call. ' +
+    'Combines live Stripe billing overview (total MRR, at-risk accounts) ' +
+    'with recovery pipeline metrics (cases opened, MRR at risk, recovered MRR). ' +
+    'Use this when the founder asks fleet-wide questions: ' +
+    '"How are all my accounts doing?", "How\'s everyone?", "What\'s our overall retention health?", ' +
+    '"Give me an overview", or "Who should I be worried about today?". ' +
+    'Prefer this over calling getAllAccounts + getRecoveryMetrics separately.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    windowDays: z
+      .number()
+      .int()
+      .min(1)
+      .max(90)
+      .optional()
+      .default(30)
+      .describe('Recovery metrics observation window in days. Default: 30'),
+  }),
+  execute: async ({ workspaceId, windowDays }) => {
+    const supabase = createServiceClient()
+    const since = new Date(Date.now() - (windowDays ?? 30) * 86400 * 1000).toISOString()
+
+    const [stripeRes, recoveryRes] = await Promise.allSettled([
+      listLiveStripeAccounts(workspaceId),
+      Promise.all([
+        supabase
+          .from('recovery_cases')
+          .select('id, status, severity, mrr_baseline_cents')
+          .eq('workspace_id', workspaceId)
+          .gte('opened_at', since),
+        supabase
+          .from('draft_outcomes')
+          .select('outcome_type, strict_recovered_cents, protected_cents')
+          .eq('workspace_id', workspaceId)
+          .gte('occurred_at', since),
+      ]),
+    ])
+
+    const accounts = stripeRes.status === 'fulfilled' ? stripeRes.value : []
+    const totalMrrCents = accounts.reduce((s, a) => s + a.mrrCents, 0)
+    const atRiskAccounts = accounts.filter(a => a.riskLevel === 'high' || a.riskLevel === 'medium')
+    const topAtRisk = atRiskAccounts
+      .sort((a, b) => b.mrrCents - a.mrrCents)
+      .slice(0, 5)
+      .map(a => ({
+        name: a.name,
+        mrr: formatLiveMrr(a.mrrCents),
+        riskLevel: a.riskLevel,
+        nextAction: liveStripeNextAction(a),
+      }))
+
+    let recoveryMetrics: Record<string, unknown> = { error: 'Recovery data unavailable' }
+    if (recoveryRes.status === 'fulfilled') {
+      const [casesRes, outcomesRes] = recoveryRes.value
+      const cases = casesRes.data ?? []
+      const outcomes = outcomesRes.data ?? []
+      const mrrAtRiskCents = cases
+        .filter(c => !['resolved', 'suppressed'].includes(c.status))
+        .reduce((s, c) => s + (c.mrr_baseline_cents ?? 0), 0)
+      const strictRecoveredCents = outcomes.reduce((s, o) => s + (o.strict_recovered_cents ?? 0), 0)
+      const protectedCents = outcomes.reduce((s, o) => s + (o.protected_cents ?? 0), 0)
+      const byStatus = cases.reduce<Record<string, number>>((acc, c) => {
+        acc[c.status] = (acc[c.status] ?? 0) + 1
+        return acc
+      }, {})
+      recoveryMetrics = {
+        totalCases: cases.length,
+        mrrAtRisk: '$' + (mrrAtRiskCents / 100).toFixed(0),
+        strictRecoveredMrr: '$' + (strictRecoveredCents / 100).toFixed(0),
+        protectedMrr: '$' + (protectedCents / 100).toFixed(0),
+        casesByStatus: byStatus,
+      }
+    }
+
+    return {
+      source: 'composite_live',
+      observedAt: new Date().toISOString(),
+      windowDays: windowDays ?? 30,
+      fleet: {
+        totalAccounts: accounts.length,
+        totalMrr: formatLiveMrr(totalMrrCents),
+        atRiskCount: atRiskAccounts.length,
+        topAtRisk,
+      },
+      recoveryPipeline: recoveryMetrics,
+    }
+  },
+})

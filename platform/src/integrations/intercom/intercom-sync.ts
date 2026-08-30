@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/foundation/database/service'
+import { upsertProviderIdentity, linkContactSafely } from '@/recovery/identity'
 import { logAgentRun } from '@/agent/runtime/run-logger'
 import { generateWorkspaceBrief } from '@/intelligence/briefs/generate-workspace-brief'
 import {
@@ -73,12 +74,58 @@ export async function syncIntercomWorkspace(
     const email = contact.email?.toLowerCase().trim()
     if (!email) continue
 
+    // Step 0: Check provider_identities for known Intercom contact_id
+    const rawIntercomContactId = String(contact.id ?? '')
+    let accountId: string | null = null
+    if (rawIntercomContactId) {
+      const { data: idRow } = await supabase
+        .from('provider_identities')
+        .select('customer_account_id')
+        .eq('workspace_id', workspaceId)
+        .eq('provider', 'intercom')
+        .eq('identity_type', 'contact_id')
+        .eq('normalized_external_id', rawIntercomContactId)
+        .in('verification_status', ['verified', 'inferred'])
+        .maybeSingle()
+      if (idRow) {
+        accountId = idRow.customer_account_id
+      }
+    }
+
     const existingContact = contactsByEmail.get(email)
-    // Intercom support context is never allowed to guess account ownership.
-    // Only an existing exact, workspace-scoped email contact can be enriched.
-    const accountId = existingContact?.customer_account_id ?? null
+    if (!accountId) {
+      // Intercom support context is never allowed to guess account ownership.
+      // Only an existing exact, workspace-scoped email contact can be enriched.
+      accountId = existingContact?.customer_account_id ?? null
+    }
 
     if (!accountId) {
+      continue
+    }
+
+    // Persist Intercom contact_id as inferred identity (email match, not direct API verification)
+    let hasIdentityConflict = false
+    if (accountId && rawIntercomContactId) {
+      const idResult = await upsertProviderIdentity(supabase, {
+        workspaceId,
+        customerAccountId: accountId,
+        provider: 'intercom',
+        identityType: 'contact_id',
+        externalId: rawIntercomContactId,
+        isPrimary: false,
+        verificationStatus: 'inferred',
+        source: 'intercom_sync',
+      })
+      if (idResult.status === 'conflict') {
+        console.warn('[intercom-sync] contact_id identity conflict:', idResult.reason)
+        hasIdentityConflict = true
+      } else if (idResult.status === 'error') {
+        console.warn('[intercom-sync] contact_id write error:', idResult.error)
+      }
+    }
+
+    // If an identity conflict occurred, do not attribute conversations or link contacts (§do.md §8)
+    if (hasIdentityConflict) {
       continue
     }
 
@@ -87,22 +134,24 @@ export async function syncIntercomWorkspace(
       intercom_contact_id: contact.id ?? null,
     }
 
-    const { error } = await supabase.from('account_contacts').upsert(
-      {
-        workspace_id: workspaceId,
-        customer_account_id: accountId,
-        email,
-        name: contact.name?.trim() || null,
-        role: contact.role?.trim() || 'support_contact',
-        // Intercom must never change who receives recovery email. It can
-        // enrich a known contact, but preserves the existing recipient role.
-        is_primary: existingContact?.is_primary ?? false,
-        external_ids: mergedExternalIds,
-      },
-      { onConflict: 'workspace_id,email' }
-    )
+    // Intercom MUST NOT set is_primary=true or change the primary recovery recipient.
+    const contactResult = await linkContactSafely(supabase, {
+      workspaceId,
+      customerAccountId: accountId,
+      email,
+      name: contact.name?.trim() || null,
+      role: 'support',
+      isPrimary: false,
+      source: 'intercom_sync',
+      isProvisional: false,
+    })
 
-    if (error) throw error
+    if (contactResult.status === 'conflict') {
+      console.warn('[intercom-sync] contact conflict:', contactResult.reason)
+      continue
+    } else if (contactResult.status === 'error') {
+      console.error('[intercom-sync] contact write error:', contactResult.error)
+    }
 
     contactsByEmail.set(email, {
       email,

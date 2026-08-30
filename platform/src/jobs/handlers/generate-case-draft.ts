@@ -63,39 +63,58 @@ export async function handleGenerateCaseDraft(
     throw new Error(`Case ${recoveryCaseId} status is ${caseRow.status}, expected action_proposed`);
   }
 
-  // §40.11: Load one verified primary contact — fail safely when none exists
+  // §40.11: Load one verified primary contact — fail safely when none exists (§do.md §9)
   let recipientEmail: string | null = null;
 
-  // Try payload override first
-  if (payload.recipientEmail && payload.recipientEmail !== 'customer@example.com') {
-    recipientEmail = payload.recipientEmail;
+  // 1. Try explicit non-provisional primary contact from account_contacts
+  const { data: primaryContact } = await supabase
+    .from('account_contacts')
+    .select('email, is_provisional, is_primary')
+    .eq('customer_account_id', caseRow.customer_account_id)
+    .eq('workspace_id', workspaceId)
+    .eq('is_primary', true)
+    .eq('is_provisional', false)
+    .not('email', 'is', null)
+    .maybeSingle();
+
+  if (primaryContact?.email) {
+    recipientEmail = primaryContact.email;
   }
 
-  // Try customer_accounts.contact_email
-  if (!recipientEmail && caseRow.customer_accounts?.contact_email) {
-    recipientEmail = caseRow.customer_accounts.contact_email;
-  }
-
-  // Try account_contacts
+  // 2. Try verified provider_identities (person_email or email_address with verification_status='verified')
   if (!recipientEmail) {
-    const { data: contact, error: contactError } = await supabase
+    const { data: verifiedIdentity } = await supabase
+      .from('provider_identities')
+      .select('normalized_external_id')
+      .eq('customer_account_id', caseRow.customer_account_id)
+      .eq('workspace_id', workspaceId)
+      .eq('verification_status', 'verified')
+      .in('identity_type', ['person_email', 'email_address'])
+      .maybeSingle();
+    if (verifiedIdentity?.normalized_external_id) {
+      recipientEmail = verifiedIdentity.normalized_external_id;
+    }
+  }
+
+  // 3. Fallback: Any non-provisional contact for this account
+  if (!recipientEmail) {
+    const { data: anyVerifiedContact } = await supabase
       .from('account_contacts')
       .select('email')
       .eq('customer_account_id', caseRow.customer_account_id)
       .eq('workspace_id', workspaceId)
+      .eq('is_provisional', false)
       .not('email', 'is', null)
       .limit(1)
       .maybeSingle();
-
-    if (contactError) {
-      throw new Error(`Failed to load contact: ${contactError.message}`);
+    if (anyVerifiedContact?.email) {
+      recipientEmail = anyVerifiedContact.email;
     }
-    recipientEmail = contact?.email || null;
   }
 
-  // §40.11: Never substitute customer@example.com
+  // §40.11: Never send to provisional/unverified or placeholder emails
   if (!recipientEmail || recipientEmail === 'customer@example.com') {
-    throw new Error(`No verified recipient for case ${recoveryCaseId}`);
+    throw new Error(`No verified, non-provisional recipient for case ${recoveryCaseId}`);
   }
 
   // §40.5.5: Make generation idempotent by case + action_version

@@ -1,4 +1,4 @@
-export type Provider = 'stripe' | 'posthog' | 'gmail';
+export type Provider = 'stripe' | 'posthog' | 'gmail' | 'intercom';
 
 export type CanonicalProviderEvent = {
   eventId: string;
@@ -27,7 +27,8 @@ export type IdentityType =
   | 'distinct_id'
   | 'person_email'
   | 'email_address'
-  | 'gmail_thread_id';
+  | 'gmail_thread_id'
+  | 'contact_id';
 
 export type VerificationStatus = 'verified' | 'inferred' | 'conflict' | 'revoked';
 
@@ -57,6 +58,29 @@ export type IdentityResolutionResult = {
   matchedIdentity: string | null;
   candidateAccountIds?: string[];
   conflictReason?: string;
+};
+
+/** Returned by upsertProviderIdentity and linkContactSafely to surface conflicts explicitly. */
+export type SyncIdentityResult =
+  | { status: 'ok' }
+  | { status: 'conflict'; conflictId: string; reason: string }
+  | { status: 'error'; error: string };
+
+/** Stored in the identity_conflicts table for founder review. */
+export type IdentityConflict = {
+  id: string;
+  workspaceId: string;
+  provider: Provider;
+  identityType: IdentityType;
+  normalizedExternalId: string;
+  existingAccountId: string;
+  candidateAccountId: string;
+  source: string;
+  reason: string;
+  status: 'pending' | 'resolved' | 'dismissed';
+  createdAt: string;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
 };
 
 export type AccountFeatures = {
