@@ -1560,6 +1560,7 @@ export function AgentFeed() {
     }
   }, [])
 
+  const bottomAnchorRef = React.useRef<HTMLDivElement>(null)
   const isUserScrolledUpRef = React.useRef(false)
   const prevMessagesLengthRef = React.useRef(messages.length)
 
