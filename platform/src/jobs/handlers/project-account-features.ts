@@ -21,6 +21,21 @@ export async function handleProjectAccountFeatures(
     throw new Error('project_account_features requires workspaceId and customerAccountId');
   }
 
+  // Check if account still exists (handles purged / deleted legacy test accounts cleanly)
+  const { data: accountExists } = await supabase
+    .from('customer_accounts')
+    .select('id')
+    .eq('id', customerAccountId)
+    .maybeSingle();
+
+  if (!accountExists) {
+    return {
+      success: true,
+      workspaceId,
+      result: { skipped: true, reason: 'Customer account no longer exists' },
+    };
+  }
+
   // §40.9: Use the typed patch from provider projection (not an absent default)
   const patch = { ...(payload.patch || {}) };
   const evidence = payload.evidence || [];

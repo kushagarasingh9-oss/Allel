@@ -74,6 +74,45 @@ export async function claimWorkflowJobs(
   });
 
   if (error) {
+    if (error.code === 'PGRST202') {
+      // Fallback query when RPC is not in schema cache
+      const now = new Date().toISOString();
+      const leaseExpiresAt = new Date(Date.now() + leaseSeconds * 1000).toISOString();
+
+      const { data: pendingJobs } = await supabase
+        .from('workflow_jobs')
+        .select('*')
+        .eq('status', 'pending')
+        .lte('next_attempt_at', now)
+        .order('priority', { ascending: true })
+        .order('created_at', { ascending: true })
+        .limit(batchSize);
+
+      if (!pendingJobs || pendingJobs.length === 0) return [];
+
+      const claimed: WorkflowJob[] = [];
+      for (const row of pendingJobs) {
+        const { data: updated } = await supabase
+          .from('workflow_jobs')
+          .update({
+            status: 'running',
+            lease_owner: workerId,
+            lease_expires_at: leaseExpiresAt,
+            started_at: now,
+            attempt_count: (row.attempt_count || 0) + 1,
+            updated_at: now,
+          })
+          .eq('id', row.id)
+          .eq('status', 'pending')
+          .select('*')
+          .maybeSingle();
+
+        if (updated) {
+          claimed.push(mapDbToWorkflowJob(updated));
+        }
+      }
+      return claimed;
+    }
     throw new Error(`Failed to claim workflow jobs via RPC: ${error.message}`);
   }
 
@@ -158,9 +197,7 @@ export async function failWorkflowJob(
       next_attempt_at: nextAttemptAt || now,
       lease_owner: null,
       lease_expires_at: null,
-      last_error_code: errCode,
-      last_error_message: errMsg.slice(0, 1000),
-      last_error_at: now,
+      error: errMsg.slice(0, 1000),
       updated_at: now,
     })
     .eq('id', job.id)
