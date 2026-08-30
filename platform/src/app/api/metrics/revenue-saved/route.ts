@@ -58,6 +58,11 @@ export async function GET(request: NextRequest) {
       observationStart: metrics.observationStart,
       observationEnd: metrics.observationEnd,
       policyVersion: metrics.policyVersion,
+      attributionVersion: metrics.attributionVersion || '2.0.0',
+      disclosures: {
+        testMode: 'Test-mode recovery simulation. No production customer funds are represented.',
+        riskIndex: 'Risk index, not a predicted probability of churn.',
+      },
       // Compatibility fields
       revenueSavedCents: metrics.strictRecoveredCents,
       revenueSavedFormatted: new Intl.NumberFormat('en-US', {

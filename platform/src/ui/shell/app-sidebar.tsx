@@ -273,37 +273,55 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
       >
         {/* Top Header & Navigation */}
         <div className="flex flex-col min-h-0 flex-1">
-          {/* Header Row: Icons (without upper logo) */}
+          {/* Header Row: New Logo & Icons */}
           {collapsed ? (
-            /* Minimized Top Header: PanelLeftOpen Expand icon */
+            /* Minimized Top Header: Logo converts to PanelLeftOpen Expand icon on hover */
             <div className="flex justify-center items-center py-1">
               <button
                 type="button"
                 onClick={() => setCollapsed(false)}
-                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                className="group relative w-8 h-8 flex items-center justify-center rounded-md hover:bg-white/[0.08] transition-colors cursor-pointer"
                 title="Expand sidebar"
               >
-                <PanelLeftOpen className="w-4 h-4" />
+                <img
+                  src="/logo-icon.png"
+                  alt="Allel"
+                  className="w-[22px] h-[22px] object-contain shrink-0 mix-blend-screen bg-transparent transition-all duration-150 group-hover:opacity-0 group-hover:scale-95"
+                />
+                <PanelLeftOpen className="w-4 h-4 text-white absolute opacity-0 group-hover:opacity-100 transition-all duration-150 group-hover:scale-100 scale-90" />
               </button>
             </div>
           ) : (
-            /* Expanded Top Header: Search + PanelLeftClose icon */
-            <div className="flex items-center justify-end px-1 gap-1 text-zinc-400">
-              <button
-                type="button"
-                className="p-1 hover:text-white rounded-md hover:bg-white/[0.08] transition-colors cursor-pointer"
-                title="Search"
+            /* Expanded Top Header: New Logo + Search + PanelLeftClose icon */
+            <div className="flex items-center justify-between px-1.5 py-0.5">
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-2 transition-opacity hover:opacity-80 group p-0.5"
               >
-                <Search className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setCollapsed(true)}
-                className="p-1 hover:text-white rounded-md hover:bg-white/[0.08] transition-colors cursor-pointer"
-                title="Collapse sidebar"
-              >
-                <PanelLeftClose className="w-4 h-4" />
-              </button>
+                <img
+                  src="/logo-icon.png"
+                  alt="Allel"
+                  className="w-[24px] h-[24px] object-contain shrink-0 mix-blend-screen bg-transparent"
+                />
+              </Link>
+
+              <div className="flex items-center gap-0.5 text-zinc-400">
+                <button
+                  type="button"
+                  className="p-1 hover:text-white rounded-md hover:bg-white/[0.08] transition-colors cursor-pointer"
+                  title="Search"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCollapsed(true)}
+                  className="p-1 hover:text-white rounded-md hover:bg-white/[0.08] transition-colors cursor-pointer"
+                  title="Collapse sidebar"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
 
@@ -592,8 +610,8 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
         )}
       </aside>
 
-      {/* Main Workspace Panel Container — Sharp yet subtly rounded floating canvas */}
-      <main className="flex-1 h-full min-w-0 bg-[#121214] border border-white/[0.08] rounded-[10px] relative overflow-hidden flex flex-col shadow-2xl">
+      {/* Main Workspace Panel Container — Sharper refined floating canvas */}
+      <main className="flex-1 h-full min-w-0 bg-[#121214] border border-white/[0.08] rounded-[6px] relative overflow-hidden flex flex-col shadow-2xl">
         {children}
       </main>
     </div>

@@ -303,4 +303,5 @@ export type RecoveryMetrics = {
   observationStart: string;
   observationEnd: string;
   policyVersion: string;
+  attributionVersion?: string;
 };

@@ -1,15 +1,13 @@
 /**
- * seed-recovery-demo.ts
+ * seed-recovery-demo.ts — UI Fixture & Test-Mode Simulation Seeder
  *
- * Creates a batch of realistic Stripe test-mode failed payment scenarios,
- * opens recovery cases for them, simulates outreach, and records measured
- * revenue recovery outcomes.
+ * MANDATORY TRUTH DISCLOSURE (§40):
+ * "Test-mode recovery simulation. No production customer funds are represented."
+ * "Risk index, not a predicted probability of churn."
  *
+ * Creates a batch of Stripe test-mode failed payment scenarios for UI walkthroughs.
  * Run with:
  *   npx tsx scripts/seed-recovery-demo.ts
- *
- * Requires: STRIPE_SECRET_KEY (test mode), SUPABASE_SERVICE_ROLE_KEY,
- *           NEXT_PUBLIC_SUPABASE_URL set in environment.
  */
 
 import Stripe from 'stripe'

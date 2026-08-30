@@ -180,7 +180,7 @@ export default function SettingsPage() {
     : INTEGRATIONS
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#101010] overflow-y-auto w-full p-10 font-sans transition-colors text-white">
+    <div className="flex-1 flex flex-col h-full bg-[#0f0f10] overflow-y-auto w-full p-10 font-sans transition-colors text-white">
       <div className="max-w-[1080px] mx-auto w-full pt-8 pb-20">
         {/* Toast */}
         {toastMessage && (
@@ -219,7 +219,7 @@ export default function SettingsPage() {
             placeholder="Search connections..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#181818] border border-[#262626] rounded-lg py-3 pl-10 pr-4 text-[13px] text-white outline-none focus:border-zinc-400 transition-colors placeholder:text-zinc-500 shadow-xs"
+            className="w-full bg-[#161618] border border-white/[0.08] rounded-xl py-3 pl-10 pr-4 text-[13px] text-white outline-none focus:border-white/20 transition-colors placeholder:text-zinc-500 shadow-xs"
           />
         </div>
 
@@ -232,7 +232,7 @@ export default function SettingsPage() {
             return (
               <div
                 key={app.provider}
-                className="bg-[#181818] border border-[#262626] rounded-lg p-5 flex flex-col justify-between min-h-[170px] shadow-xs hover:border-zinc-500 transition-all group"
+                className="bg-[#161618] border border-white/[0.08] rounded-xl p-5 flex flex-col justify-between min-h-[170px] shadow-xs hover:border-white/[0.2] transition-all group"
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">

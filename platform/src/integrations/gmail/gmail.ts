@@ -32,6 +32,8 @@ export type GmailThread = {
   messages?: GmailThreadMessage[]
 }
 
+export type GmailThreadSummary = GmailThread
+
 export type GmailThreadMessage = {
   id: string
   from: string
