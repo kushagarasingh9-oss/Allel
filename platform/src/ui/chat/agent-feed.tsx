@@ -1175,10 +1175,33 @@ function AgentThinking() {
 }
 
 // ─── Error Message Formatter ──────────────────────────────────────────
-export function formatCleanErrorMessage(rawMsg: string, toolName?: string): string {
+export function formatCleanErrorMessage(rawMsg: unknown, toolName?: string): string {
   if (!rawMsg) return "An unexpected error occurred."
 
-  let msg = rawMsg
+  let msg = ""
+  if (typeof rawMsg === "string") {
+    msg = rawMsg
+  } else if (rawMsg instanceof Error) {
+    msg = rawMsg.message
+  } else if (typeof rawMsg === "object" && rawMsg !== null) {
+    const obj = rawMsg as Record<string, unknown>
+    if (typeof obj.message === "string") {
+      msg = obj.message
+    } else if (typeof obj.error === "string") {
+      msg = obj.error
+    } else if (typeof (obj.error as any)?.message === "string") {
+      msg = (obj.error as any).message
+    } else {
+      msg = "A connection or network event error occurred. Please try again."
+    }
+  } else {
+    msg = String(rawMsg)
+  }
+
+  if (msg === "[object Event]" || msg === "[object Object]") {
+    msg = "A connection or network event error occurred. Please try again."
+  }
+
   try {
     if (msg.includes('{') && msg.includes('}')) {
       const jsonStart = msg.indexOf('{')
@@ -1706,7 +1729,7 @@ export function AgentFeed() {
                     Execution Notice
                   </h4>
                   <p className="text-[12px] text-red-200/90 leading-relaxed font-sans break-words whitespace-pre-wrap">
-                    {formatCleanErrorMessage(error.message || "The agent encountered an error.")}
+                    {formatCleanErrorMessage(error)}
                   </p>
                 </div>
               </div>

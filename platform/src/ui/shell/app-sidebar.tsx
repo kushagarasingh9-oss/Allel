@@ -507,10 +507,12 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 className="flex items-center gap-2 text-xs font-medium text-zinc-300 hover:text-white transition-colors cursor-pointer group"
               >
                 <img
-                  src={avatarUrl || `https://unavatar.io/${encodeURIComponent(userEmail)}`}
+                  src={avatarUrl || (userEmail ? `https://unavatar.io/${encodeURIComponent(userEmail)}` : '/logos/gmail.svg')}
                   alt="Account"
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = `https://unavatar.io/${encodeURIComponent(userEmail)}`;
+                    const target = e.currentTarget as HTMLImageElement
+                    target.onerror = null
+                    target.style.display = 'none'
                   }}
                   className="w-5 h-5 rounded-full object-cover shrink-0 border border-white/10"
                 />
@@ -526,10 +528,12 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                   {/* User Profile Header */}
                   <div className="flex items-center gap-2.5 p-2 rounded-lg bg-white/[0.03] border border-white/[0.04] mb-2">
                     <img
-                      src={avatarUrl || `https://unavatar.io/${encodeURIComponent(userEmail)}`}
+                      src={avatarUrl || (userEmail ? `https://unavatar.io/${encodeURIComponent(userEmail)}` : '/logos/gmail.svg')}
                       alt={userName}
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = `https://unavatar.io/${encodeURIComponent(userEmail)}`;
+                        const target = e.currentTarget as HTMLImageElement
+                        target.onerror = null
+                        target.style.display = 'none'
                       }}
                       className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/10"
                     />
