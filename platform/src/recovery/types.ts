@@ -1,4 +1,4 @@
-export type Provider = 'stripe' | 'posthog' | 'gmail' | 'intercom';
+export type Provider = 'stripe' | 'posthog' | 'gmail' | 'intercom' | 'hubspot';
 
 export type CanonicalProviderEvent = {
   eventId: string;
@@ -28,7 +28,9 @@ export type IdentityType =
   | 'person_email'
   | 'email_address'
   | 'gmail_thread_id'
-  | 'contact_id';
+  | 'contact_id'
+  | 'hubspot_contact_id'
+  | 'hubspot_company_id';
 
 export type VerificationStatus = 'verified' | 'inferred' | 'conflict' | 'revoked';
 
@@ -74,7 +76,7 @@ export type SyncIdentityResult =
   | { status: 'error'; error: string };
 
 export type PromoteIdentityResult =
-  | { status: 'ok'; accountId: string; promoted: boolean }
+  | { status: 'ok'; accountId: string; promoted: boolean; auditId?: string }
   | { status: 'conflict'; conflictId?: string; reason: string }
   | { status: 'error'; error: string };
 

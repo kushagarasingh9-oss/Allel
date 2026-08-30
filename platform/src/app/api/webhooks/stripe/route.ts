@@ -75,11 +75,13 @@ export async function POST(request: NextRequest) {
       ?? null
     : null
 
-  if (
-    RECOVERY_CONFIG.TEST_MODE &&
-    (!scenarioId || !scenarioId.startsWith(RECOVERY_CONFIG.SCENARIO_PREFIX))
-  ) {
-    return NextResponse.json({ error: 'Test-mode Stripe events require a valid allel_scenario_id' }, { status: 400 })
+  if (RECOVERY_CONFIG.TEST_MODE) {
+    if (!scenarioId || !scenarioId.startsWith(RECOVERY_CONFIG.SCENARIO_PREFIX)) {
+      return NextResponse.json({ error: 'Test-mode Stripe events require a valid allel_scenario_id' }, { status: 400 })
+    }
+    if (!scenarioRunId) {
+      return NextResponse.json({ error: 'Test-mode Stripe events require a valid allel_test_run or scenario_run_id' }, { status: 400 })
+    }
   }
 
   let workspaceId: string | null = null
@@ -87,6 +89,21 @@ export async function POST(request: NextRequest) {
     workspaceId = await resolveWorkspaceForStripeEvent(supabase, customerId, eventObj)
   } catch (resolveErr) {
     console.error('[stripe-webhook] workspace resolution failed:', resolveErr)
+  }
+
+  if (RECOVERY_CONFIG.TEST_MODE && workspaceId && scenarioRunId) {
+    const { data: runRow } = await supabase
+      .from('recovery_scenario_runs')
+      .select('id, status, test_mode')
+      .eq('id', scenarioRunId)
+      .eq('workspace_id', workspaceId)
+      .eq('test_mode', true)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (!runRow) {
+      return NextResponse.json({ error: 'Active scenario run not found for workspace in test mode' }, { status: 403 })
+    }
   }
 
   // §40.7 step 7: Build the canonical envelope

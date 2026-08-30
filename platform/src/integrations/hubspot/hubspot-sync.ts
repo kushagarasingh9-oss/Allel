@@ -2,8 +2,9 @@ import { createServiceClient } from '@/foundation/database/service'
 import { logAgentRun } from '@/agent/runtime/run-logger'
 import { generateWorkspaceBrief } from '@/intelligence/briefs/generate-workspace-brief'
 import { fetchAllHubSpotCompanies, fetchAllHubSpotContacts, getHubSpotCredentials } from '@/integrations/hubspot/hubspot'
-import { findAccountIdByEmail, getEmailDomain, isPersonalEmailDomain, normalizeMatchText } from '@/integrations/_core/account-match'
+import { normalizeMatchText } from '@/integrations/_core/account-match'
 import { mergeIntegrationConnectionMetadata } from '@/integrations/_core/connection-guard'
+import { linkContactSafely, upsertProviderIdentity } from '@/recovery/identity'
 
 type ExistingAccount = {
   id: string
@@ -19,17 +20,21 @@ type ExistingAccount = {
   last_touch_at: string | null
   renewal_at: string | null
   account_status: string
+  is_provisional?: boolean
 }
 
 type ExistingContact = {
   email: string
   customer_account_id: string
   external_ids: Record<string, unknown> | null
+  is_provisional?: boolean
 }
 
 export type HubSpotWorkspaceSyncResult = {
   syncedAccounts: number
   syncedContacts: number
+  identityConflicts: number
+  provisionalAccounts: number
 }
 
 function pickCompanyName(properties: Record<string, string | null | undefined> | undefined) {
@@ -56,12 +61,12 @@ export async function syncHubSpotWorkspace(
     supabase
       .from('customer_accounts')
       .select(
-        'id, name, segment, summary, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, last_touch_at, renewal_at, account_status'
+        'id, name, segment, summary, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, last_touch_at, renewal_at, account_status, is_provisional'
       )
       .eq('workspace_id', workspaceId),
     supabase
       .from('account_contacts')
-      .select('email, customer_account_id, external_ids')
+      .select('email, customer_account_id, external_ids, is_provisional')
       .eq('workspace_id', workspaceId),
   ])
 
@@ -73,18 +78,31 @@ export async function syncHubSpotWorkspace(
 
   const accountsById = new Map(existingAccounts.map((account) => [account.id, account]))
   const accountsByName = new Map(existingAccounts.map((account) => [normalizeMatchText(account.name), account]))
-  const contactsByEmail = new Map(existingContacts.map((contact) => [contact.email.toLowerCase(), contact]))
+  // Only non-provisional contacts can be used for verified identity resolution
+  const contactsByEmail = new Map(
+    existingContacts
+      .filter((c) => !c.is_provisional)
+      .map((contact) => [contact.email.toLowerCase(), contact])
+  )
   const hubSpotCompanyIdToAccountId = new Map<string, string>()
 
   let syncedAccounts = 0
   let syncedContacts = 0
+  let identityConflicts = 0
+  let provisionalAccounts = 0
 
   for (const company of companies) {
     const companyName = pickCompanyName(company.properties)
     if (!companyName) continue
 
     const normalizedName = normalizeMatchText(companyName)
-    let account = accountsByName.get(normalizedName) ?? null
+    const existingNameCandidate = accountsByName.get(normalizedName) ?? null
+
+    // Name matching must never mutate an existing canonical account
+    if (existingNameCandidate) {
+      console.warn(`[hubspot-sync] HubSpot company "${companyName}" (${company.id}) matches account name ${existingNameCandidate.id}, but has no verified identity. Creating isolated provisional account.`)
+      identityConflicts += 1
+    }
 
     const payload = {
       workspace_id: workspaceId,
@@ -93,35 +111,30 @@ export async function syncHubSpotWorkspace(
       summary:
         company.properties?.description?.trim() ||
         company.properties?.industry?.trim() ||
-        'HubSpot company synced into the customer graph.',
-      next_action: account?.next_action ?? 'Review CRM context before the next founder touch.',
-      open_issue: account?.open_issue ?? null,
-      mrr_cents: account?.mrr_cents ?? 0,
-      risk_level: account?.risk_level ?? 'low',
-      risk_score: account?.risk_score ?? 0,
-      usage_delta_percent: account?.usage_delta_percent ?? 0,
-      last_touch_at: account?.last_touch_at ?? null,
-      renewal_at: account?.renewal_at ?? null,
-      account_status: account?.account_status ?? 'active',
+        'Provisional HubSpot company synced into the customer graph.',
+      next_action: 'Review CRM context before taking action.',
+      open_issue: null,
+      mrr_cents: 0,
+      usage_delta_percent: 0,
+      last_touch_at: null,
+      renewal_at: null,
+      account_status: 'active',
+      is_provisional: true,
     }
 
-    if (account) {
-      const { error } = await supabase.from('customer_accounts').update(payload).eq('id', account.id)
-      if (error) throw error
-    } else {
-      const { data, error } = await supabase
-        .from('customer_accounts')
-        .insert(payload)
-        .select(
-          'id, name, segment, summary, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, last_touch_at, renewal_at, account_status'
-        )
-        .single()
+    const { data: insertedAccount, error: insertError } = await supabase
+      .from('customer_accounts')
+      .insert(payload)
+      .select(
+        'id, name, segment, summary, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, last_touch_at, renewal_at, account_status, is_provisional'
+      )
+      .single()
 
-      if (error) throw error
-      account = data as ExistingAccount
-      accountsById.set(account.id, account)
-      accountsByName.set(normalizedName, account)
-    }
+    if (insertError) throw insertError
+    const account = insertedAccount as ExistingAccount
+    accountsById.set(account.id, account)
+    accountsByName.set(normalizedName, account)
+    provisionalAccounts += 1
 
     hubSpotCompanyIdToAccountId.set(company.id, account.id)
     syncedAccounts += 1
@@ -132,21 +145,13 @@ export async function syncHubSpotWorkspace(
     if (!email) continue
 
     const associatedCompanyId = contact.properties?.associatedcompanyid?.trim() || null
-    const companyName = contact.properties?.company?.trim() || null
     const existingContact = contactsByEmail.get(email)
 
+    // Resolution: associated company ID first, or exact non-provisional contact email
     let accountId =
       (associatedCompanyId ? hubSpotCompanyIdToAccountId.get(associatedCompanyId) : null) ??
-      findAccountIdByEmail(email, contactsByEmail) ??
-      (companyName ? accountsByName.get(normalizeMatchText(companyName))?.id ?? null : null)
-
-    if (!accountId) {
-      const domain = getEmailDomain(email)
-      if (domain && !isPersonalEmailDomain(domain)) {
-        const inferredAccount = accountsByName.get(normalizeMatchText(domain.split('.')[0] ?? domain))
-        accountId = inferredAccount?.id ?? null
-      }
-    }
+      existingContact?.customer_account_id ??
+      null
 
     if (!accountId) {
       continue
@@ -158,27 +163,33 @@ export async function syncHubSpotWorkspace(
       ...(associatedCompanyId ? { hubspot_company_id: associatedCompanyId } : {}),
     }
 
-    const { error } = await supabase.from('account_contacts').upsert(
-      {
-        workspace_id: workspaceId,
-        customer_account_id: accountId,
-        email,
-        name: pickContactName(contact.properties),
-        role: contact.properties?.jobtitle?.trim() || 'crm_contact',
-        is_primary: existingContact?.customer_account_id === accountId ? true : false,
-        external_ids: mergedExternalIds,
-      },
-      { onConflict: 'workspace_id,email' }
-    )
-
-    if (error) throw error
-
-    contactsByEmail.set(email, {
+    // HubSpot contacts MUST NOT set is_primary=true and must use safe atomic linking
+    const contactResult = await linkContactSafely(supabase, {
+      workspaceId,
+      customerAccountId: accountId,
       email,
-      customer_account_id: accountId,
-      external_ids: mergedExternalIds,
+      name: pickContactName(contact.properties),
+      role: contact.properties?.jobtitle?.trim() || 'crm_contact',
+      isPrimary: false,
+      externalIds: mergedExternalIds,
+      source: 'hubspot_sync',
+      isProvisional: true,
     })
-    syncedContacts += 1
+
+    if (contactResult.status === 'ok') {
+      contactsByEmail.set(email, {
+        email,
+        customer_account_id: accountId,
+        external_ids: mergedExternalIds,
+        is_provisional: true,
+      })
+      syncedContacts += 1
+    } else if (contactResult.status === 'conflict') {
+      console.warn(`[hubspot-sync] contact conflict for ${email}:`, contactResult.reason)
+      identityConflicts += 1
+    } else {
+      console.error(`[hubspot-sync] contact write error for ${email}:`, contactResult.error)
+    }
   }
 
   const syncedAt = new Date().toISOString()
@@ -192,6 +203,9 @@ export async function syncHubSpotWorkspace(
         coverage: `${syncedAccounts} companies and ${syncedContacts} contacts synced`,
         synced_accounts: syncedAccounts,
         synced_contacts: syncedContacts,
+        identity_conflicts: identityConflicts,
+        provisional_accounts: provisionalAccounts,
+        identity_health: identityConflicts > 0 ? 'degraded' : 'healthy',
       }),
     },
     { onConflict: 'workspace_id,provider' }
@@ -203,11 +217,13 @@ export async function syncHubSpotWorkspace(
     workspaceId,
     runType: 'integration_synced',
     status: 'completed',
-    outputSummary: `HubSpot sync completed: ${syncedAccounts} company record(s) and ${syncedContacts} contact(s).`,
+    outputSummary: `HubSpot sync completed: ${syncedAccounts} company record(s) and ${syncedContacts} contact(s), ${identityConflicts} conflict(s).`,
     metadata: {
       provider: 'hubspot',
       syncedAccounts,
       syncedContacts,
+      identityConflicts,
+      provisionalAccounts,
     },
   })
 
@@ -216,5 +232,7 @@ export async function syncHubSpotWorkspace(
   return {
     syncedAccounts,
     syncedContacts,
+    identityConflicts,
+    provisionalAccounts,
   }
 }

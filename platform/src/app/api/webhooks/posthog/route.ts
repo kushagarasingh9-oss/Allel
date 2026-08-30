@@ -68,11 +68,13 @@ export async function POST(request: NextRequest) {
   if (typeof declaredTestMode === 'boolean' && declaredTestMode !== RECOVERY_CONFIG.TEST_MODE) {
     return NextResponse.json({ error: 'Test-mode event does not match this recovery environment' }, { status: 409 })
   }
-  if (
-    RECOVERY_CONFIG.TEST_MODE &&
-    (!scenarioId || !scenarioId.startsWith(RECOVERY_CONFIG.SCENARIO_PREFIX))
-  ) {
-    return NextResponse.json({ error: 'Test-mode PostHog events require a valid allel_scenario_id' }, { status: 400 })
+  if (RECOVERY_CONFIG.TEST_MODE) {
+    if (!scenarioId || !scenarioId.startsWith(RECOVERY_CONFIG.SCENARIO_PREFIX)) {
+      return NextResponse.json({ error: 'Test-mode PostHog events require a valid allel_scenario_id' }, { status: 400 })
+    }
+    if (!scenarioRunId) {
+      return NextResponse.json({ error: 'Test-mode PostHog events require a valid allel_test_run or scenario_run_id' }, { status: 400 })
+    }
   }
 
   // Resolve workspace via provider_identities then email fallback
@@ -81,6 +83,21 @@ export async function POST(request: NextRequest) {
     workspaceId = await resolveWorkspaceForPostHog(supabase, distinctId, payload)
   } catch (err) {
     console.error('[posthog-webhook] workspace resolution failed:', err)
+  }
+
+  if (RECOVERY_CONFIG.TEST_MODE && workspaceId && scenarioRunId) {
+    const { data: runRow } = await supabase
+      .from('recovery_scenario_runs')
+      .select('id, status, test_mode')
+      .eq('id', scenarioRunId)
+      .eq('workspace_id', workspaceId)
+      .eq('test_mode', true)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (!runRow) {
+      return NextResponse.json({ error: 'Active scenario run not found for workspace in test mode' }, { status: 403 })
+    }
   }
 
   // Build canonical envelope

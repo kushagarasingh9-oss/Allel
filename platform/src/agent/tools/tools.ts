@@ -41,6 +41,7 @@ import { generateWorkspaceBrief } from '@/intelligence/briefs/generate-workspace
 import { runProviderSyncWithHealth } from '@/integrations/_core/connection-state'
 import { isIntegrationConnected } from '@/integrations/_core/connection-guard'
 import { linkContactSafely } from '@/recovery/identity'
+import { validateSendRecipient } from '@/drafts/recipient-validator'
 import {
   getStripeClient,
   createRescueCoupon,
@@ -2321,12 +2322,47 @@ export const sendGmailReply = tool({
         return { success: false, error: 'Recipient email address could not be resolved for thread. Please specify the recipient email.' }
       }
 
+      const supabase = createServiceClient()
+
+      // §do.md §12: Validate recipient if linked to a customer account
+      const { data: contactRow } = await supabase
+        .from('account_contacts')
+        .select('customer_account_id')
+        .eq('workspace_id', workspaceId)
+        .eq('email', recipientEmail.toLowerCase())
+        .maybeSingle()
+
+      if (contactRow?.customer_account_id) {
+        const validation = await validateSendRecipient(supabase, {
+          workspaceId,
+          customerAccountId: contactRow.customer_account_id,
+          recipientEmail,
+        })
+        if (!validation.valid) {
+          return { success: false, error: `Recipient safety check rejected send: ${validation.reason}` }
+        }
+      }
+
       const result = await sendEmail(workspaceId, {
         to: recipientEmail,
         subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
         body,
         replyToThreadId: threadId,
       })
+
+      await logAgentRun({
+        workspaceId,
+        runType: 'customer_outreach_dispatched',
+        status: 'completed',
+        outputSummary: `Gmail reply sent to ${recipientEmail} for thread ${threadId}`,
+        metadata: {
+          recipient: recipientEmail,
+          threadId,
+          subject,
+          customerAccountId: contactRow?.customer_account_id ?? null,
+        },
+      })
+
       return {
         success: true,
         messageId: result.messageId,
@@ -2355,15 +2391,54 @@ export const composeNewEmail = tool({
   }),
   execute: async ({ workspaceId, to, subject, body }) => {
     try {
+      const recipientEmail = to?.trim()
+      if (!recipientEmail || !recipientEmail.includes('@')) {
+        return { success: false, error: 'Invalid recipient email format' }
+      }
+
+      const supabase = createServiceClient()
+
+      // §do.md §12: Validate recipient if linked to a customer account
+      const { data: contactRow } = await supabase
+        .from('account_contacts')
+        .select('customer_account_id')
+        .eq('workspace_id', workspaceId)
+        .eq('email', recipientEmail.toLowerCase())
+        .maybeSingle()
+
+      if (contactRow?.customer_account_id) {
+        const validation = await validateSendRecipient(supabase, {
+          workspaceId,
+          customerAccountId: contactRow.customer_account_id,
+          recipientEmail,
+        })
+        if (!validation.valid) {
+          return { success: false, error: `Recipient safety check rejected send: ${validation.reason}` }
+        }
+      }
+
       const { sendEmail } = await import('@/integrations/gmail/gmail')
-      const result = await sendEmail(workspaceId, { to, subject, body })
+      const result = await sendEmail(workspaceId, { to: recipientEmail, subject, body })
+
+      await logAgentRun({
+        workspaceId,
+        runType: 'customer_outreach_dispatched',
+        status: 'completed',
+        outputSummary: `New email sent to ${recipientEmail}`,
+        metadata: {
+          recipient: recipientEmail,
+          subject,
+          customerAccountId: contactRow?.customer_account_id ?? null,
+        },
+      })
+
       return {
         success: true,
         messageId: result.messageId,
         threadId: result.threadId,
-        to,
+        to: recipientEmail,
         subject,
-        message: `DONE! Email sent to ${to}.`,
+        message: `DONE! Email sent to ${recipientEmail}.`,
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
@@ -3356,8 +3431,53 @@ export const replyToIntercomConvo = tool({
         }
       }
 
-      const { accessToken, apiBaseUrl } = await getIntercomCredentials(workspaceId)
-      await replyToConversationFn(accessToken, apiBaseUrl, conversationId, adminId, body, messageType)
+      const supabase = createServiceClient()
+
+      // §do.md §12: For customer-visible replies, verify contact suppression policies
+      if (messageType === 'comment') {
+        const { getIntercomConversation } = await import('@/integrations/intercom/intercom')
+        const { accessToken, apiBaseUrl } = await getIntercomCredentials(workspaceId)
+        const convo = await getIntercomConversation(accessToken, apiBaseUrl, conversationId)
+        const customerContact = convo.contacts?.contacts?.[0]
+        const customerEmail = customerContact?.email?.toLowerCase().trim()
+
+        if (customerEmail) {
+          const { data: contactRow } = await supabase
+            .from('account_contacts')
+            .select('customer_account_id')
+            .eq('workspace_id', workspaceId)
+            .eq('email', customerEmail)
+            .maybeSingle()
+
+          if (contactRow?.customer_account_id) {
+            const validation = await validateSendRecipient(supabase, {
+              workspaceId,
+              customerAccountId: contactRow.customer_account_id,
+              recipientEmail: customerEmail,
+            })
+            if (!validation.valid) {
+              return { success: false, error: `Customer communication safety check rejected reply: ${validation.reason}` }
+            }
+          }
+        }
+
+        await replyToConversationFn(accessToken, apiBaseUrl, conversationId, adminId, body, messageType)
+
+        await logAgentRun({
+          workspaceId,
+          runType: 'customer_outreach_dispatched',
+          status: 'completed',
+          outputSummary: `Intercom visible reply sent to conversation ${conversationId}`,
+          metadata: {
+            conversationId,
+            recipientEmail: customerEmail ?? null,
+          },
+        })
+      } else {
+        const { accessToken, apiBaseUrl } = await getIntercomCredentials(workspaceId)
+        await replyToConversationFn(accessToken, apiBaseUrl, conversationId, adminId, body, messageType)
+      }
+
       return {
         success: true,
         conversationId,

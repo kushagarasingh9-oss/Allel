@@ -8,6 +8,24 @@
  *
  * If a workspace UUID is provided as the first argument, the report is scoped to that workspace.
  */
+import fs from 'fs'
+import path from 'path'
+
+// Load .env.local if present
+const envLocalPath = path.join(process.cwd(), '.env.local')
+if (fs.existsSync(envLocalPath)) {
+  const envContent = fs.readFileSync(envLocalPath, 'utf8')
+  for (const line of envContent.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) continue
+    const [key, ...rest] = trimmed.split('=')
+    const val = rest.join('=').trim()
+    if (key && !process.env[key.trim()]) {
+      process.env[key.trim()] = val
+    }
+  }
+}
+
 import { createServiceClient } from '../src/foundation/database/service'
 
 interface ReconciliationReport {

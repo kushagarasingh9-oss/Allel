@@ -188,10 +188,7 @@ async function bootstrapAccountsFromInbox(params: {
         .map((contact) => findAccountIdByEmail(contact.email, contactsByEmail))
         .find((value): value is string => typeof value === 'string') ?? null
 
-    let account =
-      (matchedAccountId ? accountsById.get(matchedAccountId) : undefined) ??
-      accountsByName.get(normalizeMatchText(candidate.accountName)) ??
-      null
+    let account = matchedAccountId ? accountsById.get(matchedAccountId) : null
 
     if (!account) {
       const { data: insertedAccount, error: insertAccountError } = await supabase
@@ -202,12 +199,10 @@ async function bootstrapAccountsFromInbox(params: {
           segment: 'Gmail contact',
           account_status: 'active',
           mrr_cents: 0,
-          risk_level: 'low',
-          risk_score: 0,
           usage_delta_percent: 0,
           open_issue: null,
           next_action: 'Review the latest Gmail conversation and decide the next founder reply.',
-          summary: 'Recent Gmail conversation imported to bootstrap founder follow-up context.',
+          summary: 'Provisional account created from Gmail bootstrap.',
           last_touch_at: null,
           renewal_at: null,
           is_provisional: true,

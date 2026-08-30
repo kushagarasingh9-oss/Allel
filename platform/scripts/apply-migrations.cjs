@@ -40,6 +40,7 @@ const MIGRATIONS = [
   '../../database/migrations/20260830_recovery_authoritative_integrity.sql',
   '../../database/migrations/20260831_identity_hardening.sql',
   '../../database/migrations/20260831_identity_atomic_rpcs.sql',
+  '../../database/migrations/20260901_identity_security_and_integrity.sql',
 ]
 
 function post(host, path, token, body) {

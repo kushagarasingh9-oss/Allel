@@ -155,4 +155,37 @@ describe('validateSendRecipient (TOCTOU & Recipient Safety)', () => {
     assert.equal(result.valid, false);
     assert.match(result.reason!, /not the primary recovery contact/);
   });
+
+  it('rejects fallback customer@example.com when not linked to account', async () => {
+    const supabase = makeMockSupabase({
+      account: { id: customerAccountId, is_provisional: false },
+      contact: null,
+    });
+
+    const result = await validateSendRecipient(supabase, {
+      workspaceId,
+      customerAccountId,
+      recipientEmail: 'customer@example.com',
+    });
+
+    assert.equal(result.valid, false);
+    assert.match(result.reason!, /not linked to customer account/);
+  });
+
+  it('rejects send when contact has snooze policy active', async () => {
+    const supabase = makeMockSupabase({
+      account: { id: customerAccountId, is_provisional: false },
+      contact: { id: 'cnt-1', is_primary: true, is_provisional: false },
+      policies: [{ policy: 'snooze', expires_at: new Date(Date.now() + 86400000).toISOString() }],
+    });
+
+    const result = await validateSendRecipient(supabase, {
+      workspaceId,
+      customerAccountId,
+      recipientEmail,
+    });
+
+    assert.equal(result.valid, false);
+    assert.match(result.reason!, /Communication suppressed/);
+  });
 });
