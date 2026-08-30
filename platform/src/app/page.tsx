@@ -171,12 +171,6 @@ export default function LandingPage() {
     return () => clearInterval(interval);
   }, [mounted]);
 
-  if (!mounted) {
-    return (
-      <div style={{ background: '#070708', minHeight: '100vh' }} />
-    );
-  }
-
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: APPEAR_CSS }} />
