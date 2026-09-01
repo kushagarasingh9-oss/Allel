@@ -61,12 +61,12 @@ export async function syncHubSpotWorkspace(
     supabase
       .from('customer_accounts')
       .select(
-        'id, name, segment, summary, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, last_touch_at, renewal_at, account_status, is_provisional'
+        'id, name, segment, summary, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, last_touch_at, renewal_at, account_status'
       )
       .eq('workspace_id', workspaceId),
     supabase
       .from('account_contacts')
-      .select('email, customer_account_id, external_ids, is_provisional')
+      .select('email, customer_account_id, external_ids')
       .eq('workspace_id', workspaceId),
   ])
 
@@ -119,14 +119,13 @@ export async function syncHubSpotWorkspace(
       last_touch_at: null,
       renewal_at: null,
       account_status: 'active',
-      is_provisional: true,
     }
 
     const { data: insertedAccount, error: insertError } = await supabase
       .from('customer_accounts')
       .insert(payload)
       .select(
-        'id, name, segment, summary, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, last_touch_at, renewal_at, account_status, is_provisional'
+        'id, name, segment, summary, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, last_touch_at, renewal_at, account_status'
       )
       .single()
 

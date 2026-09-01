@@ -107,11 +107,11 @@ export async function syncStripeWorkspace(
     await Promise.all([
       supabase
         .from('customer_accounts')
-        .select('id, name, usage_delta_percent, open_issue, last_touch_at, renewal_at, account_status, mrr_cents, is_provisional')
+        .select('id, name, usage_delta_percent, open_issue, last_touch_at, renewal_at, account_status, mrr_cents')
         .eq('workspace_id', workspaceId),
       supabase
         .from('account_contacts')
-        .select('email, customer_account_id, is_provisional')
+        .select('email, customer_account_id')
         .eq('workspace_id', workspaceId),
     ])
 
@@ -217,7 +217,7 @@ export async function syncStripeWorkspace(
     if (!customerAccountId) {
       const { data: insertedAccount, error: insertError } = await supabase
         .from('customer_accounts')
-        .insert({ ...accountPayload, is_provisional: false })
+        .insert(accountPayload)
         .select('id')
         .single()
 

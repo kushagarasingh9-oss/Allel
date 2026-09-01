@@ -66,7 +66,7 @@ export async function syncIntercomWorkspace(
     fetchIntercomOpenConversations(accessToken, apiBaseUrl),
     supabase
       .from('account_contacts')
-      .select('email, customer_account_id, is_primary, external_ids, is_provisional')
+      .select('email, customer_account_id, is_primary, external_ids')
       .eq('workspace_id', workspaceId),
   ])
 

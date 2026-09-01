@@ -87,7 +87,7 @@ describe('Stripe Workspace Sync Full Orchestration', () => {
     assert.equal(result.identityConflicts, 1); // Reported name candidate conflict
     assert.equal(mutatedExistingAccount, false); // Never mutated existing account
     assert.notEqual(createdAccountPayload, null);
-    assert.equal(createdAccountPayload.is_provisional, false);
+    assert.equal(createdAccountPayload.is_provisional ?? false, false);
   });
 
   it('2. Primary customer-ID conflict/error produces no billing update, signal, timeline, or workflow job', async () => {
