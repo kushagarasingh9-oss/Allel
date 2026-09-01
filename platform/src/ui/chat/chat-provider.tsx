@@ -146,6 +146,7 @@ export function ChatProvider({
   })
   const pendingLoadRef = React.useRef<UIMessage[] | null>(null)
   const skipHydrationRef = React.useRef(false)
+  const restoredSessionIdRef = React.useRef<string | null>(null)
 
   const resolvedStorageScope = React.useMemo(() => {
     if (!storageUserId || !storageWorkspaceId) return null
@@ -270,10 +271,13 @@ export function ChatProvider({
   // ── Local Restore ──
   React.useEffect(() => {
     if (typeof window === "undefined" || !resolvedStorageScope) return
+    const targetSessionId = resolvedStorageScope.sessionId
+    if (!targetSessionId || restoredSessionIdRef.current === targetSessionId) return
+    restoredSessionIdRef.current = targetSessionId
 
     // 1. Check if savedSessions has canonical messages for this active sessionId
-    const foundInSaved = savedSessions.find((s) => s.id === resolvedStorageScope.sessionId)
-    if (foundInSaved) {
+    const foundInSaved = savedSessions.find((s) => s.id === targetSessionId)
+    if (foundInSaved && foundInSaved.messages && foundInSaved.messages.length > 0) {
       if (chatRef.current) {
         chatRef.current.chat.messages = foundInSaved.messages
       }
@@ -304,8 +308,7 @@ export function ChatProvider({
         buildPersonaThreadStorageKey(resolvedStorageScope)
       )
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedStorageScope?.sessionId, savedSessions])
+  }, [resolvedStorageScope?.sessionId])
 
   // ── Server Hydration ──
   React.useEffect(() => {
@@ -526,6 +529,7 @@ export function ChatProvider({
     if (chatRef.current) {
       chatRef.current.chat.messages = []
     }
+    restoredSessionIdRef.current = newSessionId
     setActiveSessionId(newSessionId)
     setCurrentSessionId(newSessionId)
     setMessages([])
@@ -562,6 +566,7 @@ export function ChatProvider({
     }
     pendingLoadRef.current = session.messages
     skipHydrationRef.current = true
+    restoredSessionIdRef.current = session.id
     setActiveSessionId(session.id)
     setCurrentSessionId(session.id)
     setMessages(session.messages)
