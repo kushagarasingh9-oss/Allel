@@ -8,7 +8,7 @@
 
 import { createClient } from '@/foundation/database/server'
 import { encrypt } from '@/integrations/_core/encryption'
-import { validateStripeKey } from '@/integrations/stripe/stripe'
+import { validateStripeKey, validateStripeKeyDetailed } from '@/integrations/stripe/stripe'
 import { validateAirtableToken } from '@/integrations/airtable/airtable'
 import {
   validatePostHogKey,
@@ -203,9 +203,9 @@ export async function connectStripe(apiKey: string) {
 
     const { workspaceId } = await getWorkspaceIdForUser(user)
 
-    const isValid = await validateStripeKey(cleanKey)
-    if (!isValid) {
-      redirect(buildSettingsRedirect({ error: 'Stripe rejected that API key.' }))
+    const validation = await validateStripeKeyDetailed(cleanKey)
+    if (!validation.valid) {
+      redirect(buildSettingsRedirect({ error: validation.error || 'Stripe rejected that API key.' }))
     }
 
     await saveEncryptedToken({ supabase, workspaceId, provider: 'stripe', value: cleanKey })

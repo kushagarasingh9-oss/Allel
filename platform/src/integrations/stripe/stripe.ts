@@ -178,12 +178,35 @@ export async function createRescueCoupon(
 // ============================================================
 
 export async function validateStripeKey(apiKey: string): Promise<boolean> {
+  const result = await validateStripeKeyDetailed(apiKey)
+  return result.valid
+}
+
+export async function validateStripeKeyDetailed(apiKey: string): Promise<{ valid: boolean; error?: string }> {
   try {
     const stripe = new Stripe(apiKey, { apiVersion: STRIPE_API_VERSION })
     await stripe.customers.list({ limit: 1 })
-    return true
-  } catch {
-    return false
+    return { valid: true }
+  } catch (err: any) {
+    if (err?.code === 'api_key_expired' || err?.message?.toLowerCase().includes('expired')) {
+      return {
+        valid: false,
+        error: 'The provided Stripe API key has expired. Please generate a fresh API key in your Stripe Dashboard (Developers > API keys).',
+      }
+    }
+    if (err?.type === 'StripeAuthenticationError' || err?.code === 'invalid_api_key' || err?.message?.toLowerCase().includes('invalid api key')) {
+      return {
+        valid: false,
+        error: 'Stripe rejected that API key as invalid. Please verify the key in your Stripe Dashboard.',
+      }
+    }
+    if (err?.type === 'StripePermissionError' || err?.message?.toLowerCase().includes('permission') || err?.message?.toLowerCase().includes('access')) {
+      return {
+        valid: false,
+        error: 'Key is missing required permissions. Ensure your key has Read access for Customers and Subscriptions.',
+      }
+    }
+    return { valid: false, error: err?.message || 'Stripe rejected that API key.' }
   }
 }
 
