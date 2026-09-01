@@ -32,7 +32,6 @@ export async function handleProjectAccountFeatures(
     return {
       success: true,
       workspaceId,
-      result: { skipped: true, reason: 'Customer account no longer exists' },
     };
   }
 
