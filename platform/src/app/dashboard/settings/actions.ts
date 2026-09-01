@@ -80,6 +80,21 @@ function formatSettingsError(error: unknown, fallback: string) {
 
   if (error instanceof Error) {
     console.error('[settings-action] Error:', error.message)
+    
+    // Provide founder-friendly error explanations for provider API errors
+    const msg = error.message.toLowerCase()
+    if (msg.includes('permission') || msg.includes('does not have access') || msg.includes('restricted key')) {
+      return `Stripe connection failed: Key is missing required permissions. Ensure your Restricted Key has Read permissions for Customers, Subscriptions, and Invoices.`
+    }
+    if (msg.includes('invalid api key') || msg.includes('incorrect api key') || msg.includes('authentication')) {
+      return 'Stripe rejected that API key. Please verify the key in your Stripe Dashboard.'
+    }
+    if (msg.includes('rate limit')) {
+      return 'Stripe rate limit reached. Please wait a few moments and retry.'
+    }
+    if (msg.includes('network') || msg.includes('enotfound') || msg.includes('econnrefused')) {
+      return 'Could not reach Stripe API. Please check your internet connection.'
+    }
   }
 
   return fallback
