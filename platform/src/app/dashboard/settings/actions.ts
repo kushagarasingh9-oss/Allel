@@ -52,6 +52,18 @@ function buildSettingsRedirect(params: { success?: string; error?: string }) {
   return `/dashboard/settings${query ? `?${query}` : ''}`
 }
 
+function rethrowRedirect(error: unknown) {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'digest' in error &&
+    typeof (error as { digest: unknown }).digest === 'string' &&
+    (error as { digest: string }).digest.startsWith('NEXT_REDIRECT')
+  ) {
+    throw error
+  }
+}
+
 function formatSettingsError(error: unknown, fallback: string) {
   if (error && typeof error === 'object' && 'message' in error) {
     const pgError = error as PostgrestLikeError
@@ -230,6 +242,7 @@ export async function connectStripe(apiKey: string) {
       })
     )
   } catch (error) {
+    rethrowRedirect(error)
     unstable_rethrow(error)
     redirect(
       buildSettingsRedirect({
@@ -287,6 +300,7 @@ export async function connectPostHog(apiKey: string, projectId?: string) {
       })
     )
   } catch (error) {
+    rethrowRedirect(error)
     unstable_rethrow(error)
     redirect(
       buildSettingsRedirect({
@@ -334,6 +348,7 @@ export async function connectHubSpot(accessToken: string) {
       })
     )
   } catch (error) {
+    rethrowRedirect(error)
     unstable_rethrow(error)
     redirect(
       buildSettingsRedirect({
@@ -441,6 +456,7 @@ export async function connectSentry(authToken: string, organizationSlug: string,
       })
     )
   } catch (error) {
+    rethrowRedirect(error)
     unstable_rethrow(error)
     redirect(
       buildSettingsRedirect({
@@ -493,6 +509,7 @@ export async function connectLinear(apiKey: string, teamKey?: string) {
       })
     )
   } catch (error) {
+    rethrowRedirect(error)
     unstable_rethrow(error)
     redirect(
       buildSettingsRedirect({
