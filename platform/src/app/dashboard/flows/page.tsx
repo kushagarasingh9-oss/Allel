@@ -141,71 +141,71 @@ const KNOWN_ACCOUNT_DIAGNOSTICS: Record<string, Partial<CaseDiagnostics>> = {
   'Apex MultiRail': {
     exactReason: '2x Card Retries Failed · 504 Webhook Blocker',
     issueSummary: 'Consecutive billing retries declined on Card ····4242 while core query telemetry dropped 65% following unresolved 504 webhook gateway timeouts.',
-    stripe: { label: 'Stripe Billing', detail: '2 declines on Card ····4242 · $3,500 overdue', status: 'failed' },
+    stripe: { label: 'Stripe Billing', detail: '2 declines on Card ····4242 · Invoice past-due', status: 'failed' },
     posthog: { label: 'PostHog Telemetry', detail: '-65% weekly query volume drop (from 100 to 35)', status: 'drop' },
     support: { label: 'Support / Intercom', detail: 'Open ticket: 504 gateway timeout on webhook ingestion' },
   },
   'FintechScale': {
     exactReason: '2 Payment Failures in 7 Days · Invoice Past-Due',
-    issueSummary: 'Customer transitioned to past-due following 2 automated card charge failures within 7 days on Invoice #INV-FINTECH-005 ($2,000).',
-    stripe: { label: 'Stripe Billing', detail: 'Status past_due · 2 failures in 7d · $2,000 open', status: 'past_due' },
+    issueSummary: 'Customer transitioned to past-due following 2 automated card charge failures within 7 days on Invoice #INV-FINTECH-005.',
+    stripe: { label: 'Stripe Billing', detail: 'Status past_due · 2 failures in 7d', status: 'past_due' },
     posthog: { label: 'PostHog Telemetry', detail: 'Usage down -3.2% with active enterprise integrations', status: 'drop' },
     support: { label: 'Support / Intercom', detail: 'Sarah requested wire payment link via email' },
   },
   'Hyperion Dispatch': {
     exactReason: 'Visited /cancel Page 3x · Usage Down -87%',
     issueSummary: 'User triggered cancellation intent in app (3 visits to /settings/billing/cancel in 24h) and query volume collapsed by 87.5%.',
-    stripe: { label: 'Stripe Billing', detail: 'Subscription cancelled · $3,000 pre-cancel baseline', status: 'cancelled' },
+    stripe: { label: 'Stripe Billing', detail: 'Subscription cancelled · Cancellation flow visited', status: 'cancelled' },
     posthog: { label: 'PostHog Telemetry', detail: 'Visited cancellation flow 3x · Usage -87.5%', status: 'cancel_intent' },
     support: { label: 'Intercom', detail: 'No open support complaints' },
   },
   'Vortex Data': {
     exactReason: 'Key Feature Abandoned · Usage Collapsed -60%',
     issueSummary: 'Weekly analytics feature activity dropped to zero (previously 6/wk) while overall team query telemetry plunged 60%.',
-    stripe: { label: 'Stripe Billing', detail: 'Active Enterprise Tier ($4,000/mo)', status: 'active' },
+    stripe: { label: 'Stripe Billing', detail: 'Active Enterprise Tier', status: 'active' },
     posthog: { label: 'PostHog Telemetry', detail: 'Key export feature missing · Usage -60%', status: 'drop' },
     support: { label: 'Support / Intercom', detail: 'Unanswered founder check-in email (4 days ago)' },
   },
   'KryptonDB': {
     exactReason: 'Active Query Volume Down -75% · Dunning Risk',
     issueSummary: 'Core platform usage collapsed 75% across engineering users over 14 days, creating high silent churn probability ahead of renewal.',
-    stripe: { label: 'Stripe Billing', detail: 'Plan renewal in 11 days ($2,500/mo)', status: 'active' },
+    stripe: { label: 'Stripe Billing', detail: 'Plan renewal in 11 days', status: 'active' },
     posthog: { label: 'PostHog Telemetry', detail: 'Severe drop from 100 to 25 events/wk (-75%)', status: 'drop' },
   },
   'DataVibe': {
     exactReason: 'Cancellation Data Export Triggered · Usage -56%',
     issueSummary: 'User initiated full workspace customer data export before abandoning active session; query activity dropped 56%.',
-    stripe: { label: 'Stripe Billing', detail: 'Active subscription ($1,500/mo)', status: 'active' },
+    stripe: { label: 'Stripe Billing', detail: 'Active subscription tier', status: 'active' },
     posthog: { label: 'PostHog Telemetry', detail: 'Data export flow completed · Usage -56%', status: 'cancel_intent' },
   },
   'Aura Analytics': {
     exactReason: 'Invoice Declined · Single Payment Failure',
     issueSummary: 'First automated renewal run on Invoice #in_aura_004 failed. Usage remains healthy (-2.4%), indicating passive billing friction.',
-    stripe: { label: 'Stripe Billing', detail: '1 failed payment attempt · $1,200 past due', status: 'past_due' },
+    stripe: { label: 'Stripe Billing', detail: '1 failed payment attempt · Invoice past-due', status: 'past_due' },
     posthog: { label: 'PostHog Telemetry', detail: 'Steady telemetry at 80 events/wk (-2.4%)', status: 'stable' },
   },
   'Cobalt Core': {
     exactReason: 'Renewal Card Declined · Usage Down -30%',
     issueSummary: 'Moderate usage drop (-30%) combined with card decline on renewal attempt; team monitoring for recovery.',
-    stripe: { label: 'Stripe Billing', detail: 'Card declined on renewal cycle ($1,800/mo)', status: 'past_due' },
+    stripe: { label: 'Stripe Billing', detail: 'Card declined on renewal cycle', status: 'past_due' },
     posthog: { label: 'PostHog Telemetry', detail: 'Usage down 30% over trailing 14 days', status: 'drop' },
   },
   'GridPulse AI': {
     exactReason: 'Past-Due Billing Cycle · Quota Stagnation',
     issueSummary: 'Invoice payment failed 1 time in trailing 30 days. API quota consumption has plateaued at baseline levels.',
-    stripe: { label: 'Stripe Billing', detail: 'Past due · 1 failure ($750/mo)', status: 'past_due' },
+    stripe: { label: 'Stripe Billing', detail: 'Past due · 1 failure', status: 'past_due' },
     posthog: { label: 'PostHog Telemetry', detail: 'Flat volume at 60 events/wk', status: 'stable' },
   },
   'Lattice Systems': {
     exactReason: 'Card Expired on Billing File · Past Due',
     issueSummary: 'Customer credit card expired prior to renewal run; customer continues daily active product usage.',
-    stripe: { label: 'Stripe Billing', detail: 'Expired payment method ($1,500/mo)', status: 'past_due' },
+    stripe: { label: 'Stripe Billing', detail: 'Expired payment method on file', status: 'past_due' },
     posthog: { label: 'PostHog Telemetry', detail: 'Daily active sessions consistent', status: 'stable' },
   },
   'Beacon Shield': {
     exactReason: 'Renewal Approaching · Do-Not-Contact Policy',
     issueSummary: 'Account approaching renewal cycle but contact policy is restricted to founder white-glove communications.',
-    stripe: { label: 'Stripe Billing', detail: 'Renewal due in 14 days ($1,000/mo)', status: 'active' },
+    stripe: { label: 'Stripe Billing', detail: 'Renewal due in 14 days', status: 'active' },
     posthog: { label: 'PostHog Telemetry', detail: 'Active security monitoring sessions', status: 'stable' },
   },
 }
@@ -228,7 +228,7 @@ function getDiagnostics(item: ApiCase): CaseDiagnostics {
     exactReason: reasonText,
     issueSummary: item.action_reason
       ? `Case opened with active churn signal: ${item.action_reason}. Outreach draft queued for founder review.`
-      : `Triggered by ${item.trigger_event_type || 'compound risk'}. Revenue baseline tracked at ${formatMoney(item.mrr_baseline_cents)}/mo.`,
+      : `Triggered by ${item.trigger_event_type || 'compound risk'}. Outreach draft queued for founder review.`,
     stripe: {
       label: 'Stripe Billing',
       detail: item.trigger_event_type?.includes('payment') || item.trigger_event_type?.includes('invoice')
@@ -525,10 +525,8 @@ export default function WorkflowsPage() {
                         {/* Hover Diagnostic Briefing Card */}
                         <div className={`absolute left-0 ${isLower ? 'bottom-full mb-2.5' : 'top-full mt-2.5'} hidden group-hover/diag:flex flex-col z-50 w-96 rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl pointer-events-none text-left`}>
                           {/* Header */}
-                          <div className="flex items-center gap-2 font-medium text-[13px] text-white mb-2.5">
-                            <span>{accountName(item)}</span>
-                            <span className="text-zinc-500 font-normal">·</span>
-                            <span className="text-emerald-400 font-mono text-xs">{formatMoney(item.mrr_baseline_cents)}/mo</span>
+                          <div className="font-medium text-[13px] text-white mb-2">
+                            {accountName(item)}
                           </div>
 
                           {/* Core Issue Diagnosis Paragraph */}
