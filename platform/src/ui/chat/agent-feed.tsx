@@ -1605,15 +1605,21 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
 
   // Group sequential tool calls into reasoning batches
   // Check if this turn executed any tools, and find the index of the last tool part
-  const isToolPart = (p: unknown): boolean => {
-    const raw = p as Record<string, unknown>
+  const isToolPart = (raw: Record<string, unknown> | null | undefined): boolean => {
+    if (!raw || typeof raw !== 'object') return false
     const t = String(raw?.type ?? '')
-    return (t.startsWith('tool-') || t === 'dynamic-tool') && extractToolName(raw) !== 'requestMoreTools'
+    const name = extractToolName(raw)
+    return (
+      (t.startsWith('tool-') || t === 'dynamic-tool') &&
+      name !== 'requestMoreTools' &&
+      name !== 'updateRecoveryCaseNote' &&
+      name !== 'suppressRecoveryCase'
+    )
   }
 
   let lastToolIdx = -1
   for (let i = parts.length - 1; i >= 0; i--) {
-    if (isToolPart(parts[i])) {
+    if (isToolPart(parts[i] as Record<string, unknown>)) {
       lastToolIdx = i
       break
     }
@@ -1673,8 +1679,12 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
 
     if (isTool) {
       const toolName = extractToolName(rawPart)
-      // Internal orchestration meta-tools should not be rendered as separate user-facing nodes
-      if (toolName === 'requestMoreTools') {
+      // Internal orchestration meta-tools and background persistence tools should not be rendered as separate user-facing nodes
+      if (
+        toolName === 'requestMoreTools' ||
+        toolName === 'updateRecoveryCaseNote' ||
+        toolName === 'suppressRecoveryCase'
+      ) {
         continue
       }
 
@@ -1760,7 +1770,17 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
         if (toolName === 'getAccountRecoveryStatus') {
           const inputObj = (toolInput || {}) as Record<string, any>
           const output = (single.part.output || {}) as Record<string, any>
-          const target = output.accountName || output.name || inputObj.accountName || inputObj.name || (output.draft?.recipientEmail ? output.draft.recipientEmail.split('@')[0] : '') || ''
+          let target = output.accountName || output.name || inputObj.accountName || inputObj.name || ''
+          if (!target && output.draft?.subject) {
+            const match = output.draft.subject.match(/regarding (?:your )?([A-Za-z0-9\s]+?)(?: subscription| billing| account| data)/i)
+            if (match) target = match[1].trim()
+          }
+          if (!target && output.draft?.recipientName) {
+            target = output.draft.recipientName
+          }
+          if (!target && output.draft?.recipientEmail) {
+            target = output.draft.recipientEmail.split('@')[0]
+          }
           dynamicLabel = target ? `Planning recovery outreach for ${target}` : `Planning recovery outreach`
         } else if (toolName === 'createRescueDiscountTool') {
           const inputObj = (toolInput || {}) as Record<string, any>
