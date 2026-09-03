@@ -567,15 +567,16 @@ export function ChatProvider({
       return
     }
 
-    try {
-      const url = new URL(window.location.href)
-      if (url.searchParams.get("sessionId") !== currentSessionId) {
-        url.pathname = "/dashboard"
-        url.searchParams.set("sessionId", currentSessionId)
-        window.history.pushState({}, "", url.toString())
+    if (pathname === "/dashboard") {
+      try {
+        const url = new URL(window.location.href)
+        if (url.searchParams.get("sessionId") !== currentSessionId) {
+          url.searchParams.set("sessionId", currentSessionId)
+          window.history.replaceState({}, "", url.toString())
+        }
+      } catch {
+        // Ignore
       }
-    } catch {
-      // Ignore
     }
 
     setSavedSessions((prev) => {

@@ -246,9 +246,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
 
   const handleNewTask = () => {
     chatContext?.startNewChat();
-    if (pathname !== "/dashboard") {
-      router.push("/dashboard");
-    }
+    router.push("/dashboard");
   };
 
   const handleSelectSession = (sessionId: string) => {
@@ -266,13 +264,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
       );
     }
 
-    if (pathname !== "/dashboard") {
-      router.push(`/dashboard?sessionId=${encodeURIComponent(sessionId)}`);
-    } else {
-      const url = new URL(window.location.href);
-      url.searchParams.set("sessionId", sessionId);
-      window.history.pushState({}, "", url.toString());
-    }
+    router.push(`/dashboard?sessionId=${encodeURIComponent(sessionId)}`);
   };
 
   const activeSessionId = chatContext?.currentSessionId ?? null;
@@ -416,9 +408,10 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
           <nav className="flex flex-col gap-1.5">
             {navLinks.map((link) => {
               const IconComp = link.icon;
-              const isActive = link.exact
+              const isConnections = link.href === "/dashboard/connections" && (pathname === "/dashboard/connections" || pathname === "/dashboard/settings");
+              const isActive = isConnections || (link.exact
                 ? pathname === link.href
-                : pathname?.startsWith(link.href);
+                : pathname?.startsWith(link.href));
 
               return (
                 <Link
