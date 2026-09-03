@@ -1,3 +1,4 @@
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/foundation/database/server';
 import { createServiceClient } from '@/foundation/database/service';
 import { ensureWorkspaceForUser } from '@/data/workspaces/ensure-workspace';

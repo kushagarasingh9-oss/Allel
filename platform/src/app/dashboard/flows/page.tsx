@@ -31,7 +31,7 @@ type ApiCase = {
     subject: string
     body_preview: string
     status: string
-    approval_metadata?: { recipient_email?: string } | null
+    approval_metadata?: { recipient_email?: string; gmail_url?: string } | null
   }> | null
 }
 
@@ -53,6 +53,7 @@ type CaseDetail = {
     body_preview: string
     approved_at: string | null
     sent_at: string | null
+    approval_metadata?: { recipient_email?: string; gmail_url?: string } | null
   }>
   events: Array<{
     id: string
@@ -288,10 +289,21 @@ export default function WorkflowsPage() {
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
 
   const loadCaseDetail = useCallback(async (caseId: string) => {
-    const response = await fetch(`/api/recovery/cases/${caseId}`, { cache: 'no-store' })
-    const payload = await response.json()
-    if (!response.ok) throw new Error(payload.error || 'Failed to load recovery case')
-    setSelected(payload as CaseDetail)
+    try {
+      const response = await fetch(`/api/recovery/cases/${caseId}`, { cache: 'no-store' })
+      const text = await response.text()
+      let payload: any = null
+      try {
+        payload = text ? JSON.parse(text) : null
+      } catch {
+        throw new Error(`Server returned non-JSON response (${response.status})`)
+      }
+      if (!response.ok || !payload) throw new Error(payload?.error || 'Failed to load recovery case')
+      setSelected(payload as CaseDetail)
+    } catch (err) {
+      console.error('Failed to load case detail:', err)
+      setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'Failed to load recovery case' })
+    }
   }, [])
 
   const refresh = useCallback(async () => {
@@ -747,17 +759,31 @@ export default function WorkflowsPage() {
                       </div>
                     )}
                     {(item.status === 'sent' || item.status === 'monitoring') && (
-                      <button
-                        onClick={() => void loadCaseDetail(item.id)}
-                        className="group/mon inline-flex items-center gap-2 rounded-xs border border-sky-500/30 bg-sky-500/[0.08] hover:bg-sky-500/[0.16] hover:border-sky-500/50 px-2.5 py-1 text-xs font-medium text-sky-300 transition-all cursor-pointer shadow-xs"
-                      >
-                        <span className="relative flex h-2 w-2 shrink-0">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500" />
-                        </span>
-                        <span>Sent · Monitoring</span>
-                        <ArrowUpRight className="w-3 h-3 text-sky-400/60 group-hover/mon:text-sky-200 group-hover/mon:translate-x-0.5 group-hover/mon:-translate-y-0.5 transition-all" />
-                      </button>
+                      <div className="inline-flex items-center gap-2">
+                        <button
+                          onClick={() => void loadCaseDetail(item.id)}
+                          className="group/mon inline-flex items-center gap-2 rounded-xs border border-sky-500/30 bg-sky-500/[0.08] hover:bg-sky-500/[0.16] hover:border-sky-500/50 px-2.5 py-1 text-xs font-medium text-sky-300 transition-all cursor-pointer shadow-xs"
+                        >
+                          <span className="relative flex h-2 w-2 shrink-0">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500" />
+                          </span>
+                          <span>Sent · Monitoring</span>
+                          <ArrowUpRight className="w-3 h-3 text-sky-400/60 group-hover/mon:text-sky-200 group-hover/mon:translate-x-0.5 group-hover/mon:-translate-y-0.5 transition-all" />
+                        </button>
+                        <a
+                          href={item.follow_up_drafts?.[0]?.approval_metadata?.gmail_url || 'https://mail.google.com/mail/u/0/#sent'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-white px-2 py-1 rounded-xs hover:bg-white/[0.06] transition-colors border border-white/10 hover:border-white/20"
+                          title="Open Sent Email in Gmail"
+                        >
+                          <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain" />
+                          <span className="hidden sm:inline">Gmail</span>
+                          <ArrowUpRight className="w-3 h-3 text-zinc-500" />
+                        </a>
+                      </div>
                     )}
                     {item.status === 'resolved' && (
                       <button
@@ -948,9 +974,21 @@ export default function WorkflowsPage() {
                           )}
                         </div>
                         {(selected.case.status === 'monitoring' || draft.status === 'sent') && (
-                          <div className="mt-3 flex items-center gap-2 rounded-xs border border-sky-500/20 bg-sky-500/10 px-3 py-2 text-xs text-sky-300">
-                            <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse shrink-0" />
-                            <span>Outreach dispatched. Actively listening for webhook 504 resolution, payment clearance, or customer reply.</span>
+                          <div className="mt-3 flex items-center justify-between gap-3 rounded-xs border border-sky-500/20 bg-sky-500/10 p-3 text-xs text-sky-300">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse shrink-0" />
+                              <span>Outreach dispatched. Actively listening for webhook 504 resolution, payment clearance, or customer reply.</span>
+                            </div>
+                            <a
+                              href={draft.approval_metadata?.gmail_url || 'https://mail.google.com/mail/u/0/#sent'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 shrink-0 rounded-xs bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 px-2.5 py-1 text-xs font-medium text-white transition-colors cursor-pointer"
+                            >
+                              <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain" />
+                              <span>Open in Gmail</span>
+                              <ArrowUpRight className="w-3 h-3 text-sky-300" />
+                            </a>
                           </div>
                         )}
                       </>

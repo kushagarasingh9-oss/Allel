@@ -53,13 +53,59 @@ export async function POST(
       return NextResponse.json({ error: `Failed to update case: ${updateErr.message}` }, { status: 500 });
     }
 
-    // 3. Mark drafts as sent in follow_up_drafts and legacy draft_responses
+    // 3. Fetch draft to dispatch via Gmail if connected
+    const { data: followUpDraft } = await serviceClient
+      .from('follow_up_drafts')
+      .select('*')
+      .eq('recovery_case_id', caseId)
+      .eq('workspace_id', workspace.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const recipientEmail = followUpDraft?.approval_metadata?.recipient_email || 'rohan@apexmultirail.co';
+    const emailSubject = followUpDraft?.subject || `Checking in regarding your account`;
+    const emailBody = followUpDraft?.body_full || followUpDraft?.body_preview || `Hi team,\n\nFollowing up regarding your account.`;
+
+    let gmailMessageId: string | null = null;
+    let gmailThreadId: string | null = null;
+    let gmailSent = false;
+    let gmailUrl = 'https://mail.google.com/mail/u/0/#sent';
+
+    try {
+      const { sendEmail } = await import('@/integrations/gmail/gmail');
+      const sendRes = await sendEmail(workspace.id, {
+        to: recipientEmail,
+        subject: emailSubject,
+        body: emailBody,
+      });
+      if (sendRes?.sent) {
+        gmailSent = true;
+        gmailMessageId = sendRes.messageId;
+        gmailThreadId = sendRes.threadId;
+        if (gmailThreadId) {
+          gmailUrl = `https://mail.google.com/mail/u/0/#all/${gmailThreadId}`;
+        }
+      }
+    } catch (err: any) {
+      console.warn('[dispatch] Live Gmail send skipped or failed:', err?.message);
+    }
+
+    // 4. Mark drafts as sent in follow_up_drafts and legacy draft_responses
     await serviceClient
       .from('follow_up_drafts')
       .update({
         status: 'sent',
         sent_at: now,
         updated_at: now,
+        approval_metadata: {
+          ...(followUpDraft?.approval_metadata || {}),
+          recipient_email: recipientEmail,
+          gmail_url: gmailUrl,
+          provider_message_id: gmailMessageId,
+          provider_thread_id: gmailThreadId,
+          gmail_sent: gmailSent,
+        },
       })
       .eq('recovery_case_id', caseId)
       .eq('workspace_id', workspace.id);
@@ -75,7 +121,7 @@ export async function POST(
         .eq('workspace_id', workspace.id);
     }
 
-    // 4. Log immutable audit event
+    // 5. Log immutable audit event
     await serviceClient.from('recovery_case_events').insert({
       workspace_id: workspace.id,
       recovery_case_id: caseId,
@@ -84,7 +130,7 @@ export async function POST(
       to_status: 'monitoring',
       actor_type: 'user',
       actor_id: user.id,
-      detail: { action: 'founder_approved_outreach', source: 'flows_table' },
+      detail: { action: 'founder_approved_outreach', source: 'flows_table', gmailSent, gmailUrl },
       created_at: now,
     });
 
@@ -94,6 +140,8 @@ export async function POST(
       success: true,
       caseId,
       newStatus: 'monitoring',
+      gmailSent,
+      gmailUrl,
       message: `Outreach dispatched for ${accName}. Shifted to Monitoring.`,
     });
   } catch (error: any) {
