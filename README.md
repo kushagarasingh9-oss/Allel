@@ -26,3 +26,8 @@ Apply the ordered database migrations before using a local environment with Supa
 
 There is one canonical product and technical document: docs/ALLEL.md. It replaces the previous duplicate architecture, agent, integration, planning, interview, and tool-routing documents.
 
+## License & Intellectual Property
+
+Copyright © 2026 Kushagara Singh. All rights reserved.  
+This software and source code are the proprietary property of Kushagara Singh. Permission is granted solely for hackathon evaluation and review purposes. Commercial use, redistribution, or unauthorized reproduction is strictly prohibited. See [LICENSE](LICENSE).
+
