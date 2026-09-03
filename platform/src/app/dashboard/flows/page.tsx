@@ -103,6 +103,7 @@ export default function WorkflowsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [approving, setApproving] = useState<string | null>(null)
+  const [sendingCaseId, setSendingCaseId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
 
   const loadCaseDetail = useCallback(async (caseId: string) => {
@@ -148,6 +149,25 @@ export default function WorkflowsPage() {
       || item.id.toLowerCase().includes(needle)
     return statusMatches && searchMatches
   }), [cases, searchQuery, statusFilter])
+
+  async function handleQuickSend(caseId: string, accName?: string) {
+    setSendingCaseId(caseId)
+    setNotice(null)
+    try {
+      const res = await fetch(`/api/recovery/cases/${caseId}/dispatch`, { method: 'POST' })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(payload.error || 'Failed to dispatch outreach')
+      await refresh()
+      if (selected && selected.case.id === caseId) {
+        await loadCaseDetail(caseId)
+      }
+      setNotice({ tone: 'success', text: payload.message || `Outreach dispatched for ${accName || 'account'}. Shifted to Monitoring.` })
+    } catch (error) {
+      setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Failed to dispatch outreach' })
+    } finally {
+      setSendingCaseId(null)
+    }
+  }
 
   async function approveDraft(draftId: string, caseId: string) {
     setApproving(draftId)
@@ -270,13 +290,31 @@ export default function WorkflowsPage() {
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     {item.status === 'awaiting_approval' && (
-                      <button
-                        onClick={() => void loadCaseDetail(item.id)}
-                        className="inline-flex items-center gap-1.5 rounded-sm border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300 hover:bg-amber-500/20 transition-colors cursor-pointer"
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                        Draft Ready · Review
-                      </button>
+                      <div className="inline-flex items-center justify-end gap-2.5">
+                        <button
+                          onClick={() => void loadCaseDetail(item.id)}
+                          className="text-[11px] text-zinc-400 hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
+                        >
+                          Review
+                        </button>
+                        <button
+                          disabled={sendingCaseId === item.id}
+                          onClick={() => void handleQuickSend(item.id, accountName(item))}
+                          className="inline-flex items-center gap-1.5 rounded-sm border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300 hover:bg-amber-500/20 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          {sendingCaseId === item.id ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin text-amber-400" />
+                              Sending…
+                            </>
+                          ) : (
+                            <>
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                              Approve & Send
+                            </>
+                          )}
+                        </button>
+                      </div>
                     )}
                     {(item.status === 'sent' || item.status === 'monitoring') && (
                       <button
@@ -361,11 +399,18 @@ export default function WorkflowsPage() {
                   <div className="mt-4 flex items-center justify-end">
                     {draft.status === 'needs_review' && (
                       <button
-                        disabled={approving === draft.id}
-                        onClick={() => void approveDraft(draft.id, selected.case.id)}
-                        className="rounded-sm bg-white px-3.5 py-1.5 text-xs font-semibold text-black disabled:opacity-50 hover:bg-zinc-200 transition-colors cursor-pointer"
+                        disabled={sendingCaseId === selected.case.id || approving === draft.id}
+                        onClick={() => void handleQuickSend(selected.case.id, accountName(selected.case))}
+                        className="rounded-sm bg-white px-3.5 py-1.5 text-xs font-semibold text-black disabled:opacity-50 hover:bg-zinc-200 transition-colors cursor-pointer inline-flex items-center gap-1.5"
                       >
-                        {approving === draft.id ? 'Approving…' : 'Approve & Queue Outreach'}
+                        {sendingCaseId === selected.case.id ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
+                            Dispatching Outreach…
+                          </>
+                        ) : (
+                          'Approve & Send Outreach'
+                        )}
                       </button>
                     )}
                   </div>
