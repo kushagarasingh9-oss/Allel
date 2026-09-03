@@ -8,11 +8,11 @@ import { RotateCcw } from 'lucide-react'
 
 function InlineTool({ name, icon }: { name: string; icon: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 font-medium text-white align-baseline">
+    <span className="inline-flex items-center gap-1.5 font-medium text-white align-middle">
       <img
         src={icon}
         alt={name}
-        className="w-3.5 h-3.5 inline-block object-contain translate-y-[-1px]"
+        className="w-3.5 h-3.5 inline-block object-contain"
         style={{ width: 14, height: 14 }}
       />
       <span>{name}</span>
@@ -74,39 +74,27 @@ export default function BriefPage() {
       <div className="flex-1 h-full min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
         {!hasMessages ? (
           <div className="w-full max-w-[700px] px-6 pt-10 pb-36 h-full overflow-y-auto">
-            {/* Pure, Clean Paragraph Editorial Brief */}
-            <div className="space-y-5 text-zinc-300 animate-in fade-in duration-150 text-[14.5px] leading-relaxed">
+            {/* Pure Continuous Paragraph Flow — Zero Bullet Points, Perfect Baseline Alignment */}
+            <div className="space-y-4 text-zinc-300 animate-in fade-in duration-150 text-[14.5px] leading-relaxed">
               <div>
                 <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">
                   Hey Kushagra, good morning.
                 </h2>
-                <p className="mt-3 text-zinc-300">
-                  Here is the operational update across your customer accounts and connected tools today.
+                <p className="mt-2.5 text-zinc-300">
+                  Here is your operational update across your customer accounts and connected tools today.
                 </p>
               </div>
 
               <p>
-                In <InlineTool name="Gmail" icon="/logos/gmail.svg" />, you have 2 customer threads needing attention — one asking for invoice payment details and one customer checking in on onboarding.
+                In <InlineTool name="Gmail" icon="/logos/gmail.svg" />, Rohan from Apex MultiRail sent an email asking for wire details, and Sarah at FintechScale replied to yesterday’s check-in. Both threads are waiting on replies — should we prepare drafts for them?
               </p>
 
               <p>
-                Across your connected tools:
+                Across your billing in <InlineTool name="Stripe" icon="/logos/stripe.svg" />, Apex MultiRail had 2 card retries declined on <code className="text-xs font-mono bg-white/[0.06] px-1.5 py-0.5 rounded text-zinc-200">Card ····4242</code>, while FintechScale transitioned to past due following an unpaid invoice run. In <InlineTool name="PostHog" icon="/logos/posthog.svg" />, Apex MultiRail’s core query volume dropped 44% over the past week, and DataVibe triggered the cancel flow modal before abandoning the session.
               </p>
 
-              <ul className="space-y-3 list-disc list-inside text-zinc-300 pl-1">
-                <li>
-                  In <InlineTool name="Stripe" icon="/logos/stripe.svg" />, 2 accounts had repeated payment failures: <span className="text-white font-medium">Apex MultiRail</span> had 2 card retries declined on <code className="text-xs font-mono bg-white/[0.06] px-1.5 py-0.5 rounded text-zinc-200">Card ····4242</code>, and <span className="text-white font-medium">FintechScale</span> transitioned to past due.
-                </li>
-                <li>
-                  In <InlineTool name="PostHog" icon="/logos/posthog.svg" />, <span className="text-white font-medium">Apex MultiRail</span> query volume dropped 44% this week, and <span className="text-white font-medium">DataVibe</span> visited the cancellation flow without completing exit steps.
-                </li>
-                <li>
-                  In <InlineTool name="Intercom" icon="/logos/intercom.svg" />, 1 urgent ticket was opened by <span className="text-white font-medium">Rohan Trivedi</span> regarding checkout and payment errors.
-                </li>
-              </ul>
-
-              <p className="pt-2 text-zinc-400">
-                Tailored drafts and follow-ups are ready. Ask below to review drafts, inspect customer evidence, or take action across your tools.
+              <p>
+                Over in <InlineTool name="Intercom" icon="/logos/intercom.svg" />, an urgent ticket was opened by Rohan Trivedi regarding checkout payment errors. Tailored drafts and recovery motions are staged — ask below to review any thread, inspect customer evidence, or take action across your tools.
               </p>
             </div>
           </div>
