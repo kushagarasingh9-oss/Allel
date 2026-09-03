@@ -971,6 +971,70 @@ function ToolResultSummary({
     )
   }
 
+  // Recovery Cases List
+  if (toolName === 'getRecoveryCases' && Array.isArray(data.cases)) {
+    const cases = data.cases as Array<Record<string, any>>
+    if (cases.length === 0) {
+      return (
+        <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 mb-2">
+          <img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain opacity-60" /> No active recovery cases in queue
+        </div>
+      )
+    }
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        <ExpandableResultList
+          items={cases}
+          initialCount={4}
+          itemLabel="cases"
+          renderItem={(c, i) => (
+            <MiniResultCard
+              key={c.id || i}
+              icon={<img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain shrink-0" />}
+              title={
+                <span className="text-white font-medium flex items-center justify-between gap-2 w-full">
+                  <span>{c.account || 'Account'}</span>
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded font-normal ${
+                    c.severity === 'critical' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  }`}>
+                    {c.severity} · {c.mrrAtRisk || '$0'} MRR
+                  </span>
+                </span>
+              }
+              subtitle={`${c.trigger || 'Signal'} · Action: ${c.action || 'founder_email'}`}
+            />
+          )}
+        />
+      </div>
+    )
+  }
+
+  // Rescue Discount Creation
+  if (toolName === 'createRescueDiscountTool' && data) {
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        <MiniResultCard
+          icon={<img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          title={<span className="text-white font-medium">Rescue Discount Created ({data.percentOff}% off for {data.durationInMonths}mo)</span>}
+          subtitle={String(data.message || 'Draft email queued for founder review')}
+        />
+      </div>
+    )
+  }
+
+  // Recovery Performance Metrics
+  if (toolName === 'getRecoveryMetrics' && data) {
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        <MiniResultCard
+          icon={<img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          title={<span className="text-white font-medium">Recovery Performance Metrics</span>}
+          subtitle={`MRR at Risk: ${data.mrrAtRisk || '$0'} · Protected: ${data.protectedMrr || '$0'} across ${data.totalCasesOpened || 0} cases`}
+        />
+      </div>
+    )
+  }
+
   // PostHog Cohorts
   if (toolName === 'listPostHogCohorts' && Array.isArray(data.cohorts)) {
     const cohorts = data.cohorts as Array<Record<string, unknown>>
@@ -1568,6 +1632,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
   const toolBatch: React.ReactNode[] = []
   let toolBatchCount = 0
   const batchToolNames: string[] = []
+  const seenToolSignatures = new Set<string>()
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]
@@ -1624,6 +1689,22 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
         } else {
           break
         }
+      }
+
+      // Deduplicate identical tool actions in the same message turn
+      const toolSigAccounts = group.map(g => {
+        const inp = (g.part.input ?? g.part.args ?? g.part.toolInput ?? {}) as Record<string, any>
+        const out = (g.part.output ?? {}) as Record<string, any>
+        return inp.customerAccountId || inp.accountId || inp.accountName || inp.name || out.accountName || out.name || ''
+      }).filter(Boolean).sort().join('|')
+
+      const toolSignature = `${toolName}:${toolSigAccounts}`
+      if (toolSigAccounts.length > 0) {
+        if (seenToolSignatures.has(toolSignature)) {
+          // Duplicate tool call for the exact same target accounts in the same turn — skip rendering redundant node!
+          continue
+        }
+        seenToolSignatures.add(toolSignature)
       }
 
       batchToolNames.push(toolName)
