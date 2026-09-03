@@ -97,6 +97,7 @@ export default function BriefPage() {
       return
     }
 
+    setIsCollapsed(true)
     sendMessage({ text: query })
     setInputText('')
   }, [inputText, isLoading, stop, sendMessage])
@@ -139,7 +140,10 @@ export default function BriefPage() {
 
           {hasMessages && (
             <button
-              onClick={() => resetActiveThread()}
+              onClick={() => {
+                resetActiveThread()
+                setIsCollapsed(false)
+              }}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -151,11 +155,12 @@ export default function BriefPage() {
 
       {/* Main Content Area */}
       <div className="flex-1 h-full min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
-        {!hasMessages ? (
-          <div className="w-full max-w-[700px] px-6 pt-10 pb-36 h-full overflow-y-auto">
+        <div className="w-full max-w-[760px] mx-auto px-6 h-full flex flex-col relative min-h-0">
+          {/* Brief Collapsible Section — Always preserved at the top */}
+          <div className={hasMessages ? "shrink-0 pt-2 z-10 w-full" : "w-full pt-10 pb-36 h-full overflow-y-auto"}>
             {isCollapsed ? (
               /* Collapsed State: Shimmering Clean "Daily Brief" Text */
-              <div className="animate-in fade-in duration-200 py-1">
+              <div className={`animate-in fade-in duration-200 py-1.5 ${hasMessages ? "border-b border-white/[0.06] mb-1.5" : ""}`}>
                 <button
                   onClick={() => setIsCollapsed(false)}
                   className="flex items-center gap-2 group cursor-pointer text-left select-none"
@@ -169,7 +174,7 @@ export default function BriefPage() {
               </div>
             ) : (
               /* Expanded State: Multi-Customer Flowing Paragraph Narrative */
-              <div className="space-y-3.5 text-zinc-300 animate-in fade-in duration-200 text-[14.5px] leading-relaxed">
+              <div className={`space-y-3.5 text-zinc-300 animate-in fade-in duration-200 text-[14.5px] leading-relaxed ${hasMessages ? "border-b border-white/[0.06] pb-3 mb-2 max-h-[35vh] overflow-y-auto custom-scrollbar" : ""}`}>
                 {/* Greeting in sync with font size + collapse toggle */}
                 <div className="flex items-center justify-between mb-1">
                   <h2 className="text-[16px] sm:text-[17px] font-medium tracking-tight text-white">
@@ -202,14 +207,16 @@ export default function BriefPage() {
               </div>
             )}
           </div>
-        ) : (
-          /* Active Agent Execution Feed */
-          <div className="w-full h-full flex-1 min-h-0 flex flex-col justify-between max-w-[760px] mx-auto px-6 pt-2 pb-36 animate-in fade-in duration-200 relative overflow-hidden">
-            <div className="flex-1 h-full min-h-0 w-full flex flex-col relative overflow-hidden">
-              <AgentFeed />
+
+          {/* Active Agent Execution Feed */}
+          {hasMessages && (
+            <div className="w-full flex-1 min-h-0 flex flex-col justify-between pt-1 pb-36 animate-in fade-in duration-200 relative overflow-hidden">
+              <div className="flex-1 h-full min-h-0 w-full flex flex-col relative overflow-hidden">
+                <AgentFeed />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Fixed Bottom Chat Omnibar */}
         <div className="absolute bottom-0 left-0 right-0 w-full z-30 px-6 pb-5 pt-8 bg-gradient-to-t from-[#0d0d0f] from-70% via-[#0d0d0f]/90 to-transparent flex justify-center pointer-events-none [&>*]:pointer-events-auto">
