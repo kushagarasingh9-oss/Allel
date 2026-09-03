@@ -286,6 +286,9 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   );
 
   const effectiveHistorySessions = React.useMemo(() => {
+    if (historySessions.length === 0 && !chatContext?.isLoading) {
+      return [];
+    }
     const list = [...historySessions];
     if (
       activeSessionId &&
@@ -307,7 +310,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
       }
     }
     return list;
-  }, [historySessions, activeSessionId, activeSessionTitle, chatContext?.messages, isResolving]);
+  }, [historySessions, activeSessionId, activeSessionTitle, chatContext?.messages, chatContext?.isLoading, isResolving]);
 
   const hasPersistedActiveSession = effectiveHistorySessions.some(
     (s) => s.sessionId === activeSessionId
@@ -433,8 +436,8 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
             })}
           </nav>
 
-          {/* History Accordion Section */}
-          {!collapsed && (
+          {/* History Accordion Section — strictly displayed on Brief / Chat views */}
+          {!collapsed && (pathname === "/dashboard" || pathname === "/dashboard/brief") && (
             <div className="flex flex-col gap-1 pt-3 flex-1 overflow-hidden">
               <button
                 type="button"
