@@ -161,8 +161,14 @@ export default function WorkflowsPage() {
             />
             <h1 className="text-[17px] font-medium tracking-tight text-white">Revenue Recovery</h1>
           </div>
-          <button onClick={() => void refresh()} className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[#141416] px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white hover:border-white/20 transition-all shadow-xs">
-            <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          <button
+            onClick={() => void refresh()}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer disabled:opacity-50"
+            title="Refresh recovery cases"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
           </button>
         </div>
 
