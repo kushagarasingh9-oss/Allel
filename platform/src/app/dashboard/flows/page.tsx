@@ -746,8 +746,8 @@ export default function WorkflowsPage() {
                             </>
                           ) : sentSuccessCaseId === item.id ? (
                             <>
-                              <Check className="w-3 h-3 text-emerald-300 stroke-[2.5]" />
-                              <span className="text-emerald-200">Sent ✓</span>
+                              <Check className="w-3 h-3 text-white stroke-[2.5]" />
+                              <span>Sent</span>
                             </>
                           ) : (
                             <>
@@ -759,31 +759,13 @@ export default function WorkflowsPage() {
                       </div>
                     )}
                     {(item.status === 'sent' || item.status === 'monitoring') && (
-                      <div className="inline-flex items-center gap-2">
-                        <button
-                          onClick={() => void loadCaseDetail(item.id)}
-                          className="group/mon inline-flex items-center gap-2 rounded-xs border border-sky-500/30 bg-sky-500/[0.08] hover:bg-sky-500/[0.16] hover:border-sky-500/50 px-2.5 py-1 text-xs font-medium text-sky-300 transition-all cursor-pointer shadow-xs"
-                        >
-                          <span className="relative flex h-2 w-2 shrink-0">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500" />
-                          </span>
-                          <span>Sent · Monitoring</span>
-                          <ArrowUpRight className="w-3 h-3 text-sky-400/60 group-hover/mon:text-sky-200 group-hover/mon:translate-x-0.5 group-hover/mon:-translate-y-0.5 transition-all" />
-                        </button>
-                        <a
-                          href={item.follow_up_drafts?.[0]?.approval_metadata?.gmail_url || 'https://mail.google.com/mail/u/0/#sent'}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-white px-2 py-1 rounded-xs hover:bg-white/[0.06] transition-colors border border-white/10 hover:border-white/20"
-                          title="Open Sent Email in Gmail"
-                        >
-                          <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain" />
-                          <span className="hidden sm:inline">Gmail</span>
-                          <ArrowUpRight className="w-3 h-3 text-zinc-500" />
-                        </a>
-                      </div>
+                      <button
+                        onClick={() => void loadCaseDetail(item.id)}
+                        className="group/btn inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] hover:bg-[#0048D9] active:bg-[#003ec2] text-white px-3 py-1 text-xs font-medium transition-all cursor-pointer shadow-xs shadow-blue-500/20 hover:shadow-blue-500/35 border border-blue-400/30"
+                      >
+                        <Check className="w-3 h-3 text-white stroke-[2.5]" />
+                        <span>Sent</span>
+                      </button>
                     )}
                     {item.status === 'resolved' && (
                       <button
@@ -948,7 +930,7 @@ export default function WorkflowsPage() {
                         <div className="font-medium text-white text-sm mb-1">{draft.subject}</div>
                         <div className="text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed border-t border-white/[0.06] pt-2.5 mt-2.5">{draft.body_preview}</div>
                         <div className="mt-4 flex items-center justify-end">
-                          {draft.status === 'needs_review' && selected.case.status !== 'monitoring' && selected.case.status !== 'resolved' && (
+                          {draft.status === 'needs_review' && selected.case.status !== 'monitoring' && selected.case.status !== 'resolved' ? (
                             <button
                               disabled={sendingCaseId === selected.case.id || approving === draft.id || sentSuccessCaseId === selected.case.id}
                               onClick={() => void handleQuickSend(selected.case.id, accountName(selected.case))}
@@ -961,8 +943,8 @@ export default function WorkflowsPage() {
                                 </>
                               ) : sentSuccessCaseId === selected.case.id ? (
                                 <>
-                                  <Check className="w-3.5 h-3.5 text-emerald-300 stroke-[2.5]" />
-                                  <span className="text-emerald-200">Sent ✓</span>
+                                  <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                                  <span>Sent</span>
                                 </>
                               ) : (
                                 <>
@@ -971,7 +953,12 @@ export default function WorkflowsPage() {
                                 </>
                               )}
                             </button>
-                          )}
+                          ) : (selected.case.status === 'monitoring' || draft.status === 'sent') ? (
+                            <div className="inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] text-white px-3.5 py-1.5 text-xs font-medium border border-blue-400/30 shadow-xs shadow-blue-500/20">
+                              <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                              <span>Sent</span>
+                            </div>
+                          ) : null}
                         </div>
                         {(selected.case.status === 'monitoring' || draft.status === 'sent') && (
                           <div className="mt-3 flex items-center justify-between gap-3 rounded-xs border border-sky-500/20 bg-sky-500/10 p-3 text-xs text-sky-300">

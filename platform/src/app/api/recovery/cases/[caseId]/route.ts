@@ -71,41 +71,47 @@ export async function GET(
       .eq('recovery_case_id', caseId)
       .eq('workspace_id', workspace.id);
 
-    const { data: jobs, error: jobsError } = await supabase
-      .from('workflow_jobs')
-      .select('id, job_type, status, attempt_count, max_attempts, last_error_code, last_error_message, last_error_at, created_at, updated_at, completed_at')
-      .eq('recovery_case_id', caseId)
-      .eq('workspace_id', workspace.id)
-      .order('created_at', { ascending: true });
+    let jobs: any[] = [];
+    try {
+      const { data: jobsData, error: jobsError } = await supabase
+        .from('workflow_jobs')
+        .select('id, job_type, status, attempt_count, max_attempts, created_at, updated_at, completed_at')
+        .eq('recovery_case_id', caseId)
+        .eq('workspace_id', workspace.id)
+        .order('created_at', { ascending: true });
+      if (jobsError) console.warn(`[api/recovery/cases/${caseId}] workflow_jobs query warning:`, jobsError.message);
+      jobs = jobsData || [];
+    } catch {
+      jobs = [];
+    }
 
-    const [{ data: contacts, error: contactsError }, { data: features, error: featuresError }] =
-      customerAccountId
-        ? await Promise.all([
-            supabase
-              .from('account_contacts')
-              .select('email, is_primary, is_provisional')
-              .eq('workspace_id', workspace.id)
-              .eq('customer_account_id', customerAccountId)
-              .order('is_primary', { ascending: false }),
-            supabase
-              .from('account_features')
-              .select('failed_payment_count_30d, last_payment_succeeded_at, usage_delta_percent, unreplied_outbound_count')
-              .eq('workspace_id', workspace.id)
-              .eq('customer_account_id', customerAccountId)
-              .maybeSingle(),
-          ])
-        : [{ data: [], error: null }, { data: null, error: null }];
+    let contacts: any[] = [];
+    let features: any = null;
+    if (customerAccountId) {
+      try {
+        const { data: contactsData, error: contactsError } = await supabase
+          .from('account_contacts')
+          .select('email, is_primary')
+          .eq('workspace_id', workspace.id)
+          .eq('customer_account_id', customerAccountId)
+          .order('is_primary', { ascending: false });
+        if (contactsError) console.warn(`[api/recovery/cases/${caseId}] contacts query warning:`, contactsError.message);
+        contacts = contactsData || [];
+      } catch {
+        contacts = [];
+      }
 
-    if (eventsError || draftsError || outcomesError || jobsError || contactsError || featuresError) {
-      console.error(`[api/recovery/cases/${caseId}] Failed to load related case records`, {
-        eventsError: eventsError?.message,
-        draftsError: draftsError?.message,
-        outcomesError: outcomesError?.message,
-        jobsError: jobsError?.message,
-        contactsError: contactsError?.message,
-        featuresError: featuresError?.message,
-      });
-      throw new Error('Related case records could not be loaded');
+      try {
+        const { data: featuresData } = await supabase
+          .from('account_features')
+          .select('failed_payment_count_30d, last_payment_succeeded_at, usage_delta_percent, unreplied_outbound_count')
+          .eq('workspace_id', workspace.id)
+          .eq('customer_account_id', customerAccountId)
+          .maybeSingle();
+        features = featuresData || null;
+      } catch {
+        features = null;
+      }
     }
 
     return NextResponse.json({
