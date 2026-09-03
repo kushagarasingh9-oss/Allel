@@ -9,6 +9,7 @@ type Metrics = {
   atRiskCents: number
   engagedCases: number
   productRecoveredCases: number
+  strictRecoveredCents?: number
 }
 
 type ApiCase = {
@@ -31,7 +32,13 @@ type ApiCase = {
     subject: string
     body_preview: string
     status: string
-    approval_metadata?: { recipient_email?: string; gmail_url?: string } | null
+    approval_metadata?: {
+      recipient_email?: string
+      gmail_url?: string
+      provider_thread_id?: string
+      provider_message_id?: string
+      gmail_sent?: boolean
+    } | null
   }> | null
 }
 
@@ -53,7 +60,13 @@ type CaseDetail = {
     body_preview: string
     approved_at: string | null
     sent_at: string | null
-    approval_metadata?: { recipient_email?: string; gmail_url?: string } | null
+    approval_metadata?: {
+      recipient_email?: string
+      gmail_url?: string
+      provider_thread_id?: string
+      provider_message_id?: string
+      gmail_sent?: boolean
+    } | null
   }>
   events: Array<{
     id: string
@@ -260,7 +273,7 @@ function getCaseDraft(item: ApiCase) {
   if (lowerName.includes('apex')) {
     return {
       recipientEmail: 'rohan@apexmultirail.co',
-      subject: 'Apex MultiRail · Following up on webhook sync (504s) & temporary billing hold',
+      subject: 'Apex MultiRail - Following up on webhook sync (504s) & temporary billing hold',
       bodyPreview: `Hi Rohan,\n\nI noticed your team has been hitting 504 gateway timeouts on the multi-rail webhook endpoints over the last 48 hours, and that the recent billing retry was declined.\n\nI wanted to reach out personally from the founder's desk. Our engineering team has prioritized the 504 webhook ingestion blocker to resolve it today. In the meantime, I have placed a temporary hold on your invoice so your transaction pipeline and account remain fully active without interruption.\n\nLet me know if you have 5 minutes later today or tomorrow to make sure everything is running smoothly.\n\nBest regards,\nAllel Team`,
     }
   }
@@ -269,6 +282,41 @@ function getCaseDraft(item: ApiCase) {
     subject: `Checking in regarding your ${name} account`,
     bodyPreview: `Hi team,\n\nI noticed some friction on your account recently and wanted to check in directly to make sure you have everything you need. Let me know if there is anything we can do to help support your team.\n\nBest,\nAllel Team`,
   }
+}
+
+function getSentGmailUrl(item: ApiCase): string {
+  const drafts = item.follow_up_drafts
+  const draft = Array.isArray(drafts) && drafts.length > 0 ? drafts[0] : null
+  const meta = draft?.approval_metadata
+
+  // 1. Direct thread URL if available from Gmail dispatch
+  if (meta?.gmail_url && !meta.gmail_url.endsWith('#sent')) {
+    return meta.gmail_url
+  }
+  if (meta?.provider_thread_id) {
+    return `https://mail.google.com/mail/u/0/#all/${meta.provider_thread_id}`
+  }
+  if (meta?.provider_message_id) {
+    return `https://mail.google.com/mail/u/0/#search/rfc822msgid%3A${encodeURIComponent(meta.provider_message_id)}`
+  }
+
+  // 2. Direct search in Gmail for the exact recipient & subject
+  const draftInfo = getCaseDraft(item)
+  const recipient = meta?.recipient_email || draftInfo?.recipientEmail
+  const subject = draft?.subject || draftInfo?.subject
+
+  if (recipient && !recipient.includes('example.com')) {
+    if (subject) {
+      return `https://mail.google.com/mail/u/0/#search/to%3A${encodeURIComponent(recipient)}+subject%3A${encodeURIComponent('"' + subject + '"')}`
+    }
+    return `https://mail.google.com/mail/u/0/#search/to%3A${encodeURIComponent(recipient)}`
+  }
+
+  if (subject) {
+    return `https://mail.google.com/mail/u/0/#search/subject%3A${encodeURIComponent('"' + subject + '"')}`
+  }
+
+  return 'https://mail.google.com/mail/u/0/#sent'
 }
 
 export default function WorkflowsPage() {
@@ -393,6 +441,21 @@ export default function WorkflowsPage() {
       const res = await fetch(`/api/recovery/cases/${caseId}/dispatch`, { method: 'POST' })
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(payload.error || 'Failed to dispatch outreach')
+      const targetCase = cases.find(c => c.id === caseId)
+      const draftInfo = targetCase ? getCaseDraft(targetCase) : null
+      const recipient = draftInfo?.recipientEmail && !draftInfo.recipientEmail.includes('example.com')
+        ? draftInfo.recipientEmail
+        : null
+      const subject = draftInfo?.subject
+
+      const exactGmailUrl = payload.gmailUrl && !payload.gmailUrl.endsWith('#sent')
+        ? payload.gmailUrl
+        : recipient
+          ? (subject
+              ? `https://mail.google.com/mail/u/0/#search/to%3A${encodeURIComponent(recipient)}+subject%3A${encodeURIComponent('"' + subject + '"')}`
+              : `https://mail.google.com/mail/u/0/#search/to%3A${encodeURIComponent(recipient)}`)
+          : (payload.gmailUrl || 'https://mail.google.com/mail/u/0/#sent')
+
       setSentSuccessCaseId(caseId)
       setCases(prev => prev.map(c => c.id === caseId ? {
         ...c,
@@ -403,7 +466,8 @@ export default function WorkflowsPage() {
           status: 'sent',
           approval_metadata: {
             ...d.approval_metadata,
-            gmail_url: payload.gmailUrl || 'https://mail.google.com/mail/u/0/#sent',
+            gmail_url: exactGmailUrl,
+            recipient_email: recipient || d.approval_metadata?.recipient_email,
           },
         })),
       } : c))
@@ -593,7 +657,7 @@ export default function WorkflowsPage() {
                       </div>
                     </td>
                   <td className="px-5 py-3.5 text-right">
-                    {item.status === 'awaiting_approval' && (
+                    {item.status === 'awaiting_approval' && sentSuccessCaseId !== item.id && (
                       <div className="inline-flex items-center justify-end gap-2.5">
                         <div className="relative group/draft inline-block">
                           <button
@@ -772,7 +836,7 @@ export default function WorkflowsPage() {
                     )}
                     {(item.status === 'sent' || item.status === 'monitoring' || sentSuccessCaseId === item.id) && (
                       <a
-                        href={item.follow_up_drafts?.[0]?.approval_metadata?.gmail_url || 'https://mail.google.com/mail/u/0/#sent'}
+                        href={getSentGmailUrl(item)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="group/btn inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] hover:bg-[#0048D9] active:bg-[#003ec2] text-white px-3 py-1 text-xs font-medium transition-all cursor-pointer shadow-xs shadow-blue-500/20 hover:shadow-blue-500/35 border border-blue-400/30"
@@ -799,7 +863,7 @@ export default function WorkflowsPage() {
                         Cooling Down
                       </button>
                     )}
-                    {!['awaiting_approval', 'sent', 'monitoring', 'resolved', 'suppressed'].includes(item.status) && (
+                    {!['awaiting_approval', 'sent', 'monitoring', 'resolved', 'suppressed'].includes(item.status) && sentSuccessCaseId !== item.id && (
                       <button
                         onClick={() => void loadCaseDetail(item.id)}
                         className="inline-flex items-center gap-1.5 rounded-sm border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"

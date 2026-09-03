@@ -994,27 +994,38 @@ export async function listGmailHistory(
   })
 }
 
+function formatMimeHeaderValue(value: string): string {
+  const clean = value.replace(/·/g, '-').replace(/•/g, '-').trim()
+  if (/^[\x20-\x7E]*$/.test(clean)) {
+    return clean
+  }
+  return `=?utf-8?B?${Buffer.from(clean, 'utf-8').toString('base64')}?=`
+}
+
 export async function sendEmail(
   workspaceId: string,
   params: SendEmailParams
 ): Promise<SendEmailResult> {
   let rawMessage: string
+  const encodedSubject = formatMimeHeaderValue(params.subject)
 
   if (params.htmlBody) {
     // Multipart/alternative: plain text + HTML
     const boundary = `boundary_${Date.now()}_${Math.random().toString(36).slice(2)}`
     const messageParts = [
       `To: ${params.to}`,
-      `Subject: ${params.subject}`,
+      `Subject: ${encodedSubject}`,
       'MIME-Version: 1.0',
       `Content-Type: multipart/alternative; boundary="${boundary}"`,
       '',
       `--${boundary}`,
       'Content-Type: text/plain; charset=utf-8',
+      'Content-Transfer-Encoding: 8bit',
       '',
       params.body,
       `--${boundary}`,
       'Content-Type: text/html; charset=utf-8',
+      'Content-Transfer-Encoding: 8bit',
       '',
       params.htmlBody,
       `--${boundary}--`,
@@ -1024,8 +1035,10 @@ export async function sendEmail(
     // Plain text only
     const messageParts = [
       `To: ${params.to}`,
-      `Subject: ${params.subject}`,
+      `Subject: ${encodedSubject}`,
+      'MIME-Version: 1.0',
       'Content-Type: text/plain; charset=utf-8',
+      'Content-Transfer-Encoding: 8bit',
       '',
       params.body,
     ]
