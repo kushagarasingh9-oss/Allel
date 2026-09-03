@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useChatContext } from '@/ui/chat/chat-provider'
 import { DevinChatBox } from '@/ui/primitives/devin-chat-box'
 import { AgentFeed } from '@/ui/chat/agent-feed'
@@ -31,7 +31,21 @@ export default function BriefPage() {
 
   const [inputText, setInputText] = useState('')
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [greeting, setGreeting] = useState('good morning')
   const hasMessages = messages.length > 0
+
+  useEffect(() => {
+    const hour = new Date().getHours()
+    if (hour >= 5 && hour < 12) {
+      setGreeting('good morning')
+    } else if (hour >= 12 && hour < 17) {
+      setGreeting('good afternoon')
+    } else if (hour >= 17 && hour < 22) {
+      setGreeting('good evening')
+    } else {
+      setGreeting('good night')
+    }
+  }, [])
 
   const handleSubmit = (textToSend?: string) => {
     const query = (textToSend || inputText).trim()
@@ -95,7 +109,7 @@ export default function BriefPage() {
                 {/* Greeting in sync with font size + collapse toggle */}
                 <div className="flex items-center justify-between mb-1">
                   <h2 className="text-[16px] sm:text-[17px] font-medium tracking-tight text-white">
-                    <span className="silver-shimmer-text">Hey Kushagra</span>, good morning.
+                    <span className="silver-shimmer-text">Hey Kushagra</span>, {greeting}.
                   </h2>
                   <button
                     onClick={() => setIsCollapsed(true)}
