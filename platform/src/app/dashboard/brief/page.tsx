@@ -185,8 +185,8 @@ export default function BriefPage() {
                   In <InlineTool name="PostHog" icon="/logos/posthog.svg" /> and <InlineTool name="Intercom" icon="/logos/intercom.svg" />, core query telemetry dropped 44% for Apex MultiRail following 504 webhook gateway timeouts, while Marcus at <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer DataVibe")}>DataVibe</span> triggered the cancellation data export flow before abandoning his session.
                 </p>
 
-                <p className="pt-1 text-zinc-400">
-                  Click any account above or ask below to expand their full customer trace, review prepared drafts, or add them into Revenue Recovery.
+                <p className="pt-2 text-zinc-400 leading-relaxed">
+                  Would you like me to dive into <span className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white hover:decoration-zinc-400 cursor-pointer transition-colors" onClick={() => handleSubmit("Inspect customer Apex MultiRail")}>Apex MultiRail’s</span> gateway timeouts, draft a tailored recovery email for <span className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white hover:decoration-zinc-400 cursor-pointer transition-colors" onClick={() => handleSubmit("Draft a recovery email for FintechScale")}>FintechScale</span>, or push these at-risk accounts to your <span className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white hover:decoration-zinc-400 cursor-pointer transition-colors" onClick={() => handleSubmit("Add these at-risk accounts to the revenue recovery queue")}>Revenue Recovery</span> queue?
                 </p>
               </div>
             )}
