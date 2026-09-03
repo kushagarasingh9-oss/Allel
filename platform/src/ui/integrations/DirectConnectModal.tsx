@@ -80,6 +80,65 @@ const HINTS: Partial<Record<IntegrationProvider, { placeholder: string; docUrl: 
   },
 }
 
+type TrustDetail = {
+  whyNeeded: string
+  howUsed: string
+  security: string
+}
+
+const TRUST_DETAILS: Partial<Record<IntegrationProvider, TrustDetail>> = {
+  stripe: {
+    whyNeeded: 'Requires read-only API access to ingest subscription billing schedules, invoice payment failures, and dunning cycles.',
+    howUsed: 'Your recovery agent analyzes failed payment patterns and usage drop-offs to prioritize founder outreach before accounts churn.',
+    security: 'Stored in a hardware-isolated KMS vault. Read-only permissions enforced. Allel never modifies subscriptions, charges cards, or views sensitive card numbers.',
+  },
+  posthog: {
+    whyNeeded: 'Requires project read access to observe customer telemetry, product session frequency, and visits to cancellation flows.',
+    howUsed: 'Your agent detects when high-value accounts stop using core features or visit cancellation pages, generating immediate founder alerts.',
+    security: 'Encrypted at rest using scoped personal keys. Product data is strictly processed in-memory for risk scoring and is never used to train machine learning models.',
+  },
+  linear: {
+    whyNeeded: 'Requires read access to team issues, bug backlogs, and customer-tagged support tickets.',
+    howUsed: 'Correlates open software bugs and blocker tickets with customer accounts so your agent understands technical friction points during outreach.',
+    security: 'Scoped read-only token. Allel only inspects issue titles and statuses linked to customer domains; it never creates, edits, or deletes issues.',
+  },
+  intercom: {
+    whyNeeded: 'Requires conversation read permissions to ingest customer inquiries, support volume, and sentiment trends.',
+    howUsed: 'Flags repetitive customer complaints, unresolved support tickets, or escalation signals to draft empathetic check-in emails.',
+    security: 'Scoped access token encrypted in an isolated vault. Customer communications are never shared with third parties or retained for public LLM training.',
+  },
+  hubspot: {
+    whyNeeded: 'Requires CRM read access to sync company lifecycle stages, contract renewal dates, and associated deal values.',
+    howUsed: 'Enriches account profiles with business context so your agent can tailor recovery drafts to the account size and decision-maker tier.',
+    security: 'Private App token with read-only CRM scopes. Securely encrypted and isolated to your workspace. Sensitive CRM records are never modified.',
+  },
+  slack: {
+    whyNeeded: 'Requires bot posting permissions to deliver automated churn briefings and urgent recovery alerts to your team.',
+    howUsed: 'Broadcasts morning account health digests and notifies founders immediately when an account enters critical risk.',
+    security: 'Scoped strictly to post messages into the designated channel. Allel cannot access private direct messages or read unrelated channels.',
+  },
+  sentry: {
+    whyNeeded: 'Requires read-only token to observe runtime application error spikes and API exceptions per customer domain.',
+    howUsed: 'Helps your agent identify when backend errors or crashes are impacting a specific account before they complain.',
+    security: 'Read-only access. Strictly analyzes issue frequency and error tags; proprietary codebases and sensitive payloads are never ingested.',
+  },
+  notion: {
+    whyNeeded: 'Requires integration access to shared customer meeting notes, roadmaps, and account management databases.',
+    howUsed: 'Supplies your agent with qualitative account notes to craft hyper-personalized recovery messages.',
+    security: 'Restricted strictly to the Notion pages you explicitly grant access to. Encrypted at rest and never shared.',
+  },
+  gmail: {
+    whyNeeded: 'Requires email thread access to track founder communication history and detect customer responses.',
+    howUsed: 'Drafts tailored check-in emails directly into your draft box for manual founder review and one-click dispatch.',
+    security: 'Authenticated directly via Google OAuth. Allel operates in draft-only mode and will never send emails without your manual approval.',
+  },
+  airtable: {
+    whyNeeded: 'Requires read-only access to custom customer databases, renewal calendars, and account tier bases.',
+    howUsed: 'Aligns recovery playbooks with custom internal operational data and account assignments.',
+    security: 'Personal Access Token encrypted with workspace isolation. Base contents are accessed read-only.',
+  },
+}
+
 export default function DirectConnectModal({
   isOpen,
   onClose,
@@ -109,6 +168,12 @@ export default function DirectConnectModal({
     label: `${providerLabel} API Key`,
     placeholder: 'Enter API key...',
     docUrl: '#',
+  }
+
+  const trust = TRUST_DETAILS[provider] ?? {
+    whyNeeded: `Requires read-only API access to synchronize ${providerLabel} activity records with customer accounts.`,
+    howUsed: `Your agent references ${providerLabel} data to detect churn indicators and contextualize recovery actions.`,
+    security: `Stored in a hardware-isolated KMS vault. Read-only permissions enforced. Never shared with third parties or used for model training.`,
   }
 
   const handleOAuthConnect = () => {
@@ -208,9 +273,9 @@ export default function DirectConnectModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
-      <div className="relative w-full max-w-[420px] bg-[#101012] border border-white/[0.12] rounded-sm shadow-2xl p-5 text-white select-none">
+      <div className="relative w-full max-w-[440px] bg-[#101012] border border-white/[0.12] rounded-sm shadow-2xl p-5 text-white select-none">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-white/[0.06]">
+        <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-white/[0.06]">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-sm bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
               {icon}
@@ -226,6 +291,35 @@ export default function DirectConnectModal({
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Purpose, Usage & Security — Clean Formatted Text (No colored panels or buttons) */}
+        {trust && (
+          <div className="mb-4 pb-3.5 border-b border-white/[0.06] space-y-2 text-left">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-0.5">
+                Why we need this key
+              </div>
+              <p className="text-xs text-zinc-300 leading-relaxed font-normal">
+                {trust.whyNeeded}
+              </p>
+            </div>
+
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-0.5">
+                How your agent uses it
+              </div>
+              <p className="text-xs text-zinc-300 leading-relaxed font-normal">
+                {trust.howUsed}
+              </p>
+            </div>
+
+            <div className="pt-0.5">
+              <p className="text-[11px] text-zinc-500 leading-relaxed font-normal">
+                <span className="text-zinc-400 font-medium">Security & Privacy:</span> {trust.security}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* OAuth Connect */}
         {usesOAuthConnect && (
