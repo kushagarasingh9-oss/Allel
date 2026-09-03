@@ -1075,13 +1075,13 @@ const INTENT_CORE_TOOLS: Array<{
       tools: ['getRecoveryCases', 'getRecoveryMetrics'],
     },
     {
-      verbs: /\b(investigate|deep.?dive|complete profile|everything on|how is|situation|analyse|analyze|breakdown|score|why|reason|explain|diagnose)\b/i,
+      verbs: /\b(investigate|deep.?dive|complete profile|everything on|situation|analyse|analyze|breakdown|score|why|reason|explain|diagnose)\b/i,
       tools: [
+        'getUnifiedCustomerScan',
         'getAccountFullProfile',
         'getRecoveryCaseDetail',
-        'getAccountMemory',
-        'getAccountTimeline',
-        'getChurnScoreHistory',
+        'getAccountRecoveryStatus',
+        'addToRecoveryQueue',
       ],
     },
     {

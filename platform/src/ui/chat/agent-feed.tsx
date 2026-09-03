@@ -256,6 +256,7 @@ const TOOL_LABELS: Record<string, string> = {
   webMapTool: "Mapping site structure",
   inspectIntegrationConnectionsTool: "Verifying active connections",
   getAccountDetails: "Reading account profile",
+  getAccountTimeline: "Reading customer timeline & history",
   getAllAccounts: "Scanning customer accounts",
   getRecentSignals: "Analyzing workspace signals & activity",
   getExistingDrafts: "Checking pending drafts",
