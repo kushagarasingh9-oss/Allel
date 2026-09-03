@@ -95,7 +95,7 @@ export default function BriefPage() {
                 {/* Greeting in sync with font size + collapse toggle */}
                 <div className="flex items-center justify-between mb-1">
                   <h2 className="text-[16px] sm:text-[17px] font-medium tracking-tight text-white">
-                    Hey Kushagra, good morning.
+                    <span className="silver-shimmer-text">Hey Kushagra</span>, good morning.
                   </h2>
                   <button
                     onClick={() => setIsCollapsed(true)}
