@@ -150,12 +150,14 @@ export default function WorkflowsPage() {
 
   return (
     <div className="min-h-screen bg-[#0d0d0f] p-8 text-zinc-300">
+      <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img
               src="/logo-icon.png"
               alt="Allel"
               className="w-6 h-6 object-contain shrink-0 mix-blend-screen bg-transparent"
+              style={{ width: 24, height: 24 }}
             />
             <h1 className="text-2xl sm:text-3xl font-medium tracking-tight text-white">Revenue Recovery</h1>
           </div>
