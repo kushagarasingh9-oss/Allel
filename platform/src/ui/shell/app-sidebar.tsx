@@ -12,7 +12,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Bot,
-  ShieldCheck,
+  Newspaper,
   Workflow,
   Cable,
   MessagesSquare,
@@ -210,6 +210,12 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
 
   // Nav list matching user spec: Agents, Automations, Connections, Sessions
   const navLinks = [
+    {
+      label: "Brief",
+      href: "/dashboard/brief",
+      icon: Newspaper,
+      exact: false,
+    },
     {
       label: "Agents",
       href: "/dashboard/agents",
