@@ -28,7 +28,7 @@ export async function calculateRecoveryMetrics(
   // 2. Query draft outcomes — filter by test_mode to never mix test/prod dollars
   const { data: outcomes, error: outcomesError } = await supabase
     .from('draft_outcomes')
-    .select('id, recovery_case_id, outcome, outcome_type, strict_recovered_cents, protected_cents, is_test_mode')
+    .select('id, recovery_case_id, outcome_type, strict_recovered_cents, protected_cents, is_test_mode')
     .eq('workspace_id', workspaceId)
     .eq('is_test_mode', isTestMode)
     .gte('created_at', observationStart)
