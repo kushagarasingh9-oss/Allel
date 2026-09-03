@@ -257,6 +257,7 @@ export default function WorkflowsPage() {
   const [editSubject, setEditSubject] = useState('')
   const [editBody, setEditBody] = useState('')
   const [savingDraft, setSavingDraft] = useState(false)
+  const [draftSavedCaseId, setDraftSavedCaseId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
 
   const loadCaseDetail = useCallback(async (caseId: string) => {
@@ -454,47 +455,37 @@ export default function WorkflowsPage() {
                         {/* Hover Diagnostic Briefing Card */}
                         <div className={`absolute left-0 ${isLower ? 'bottom-full mb-2.5' : 'top-full mt-2.5'} hidden group-hover/diag:flex flex-col z-50 w-96 rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl pointer-events-none text-left`}>
                           {/* Header */}
-                          <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/[0.08]">
-                            <div className="flex items-center gap-1.5 font-medium text-[13px] text-white">
-                              <span>{accountName(item)}</span>
-                              <span className="text-zinc-500 font-normal">·</span>
-                              <span className="text-emerald-400 font-mono text-xs">{formatMoney(item.mrr_baseline_cents)}/mo</span>
-                            </div>
-                            <span className="text-[9px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-none bg-red-500/10 text-red-400 border border-red-500/20 font-mono">
-                              {item.severity} Risk
-                            </span>
+                          <div className="flex items-center gap-1.5 font-medium text-[13px] text-white mb-2">
+                            <span>{accountName(item)}</span>
+                            <span className="text-zinc-500 font-normal">·</span>
+                            <span className="text-emerald-400 font-mono text-xs">{formatMoney(item.mrr_baseline_cents)}/mo</span>
                           </div>
 
-                          {/* Core Issue Diagnosis */}
-                          <div className="mb-2.5">
-                            <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
-                              Core Diagnosis
-                            </div>
-                            <p className="text-xs text-zinc-200 leading-relaxed font-normal">
-                              {diag.issueSummary}
-                            </p>
-                          </div>
+                          {/* Core Issue Diagnosis Paragraph */}
+                          <p className="text-xs text-zinc-300 leading-relaxed font-normal mb-3">
+                            {diag.issueSummary}
+                          </p>
 
                           {/* Cross-Provider Signals */}
-                          <div className="space-y-2 pt-2.5 border-t border-white/[0.06]">
+                          <div className="space-y-1.5">
                             {diag.stripe && (
                               <div className="flex items-center gap-2 text-xs">
                                 <img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain shrink-0" />
-                                <span className="text-zinc-200 font-medium">Stripe:</span>
+                                <span className="text-zinc-300 font-medium">Stripe:</span>
                                 <span className="text-zinc-400 font-normal truncate">{diag.stripe.detail}</span>
                               </div>
                             )}
                             {diag.posthog && (
                               <div className="flex items-center gap-2 text-xs">
                                 <img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain shrink-0" />
-                                <span className="text-zinc-200 font-medium">PostHog:</span>
+                                <span className="text-zinc-300 font-medium">PostHog:</span>
                                 <span className="text-zinc-400 font-normal truncate">{diag.posthog.detail}</span>
                               </div>
                             )}
                             {diag.support && (
                               <div className="flex items-center gap-2 text-xs">
                                 <img src="/logos/intercom.svg" alt="Support" className="w-3.5 h-3.5 object-contain shrink-0" />
-                                <span className="text-zinc-200 font-medium">Support:</span>
+                                <span className="text-zinc-300 font-medium">Support:</span>
                                 <span className="text-zinc-400 font-normal truncate">{diag.support.detail}</span>
                               </div>
                             )}
@@ -569,7 +560,7 @@ export default function WorkflowsPage() {
                                     </button>
                                     <button
                                       type="button"
-                                      disabled={savingDraft || !editSubject.trim() || !editBody.trim()}
+                                      disabled={savingDraft || draftSavedCaseId === item.id || !editSubject.trim() || !editBody.trim()}
                                       onClick={async (e) => {
                                         e.stopPropagation()
                                         setSavingDraft(true)
@@ -587,18 +578,25 @@ export default function WorkflowsPage() {
                                             const err = await res.json().catch(() => ({}))
                                             throw new Error(err.error || 'Failed to save draft')
                                           }
+                                          setDraftSavedCaseId(item.id)
                                           await refresh()
+                                          await new Promise(r => setTimeout(r, 900))
                                           setEditingCaseId(null)
-                                          setNotice({ tone: 'success', text: `Draft saved for ${accountName(item)}.` })
                                         } catch (err) {
-                                          setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'Failed to save draft' })
+                                          console.error('Failed to save draft:', err)
                                         } finally {
                                           setSavingDraft(false)
+                                          setDraftSavedCaseId(null)
                                         }
                                       }}
-                                      className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-50"
+                                      className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-75"
                                     >
-                                      {savingDraft ? (
+                                      {draftSavedCaseId === item.id ? (
+                                        <>
+                                          <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
+                                          Saved ✓
+                                        </>
+                                      ) : savingDraft ? (
                                         <>
                                           <Loader2 className="w-3 h-3 animate-spin text-black" />
                                           Saving…
@@ -815,18 +813,32 @@ export default function WorkflowsPage() {
                                   }),
                                 })
                                 if (!res.ok) throw new Error('Failed to save draft')
+                                setDraftSavedCaseId(selected.case.id)
                                 await Promise.all([refresh(), loadCaseDetail(selected.case.id)])
+                                await new Promise(r => setTimeout(r, 900))
                                 setEditingCaseId(null)
-                                setNotice({ tone: 'success', text: `Draft saved.` })
                               } catch (err) {
-                                setNotice({ tone: 'error', text: 'Failed to save draft' })
+                                console.error('Failed to save draft:', err)
                               } finally {
                                 setSavingDraft(false)
+                                setDraftSavedCaseId(null)
                               }
                             }}
-                            className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-75"
                           >
-                            {savingDraft ? <Loader2 className="w-3 h-3 animate-spin text-black" /> : 'Save Draft'}
+                            {draftSavedCaseId === selected.case.id ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
+                                Saved ✓
+                              </>
+                            ) : savingDraft ? (
+                              <>
+                                <Loader2 className="w-3 h-3 animate-spin text-black" />
+                                Saving…
+                              </>
+                            ) : (
+                              'Save Draft'
+                            )}
                           </button>
                         </div>
                       </div>
