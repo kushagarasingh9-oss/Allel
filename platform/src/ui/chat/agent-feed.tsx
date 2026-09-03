@@ -92,7 +92,6 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   generateFollowUpDraft: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
   deliverSlackBriefTool: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
   buildDailyBriefFromLiveState: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
-  createRescueDiscountTool: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   // Intercom tools
   listIntercomConvos: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
   getIntercomConvo: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
@@ -1009,8 +1008,8 @@ function ToolResultSummary({
       <div className="flex flex-col gap-1 mb-2">
         <MiniResultCard
           icon={<img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain shrink-0" />}
-          title={<span className="text-white font-medium">Rescue Discount Created ({data.percentOff}% off for {data.durationInMonths}mo)</span>}
-          subtitle={String(data.message || 'Draft email queued for founder review')}
+          title={<span className="text-white font-medium">Rescue Discount Created ({String((data as any).percentOff)}% off for {String((data as any).durationInMonths)}mo)</span>}
+          subtitle={String((data as any).message || 'Draft email queued for founder review')}
         />
       </div>
     )

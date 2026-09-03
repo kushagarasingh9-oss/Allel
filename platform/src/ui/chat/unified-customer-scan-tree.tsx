@@ -766,9 +766,9 @@ export function UnifiedFleetScanTree({
   const mrrAtRisk = Math.round(parsedRisk / 100)
 
   // Aggregate records from top accounts
-  const stripeRecords: CustomerScanRecord[] = []
-  const posthogRecords: CustomerScanRecord[] = []
-  const intercomRecords: CustomerScanRecord[] = []
+  const stripeRecords: CustomerProviderRecord[] = []
+  const posthogRecords: CustomerProviderRecord[] = []
+  const intercomRecords: CustomerProviderRecord[] = []
 
   for (const acc of topAccounts) {
     if (acc.providerResults?.stripe?.records) {
@@ -789,7 +789,7 @@ export function UnifiedFleetScanTree({
     summary: `$${mrrAtRisk.toLocaleString()}/mo MRR flagged across ${data.actionableAccountsCount || topAccounts.length} priority accounts`,
     identity: {
       matched: true,
-      matchedBy: 'stripe_sync',
+      matchedBy: 'provider_id',
       email: null,
     },
     records: stripeRecords.length > 0 ? stripeRecords : [
@@ -812,7 +812,7 @@ export function UnifiedFleetScanTree({
     summary: `Usage collapse detected on Apex MultiRail (-65%), KryptonDB (-75%), DataVibe (-56%)`,
     identity: {
       matched: true,
-      matchedBy: 'posthog_sync',
+      matchedBy: 'provider_id',
       email: null,
     },
     records: posthogRecords.length > 0 ? posthogRecords : [
@@ -837,7 +837,7 @@ export function UnifiedFleetScanTree({
       : `No blocking support tickets on remaining accounts`,
     identity: {
       matched: true,
-      matchedBy: 'intercom_sync',
+      matchedBy: 'provider_id',
       email: null,
     },
     records: intercomRecords.length > 0 ? intercomRecords : [
