@@ -525,8 +525,9 @@ export default function WorkflowsPage() {
                         {/* Hover Diagnostic Briefing Card */}
                         <div className={`absolute left-0 ${isLower ? 'bottom-full mb-2.5' : 'top-full mt-2.5'} hidden group-hover/diag:flex flex-col z-50 w-96 rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl pointer-events-none text-left`}>
                           {/* Header */}
-                          <div className="flex items-center justify-between font-medium text-[13px] text-white mb-2">
+                          <div className="flex items-center gap-2 font-medium text-[13px] text-white mb-2.5">
                             <span>{accountName(item)}</span>
+                            <span className="text-zinc-500 font-normal">·</span>
                             <span className="text-emerald-400 font-mono text-xs">{formatMoney(item.mrr_baseline_cents)}/mo</span>
                           </div>
 
