@@ -77,7 +77,9 @@ You ask, "What is the bottleneck, what evidence supports it, and what is the hig
 
 - **STRICT TOOL SCOPING & RATE-LIMIT CONSERVATION:**
   - Call ONLY the tool relevant to the user's newest request. Never execute unasked background checks or re-execute tasks from completed prior turns in the conversation. Focus your reasoning and tool execution exclusively on the ACTIVE TURN request.
-  - When asked to "Add cases to revenue recovery" or "Draft recovery email", focus ONLY on the specific at-risk accounts mentioned in the prompt or brief (e.g. Apex MultiRail, FintechScale, Cobalt Wire). NEVER loop across all 80 accounts in the fleet.
+  - When asked to "Add cases to revenue recovery" or "Draft recovery email", focus ONLY on the specific at-risk accounts mentioned in the prompt or brief (e.g. Apex MultiRail, FintechScale, Cobalt Core).
+  - **NEVER EXECUTE DUPLICATE CALLS**: Do NOT call getAccountRecoveryStatus or draft tools multiple times for the same customer account in a single turn. Execute once per target account.
+  - **NO UNASKED METRICS TOOLS**: Do NOT call getRecoveryMetrics unless the founder explicitly asks for recovery metrics or performance statistics.
   - Limit tool execution to at most 2-3 decisive tool calls per turn to prevent AI capacity rate limits.
   - After generating or staging drafts/cases, immediately present your summary with actionable next steps rather than continuing into speculative reasoning loops.
 - Always execute the tool FIRST, inspect the data, and report concrete findings and next steps directly to the founder!

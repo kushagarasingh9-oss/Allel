@@ -228,6 +228,7 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   getUnifiedFleetScan: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   getRecoveryCases: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   getRecoveryCaseDetail: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  getRecoveryMetrics: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
 
   addTimelineEvent: <Database className="w-4 h-4 text-neutral-500" />,
   createSignal: <Zap className="w-4 h-4 text-neutral-500" />,
@@ -244,7 +245,8 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
 const TOOL_LABELS: Record<string, string> = {
   runRevenueRiskScan: "Running multi-provider revenue risk scan",
   getUnifiedCustomerScan: "Searching customer across connected integrations",
-  getAccountRecoveryStatus: "Checking account recovery & planning outreach",
+  getAccountRecoveryStatus: "Planning recovery outreach",
+  getRecoveryMetrics: "Analyzing recovery performance metrics",
   getUnifiedFleetScan: "Scanning workspace revenue & fleet health",
   requestMoreTools: "Expanding tool capabilities",
   webSearchTool: "Searching web intelligence",
@@ -1653,6 +1655,16 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
           displayTitle = isCompleted ? `Updated ${group.length} account risk assessments` : `Updating ${group.length} account risks`
         } else if (toolName === 'sendGmailReply' || toolName === 'composeNewEmail') {
           displayTitle = isCompleted ? `Sent ${group.length} emails` : `Sending ${group.length} emails`
+        } else if (toolName === 'getAccountRecoveryStatus') {
+          const names = group.map(item => {
+            const inp = (item.part.input ?? item.part.args ?? item.part.toolInput ?? {}) as Record<string, any>
+            const out = (item.part.output ?? {}) as Record<string, any>
+            return out.accountName || out.name || inp.accountName || inp.name || ''
+          }).filter(Boolean)
+          const unique = Array.from(new Set(names))
+          displayTitle = unique.length > 0
+            ? `Planning recovery outreach for ${unique.slice(0, 2).join(', ')}${unique.length > 2 ? ` +${unique.length - 2} more` : ''}`
+            : `Planning recovery outreach (${group.length} accounts)`
         } else {
           displayTitle = `${baseLabel} (${group.length} actions)`
         }
@@ -1664,7 +1676,16 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
         const toolInput = single.part.input ?? single.part.args ?? single.part.toolInput ?? null
 
         let dynamicLabel = baseLabel
-        if (toolName === 'getUnifiedCustomerScan') {
+        if (toolName === 'getAccountRecoveryStatus') {
+          const inputObj = (toolInput || {}) as Record<string, any>
+          const output = (single.part.output || {}) as Record<string, any>
+          const target = output.accountName || output.name || inputObj.accountName || inputObj.name || (output.draft?.recipientEmail ? output.draft.recipientEmail.split('@')[0] : '') || ''
+          dynamicLabel = target ? `Planning recovery outreach for ${target}` : `Planning recovery outreach`
+        } else if (toolName === 'createRescueDiscountTool') {
+          const inputObj = (toolInput || {}) as Record<string, any>
+          const target = inputObj.customerName || inputObj.accountName || inputObj.name || ''
+          dynamicLabel = target ? `Creating rescue discount for ${target}` : `Creating rescue discount`
+        } else if (toolName === 'getUnifiedCustomerScan') {
           const inputObj = (toolInput || {}) as Record<string, any>
           const rawLookup = inputObj.name || inputObj.query || inputObj.email || (single.part.output as any)?.accountName || ''
           const output = single.part.output as any
