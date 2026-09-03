@@ -751,128 +751,6 @@ export default function WorkflowsPage() {
                           </div>
                         </div>
 
-                    {item.status === 'awaiting_approval' && sentSuccessCaseId !== item.id ? (
-                      <div className="relative group/draft inline-block">
-                        {/* Hover Preview Card for Outreach Draft */}
-                        <div className={`absolute right-0 ${isLower ? 'bottom-full pb-1' : 'top-full pt-1'} hidden group-hover/draft:block z-50`}>
-                          <div className="w-96 rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl text-left pointer-events-auto">
-                            <div className="flex items-center justify-between pb-3 border-b border-white/[0.08] mb-3">
-                              <span className="text-[11px] font-medium tracking-wider text-zinc-400 uppercase">
-                                Gmail Draft Preview
-                              </span>
-                              <div className="flex items-center gap-1.5">
-                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-xs">
-                                  Awaiting Approval
-                                </span>
-                                <button
-                                  onClick={() => {
-                                    if (editingDraftCaseId === item.id) {
-                                      setEditingDraftCaseId(null)
-                                    } else {
-                                      setEditingDraftCaseId(item.id)
-                                      setEditedBody(draftInfo.bodyPreview)
-                                    }
-                                  }}
-                                  className="text-[11px] text-zinc-400 hover:text-white px-1.5 py-0.5 rounded-xs hover:bg-white/[0.06] transition-colors cursor-pointer"
-                                >
-                                  {editingDraftCaseId === item.id ? 'Cancel' : 'Edit'}
-                                </button>
-                              </div>
-                            </div>
-
-                            {editingDraftCaseId === item.id ? (
-                              <div className="space-y-3">
-                                <div>
-                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">Subject</div>
-                                  <div className="text-xs text-zinc-200 font-medium bg-white/[0.04] p-2 rounded-xs border border-white/10 select-none">
-                                    {draftInfo.subject}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">Body</div>
-                                  <textarea
-                                    value={editedBody}
-                                    onChange={(e) => setEditedBody(e.target.value)}
-                                    rows={8}
-                                    className="w-full text-xs text-zinc-200 bg-black/40 border border-white/15 rounded-xs p-2.5 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/20 font-normal leading-relaxed resize-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-                                    placeholder="Edit email outreach body..."
-                                  />
-                                </div>
-                                <div className="flex items-center justify-between pt-1">
-                                  <span className="text-[10px] text-zinc-500">Press Save to update draft preview</span>
-                                  <button
-                                    disabled={savingDraft}
-                                    onClick={async () => {
-                                      const draftRecord = item.follow_up_drafts?.[0]
-                                      setSavingDraft(true)
-                                      try {
-                                        if (draftRecord?.id) {
-                                          await fetch(`/api/recovery/cases/${item.id}/draft`, {
-                                            method: 'PATCH',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ body_preview: editedBody, body_full: editedBody }),
-                                          })
-                                        }
-                                        setCases(prev => prev.map(c => c.id === item.id ? {
-                                          ...c,
-                                          follow_up_drafts: c.follow_up_drafts?.map(d => ({ ...d, body_preview: editedBody }))
-                                        } : c))
-                                        setDraftSavedCaseId(item.id)
-                                        setTimeout(() => {
-                                          setDraftSavedCaseId(null)
-                                          setEditingDraftCaseId(null)
-                                        }, 1200)
-                                      } catch (err) {
-                                        console.error('Failed to save draft edit:', err)
-                                      } finally {
-                                        setSavingDraft(false)
-                                      }
-                                    }}
-                                    className="inline-flex items-center gap-1.5 rounded-xs border border-white/15 bg-white/[0.08] hover:bg-white/[0.14] hover:border-white/30 active:bg-white/[0.18] px-3 py-1 text-xs font-medium text-white transition-all cursor-pointer disabled:opacity-50 shadow-xs"
-                                  >
-                                    {draftSavedCaseId === item.id ? (
-                                      <>
-                                        <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
-                                        <span className="text-emerald-300">Saved ✓</span>
-                                      </>
-                                    ) : savingDraft ? (
-                                      <>
-                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-300" />
-                                        <span>Saving…</span>
-                                      </>
-                                    ) : (
-                                      'Save Draft'
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="space-y-3">
-                                <div>
-                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">To</div>
-                                  <div className="text-xs text-zinc-200 font-mono bg-white/[0.02] px-2 py-1 rounded-xs border border-white/[0.06]">
-                                    {draftInfo.recipientEmail}
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">Subject</div>
-                                  <div className="text-xs text-zinc-200 font-medium bg-white/[0.02] px-2 py-1 rounded-xs border border-white/[0.06]">
-                                    {draftInfo.subject}
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">Body</div>
-                                  <p className="text-xs text-zinc-300 leading-relaxed font-normal whitespace-pre-wrap max-h-56 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                                    {draftInfo.bodyPreview}
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
                         <button
                           disabled={sendingCaseId === item.id}
                           onClick={() => void handleQuickSend(item.id, accountName(item))}
@@ -891,7 +769,8 @@ export default function WorkflowsPage() {
                           )}
                         </button>
                       </div>
-                    ) : (item.status === 'sent' || item.status === 'monitoring' || sentSuccessCaseId === item.id) ? (
+                    )}
+                    {(item.status === 'sent' || item.status === 'monitoring' || sentSuccessCaseId === item.id) && (
                       <a
                         href={item.follow_up_drafts?.[0]?.approval_metadata?.gmail_url || 'https://mail.google.com/mail/u/0/#sent'}
                         target="_blank"
@@ -902,7 +781,7 @@ export default function WorkflowsPage() {
                         <Check className="w-3 h-3 text-white stroke-[2.5]" />
                         <span>Sent</span>
                       </a>
-                    ) : null}
+                    )}
                     {item.status === 'resolved' && (
                       <button
                         onClick={() => void loadCaseDetail(item.id)}
