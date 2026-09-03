@@ -612,7 +612,7 @@ function formatTextWithIntegrationLogos(raw: string): string {
     .replace(/(?:!\[Likely Root Cause\]\(\/logos\/lightbulb\.svg\)|💡)?\s*\*{0,2}Likely Root Cause:?\*{0,2}/gi, '![Likely Root Cause](/logos/lightbulb.svg) **Likely Root Cause:**')
     .replace(/(?:!\[Recommended Action\]\(\/logos\/brain\.svg\)|🧠)?\s*\*{0,2}Recommended Action:?\*{0,2}/gi, '![Recommended Action](/logos/brain.svg) **Recommended Action:**')
     .replace(/🧠\s*(\*{2}[^*]+\*{2})/g, '![Action](/logos/brain.svg) $1')
-    .replace(/💡\s*(\*{2}[^*]+\*{2})/g, '![Insight](/logos/lightbulb.svg) $1')
+    .replace(/(?:!\[Stripe\]\(\/logos\/stripe\.svg\)|👤)?\s*([A-Za-z0-9\s._-]+(?:\([^\)]+\))?\s*—\s*Account Health Review)/gi, '![Account](/logos/person.svg) $1')
     .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Status:)\*{0,2}/gi, '\n- **Status:**')
     .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(MRR at Risk:)\*{0,2}/gi, '\n- **MRR at Risk:**')
     .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Billing:)\*{0,2}/gi, '\n- **Billing:**')

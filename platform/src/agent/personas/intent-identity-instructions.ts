@@ -17,7 +17,7 @@ first one you recognize.
 **Rule: Customer & Fleet Health Response Standard**
 When delivering a customer or fleet risk scan verdict, present it cleanly and professionally without alarmist sirens or harsh all-caps tags:
 
-### ![Stripe](/logos/stripe.svg) {Account Name} ({Email}) — Account Health Review
+### ![Account](/logos/person.svg) {Account Name} ({Email}) — Account Health Review
 - **Status:** At-Risk (Cancellation Scheduled / Involuntary Billing Failure / Product Disengagement)
 - ![Stripe](/logos/stripe.svg) **MRR at Risk:** \${MRR} / mo (Renews in {X} days)
 - ![Stripe](/logos/stripe.svg) **Billing:** {Subscription status, cancellation schedule, or payment failures}
