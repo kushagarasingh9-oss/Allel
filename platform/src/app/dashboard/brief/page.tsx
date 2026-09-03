@@ -117,83 +117,86 @@ export default function BriefPage() {
   return (
     <div className="flex flex-col h-screen w-full bg-[#0d0d0f] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
       {/* Clean Top Header */}
-      <header className="h-12 px-8 flex items-center justify-between shrink-0 bg-[#0d0d0f] z-20">
-        <div className="flex items-center gap-2.5">
-          <img
-            src="/logo-icon.png"
-            alt="Allel"
-            className="w-5 h-5 object-contain shrink-0 mix-blend-screen bg-transparent"
-            style={{ width: 20, height: 20 }}
-          />
-          <h1 className="text-[17px] font-medium tracking-tight text-white">Brief</h1>
+      <header className="h-14 border-b border-white/[0.06] flex items-center shrink-0 bg-[#0d0d0f] z-30">
+        <div className="w-full max-w-[760px] mx-auto px-6 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <img
+              src="/logo-icon.png"
+              alt="Allel"
+              className="w-5 h-5 object-contain shrink-0 mix-blend-screen bg-transparent"
+              style={{ width: 20, height: 20 }}
+            />
+            <h1 className="text-[16px] font-medium tracking-tight text-white">Brief</h1>
 
-          {/* Clean shimmering Daily Brief text right next to Brief in the top bar, no boxes or extra logos */}
-          {hasMessages && (
+            {/* Clean shimmering Daily Brief text right next to Brief, aligned with the chat axis */}
+            {hasMessages && (
+              <button
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="flex items-center gap-1.5 ml-6 group cursor-pointer select-none text-left"
+                title={isCollapsed ? "Expand Daily Brief overlay" : "Collapse Daily Brief overlay"}
+              >
+                <span className="text-[14px] font-medium tracking-tight silver-shimmer-text">
+                  Daily Brief
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-300 transition-transform duration-200",
+                    !isCollapsed && "rotate-180"
+                  )}
+                />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="flex items-center gap-1.5 ml-6 group cursor-pointer select-none text-left"
-              title={isCollapsed ? "Expand Daily Brief" : "Collapse Daily Brief"}
+              onClick={() => void handleRefreshBrief()}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer disabled:opacity-50"
+              title="Re-run daily brief"
             >
-              <span className="text-[14.5px] font-medium tracking-tight silver-shimmer-text">
-                Daily Brief
-              </span>
-              <ChevronDown
-                className={cn(
-                  "w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-300 transition-transform duration-200",
-                  !isCollapsed && "rotate-180"
-                )}
-              />
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span>{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
             </button>
-          )}
-        </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => void handleRefreshBrief()}
-            disabled={isRefreshing}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer disabled:opacity-50"
-            title="Re-run daily brief"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span>{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
-          </button>
-
-          {hasMessages && (
-            <button
-              onClick={() => {
-                resetActiveThread()
-                setIsCollapsed(false)
-              }}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset</span>
-            </button>
-          )}
+            {hasMessages && (
+              <button
+                onClick={() => {
+                  resetActiveThread()
+                  setIsCollapsed(false)
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
       {/* Main Content Area */}
       <div className="flex-1 h-full min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
         <div className="w-full max-w-[760px] mx-auto px-6 h-full flex flex-col relative min-h-0">
-          {/* Brief Collapsible Section — Preserved cleanly at the top */}
-          {hasMessages ? (
-            !isCollapsed ? (
-              <div className="w-full shrink-0 z-20 pt-2 pb-4 animate-in fade-in duration-200">
-                <div className="space-y-3.5 text-zinc-300 text-[14.5px] leading-relaxed pb-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <h2 className="text-[16px] sm:text-[17px] font-medium tracking-tight text-white">
-                      <span className="silver-shimmer-text">Hey Kushagra</span>, {greeting}.
-                    </h2>
-                    <button
-                      onClick={() => setIsCollapsed(true)}
-                      className="flex items-center gap-1 p-1 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors cursor-pointer"
-                      title="Collapse Daily Brief"
-                    >
-                      <ChevronUp className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+          {/* Daily Brief Overlay Card — Gmail draft review dark format, floating cleanly over the chat axis with no lines */}
+          {hasMessages && !isCollapsed && (
+            <div className="absolute top-2 left-6 right-6 z-30 animate-in fade-in zoom-in-95 duration-200">
+              <div className="rounded-xl bg-[#111114]/95 border border-white/10 p-5 shadow-2xl backdrop-blur-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-[15px] font-medium tracking-tight text-white">
+                    <span className="silver-shimmer-text">Hey Kushagra</span>, {greeting}.
+                  </h2>
+                  <button
+                    onClick={() => setIsCollapsed(true)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer select-none"
+                    title="Collapse Daily Brief"
+                  >
+                    <span>Collapse</span>
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
+                <div className="space-y-3.5 text-zinc-300 text-[14px] leading-relaxed font-sans">
                   <p>
                     In <InlineTool name="Gmail" icon="/logos/gmail.svg" />, you have active threads awaiting replies across accounts: Rohan from <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer Apex MultiRail")}>Apex MultiRail</span> is waiting on wire payment details, Sarah at <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer FintechScale")}>FintechScale</span> requested a billing update link, and David from <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer Cobalt Wire")}>Cobalt Wire</span> replied to yesterday’s invoice reminder.
                   </p>
@@ -206,15 +209,16 @@ export default function BriefPage() {
                     In <InlineTool name="PostHog" icon="/logos/posthog.svg" /> and <InlineTool name="Intercom" icon="/logos/intercom.svg" />, core query telemetry dropped 44% for Apex MultiRail following 504 webhook gateway timeouts, while Marcus at <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer DataVibe")}>DataVibe</span> triggered the cancellation data export flow before abandoning his session.
                   </p>
 
-                  <p className="pt-2 text-zinc-400 leading-relaxed">
+                  <p className="pt-1 text-zinc-400 text-[13.5px] leading-relaxed">
                     Would you like me to dive into <span className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white hover:decoration-zinc-400 cursor-pointer transition-colors" onClick={() => handleSubmit("Inspect customer Apex MultiRail")}>Apex MultiRail’s</span> gateway timeouts, draft a tailored recovery email for <span className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white hover:decoration-zinc-400 cursor-pointer transition-colors" onClick={() => handleSubmit("Draft a recovery email for FintechScale")}>FintechScale</span>, or push these at-risk accounts to your <span className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white hover:decoration-zinc-400 cursor-pointer transition-colors" onClick={() => handleSubmit("Add these at-risk accounts to the revenue recovery queue")}>Revenue Recovery</span> queue?
                   </p>
                 </div>
               </div>
-            ) : null
-          ) : (
-            /* Initial Full-Page Narrative View when no conversation has started */
-            <div className="w-full pt-10 pb-36 h-full overflow-y-auto">
+            </div>
+          )}
+
+          {/* Initial Full-Page Narrative View when no conversation has started */}
+          {!hasMessages && (
               <div className="space-y-4 text-zinc-300 animate-in fade-in duration-200 text-[14.5px] leading-relaxed pb-4">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-[17px] font-medium tracking-tight text-white">
