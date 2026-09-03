@@ -11,6 +11,7 @@
  */
 
 import * as React from "react"
+import { usePathname } from "next/navigation"
 import { Chat, useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import type { UIMessage } from "ai"
@@ -132,13 +133,19 @@ export function ChatProvider({
   const storageUserId = storageScope?.userId ?? null
   const storageWorkspaceId = storageScope?.workspaceId ?? null
 
+  const pathname = usePathname()
+  const isBriefPage = pathname === "/dashboard/brief"
+
   const [savedSessions, setSavedSessions] = React.useState<SavedChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = React.useState<string>(() => {
     if (typeof window !== "undefined") {
+      if (window.location.pathname === "/dashboard/brief") {
+        return "daily-brief"
+      }
       const urlSession = new URLSearchParams(window.location.search).get("sessionId")
-      if (urlSession) return urlSession
+      if (urlSession && urlSession !== "daily-brief") return urlSession
       const stored = window.localStorage.getItem("allel.current-session-id") || window.sessionStorage.getItem("allel.current-session-id")
-      if (stored) return stored
+      if (stored && stored !== "daily-brief") return stored
     }
     const fresh = `session-${Date.now()}`
     if (typeof window !== "undefined") {
@@ -232,7 +239,7 @@ export function ChatProvider({
   const wrappedSendMessage = React.useCallback(
     (options: { text: string }) => {
       if (!messages || messages.length === 0) {
-        if (typeof window !== "undefined") {
+        if (typeof window !== "undefined" && currentSessionId !== "daily-brief" && !isBriefPage) {
           try {
             const url = new URL(window.location.href)
             url.searchParams.set("sessionId", currentSessionId)
@@ -411,6 +418,14 @@ export function ChatProvider({
     clearError()
     chat.messages = []
     setMessages([])
+
+    if (currentSessionId === "daily-brief") {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem("allel.daily-brief-messages")
+      }
+      return
+    }
+
     persistThread()
 
     if (typeof window === "undefined") return
@@ -470,6 +485,71 @@ export function ChatProvider({
   }, [])
 
   // Auto-save active chat session ONLY when streaming completes (status === 'ready')
+  // Isolate Daily Brief session from main task sessions on route navigation
+  React.useEffect(() => {
+    if (isBriefPage) {
+      if (currentSessionId !== "daily-brief") {
+        if (typeof window !== "undefined" && currentSessionId && currentSessionId !== "daily-brief") {
+          window.sessionStorage.setItem("allel.last-task-session-id", currentSessionId)
+        }
+        stop()
+        clearError()
+        isSwitchingSessionRef.current = true
+        chatRef.current = null
+        restoredSessionIdRef.current = "daily-brief"
+        currentSessionIdRef.current = "daily-brief"
+        setCurrentSessionId("daily-brief")
+
+        if (typeof window !== "undefined") {
+          const raw = window.sessionStorage.getItem("allel.daily-brief-messages")
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw)
+              setMessages(Array.isArray(parsed) ? parsed : [])
+            } catch {
+              setMessages([])
+            }
+          } else {
+            setMessages([])
+          }
+        } else {
+          setMessages([])
+        }
+        isSwitchingSessionRef.current = false
+      }
+    } else if (pathname === "/dashboard") {
+      if (currentSessionId === "daily-brief") {
+        const urlSession = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sessionId") : null
+        const lastTask = typeof window !== "undefined" ? window.sessionStorage.getItem("allel.last-task-session-id") : null
+        const targetId = (urlSession && urlSession !== "daily-brief") ? urlSession : (lastTask || `session-${Date.now()}`)
+
+        stop()
+        clearError()
+        isSwitchingSessionRef.current = true
+
+        const found = savedSessions.find((s) => s.id === targetId)
+        if (found) {
+          if (chatRef.current) {
+            chatRef.current.chat.messages = found.messages
+          }
+          pendingLoadRef.current = found.messages
+          skipHydrationRef.current = true
+          restoredSessionIdRef.current = found.id
+          currentSessionIdRef.current = found.id
+          setCurrentSessionId(found.id)
+          setMessages(found.messages)
+        } else {
+          chatRef.current = null
+          restoredSessionIdRef.current = targetId
+          currentSessionIdRef.current = targetId
+          setCurrentSessionId(targetId)
+          setMessages([])
+        }
+        isSwitchingSessionRef.current = false
+      }
+    }
+  }, [pathname, isBriefPage, currentSessionId, savedSessions, stop, clearError, setMessages])
+
   React.useEffect(() => {
     if (typeof window === "undefined" || messages.length === 0) return
     if (isSwitchingSessionRef.current || isHydratingSessionRef.current) return
@@ -478,12 +558,19 @@ export function ChatProvider({
     const hasUserMsg = messages.some((m) => m.role === "user")
     if (!hasUserMsg) return
 
+    if (currentSessionId === "daily-brief" || isBriefPage) {
+      try {
+        window.sessionStorage.setItem("allel.daily-brief-messages", JSON.stringify(messages))
+      } catch {
+        // Ignore
+      }
+      return
+    }
+
     try {
       const url = new URL(window.location.href)
       if (url.searchParams.get("sessionId") !== currentSessionId) {
-        if (!url.pathname.startsWith("/dashboard/brief")) {
-          url.pathname = "/dashboard"
-        }
+        url.pathname = "/dashboard"
         url.searchParams.set("sessionId", currentSessionId)
         window.history.pushState({}, "", url.toString())
       }
@@ -522,7 +609,7 @@ export function ChatProvider({
       }
       return updated
     })
-  }, [messages, currentSessionId, status])
+  }, [messages, currentSessionId, status, isBriefPage])
 
   const startNewChat = React.useCallback(() => {
     stop()
@@ -532,9 +619,7 @@ export function ChatProvider({
     if (typeof window !== "undefined") {
       try {
         const url = new URL(window.location.href)
-        if (!url.pathname.startsWith("/dashboard/brief")) {
-          url.pathname = "/dashboard"
-        }
+        url.pathname = "/dashboard"
         url.searchParams.delete("sessionId")
         window.history.pushState({}, "", url.toString())
       } catch {
@@ -572,9 +657,7 @@ export function ChatProvider({
     if (typeof window !== "undefined") {
       try {
         const url = new URL(window.location.href)
-        if (!url.pathname.startsWith("/dashboard/brief")) {
-          url.pathname = "/dashboard"
-        }
+        url.pathname = "/dashboard"
         url.searchParams.set("sessionId", session.id)
         window.history.pushState({}, "", url.toString())
       } catch {

@@ -122,9 +122,11 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
       }
 
       // Keep all distinct sessions (deduplicated strictly by sessionId, never title!)
-      const finalSessions = Array.from(map.values()).sort(
-        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      );
+      const finalSessions = Array.from(map.values())
+        .filter((s) => s.sessionId !== "daily-brief" && !s.sessionId.startsWith("brief-"))
+        .sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
 
       setHistorySessions(finalSessions);
     } catch (err) {
@@ -264,8 +266,8 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
       );
     }
 
-    if (pathname !== "/dashboard/brief" && pathname !== "/dashboard") {
-      router.push(`/dashboard/brief?sessionId=${encodeURIComponent(sessionId)}`);
+    if (pathname !== "/dashboard") {
+      router.push(`/dashboard?sessionId=${encodeURIComponent(sessionId)}`);
     } else {
       const url = new URL(window.location.href);
       url.searchParams.set("sessionId", sessionId);
@@ -476,7 +478,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                   ) : (
                     visibleHistorySessions.map((session) => {
                       const isSelected = Boolean(
-                        (pathname === "/dashboard" || pathname === "/dashboard/brief") &&
+                        pathname === "/dashboard" &&
                         !isResolving &&
                         activeSessionId === session.sessionId
                       );
