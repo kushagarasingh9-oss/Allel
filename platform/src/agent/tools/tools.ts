@@ -279,6 +279,52 @@ async function listLiveStripeAccounts(workspaceId: string): Promise<LiveStripeAc
     }
   }
 
+  if ((accountsData?.length ?? 0) > 0) {
+    return (accountsData ?? [])
+      .map((acc) => {
+        const linkedCustomerIds = Array.from(internalAccountIdByStripeCustomerId.entries())
+          .filter(([, accId]) => accId === acc.id)
+          .map(([stripeCustId]) => stripeCustId)
+
+        const customerSubscriptions: typeof subscriptions = []
+        for (const custId of linkedCustomerIds) {
+          const subs = byCustomer.get(custId) ?? []
+          customerSubscriptions.push(...subs)
+        }
+
+        const latestPeriodEnd = customerSubscriptions
+          .map((subscription) => subscription.currentPeriodEnd)
+          .sort((left, right) => right.getTime() - left.getTime())[0]
+
+        const status = customerSubscriptions.length > 0
+          ? selectLiveStripeStatus(customerSubscriptions.map((s) => s.status))
+          : (acc.account_status ?? 'active')
+
+        const cancelAtPeriodEnd = customerSubscriptions.some((s) => s.cancelAtPeriodEnd)
+        const activeMrrCents = customerSubscriptions
+          .filter((s) => ['active', 'trialing', 'past_due', 'unpaid', 'incomplete'].includes(s.status))
+          .reduce((total, s) => total + s.mrrCents, 0)
+
+        const displayMrrCents = (acc.mrr_cents && acc.mrr_cents > 0) ? acc.mrr_cents : activeMrrCents
+        const primaryStripeCustomerId = linkedCustomerIds[0] ?? `cus_canonical_${acc.id.slice(0, 8)}`
+
+        return {
+          accountId: acc.id,
+          stripeCustomerId: primaryStripeCustomerId,
+          name: acc.name,
+          email: acc.contact_email || null,
+          plan: acc.plan_name || (displayMrrCents >= 300000 ? 'Enterprise Scale Plan' : displayMrrCents >= 150000 ? 'Growth Platform Tier' : 'Pro Tier'),
+          status: normalizeLiveStripeStatus(acc.account_status || status),
+          mrrCents: displayMrrCents,
+          riskLevel: liveStripeRisk(status, cancelAtPeriodEnd),
+          cancelAtPeriodEnd,
+          currentPeriodEnd: latestPeriodEnd?.toISOString() ?? null,
+          subscriptionCount: Math.max(1, customerSubscriptions.length),
+        }
+      })
+      .sort((left, right) => right.mrrCents - left.mrrCents)
+  }
+
   return Array.from(byCustomer.entries())
     .map(([stripeCustomerId, customerSubscriptions]) => {
       const latestPeriodEnd = customerSubscriptions

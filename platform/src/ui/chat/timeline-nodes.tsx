@@ -671,17 +671,20 @@ export function AgentSpeechBlock({
     const found: Array<{ name: string; slug: string; logoUrl?: string }> = []
 
     for (const p of PROVIDERS_CONFIG) {
-      // Must explicitly mention the provider name in close proximity to a disconnected/unconnected phrase
+      // Must explicitly state that the integration itself is not configured or disconnected in settings
       const disconnectedPatterns = [
-        new RegExp(`\\b${p.slug}\\b[^.\\n]*?(?:not connected|isn't connected|disconnected|unconnected|needs to be connected|no connected data)`, 'i'),
-        new RegExp(`(?:not connected|isn't connected|disconnected|unconnected|connect)\\s+(?:to\\s+)?\\b${p.slug}\\b`, 'i'),
+        new RegExp(`(?:your|the|workspace)?\\s*\\b${p.slug}\\b\\s+(?:integration\\s+)?(?:is\\s+)?(?:not connected|unconnected|not configured|missing credentials|needs to be connected)`, 'i'),
+        new RegExp(`(?:please\\s+)?connect\\s+(?:your\\s+)?\\b${p.slug}\\b\\s+(?:integration|account|in settings)`, 'i'),
       ]
 
       const isExplicitlyDisconnected = disconnectedPatterns.some((rgx) => rgx.test(text))
 
-      // Double check that it is NOT also reported as successfully active, found, or having live data
-      const isFoundOrActive = new RegExp(`(?:found|active|connected|synced|past due|events|invoices)\\s+[^.\\n]*?\\b${p.slug}\\b`, 'i').test(text) ||
-                              new RegExp(`\\b${p.slug}\\b[^.\\n]*?(?:found|active|synced|past due|live)`, 'i').test(text)
+      // If the text mentions live metrics, events, usage, subscriptions, or invoices, it is ACTIVE
+      const isFoundOrActive =
+        new RegExp(`(?:found|active|connected|synced|past due|events|invoices|telemetry|usage)\\s+[^.\\n]*?\\b${p.slug}\\b`, 'i').test(text) ||
+        new RegExp(`\\b${p.slug}\\b[^.\\n]*?(?:found|active|synced|past due|live|events|telemetry|usage)`, 'i').test(text) ||
+        (p.slug === 'posthog' && /usage|events|telemetry|signals/i.test(text) && !/posthog integration is not connected/i.test(text)) ||
+        (p.slug === 'stripe' && /mrr|invoices|billing|revenue/i.test(text) && !/stripe integration is not connected/i.test(text))
 
       if (isExplicitlyDisconnected && !isFoundOrActive) {
         found.push({ name: p.name, slug: p.slug, logoUrl: p.logoUrl })

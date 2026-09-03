@@ -229,6 +229,7 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   getRecoveryCases: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   getRecoveryCaseDetail: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   getRecoveryMetrics: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  getFleetHealthSummary: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
 
   addTimelineEvent: <Database className="w-4 h-4 text-neutral-500" />,
   createSignal: <Zap className="w-4 h-4 text-neutral-500" />,
@@ -248,6 +249,7 @@ const TOOL_LABELS: Record<string, string> = {
   getAccountRecoveryStatus: "Planning recovery outreach",
   getRecoveryMetrics: "Analyzing recovery performance metrics",
   getUnifiedFleetScan: "Scanning workspace revenue & fleet health",
+  getFleetHealthSummary: "Scanning portfolio health & revenue risk",
   requestMoreTools: "Expanding tool capabilities",
   webSearchTool: "Searching web intelligence",
   webExtractTool: "Extracting webpage content",
