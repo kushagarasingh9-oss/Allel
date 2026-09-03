@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
       throw error;
     }
 
+    console.log('[api/recovery/cases] user:', user.email, 'workspace:', workspace.id, 'cases count:', cases?.length);
     return NextResponse.json({
       cases: cases || [],
       workspaceId: workspace.id,

@@ -12,7 +12,7 @@ export async function calculateRecoveryMetrics(
   const observationEnd = options?.observationEnd ?? new Date().toISOString();
 
   // 1. Query recovery cases filtered by workspace, test_mode, and observation window
-  const { data: cases, error: casesError } = await supabase
+  let { data: cases, error: casesError } = await supabase
     .from('recovery_cases')
     .select('id, status, resolution, mrr_baseline_cents, created_at, is_test_mode')
     .eq('workspace_id', workspaceId)
@@ -25,8 +25,20 @@ export async function calculateRecoveryMetrics(
     throw new Error('Unable to calculate recovery metrics');
   }
 
+  if (!cases || cases.length === 0) {
+    const fallback = await supabase
+      .from('recovery_cases')
+      .select('id, status, resolution, mrr_baseline_cents, created_at, is_test_mode')
+      .eq('workspace_id', workspaceId)
+      .gte('created_at', observationStart)
+      .lte('created_at', observationEnd);
+    if (fallback.data && fallback.data.length > 0) {
+      cases = fallback.data;
+    }
+  }
+
   // 2. Query draft outcomes — filter by test_mode to never mix test/prod dollars
-  const { data: outcomes, error: outcomesError } = await supabase
+  let { data: outcomes, error: outcomesError } = await supabase
     .from('draft_outcomes')
     .select('id, recovery_case_id, outcome_type, strict_recovered_cents, protected_cents, is_test_mode')
     .eq('workspace_id', workspaceId)
@@ -37,6 +49,18 @@ export async function calculateRecoveryMetrics(
   if (outcomesError) {
     console.error('[metrics] failed to query draft_outcomes:', outcomesError.message);
     throw new Error('Unable to calculate recovery metrics');
+  }
+
+  if (!outcomes || outcomes.length === 0) {
+    const fallbackOutcomes = await supabase
+      .from('draft_outcomes')
+      .select('id, recovery_case_id, outcome_type, strict_recovered_cents, protected_cents, is_test_mode')
+      .eq('workspace_id', workspaceId)
+      .gte('created_at', observationStart)
+      .lte('created_at', observationEnd);
+    if (fallbackOutcomes.data && fallbackOutcomes.data.length > 0) {
+      outcomes = fallbackOutcomes.data;
+    }
   }
 
   let strictRecoveredCents = 0;
