@@ -212,19 +212,19 @@ export default function SettingsPage() {
         </div>
 
         {/* Search */}
-        <div className="relative mb-8">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+        <div className="relative mb-6">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
           <input
             type="text"
             placeholder="Search connections..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#161618] border border-white/[0.08] rounded-xl py-3 pl-10 pr-4 text-[13px] text-white outline-none focus:border-white/20 transition-colors placeholder:text-zinc-500 shadow-xs"
+            className="w-full bg-[#0c0c0e] border border-white/10 rounded-sm py-2 pl-9 pr-4 text-xs text-white outline-none focus:border-white/25 transition-colors placeholder:text-zinc-500 shadow-xs"
           />
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((app) => {
             const isConnected = connectedProviders.has(app.provider)
             const isDisconnecting = disconnectingProvider === app.provider
@@ -232,31 +232,31 @@ export default function SettingsPage() {
             return (
               <div
                 key={app.provider}
-                className="bg-[#161618] border border-white/[0.08] rounded-xl p-5 flex flex-col justify-between min-h-[170px] shadow-xs hover:border-white/[0.2] transition-all group"
+                className="bg-[#101012] border border-white/[0.08] rounded-sm p-4 flex flex-col justify-between min-h-[140px] shadow-xs hover:border-white/[0.2] transition-all group"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 flex items-center justify-center shrink-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-6 h-6 flex items-center justify-center shrink-0">
                         {app.icon}
                       </div>
-                      <h3 className="text-[15px] font-medium text-white tracking-tight">
+                      <h3 className="text-sm font-medium text-white tracking-tight">
                         {app.name}
                       </h3>
                     </div>
 
                     {isConnected ? (
                       <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-xs bg-emerald-500/10 border border-emerald-500/20">
                           <div className="w-[5px] h-[5px] rounded-full bg-emerald-400 animate-pulse" />
-                          <span className="text-emerald-400 text-[11px] font-medium tracking-wide">
+                          <span className="text-emerald-400 text-[10px] font-medium tracking-wide">
                             Connected
                           </span>
                         </div>
                         <button
                           onClick={() => handleDisconnect(app.provider)}
                           disabled={isDisconnecting || isPending}
-                          className="text-[12px] font-medium text-zinc-400 hover:text-red-400 transition-colors disabled:opacity-50 cursor-pointer"
+                          className="text-[11px] font-medium text-zinc-400 hover:text-red-400 transition-colors disabled:opacity-50 cursor-pointer"
                         >
                           {isDisconnecting ? 'Disconnecting…' : 'Disconnect'}
                         </button>
@@ -264,13 +264,13 @@ export default function SettingsPage() {
                     ) : (
                       <button
                         onClick={() => setConnectingModalApp(app)}
-                        className="px-3 py-1.5 rounded-md text-xs font-medium bg-white text-black hover:bg-zinc-200 transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                        className="px-2.5 py-1 rounded-sm text-xs font-medium bg-white text-black hover:bg-zinc-200 transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
                       >
                         Connect
                       </button>
                     )}
                   </div>
-                  <p className="text-[13px] text-zinc-400 mt-2 leading-[1.6] group-hover:text-zinc-200 transition-colors">
+                  <p className="text-xs text-zinc-400 mt-2 leading-relaxed group-hover:text-zinc-300 transition-colors line-clamp-2">
                     {app.description}
                   </p>
                 </div>

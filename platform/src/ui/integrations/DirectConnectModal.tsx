@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useTransition } from 'react'
-import { X, Key, CheckCircle2, AlertCircle, Loader2, ExternalLink, Eye, EyeOff, Zap } from 'lucide-react'
+import { X, CheckCircle2, AlertCircle, Loader2, ExternalLink, Eye, EyeOff } from 'lucide-react'
 import {
   connectStripe,
   connectPostHog,
@@ -12,7 +12,6 @@ import {
   connectSlack,
   connectAirtable,
   connectIntercom,
-  connectDemoIntegrationSafe,
   getGmailConnectUrl,
   getIntercomConnectUrl,
 } from '@/app/dashboard/settings/actions'
@@ -30,8 +29,8 @@ type Props = {
 
 const HINTS: Partial<Record<IntegrationProvider, { placeholder: string; docUrl: string; label: string }>> = {
   stripe: {
-    label: 'Stripe Secret or Restricted Key',
-    placeholder: 'rk_live_... or sk_test_...',
+    label: 'Stripe Secret Key',
+    placeholder: 'sk_test_... or sk_live_...',
     docUrl: 'https://dashboard.stripe.com/apikeys',
   },
   posthog: {
@@ -41,7 +40,7 @@ const HINTS: Partial<Record<IntegrationProvider, { placeholder: string; docUrl: 
   },
   notion: {
     label: 'Notion Integration Secret',
-    placeholder: 'ntn_... or secret_...',
+    placeholder: 'secret_...',
     docUrl: 'https://www.notion.so/my-integrations',
   },
   linear: {
@@ -87,7 +86,6 @@ export default function DirectConnectModal({
   provider,
   providerLabel,
   icon,
-  unlockDescription,
   onSuccess,
 }: Props) {
   const [apiKey, setApiKey] = useState('')
@@ -108,7 +106,7 @@ export default function DirectConnectModal({
   const usesOAuthConnect = isGoogleProvider
 
   const hint = HINTS[provider] ?? {
-    label: `${providerLabel} API Key / Token`,
+    label: `${providerLabel} API Key`,
     placeholder: 'Enter API key...',
     docUrl: '#',
   }
@@ -143,43 +141,17 @@ export default function DirectConnectModal({
     })
   }
 
-  const handleQuickConnect = () => {
-    setError(null)
-    startTransition(async () => {
-      try {
-        await connectDemoIntegrationSafe(provider)
-        onSuccess(provider, `${providerLabel} connected!`)
-        onClose()
-      } catch (err: unknown) {
-        if (typeof err === 'object' && err !== null && 'digest' in err && typeof err.digest === 'string' && err.digest.startsWith('NEXT_REDIRECT')) {
-          const digest = (err as { digest: string }).digest
-          if (digest.includes('error=')) {
-            const errorMatch = digest.match(/error=([^&]*)/)
-            setError(errorMatch ? decodeURIComponent(errorMatch[1]) : 'Quick connect failed.')
-            return
-          }
-          onSuccess(provider, `${providerLabel} connected!`)
-          onClose()
-          return
-        }
-        setError('Quick connect failed.')
-      }
-    })
-  }
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
+    if (!apiKey.trim()) {
+      setError('Please enter a valid API key.')
+      return
+    }
+
     startTransition(async () => {
       try {
-        if (!apiKey.trim()) {
-          await connectDemoIntegrationSafe(provider)
-          onSuccess(provider, `${providerLabel} connected!`)
-          onClose()
-          return
-        }
-
         switch (provider) {
           case 'stripe':
             await connectStripe(apiKey.trim())
@@ -209,8 +181,7 @@ export default function DirectConnectModal({
             await connectAirtable(apiKey.trim())
             break
           default:
-            await connectDemoIntegrationSafe(provider)
-            break
+            throw new Error(`Unsupported provider: ${provider}`)
         }
 
         onSuccess(provider, `${providerLabel} connected successfully!`)
@@ -236,64 +207,56 @@ export default function DirectConnectModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in font-sans">
-      <div className="relative w-full max-w-md bg-[#191919] border border-[#282828] rounded-2xl shadow-2xl overflow-hidden p-6 text-white transition-all select-none">
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-neutral-400 hover:text-white transition-colors p-1 rounded-md hover:bg-white/5"
-        >
-          <X className="w-4 h-4" />
-        </button>
-
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
+      <div className="relative w-full max-w-[420px] bg-[#101012] border border-white/[0.12] rounded-sm shadow-2xl p-5 text-white select-none">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-            {icon}
-          </div>
-          <div>
-            <h3 className="text-base font-medium text-white tracking-tight flex items-center gap-2">
+        <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-sm bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
+              {icon}
+            </div>
+            <h3 className="text-sm font-medium text-white tracking-tight">
               Connect {providerLabel}
             </h3>
-            <p className="text-[11px] text-neutral-400">
-              Encrypted with AES-256 GCM in Supabase
-            </p>
           </div>
+          <button
+            onClick={onClose}
+            className="text-zinc-500 hover:text-white transition-colors p-1 rounded-sm hover:bg-white/5 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* Description */}
-        <p className="text-xs text-neutral-400 mb-5 leading-relaxed bg-[#17171E] border border-white/5 p-3 rounded-lg">
-          {unlockDescription}
-        </p>
-
-        {/* OAuth is the only safe connection mechanism for Gmail and Intercom. */}
+        {/* OAuth Connect */}
         {usesOAuthConnect && (
-          <div className="mb-2">
+          <div className="space-y-4">
             {isIntercomProvider && (
-              <label className="block text-xs text-neutral-300 mb-2">
-                Intercom workspace region
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-300 mb-1.5">
+                  Intercom workspace region
+                </label>
                 <select
                   value={intercomRegion}
                   onChange={(event) => setIntercomRegion(event.target.value as 'us' | 'eu' | 'au')}
                   disabled={isPending}
-                  className="mt-1.5 w-full bg-[#0B0B0E] border border-[#24242A] rounded-lg py-2 px-3 text-xs text-white outline-none focus:border-white/30"
+                  className="w-full bg-[#0a0a0c] border border-white/10 rounded-sm py-2 px-3 text-xs text-white outline-none focus:border-white/30 cursor-pointer"
                 >
                   <option value="us">United States</option>
                   <option value="eu">Europe</option>
                   <option value="au">Australia</option>
                 </select>
-              </label>
+              </div>
             )}
             <button
               type="button"
               onClick={handleOAuthConnect}
               disabled={isPending}
-              className="w-full py-2.5 px-4 rounded-lg bg-white text-black hover:bg-neutral-200 text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+              className="w-full py-2.5 px-4 rounded-sm bg-white text-black hover:bg-zinc-200 text-xs font-semibold transition-colors flex items-center justify-center gap-2 shadow-xs disabled:opacity-50 cursor-pointer"
             >
               {isPending ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Connecting with Google…</span>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Connecting…</span>
                 </>
               ) : (
                 <>
@@ -302,123 +265,104 @@ export default function DirectConnectModal({
                 </>
               )}
             </button>
-            <p className="text-[11px] text-neutral-500 text-center mt-2">
-              {isIntercomProvider
-                ? 'Uses Intercom OAuth. Customer access tokens are never requested or stored.'
-                : provider === 'google_calendar'
-                ? 'Google OAuth is required for private Calendar data. App passwords and API keys are not supported.'
-                : 'Authenticates directly using Google OAuth. App passwords and API keys are not supported.'}
-            </p>
           </div>
         )}
 
         {usesOAuthConnect && error && (
-          <div className="flex items-center gap-2 p-2.5 mt-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+          <div className="flex items-center gap-2 p-2.5 mt-3 rounded-sm bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Form for providers that support direct credentials */}
+        {/* Form for direct credentials */}
         {!usesOAuthConnect && (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-medium text-neutral-300 flex items-center gap-1.5">
-                <Key className="w-3.5 h-3.5 text-neutral-400" />
-                {hint.label}
-              </label>
-              {hint.docUrl !== '#' && (
-                <a
-                  href={hint.docUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[11px] text-neutral-400 hover:text-white transition-colors flex items-center gap-1"
+          <form onSubmit={handleSubmit} className="space-y-3.5">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[11px] font-medium text-zinc-300">
+                  {hint.label}
+                </label>
+                {hint.docUrl !== '#' && (
+                  <a
+                    href={hint.docUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-zinc-500 hover:text-white transition-colors flex items-center gap-1"
+                  >
+                    <span>Get Key</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+
+              <div className="relative">
+                <input
+                  type={showKey ? 'text' : 'password'}
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={hint.placeholder}
+                  className="w-full bg-[#0a0a0c] border border-white/10 rounded-sm py-2 pl-3 pr-9 text-xs text-white outline-none focus:border-white/30 transition-colors placeholder:text-zinc-600 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey(!showKey)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 cursor-pointer"
                 >
-                  <span>Get Key</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
+                  {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
 
-            <div className="relative">
-              <input
-                type={showKey ? 'text' : 'password'}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={hint.placeholder}
-                className="w-full bg-[#0B0B0E] border border-[#24242A] rounded-lg py-2.5 pl-3.5 pr-10 text-xs text-white outline-none focus:border-white/30 transition-colors placeholder:text-neutral-600"
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey(!showKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 transition-colors"
-              >
-                {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-          </div>
+            {provider === 'intercom' && (
+              <div>
+                <label className="text-[11px] font-medium text-zinc-300 block mb-1.5">
+                  Intercom Workspace Region
+                </label>
+                <select
+                  value={intercomRegion}
+                  onChange={(e) => setIntercomRegion(e.target.value as 'us' | 'eu' | 'au')}
+                  disabled={isPending}
+                  className="w-full bg-[#0a0a0c] border border-white/10 rounded-sm py-2 px-3 text-xs text-white outline-none focus:border-white/30 cursor-pointer"
+                >
+                  <option value="us">United States (Default)</option>
+                  <option value="eu">Europe</option>
+                  <option value="au">Australia</option>
+                </select>
+              </div>
+            )}
 
-          {provider === 'intercom' && (
-            <div>
-              <label className="text-xs font-medium text-neutral-300 block mb-1.5">
-                Intercom Workspace Region
-              </label>
-              <select
-                value={intercomRegion}
-                onChange={(e) => setIntercomRegion(e.target.value as 'us' | 'eu' | 'au')}
-                disabled={isPending}
-                className="w-full bg-[#0B0B0E] border border-[#24242A] rounded-lg py-2.5 px-3 text-xs text-white outline-none focus:border-white/30"
-              >
-                <option value="us">United States (Default)</option>
-                <option value="eu">Europe</option>
-                <option value="au">Australia</option>
-              </select>
-            </div>
-          )}
+            {(provider === 'posthog' || provider === 'linear' || provider === 'sentry' || provider === 'slack') && (
+              <div>
+                <label className="text-[11px] font-medium text-zinc-300 block mb-1.5">
+                  {provider === 'posthog' && 'Project / Workspace ID (Optional)'}
+                  {provider === 'linear' && 'Team Key (Optional)'}
+                  {provider === 'sentry' && 'Organization Slug (Optional)'}
+                  {provider === 'slack' && 'Default Channel (Optional)'}
+                </label>
+                <input
+                  type="text"
+                  value={secondaryInput}
+                  onChange={(e) => setSecondaryInput(e.target.value)}
+                  placeholder="Optional secondary detail..."
+                  className="w-full bg-[#0a0a0c] border border-white/10 rounded-sm py-2 px-3 text-xs text-white outline-none focus:border-white/30 transition-colors placeholder:text-zinc-600 font-mono"
+                />
+              </div>
+            )}
 
-          {(provider === 'posthog' || provider === 'linear' || provider === 'sentry' || provider === 'slack') && (
-            <div>
-              <label className="text-xs font-medium text-neutral-300 block mb-1.5">
-                {provider === 'posthog' && 'Project / Workspace ID (Optional)'}
-                {provider === 'linear' && 'Team Key (Optional)'}
-                {provider === 'sentry' && 'Organization Slug (Optional)'}
-                {provider === 'slack' && 'Default Channel (Optional)'}
-              </label>
-              <input
-                type="text"
-                value={secondaryInput}
-                onChange={(e) => setSecondaryInput(e.target.value)}
-                placeholder="Optional secondary detail..."
-                className="w-full bg-[#0B0B0E] border border-[#24242A] rounded-lg py-2.5 px-3.5 text-xs text-white outline-none focus:border-white/30 transition-colors placeholder:text-neutral-600"
-              />
-            </div>
-          )}
+            {error && (
+              <div className="flex items-center gap-2 p-2 rounded-sm bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
-          {error && (
-            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="pt-2 flex items-center justify-between gap-2.5">
-            <button
-              type="button"
-              onClick={handleQuickConnect}
-              disabled={isPending}
-              className="px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 text-xs font-medium transition-all flex items-center gap-1.5 disabled:opacity-50"
-            >
-              <Zap className="w-3.5 h-3.5" />
-              <span>1-Click Test Connect</span>
-            </button>
-
-            <div className="flex items-center gap-2">
+            {/* Action Buttons — Cancel & Connect Key Only */}
+            <div className="pt-3 mt-4 border-t border-white/[0.06] flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3 py-2 rounded-lg text-xs font-medium text-neutral-400 hover:text-white hover:bg-white/5 transition-all"
+                className="px-3 py-1.5 rounded-sm text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -426,7 +370,7 @@ export default function DirectConnectModal({
               <button
                 type="submit"
                 disabled={isPending}
-                className="px-4 py-2 rounded-lg bg-white text-black hover:bg-neutral-200 text-xs font-medium transition-all flex items-center gap-1.5 shadow-md disabled:opacity-50"
+                className="px-3.5 py-1.5 rounded-sm bg-white text-black hover:bg-zinc-200 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
               >
                 {isPending ? (
                   <>
@@ -441,24 +385,24 @@ export default function DirectConnectModal({
                 )}
               </button>
             </div>
-          </div>
 
-          {isIntercomProvider && (
-            <div className="pt-2 border-t border-white/5">
-              <button
-                type="button"
-                onClick={handleOAuthConnect}
-                disabled={isPending}
-                className="w-full py-2 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white text-xs font-medium transition-all flex items-center justify-center gap-2 border border-white/5 disabled:opacity-50"
-              >
-                <img src="/logos/intercom.svg" alt="Intercom" className="w-3.5 h-3.5 object-contain" />
-                <span>Or Connect with Intercom OAuth</span>
-              </button>
-            </div>
-          )}
-        </form>
+            {isIntercomProvider && (
+              <div className="pt-2 border-t border-white/5">
+                <button
+                  type="button"
+                  onClick={handleOAuthConnect}
+                  disabled={isPending}
+                  className="w-full py-1.5 px-3 rounded-sm bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-medium transition-colors flex items-center justify-center gap-2 border border-white/5 disabled:opacity-50 cursor-pointer"
+                >
+                  <img src="/logos/intercom.svg" alt="Intercom" className="w-3.5 h-3.5 object-contain" />
+                  <span>Or Connect with Intercom OAuth</span>
+                </button>
+              </div>
+            )}
+          </form>
         )}
       </div>
     </div>
   )
 }
+
