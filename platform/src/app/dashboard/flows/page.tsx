@@ -78,6 +78,23 @@ function formatStatus(value: string) {
   return value.replaceAll('_', ' ')
 }
 
+function accountDomain(item: ApiCase) {
+  const relation = Array.isArray(item.customer_accounts)
+    ? item.customer_accounts[0]
+    : item.customer_accounts
+  return relation?.domain || null
+}
+
+function humanizeReason(item: ApiCase) {
+  if (item.action_reason) return item.action_reason
+  if (item.trigger_event_type === 'invoice.payment_failed') return 'Failed invoice payment'
+  if (item.trigger_event_type === 'customer.subscription.deleted') return 'Subscription cancelled'
+  if (item.trigger_event_type === 'customer.subscription.updated') return 'Subscription plan changed'
+  if (item.trigger_event_type === 'charge.failed') return 'Payment card declined'
+  if (item.trigger_event_type.includes('usage')) return 'Steep drop in usage'
+  return formatStatus(item.trigger_event_type)
+}
+
 export default function WorkflowsPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [cases, setCases] = useState<ApiCase[]>([])
@@ -230,34 +247,86 @@ export default function WorkflowsPage() {
             <thead className="border-b border-white/[0.06] bg-white/[0.01] text-[12px] font-normal text-zinc-400">
               <tr>
                 <th className="px-4 py-3 font-normal">Account</th>
-                <th className="px-4 py-3 font-normal">Trigger</th>
-                <th className="px-4 py-3 font-normal">Risk</th>
-                <th className="px-4 py-3 font-normal">MRR</th>
-                <th className="px-4 py-3 font-normal">Status</th>
-                <th className="px-4 py-3 text-right font-normal">Inspect</th>
+                <th className="px-4 py-3 font-normal">MRR at Risk</th>
+                <th className="px-4 py-3 font-normal">Risk Level</th>
+                <th className="px-4 py-3 font-normal">Trigger Reason</th>
+                <th className="px-4 py-3 text-right font-normal">Outreach Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.04]">
               {filteredCases.map(item => (
                 <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="px-4 py-3.5 font-medium text-white text-[13px]">{accountName(item)}</td>
                   <td className="px-4 py-3.5">
-                    <div className="capitalize text-zinc-300 font-medium">{item.trigger_provider}</div>
-                    <div className="text-zinc-500 text-[11px]">{formatStatus(item.trigger_event_type)}</div>
+                    <div className="font-medium text-white text-[13px]">{accountName(item)}</div>
+                    {accountDomain(item) && (
+                      <div className="text-zinc-500 text-[11px] mt-0.5">{accountDomain(item)}</div>
+                    )}
                   </td>
                   <td className="px-4 py-3.5">
-                    <div className="capitalize font-medium text-zinc-200">{item.severity}</div>
-                    <div className="text-zinc-500 text-[11px]">{item.risk_score}/100 · {(item.score_confidence * 100).toFixed(0)}% confidence</div>
+                    <span className="font-medium text-white text-[13px]">{formatMoney(item.mrr_baseline_cents)}</span>
+                    <span className="text-zinc-500 text-[11px]"> /mo</span>
                   </td>
-                  <td className="px-4 py-3.5 font-medium text-white text-[13px]">{formatMoney(item.mrr_baseline_cents)}</td>
-                  <td className="px-4 py-3.5 capitalize text-zinc-400">{formatStatus(item.status)}</td>
+                  <td className="px-4 py-3.5">
+                    <div className="inline-flex items-center gap-1.5">
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded-xs text-[10px] font-medium uppercase tracking-wider ${
+                        item.severity === 'critical'
+                          ? 'text-red-400 bg-red-500/10 border border-red-500/20'
+                          : item.severity === 'high'
+                            ? 'text-amber-400 bg-amber-500/10 border border-amber-500/20'
+                            : 'text-zinc-400 bg-white/[0.04] border border-white/[0.08]'
+                      }`}>
+                        {item.severity}
+                      </span>
+                      <span className="text-zinc-500 text-[11px]">{item.risk_score}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5 text-zinc-300 text-xs max-w-[240px] truncate" title={item.action_reason || item.trigger_event_type}>
+                    {humanizeReason(item)}
+                  </td>
                   <td className="px-4 py-3.5 text-right">
-                    <button
-                      onClick={() => void loadCaseDetail(item.id)}
-                      className="rounded-sm border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.08] hover:border-white/20 transition-colors cursor-pointer"
-                    >
-                      Inspect
-                    </button>
+                    {item.status === 'awaiting_approval' && (
+                      <button
+                        onClick={() => void loadCaseDetail(item.id)}
+                        className="inline-flex items-center gap-1.5 rounded-sm border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300 hover:bg-amber-500/20 transition-colors cursor-pointer"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        Draft Ready · Review
+                      </button>
+                    )}
+                    {(item.status === 'sent' || item.status === 'monitoring') && (
+                      <button
+                        onClick={() => void loadCaseDetail(item.id)}
+                        className="inline-flex items-center gap-1.5 rounded-sm border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-300 hover:bg-sky-500/20 transition-colors cursor-pointer"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                        Outreach Sent · Monitoring
+                      </button>
+                    )}
+                    {item.status === 'resolved' && (
+                      <button
+                        onClick={() => void loadCaseDetail(item.id)}
+                        className="inline-flex items-center gap-1.5 rounded-sm border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        {item.resolution === 'strictly_recovered' ? 'Payment Recovered' : 'Saved'}
+                      </button>
+                    )}
+                    {item.status === 'suppressed' && (
+                      <button
+                        onClick={() => void loadCaseDetail(item.id)}
+                        className="inline-flex items-center gap-1.5 rounded-sm border border-white/[0.06] bg-transparent px-2.5 py-1 text-xs font-normal text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                      >
+                        Cooling Down
+                      </button>
+                    )}
+                    {!['awaiting_approval', 'sent', 'monitoring', 'resolved', 'suppressed'].includes(item.status) && (
+                      <button
+                        onClick={() => void loadCaseDetail(item.id)}
+                        className="inline-flex items-center gap-1.5 rounded-sm border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
+                      >
+                        {formatStatus(item.status)}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -282,21 +351,80 @@ export default function WorkflowsPage() {
             <div className="mb-6 flex items-start justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-white">{selected.account?.name || accountName(selected.case)}</h2>
-                <p className="text-xs text-zinc-500 mt-0.5">Case {selected.case.id}</p>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  {formatMoney(selected.case.mrr_baseline_cents)} MRR · {humanizeReason(selected.case)}
+                </p>
               </div>
               <button
                 onClick={() => setSelected(null)}
-                className="rounded-sm border border-white/10 px-2.5 py-1 text-xs text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+                className="rounded-sm border border-white/10 px-2.5 py-1 text-xs text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
               >
                 Close
               </button>
             </div>
 
-            <DetailSection title="Evidence"><pre className="whitespace-pre-wrap text-xs text-zinc-400 font-mono">{JSON.stringify(selected.case.evidence_snapshot || [], null, 2)}</pre></DetailSection>
-            <DetailSection title="Canonical features"><div className="grid grid-cols-2 gap-2 text-xs"><Fact label="Payment failures (30d)" value={selected.features?.failed_payment_count_30d ?? '—'} /><Fact label="Usage change" value={selected.features?.usage_delta_percent == null ? '—' : `${selected.features.usage_delta_percent}%`} /><Fact label="Unreplied outbound" value={selected.features?.unreplied_outbound_count ?? '—'} /><Fact label="Last successful payment" value={selected.features?.last_payment_succeeded_at ? new Date(selected.features.last_payment_succeeded_at).toLocaleString() : '—'} /></div></DetailSection>
-            <DetailSection title="Contacts">{selected.contacts.length ? selected.contacts.map(contact => <div key={contact.email} className="mb-1 text-xs text-zinc-300">{contact.email} {contact.is_primary ? '· primary' : ''} {contact.is_provisional ? '· provisional' : '· verified contact'}</div>) : <p className="text-xs text-zinc-500">No linked contacts.</p>}</DetailSection>
-            <DetailSection title="Drafts">{selected.drafts.length ? selected.drafts.map(draft => <div key={draft.id} className="mb-3 rounded-sm border border-white/10 bg-black/30 p-3.5"><div className="font-medium text-white">{draft.subject}</div><div className="mt-1 text-xs text-zinc-400">{draft.body_preview}</div><div className="mt-3 flex items-center justify-between text-xs"><span className="capitalize text-zinc-500">{formatStatus(draft.status)}</span>{draft.status === 'needs_review' && <button disabled={approving === draft.id} onClick={() => void approveDraft(draft.id, selected.case.id)} className="rounded-sm bg-white px-3 py-1.5 font-medium text-black disabled:opacity-50 hover:bg-zinc-200 transition-colors">{approving === draft.id ? 'Approving…' : 'Approve only'}</button>}</div></div>) : <p className="text-xs text-zinc-500">No draft linked to this case.</p>}</DetailSection>
-            <DetailSection title="Workflow jobs">{selected.jobs.length ? selected.jobs.map(job => <div key={job.id} className="mb-1.5 flex justify-between text-xs"><span>{formatStatus(job.job_type)}</span><span className={job.status === 'dead_letter' ? 'text-red-300 font-medium' : 'text-zinc-500'}>{formatStatus(job.status)}</span></div>) : <p className="text-xs text-zinc-500">No jobs linked to this case.</p>}</DetailSection>
+            {/* AI Recovery Outreach Draft */}
+            <DetailSection title="AI Recovery Outreach">
+              {selected.drafts.length ? selected.drafts.map(draft => (
+                <div key={draft.id} className="rounded-sm border border-white/10 bg-black/30 p-4 mb-3">
+                  <div className="flex items-center justify-between text-xs text-zinc-400 mb-2">
+                    <span>To: <strong className="text-zinc-200">{draft.recipient_email || selected.contacts[0]?.email || 'Primary Contact'}</strong></span>
+                    <span className="capitalize text-zinc-500">{formatStatus(draft.status)}</span>
+                  </div>
+                  <div className="font-medium text-white text-sm mb-1">{draft.subject}</div>
+                  <div className="text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed border-t border-white/[0.06] pt-2.5 mt-2.5">{draft.body_preview}</div>
+                  <div className="mt-4 flex items-center justify-end">
+                    {draft.status === 'needs_review' && (
+                      <button
+                        disabled={approving === draft.id}
+                        onClick={() => void approveDraft(draft.id, selected.case.id)}
+                        className="rounded-sm bg-white px-3.5 py-1.5 text-xs font-semibold text-black disabled:opacity-50 hover:bg-zinc-200 transition-colors cursor-pointer"
+                      >
+                        {approving === draft.id ? 'Approving…' : 'Approve & Queue Outreach'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )) : (
+                <p className="text-xs text-zinc-500">No outreach draft queued for this case.</p>
+              )}
+            </DetailSection>
+
+            <DetailSection title="Customer Contacts">
+              {selected.contacts.length ? selected.contacts.map(contact => (
+                <div key={contact.email} className="mb-1 text-xs text-zinc-300">
+                  {contact.email} {contact.is_primary ? '· primary' : ''} {contact.is_provisional ? '· provisional' : '· verified'}
+                </div>
+              )) : <p className="text-xs text-zinc-500">No linked contacts.</p>}
+            </DetailSection>
+
+            <DetailSection title="Signals & Features">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <Fact label="Payment failures (30d)" value={selected.features?.failed_payment_count_30d ?? '—'} />
+                <Fact label="Usage change" value={selected.features?.usage_delta_percent == null ? '—' : `${selected.features.usage_delta_percent}%`} />
+                <Fact label="Unreplied outbound" value={selected.features?.unreplied_outbound_count ?? '—'} />
+                <Fact label="Last successful payment" value={selected.features?.last_payment_succeeded_at ? new Date(selected.features.last_payment_succeeded_at).toLocaleDateString() : '—'} />
+              </div>
+            </DetailSection>
+
+            <details className="mt-4 text-xs text-zinc-500 cursor-pointer">
+              <summary className="hover:text-zinc-300 transition-colors">Technical Evidence & Audit Logs</summary>
+              <div className="mt-2 space-y-3">
+                <pre className="whitespace-pre-wrap text-[11px] text-zinc-400 font-mono bg-black/40 p-3 rounded-sm border border-white/[0.04]">
+                  {JSON.stringify(selected.case.evidence_snapshot || [], null, 2)}
+                </pre>
+                {selected.jobs.length > 0 && (
+                  <div className="rounded-sm border border-white/[0.04] bg-black/40 p-3">
+                    {selected.jobs.map(job => (
+                      <div key={job.id} className="flex justify-between py-0.5">
+                        <span>{formatStatus(job.job_type)}</span>
+                        <span className={job.status === 'dead_letter' ? 'text-red-300' : 'text-zinc-400'}>{formatStatus(job.status)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </details>
           </div>
         </div>
       )}
