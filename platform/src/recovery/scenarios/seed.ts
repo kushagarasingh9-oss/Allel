@@ -18,7 +18,7 @@ export async function seedScenarios(
   const accountIds: Record<string, string> = {};
 
   for (const def of SCENARIO_MANIFEST_V1) {
-    const domain = `${def.scenarioId.toLowerCase()}.example.com`;
+    const domain = def.contactEmail ? def.contactEmail.split('@')[1] : `${def.scenarioId.toLowerCase()}.example.com`;
 
     // 1. Find existing account by workspace_id and name or scenario_id
     const { data: existingAccount } = await supabase

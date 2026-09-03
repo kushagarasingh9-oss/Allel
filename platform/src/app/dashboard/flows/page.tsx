@@ -89,7 +89,34 @@ function accountDomain(item: ApiCase) {
   const relation = Array.isArray(item.customer_accounts)
     ? item.customer_accounts[0]
     : item.customer_accounts
-  return relation?.domain || null
+  const rawDomain = relation?.domain
+  if (rawDomain && !rawDomain.includes('example.com')) return rawDomain
+
+  const drafts = item.follow_up_drafts
+  const draftEmail = Array.isArray(drafts) && drafts[0]?.approval_metadata?.recipient_email
+  if (draftEmail && draftEmail.includes('@')) {
+    return draftEmail.split('@')[1]
+  }
+
+  const name = accountName(item)
+  const DOMAINS: Record<string, string> = {
+    'Apex MultiRail': 'apexmultirail.co',
+    'Vanguard Infra': 'vanguardinfra.io',
+    'Nexus Flow': 'nexusflow.ai',
+    'Zenith Books': 'zenithbooks.co',
+    'Aura Analytics': 'auraanalytics.com',
+    'FintechScale': 'fintechscale.io',
+    'GridPulse AI': 'gridpulse.io',
+    'DataVibe': 'datavibe.io',
+    'Hyperion Dispatch': 'hyperiondispatch.com',
+    'Cobalt Core': 'cobaltcore.io',
+    'KryptonDB': 'kryptondb.org',
+    'Vortex Data': 'vortexdata.ai',
+    'Beacon Shield': 'beaconshield.com',
+    'Lattice Systems': 'latticesys.io',
+    'Prism Storefronts': 'prismstorefronts.com',
+  }
+  return DOMAINS[name] || (rawDomain && !rawDomain.includes('example.com') ? rawDomain : null)
 }
 
 function humanizeReason(item: ApiCase) {
