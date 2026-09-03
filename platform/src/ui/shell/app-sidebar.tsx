@@ -436,8 +436,8 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
             })}
           </nav>
 
-          {/* History Accordion Section — strictly displayed on Brief / Chat views */}
-          {!collapsed && (pathname === "/dashboard" || pathname === "/dashboard/brief") && (
+          {/* History Accordion Section */}
+          {!collapsed && (
             <div className="flex flex-col gap-1 pt-3 flex-1 overflow-hidden">
               <button
                 type="button"
