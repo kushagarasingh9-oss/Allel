@@ -199,12 +199,12 @@ export default function WorkflowsPage() {
         </div>
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1 p-0.5 rounded-lg border border-white/[0.08] bg-[#111114]">
+          <div className="flex items-center gap-1 p-0.5 rounded-sm border border-white/10 bg-[#0c0c0e]">
             {['all', 'awaiting_approval', 'monitoring', 'resolved'].map(status => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-all cursor-pointer select-none ${
+                className={`rounded-xs px-3 py-1.5 text-xs font-medium capitalize transition-all cursor-pointer select-none ${
                   statusFilter === status
                     ? 'bg-white/[0.08] text-white shadow-xs'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.02]'
@@ -220,14 +220,14 @@ export default function WorkflowsPage() {
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
               placeholder="Filter cases..."
-              className="rounded-lg border border-white/[0.08] bg-[#111114] py-1.5 pl-8 pr-3 text-xs text-white outline-none focus:border-white/20 transition-colors placeholder:text-zinc-500"
+              className="rounded-sm border border-white/10 bg-[#0c0c0e] py-1.5 pl-8 pr-3 text-xs text-white outline-none focus:border-white/20 transition-colors placeholder:text-zinc-500"
             />
           </label>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-white/[0.08] bg-[#111114]">
+        <div className="overflow-hidden rounded-sm border border-white/10 bg-[#0c0c0e] shadow-xs">
           <table className="w-full text-left text-xs">
-            <thead className="border-b border-white/[0.06] text-[12px] font-normal text-zinc-400">
+            <thead className="border-b border-white/[0.06] bg-white/[0.01] text-[12px] font-normal text-zinc-400">
               <tr>
                 <th className="px-4 py-3 font-normal">Account</th>
                 <th className="px-4 py-3 font-normal">Trigger</th>
@@ -254,7 +254,7 @@ export default function WorkflowsPage() {
                   <td className="px-4 py-3.5 text-right">
                     <button
                       onClick={() => void loadCaseDetail(item.id)}
-                      className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.08] hover:border-white/20 transition-colors cursor-pointer"
+                      className="rounded-sm border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.08] hover:border-white/20 transition-colors cursor-pointer"
                     >
                       Inspect
                     </button>
@@ -312,7 +312,7 @@ function Metric({
   value: string
 }) {
   return (
-    <div className="rounded-lg border border-white/[0.08] bg-[#111114] p-5 transition-colors hover:border-white/[0.16]">
+    <div className="rounded-sm border border-white/10 bg-[#0c0c0e] p-5 shadow-xs transition-colors hover:border-white/20">
       <div className="text-[13px] font-normal text-zinc-400">
         {label}
       </div>
