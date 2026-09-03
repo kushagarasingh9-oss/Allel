@@ -331,6 +331,49 @@ export default function WorkflowsPage() {
     return statusMatches && searchMatches
   }), [cases, searchQuery, statusFilter])
 
+  const liveMetrics = useMemo(() => {
+    let atRiskCents = 0
+    let protectedCents = 0
+    let recoveredCents = 0
+    let engagedCount = 0
+
+    for (const c of cases) {
+      const mrr = c.mrr_baseline_cents || 0
+      const status = c.status
+      const resolution = c.resolution
+
+      if (status === 'awaiting_approval' || status === 'open' || status === 'action_proposed' || status === 'analyzing') {
+        atRiskCents += mrr
+      } else if (status === 'sent' || status === 'monitoring' || status === 'approved') {
+        protectedCents += mrr
+        engagedCount += 1
+      } else if (status === 'resolved') {
+        if (resolution === 'strictly_recovered') {
+          recoveredCents += mrr
+        } else {
+          protectedCents += mrr
+        }
+        engagedCount += 1
+      }
+    }
+
+    if (metrics) {
+      recoveredCents = Math.max(recoveredCents, metrics.strictRecoveredCents || 0)
+      protectedCents = Math.max(protectedCents, metrics.protectedCents || 0)
+      if (atRiskCents === 0 && metrics.atRiskCents) {
+        atRiskCents = metrics.atRiskCents
+      }
+      engagedCount = Math.max(engagedCount, (metrics.engagedCases || 0) + (metrics.productRecoveredCases || 0))
+    }
+
+    return {
+      recoveredFormatted: formatMoney(recoveredCents),
+      protectedFormatted: formatMoney(protectedCents),
+      atRiskFormatted: formatMoney(atRiskCents),
+      engagedCases: engagedCount,
+    }
+  }, [cases, metrics])
+
   async function handleQuickSend(caseId: string, accName?: string) {
     setSendingCaseId(caseId)
     setNotice(null)
@@ -339,17 +382,17 @@ export default function WorkflowsPage() {
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(payload.error || 'Failed to dispatch outreach')
       setSentSuccessCaseId(caseId)
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      setCases(prev => prev.map(c => c.id === caseId ? { ...c, status: 'monitoring', sent_at: new Date().toISOString() } : c))
+      await new Promise(resolve => setTimeout(resolve, 800))
       await refresh()
       if (selected && selected.case.id === caseId) {
         await loadCaseDetail(caseId)
       }
-      setNotice({ tone: 'success', text: payload.message || `Outreach dispatched for ${accName || 'account'}. Shifted to Monitoring.` })
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Failed to dispatch outreach' })
     } finally {
       setSendingCaseId(null)
-      setSentSuccessCaseId(null)
+      setTimeout(() => setSentSuccessCaseId(null), 2500)
     }
   }
 
@@ -403,19 +446,19 @@ export default function WorkflowsPage() {
         <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Metric
             label="Recovered Revenue"
-            value={metrics?.revenueSavedFormatted ?? '$0'}
+            value={liveMetrics.recoveredFormatted}
           />
           <Metric
             label="Protected Revenue"
-            value={metrics ? formatMoney(metrics.protectedCents) : '$0'}
+            value={liveMetrics.protectedFormatted}
           />
           <Metric
             label="MRR at Risk"
-            value={metrics ? formatMoney(metrics.atRiskCents) : '$0'}
+            value={liveMetrics.atRiskFormatted}
           />
           <Metric
             label="Engaged Cases"
-            value={metrics ? String(metrics.engagedCases + metrics.productRecoveredCases) : '0'}
+            value={String(liveMetrics.engagedCases)}
           />
         </div>
 
@@ -548,7 +591,7 @@ export default function WorkflowsPage() {
                                   </div>
 
                                   <div className="mb-2.5">
-                                    <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
+                                    <div className="text-[11px] font-medium text-zinc-400 mb-1">
                                       Subject
                                     </div>
                                     <input
@@ -561,15 +604,15 @@ export default function WorkflowsPage() {
                                   </div>
 
                                   <div className="mb-3">
-                                    <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
-                                      Message Body
+                                    <div className="text-[11px] font-medium text-zinc-400 mb-1">
+                                      Body
                                     </div>
                                     <textarea
                                       rows={7}
                                       value={editBody}
                                       onChange={(e) => setEditBody(e.target.value)}
                                       className="w-full bg-black/60 border border-white/15 rounded-xs p-2 text-xs text-zinc-200 focus:outline-none focus:border-white/40 resize-y font-sans leading-relaxed"
-                                      placeholder="Message body..."
+                                      placeholder="Email body..."
                                     />
                                   </div>
 
@@ -656,18 +699,18 @@ export default function WorkflowsPage() {
                                     </button>
                                   </div>
 
-                                  <div className="mb-2">
-                                    <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
+                                  <div className="mb-3">
+                                    <div className="text-[11px] font-medium text-zinc-400 mb-1">
                                       Subject
                                     </div>
-                                    <div className="text-xs font-medium text-white leading-snug">
+                                    <div className="text-[13px] font-medium text-white leading-snug">
                                       {draftInfo.subject}
                                     </div>
                                   </div>
 
-                                  <div className="mt-2.5">
-                                    <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
-                                      Message Preview
+                                  <div>
+                                    <div className="text-[11px] font-medium text-zinc-400 mb-1">
+                                      Body
                                     </div>
                                     <p className="text-xs text-zinc-300 leading-relaxed font-normal whitespace-pre-wrap max-h-56 overflow-y-auto pr-1">
                                       {draftInfo.bodyPreview}
@@ -798,7 +841,7 @@ export default function WorkflowsPage() {
                     {isEditingModal ? (
                       <div className="space-y-3 mt-2">
                         <div>
-                          <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">Subject</div>
+                          <div className="text-[11px] font-medium text-zinc-400 mb-1">Subject</div>
                           <input
                             type="text"
                             value={editSubject}
@@ -807,7 +850,7 @@ export default function WorkflowsPage() {
                           />
                         </div>
                         <div>
-                          <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">Message</div>
+                          <div className="text-[11px] font-medium text-zinc-400 mb-1">Body</div>
                           <textarea
                             rows={8}
                             value={editBody}

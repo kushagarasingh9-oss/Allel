@@ -6757,17 +6757,36 @@ export const getAccountRecoveryStatus = tool({
     'Returns the active recovery case, draft status, and latest outcome for that account.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    customerAccountId: z.string().describe('The customer account UUID'),
+    customerAccountId: z.string().optional().describe('The customer account UUID (optional if accountName is provided)'),
+    accountName: z.string().optional().describe('The customer account name (e.g. "Apex MultiRail")'),
   }),
-  execute: async ({ workspaceId, customerAccountId }) => {
+  execute: async ({ workspaceId, customerAccountId, accountName }) => {
     const supabase = createServiceClient()
+    let targetAccountId = customerAccountId
+
+    if (!targetAccountId && accountName) {
+      const { data: foundAcc } = await supabase
+        .from('customer_accounts')
+        .select('id, name')
+        .eq('workspace_id', workspaceId)
+        .ilike('name', `%${accountName.trim()}%`)
+        .limit(1)
+        .maybeSingle()
+      if (foundAcc) {
+        targetAccountId = foundAcc.id
+      }
+    }
+
+    if (!targetAccountId) {
+      return { error: `Could not find an account matching ${accountName || customerAccountId}` }
+    }
 
     // 1. Fetch active cases
     const { data: cases, error } = await supabase
       .from('recovery_cases')
-      .select('id, status, severity, risk_score, score_confidence, mrr_baseline_cents, trigger_event_type, action_type, resolution, opened_at, resolved_at, sent_at, approved_at')
+      .select('id, status, severity, risk_score, score_confidence, mrr_baseline_cents, trigger_event_type, action_type, resolution, opened_at, resolved_at, sent_at, approved_at, monitoring_started_at')
       .eq('workspace_id', workspaceId)
-      .eq('customer_account_id', customerAccountId)
+      .eq('customer_account_id', targetAccountId)
       .order('opened_at', { ascending: false })
       .limit(3)
 
@@ -6778,13 +6797,13 @@ export const getAccountRecoveryStatus = tool({
       .from('account_contacts')
       .select('name, email, phone, role, is_primary')
       .eq('workspace_id', workspaceId)
-      .eq('customer_account_id', customerAccountId)
+      .eq('customer_account_id', targetAccountId)
 
     const { data: accountData } = await supabase
       .from('customer_accounts')
       .select('name, contact_email, plan_name')
       .eq('workspace_id', workspaceId)
-      .eq('id', customerAccountId)
+      .eq('id', targetAccountId)
       .maybeSingle()
 
     const contacts = (contactsData && contactsData.length > 0)
@@ -6805,22 +6824,40 @@ export const getAccountRecoveryStatus = tool({
           }
         ]
 
-    // 3. Fetch or construct draft
+    // 3. Fetch draft from follow_up_drafts or draft_responses
+    const { data: followUpDraft } = await supabase
+      .from('follow_up_drafts')
+      .select('id, subject, body_preview, approval_metadata, status, created_at')
+      .eq('workspace_id', workspaceId)
+      .eq('customer_account_id', targetAccountId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
     const { data: existingDraft } = await supabase
       .from('draft_responses')
       .select('id, subject, recipient, body, status, created_at')
       .eq('workspace_id', workspaceId)
-      .eq('customer_account_id', customerAccountId)
+      .eq('customer_account_id', targetAccountId)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
     const primaryContact = contacts.find(c => c.isPrimary) || contacts[0]
-    const recipientEmail = primaryContact?.email || accountData?.contact_email || 'contact@customer.com'
+    const recipientEmail = followUpDraft?.approval_metadata?.recipient_email || primaryContact?.email || accountData?.contact_email || 'contact@customer.com'
     const recipientName = primaryContact?.name?.split(' ')[0] || accountData?.name || 'there'
 
     let draft: { id?: string; subject: string; recipientEmail: string; recipientName?: string; body: string; status: string } | null = null
-    if (existingDraft) {
+    if (followUpDraft) {
+      draft = {
+        id: followUpDraft.id,
+        subject: followUpDraft.subject,
+        recipientEmail,
+        recipientName,
+        body: followUpDraft.body_preview,
+        status: followUpDraft.status,
+      }
+    } else if (existingDraft) {
       draft = {
         id: existingDraft.id,
         subject: existingDraft.subject,
@@ -6845,6 +6882,7 @@ export const getAccountRecoveryStatus = tool({
 
     const active = cases?.find(c => !['resolved', 'suppressed'].includes(c.status))
     const latest = cases?.[0]
+    const isMonitoring = active?.status === 'monitoring'
 
     return {
       status: cases && cases.length > 0 ? 'active' : 'evaluated',
@@ -6859,6 +6897,17 @@ export const getAccountRecoveryStatus = tool({
       actionPlan: active?.action_type ?? 'founder_concierge_outreach',
       contacts,
       draft,
+      isMonitoring,
+      monitoringDetails: isMonitoring ? {
+        status: 'active_monitoring',
+        sentAt: active.sent_at,
+        monitoringStartedAt: active.monitoring_started_at || active.sent_at,
+        listeningFor: [
+          'Webhook 504 errors resolved in PostHog telemetry',
+          'Payment clearance or invoice settlement in Stripe',
+          'Customer reply or engagement in Intercom / email',
+        ],
+      } : null,
       approvedAt: active?.approved_at ?? null,
       sentAt: active?.sent_at ?? null,
       lastResolution: latest?.resolution ?? null,
