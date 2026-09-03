@@ -199,15 +199,15 @@ export default function WorkflowsPage() {
         </div>
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 rounded-sm border border-white/10 bg-[#111114] p-1 shadow-xs">
+          <div className="flex items-center gap-1 p-0.5 rounded-lg border border-white/[0.08] bg-[#111114]">
             {['all', 'awaiting_approval', 'monitoring', 'resolved'].map(status => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
-                className={`rounded-sm px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
+                className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-all cursor-pointer select-none ${
                   statusFilter === status
-                    ? 'bg-white text-black font-semibold shadow-xs'
-                    : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+                    ? 'bg-white/[0.08] text-white shadow-xs'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.02]'
                 }`}
               >
                 {formatStatus(status)}
@@ -215,33 +215,46 @@ export default function WorkflowsPage() {
             ))}
           </div>
           <label className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
             <input
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
-              placeholder="Filter live cases..."
-              className="rounded-sm border border-white/10 bg-[#111114] py-2 pl-9 pr-4 text-xs text-white outline-none focus:border-white/20 transition-colors placeholder:text-zinc-500 shadow-xs"
+              placeholder="Filter cases..."
+              className="rounded-lg border border-white/[0.08] bg-[#111114] py-1.5 pl-8 pr-3 text-xs text-white outline-none focus:border-white/20 transition-colors placeholder:text-zinc-500"
             />
           </label>
         </div>
 
-        <div className="overflow-hidden rounded-sm border border-white/10 bg-[#111114] shadow-xs">
+        <div className="overflow-hidden rounded-lg border border-white/[0.08] bg-[#111114]">
           <table className="w-full text-left text-xs">
-            <thead className="bg-white/[0.02] border-b border-white/[0.06] text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-              <tr><th className="p-3.5">Account</th><th className="p-3.5">Trigger</th><th className="p-3.5">Risk</th><th className="p-3.5">MRR</th><th className="p-3.5">Status</th><th className="p-3.5 text-right">Inspect</th></tr>
+            <thead className="border-b border-white/[0.06] text-[12px] font-normal text-zinc-400">
+              <tr>
+                <th className="px-4 py-3 font-normal">Account</th>
+                <th className="px-4 py-3 font-normal">Trigger</th>
+                <th className="px-4 py-3 font-normal">Risk</th>
+                <th className="px-4 py-3 font-normal">MRR</th>
+                <th className="px-4 py-3 font-normal">Status</th>
+                <th className="px-4 py-3 text-right font-normal">Inspect</th>
+              </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.04]">
               {filteredCases.map(item => (
                 <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="p-3.5 font-medium text-white">{accountName(item)}</td>
-                  <td className="p-3.5"><div className="capitalize text-zinc-300 font-medium">{item.trigger_provider}</div><div className="text-zinc-500 text-[11px]">{formatStatus(item.trigger_event_type)}</div></td>
-                  <td className="p-3.5"><div className="capitalize font-medium">{item.severity}</div><div className="text-zinc-500 text-[11px]">{item.risk_score}/100 · {(item.score_confidence * 100).toFixed(0)}% confidence</div></td>
-                  <td className="p-3.5 font-medium text-white">{formatMoney(item.mrr_baseline_cents)}</td>
-                  <td className="p-3.5 capitalize text-zinc-300">{formatStatus(item.status)}</td>
-                  <td className="p-3.5 text-right">
+                  <td className="px-4 py-3.5 font-medium text-white text-[13px]">{accountName(item)}</td>
+                  <td className="px-4 py-3.5">
+                    <div className="capitalize text-zinc-300 font-medium">{item.trigger_provider}</div>
+                    <div className="text-zinc-500 text-[11px]">{formatStatus(item.trigger_event_type)}</div>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="capitalize font-medium text-zinc-200">{item.severity}</div>
+                    <div className="text-zinc-500 text-[11px]">{item.risk_score}/100 · {(item.score_confidence * 100).toFixed(0)}% confidence</div>
+                  </td>
+                  <td className="px-4 py-3.5 font-medium text-white text-[13px]">{formatMoney(item.mrr_baseline_cents)}</td>
+                  <td className="px-4 py-3.5 capitalize text-zinc-400">{formatStatus(item.status)}</td>
+                  <td className="px-4 py-3.5 text-right">
                     <button
                       onClick={() => void loadCaseDetail(item.id)}
-                      className="rounded-sm border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-white hover:bg-white/[0.08] hover:border-white/20 transition-colors"
+                      className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.08] hover:border-white/20 transition-colors cursor-pointer"
                     >
                       Inspect
                     </button>
@@ -250,8 +263,16 @@ export default function WorkflowsPage() {
               ))}
             </tbody>
           </table>
-          {!loading && filteredCases.length === 0 && <div className="p-12 text-center text-sm text-zinc-500">No live recovery cases match this view.</div>}
-          {loading && <div className="flex items-center justify-center gap-2 p-12 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading live cases</div>}
+          {!loading && filteredCases.length === 0 && (
+            <div className="py-16 text-center text-xs text-zinc-500">
+              No live recovery cases match this view.
+            </div>
+          )}
+          {loading && (
+            <div className="flex items-center justify-center gap-2 py-16 text-xs text-zinc-500">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading live cases
+            </div>
+          )}
         </div>
       </div>
 
