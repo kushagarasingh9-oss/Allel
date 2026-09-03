@@ -150,13 +150,16 @@ export default function WorkflowsPage() {
 
   return (
     <div className="min-h-screen bg-[#0d0d0f] p-8 text-zinc-300">
-      <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-medium tracking-tight text-white">Revenue Recovery</h1>
-            <p className="mt-1 text-[14px] text-zinc-400">Autonomous churn prevention, telemetry correlation, and founder-approved recovery.</p>
+          <div className="flex items-center gap-3">
+            <img
+              src="/logo-icon.png"
+              alt="Allel"
+              className="w-6 h-6 object-contain shrink-0 mix-blend-screen bg-transparent"
+            />
+            <h1 className="text-2xl sm:text-3xl font-medium tracking-tight text-white">Revenue Recovery</h1>
           </div>
-          <button onClick={() => void refresh()} className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-[#161618] px-3.5 py-2 text-xs font-medium text-zinc-300 hover:text-white hover:border-white/20 transition-all shadow-xs">
+          <button onClick={() => void refresh()} className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-[#141416] px-3.5 py-2 text-xs font-medium text-zinc-400 hover:text-white hover:border-white/20 transition-all shadow-xs">
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </button>
         </div>
@@ -262,10 +265,10 @@ export default function WorkflowsPage() {
 
 function Metric({ label, value, note }: { label: string; value: string; note: string }) {
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-[#161618] p-5 shadow-xs hover:border-white/[0.18] transition-all flex flex-col justify-between min-h-[110px]">
-      <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <div className="mt-2 text-2xl sm:text-3xl font-semibold text-white tracking-tight">{value}</div>
-      <div className="mt-2 text-[12px] text-zinc-400">{note}</div>
+    <div className="rounded-xl border border-white/[0.08] bg-[#141416] p-4 sm:p-5 shadow-xs hover:border-white/[0.16] transition-all flex flex-col justify-between min-h-[105px]">
+      <div className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-zinc-500">{label}</div>
+      <div className="mt-2 text-2xl font-semibold text-white tracking-tight">{value}</div>
+      <div className="mt-1.5 text-[11.5px] text-zinc-500">{note}</div>
     </div>
   )
 }
