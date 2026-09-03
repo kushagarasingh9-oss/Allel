@@ -160,7 +160,7 @@ export default function BriefPage() {
           <div className={hasMessages ? "shrink-0 pt-2 z-10 w-full" : "w-full pt-10 pb-36 h-full overflow-y-auto"}>
             {isCollapsed ? (
               /* Collapsed State: Shimmering Clean "Daily Brief" Text */
-              <div className={`animate-in fade-in duration-200 py-1.5 ${hasMessages ? "border-b border-white/[0.06] mb-1.5" : ""}`}>
+              <div className="animate-in fade-in duration-200 py-1.5 mb-1.5">
                 <button
                   onClick={() => setIsCollapsed(false)}
                   className="flex items-center gap-2 group cursor-pointer text-left select-none"
@@ -174,7 +174,7 @@ export default function BriefPage() {
               </div>
             ) : (
               /* Expanded State: Multi-Customer Flowing Paragraph Narrative */
-              <div className={`space-y-3.5 text-zinc-300 animate-in fade-in duration-200 text-[14.5px] leading-relaxed ${hasMessages ? "border-b border-white/[0.06] pb-3 mb-2 max-h-[35vh] overflow-y-auto custom-scrollbar" : ""}`}>
+              <div className="space-y-3.5 text-zinc-300 animate-in fade-in duration-200 text-[14.5px] leading-relaxed pb-4 mb-2">
                 {/* Greeting in sync with font size + collapse toggle */}
                 <div className="flex items-center justify-between mb-1">
                   <h2 className="text-[16px] sm:text-[17px] font-medium tracking-tight text-white">
