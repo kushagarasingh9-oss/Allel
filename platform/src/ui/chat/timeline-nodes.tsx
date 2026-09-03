@@ -328,8 +328,7 @@ export function AgentReasoningBatch({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            {/* Thin vertical timeline thread */}
-            <div className="mt-2 ml-2 pl-4 border-l border-neutral-300 dark:border-neutral-800/80 flex flex-col gap-3 py-1">
+            <div className="mt-2 ml-2 pl-2 flex flex-col gap-3 py-1">
               {children}
             </div>
           </motion.div>
@@ -566,7 +565,7 @@ export function MonologueBlock({
           >
             <div
               ref={scrollContainerRef}
-              className="max-h-[110px] overflow-y-auto custom-scrollbar pr-2 text-neutral-400/90 whitespace-pre-wrap leading-relaxed text-[12px] border-l border-white/10 pl-2.5"
+              className="max-h-[110px] overflow-y-auto custom-scrollbar pr-2 text-neutral-400/90 whitespace-pre-wrap leading-relaxed text-[12px] pl-2"
             >
               {sanitizedText}
             </div>

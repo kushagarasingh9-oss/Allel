@@ -1783,7 +1783,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
               {group.map((item) => {
                 const toolInput = item.part.input ?? item.part.args ?? item.part.toolInput ?? null
                 return (
-                  <div key={item.index} className="flex flex-col gap-0.5 border-l border-white/10 pl-2.5 my-0.5">
+                  <div key={item.index} className="flex flex-col gap-0.5 pl-2 my-0.5">
                     <ToolThinkingSummary toolName={toolName} input={toolInput} />
                     {item.part.output ? <ToolResultSummary toolName={toolName} result={item.part.output} input={toolInput} isStreaming={isChatStreaming} /> : null}
                   </div>
