@@ -527,7 +527,8 @@ export default function WorkflowsPage() {
                     )}
                   </td>
                 </tr>
-              ))}
+              )
+            })}
             </tbody>
           </table>
           {!loading && filteredCases.length === 0 && (
