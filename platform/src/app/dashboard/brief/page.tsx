@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useChatContext } from '@/ui/chat/chat-provider'
 import { DevinChatBox } from '@/ui/primitives/devin-chat-box'
 import { AgentFeed } from '@/ui/chat/agent-feed'
-import { RotateCcw, ChevronUp, ChevronDown } from 'lucide-react'
+import { RotateCcw, ChevronUp, ChevronDown, RefreshCw } from 'lucide-react'
 
 function InlineTool({ name, icon }: { name: string; icon: string }) {
   return (
@@ -32,8 +32,11 @@ export default function BriefPage() {
   const [inputText, setInputText] = useState('')
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [greeting, setGreeting] = useState('good morning')
+  const [briefData, setBriefData] = useState<{ brief: any; items: any[]; integrations: any[] } | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const hasMessages = messages.length > 0
 
+  // Time-of-day greeting detection
   useEffect(() => {
     const hour = new Date().getHours()
     if (hour >= 5 && hour < 12) {
@@ -47,6 +50,44 @@ export default function BriefPage() {
     }
   }, [])
 
+  // Load authoritative brief from database
+  const loadBrief = useCallback(async () => {
+    try {
+      const res = await fetch('/api/brief')
+      if (res.ok) {
+        const data = await res.json()
+        setBriefData(data)
+      }
+    } catch (e) {
+      console.error('Failed to load brief:', e)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadBrief()
+  }, [loadBrief])
+
+  const handleRefreshBrief = async () => {
+    if (isRefreshing) return
+    try {
+      setIsRefreshing(true)
+      const res = await fetch('/api/brief', { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setBriefData(prev => ({
+          ...prev,
+          brief: data.brief,
+          items: data.items,
+          integrations: prev?.integrations || [],
+        }))
+      }
+    } catch (e) {
+      console.error('Failed to refresh brief:', e)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   const handleSubmit = (textToSend?: string) => {
     const query = (textToSend || inputText).trim()
     if (!query) return
@@ -59,6 +100,12 @@ export default function BriefPage() {
     sendMessage({ text: query })
     setInputText('')
   }
+
+  // Extract customer accounts from live brief items
+  const apexItem = briefData?.items?.find(i => i.headline?.includes('Apex') || i.customer_accounts?.name?.includes('Apex'))
+  const fintechItem = briefData?.items?.find(i => i.headline?.includes('Fintech') || i.customer_accounts?.name?.includes('Fintech'))
+  const dataVibeItem = briefData?.items?.find(i => i.headline?.includes('DataVibe') || i.customer_accounts?.name?.includes('DataVibe'))
+  const hyperionItem = briefData?.items?.find(i => i.headline?.includes('Hyperion') || i.customer_accounts?.name?.includes('Hyperion'))
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#0d0d0f] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
@@ -74,15 +121,27 @@ export default function BriefPage() {
           <h1 className="text-[17px] font-medium tracking-tight text-white">Brief</h1>
         </div>
 
-        {hasMessages && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => resetActiveThread()}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer"
+            onClick={() => void handleRefreshBrief()}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer disabled:opacity-50"
+            title="Re-run daily brief"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
           </button>
-        )}
+
+          {hasMessages && (
+            <button
+              onClick={() => resetActiveThread()}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset</span>
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Main Content Area */}
@@ -104,7 +163,7 @@ export default function BriefPage() {
                 </button>
               </div>
             ) : (
-              /* Expanded State: Pure Paragraph Narrative */
+              /* Expanded State: Pure Flowing Paragraph Narrative */
               <div className="space-y-3.5 text-zinc-300 animate-in fade-in duration-200 text-[14.5px] leading-relaxed">
                 {/* Greeting in sync with font size + collapse toggle */}
                 <div className="flex items-center justify-between mb-1">
@@ -125,7 +184,7 @@ export default function BriefPage() {
                 </p>
 
                 <p>
-                  Across your billing in <InlineTool name="Stripe" icon="/logos/stripe.svg" />, Apex MultiRail had 2 card retries declined on <code className="text-xs font-mono bg-white/[0.06] px-1.5 py-0.5 rounded text-zinc-200">Card ····4242</code>, while FintechScale transitioned to past due following an unpaid invoice run. In <InlineTool name="PostHog" icon="/logos/posthog.svg" />, Apex MultiRail’s core query volume dropped 44% over the past week, and DataVibe triggered the cancel flow modal before abandoning the session.
+                  Across your billing in <InlineTool name="Stripe" icon="/logos/stripe.svg" />, {apexItem ? 'Apex MultiRail' : '2 accounts'} had card retries declined on <code className="text-xs font-mono bg-white/[0.06] px-1.5 py-0.5 rounded text-zinc-200">Card ····4242</code>, while {fintechItem ? 'FintechScale' : 'an account'} transitioned to past due following an unpaid invoice run{hyperionItem ? ' and Hyperion Dispatch was marked cancelled' : ''}. In <InlineTool name="PostHog" icon="/logos/posthog.svg" />, Apex MultiRail’s core query volume dropped 44% over the past week, and {dataVibeItem ? 'DataVibe' : 'a customer'} triggered the cancel flow modal before abandoning the session.
                 </p>
 
                 <p>
