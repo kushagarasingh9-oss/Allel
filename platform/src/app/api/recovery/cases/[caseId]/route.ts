@@ -51,12 +51,17 @@ export async function GET(
 
     // 3. Draft lifecycle evidence. body_full and raw provider responses are
     // intentionally excluded from a dashboard detail response.
-    const { data: drafts, error: draftsError } = await supabase
+    const { data: rawDrafts, error: draftsError } = await supabase
       .from('follow_up_drafts')
-      .select('id, status, recipient_email, subject, body_preview, content_hash, approved_content_hash, approved_at, approval_expires_at, provider_message_id, provider_thread_id, send_error, sent_at, created_at, updated_at')
+      .select('id, status, subject, body_preview, approval_metadata, created_at, updated_at')
       .eq('recovery_case_id', caseId)
       .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: false });
+
+    const drafts = (rawDrafts ?? []).map((d: any) => ({
+      ...d,
+      recipient_email: d.recipient_email || d.approval_metadata?.recipient_email || null,
+    }));
 
     // 4. Fetch linked outcomes and queue attempts for reviewer inspection.
     const { data: outcomes, error: outcomesError } = await supabase

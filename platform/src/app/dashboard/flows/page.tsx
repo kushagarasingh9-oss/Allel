@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Search } from 'lucide-react'
+import { AlertCircle, Check, CheckCircle2, Loader2, RefreshCw, Search } from 'lucide-react'
 
 type Metrics = {
   revenueSavedFormatted: string
@@ -219,6 +219,7 @@ export default function WorkflowsPage() {
   const [loading, setLoading] = useState(true)
   const [approving, setApproving] = useState<string | null>(null)
   const [sendingCaseId, setSendingCaseId] = useState<string | null>(null)
+  const [sentSuccessCaseId, setSentSuccessCaseId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
 
   const loadCaseDetail = useCallback(async (caseId: string) => {
@@ -272,6 +273,8 @@ export default function WorkflowsPage() {
       const res = await fetch(`/api/recovery/cases/${caseId}/dispatch`, { method: 'POST' })
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(payload.error || 'Failed to dispatch outreach')
+      setSentSuccessCaseId(caseId)
+      await new Promise(resolve => setTimeout(resolve, 1000))
       await refresh()
       if (selected && selected.case.id === caseId) {
         await loadCaseDetail(caseId)
@@ -281,6 +284,7 @@ export default function WorkflowsPage() {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Failed to dispatch outreach' })
     } finally {
       setSendingCaseId(null)
+      setSentSuccessCaseId(null)
     }
   }
 
@@ -434,29 +438,26 @@ export default function WorkflowsPage() {
                           </div>
 
                           {/* Cross-Provider Signals */}
-                          <div className="space-y-1.5 pt-2 border-t border-white/[0.06]">
+                          <div className="space-y-2 pt-2.5 border-t border-white/[0.06]">
                             {diag.stripe && (
-                              <div className="flex items-start gap-2 text-[11px]">
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-xs text-[10px] font-medium bg-[#635BFF]/15 text-[#9E9AFF] border border-[#635BFF]/30 shrink-0">
-                                  Stripe
-                                </span>
-                                <span className="text-zinc-300 leading-tight">{diag.stripe.detail}</span>
+                              <div className="flex items-center gap-2 text-xs">
+                                <img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain shrink-0" />
+                                <span className="text-zinc-200 font-medium">Stripe:</span>
+                                <span className="text-zinc-400 font-normal truncate">{diag.stripe.detail}</span>
                               </div>
                             )}
                             {diag.posthog && (
-                              <div className="flex items-start gap-2 text-[11px]">
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-xs text-[10px] font-medium bg-[#F54E00]/15 text-[#FF8E52] border border-[#F54E00]/30 shrink-0">
-                                  PostHog
-                                </span>
-                                <span className="text-zinc-300 leading-tight">{diag.posthog.detail}</span>
+                              <div className="flex items-center gap-2 text-xs">
+                                <img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain shrink-0" />
+                                <span className="text-zinc-200 font-medium">PostHog:</span>
+                                <span className="text-zinc-400 font-normal truncate">{diag.posthog.detail}</span>
                               </div>
                             )}
                             {diag.support && (
-                              <div className="flex items-start gap-2 text-[11px]">
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-xs text-[10px] font-medium bg-sky-500/15 text-sky-300 border border-sky-500/30 shrink-0">
-                                  Support
-                                </span>
-                                <span className="text-zinc-300 leading-tight">{diag.support.detail}</span>
+                              <div className="flex items-center gap-2 text-xs">
+                                <img src="/logos/intercom.svg" alt="Support" className="w-3.5 h-3.5 object-contain shrink-0" />
+                                <span className="text-zinc-200 font-medium">Support:</span>
+                                <span className="text-zinc-400 font-normal truncate">{diag.support.detail}</span>
                               </div>
                             )}
                           </div>
@@ -468,24 +469,28 @@ export default function WorkflowsPage() {
                       <div className="inline-flex items-center justify-end gap-2.5">
                         <button
                           onClick={() => void loadCaseDetail(item.id)}
-                          className="text-[11px] text-zinc-400 hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
+                          className="text-xs text-zinc-400 hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
                         >
                           Review
                         </button>
                         <button
-                          disabled={sendingCaseId === item.id}
+                          disabled={sendingCaseId === item.id || sentSuccessCaseId === item.id}
                           onClick={() => void handleQuickSend(item.id, accountName(item))}
-                          className="inline-flex items-center gap-1.5 rounded-sm border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300 hover:bg-amber-500/20 transition-colors cursor-pointer disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-80 shadow-xs"
                         >
                           {sendingCaseId === item.id ? (
                             <>
-                              <Loader2 className="w-3 h-3 animate-spin text-amber-400" />
+                              <Loader2 className="w-3 h-3 animate-spin text-black" />
                               Sending…
+                            </>
+                          ) : sentSuccessCaseId === item.id ? (
+                            <>
+                              <Check className="w-3 h-3 text-black stroke-[3]" />
+                              Sent
                             </>
                           ) : (
                             <>
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                              Approve & Send
+                              Send
                             </>
                           )}
                         </button>
@@ -575,17 +580,22 @@ export default function WorkflowsPage() {
                   <div className="mt-4 flex items-center justify-end">
                     {draft.status === 'needs_review' && (
                       <button
-                        disabled={sendingCaseId === selected.case.id || approving === draft.id}
+                        disabled={sendingCaseId === selected.case.id || approving === draft.id || sentSuccessCaseId === selected.case.id}
                         onClick={() => void handleQuickSend(selected.case.id, accountName(selected.case))}
-                        className="rounded-sm bg-white px-3.5 py-1.5 text-xs font-semibold text-black disabled:opacity-50 hover:bg-zinc-200 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                        className="rounded-sm bg-white px-3.5 py-1.5 text-xs font-semibold text-black disabled:opacity-80 hover:bg-zinc-200 transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
                       >
                         {sendingCaseId === selected.case.id ? (
                           <>
                             <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
-                            Dispatching Outreach…
+                            Sending…
+                          </>
+                        ) : sentSuccessCaseId === selected.case.id ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
+                            Sent
                           </>
                         ) : (
-                          'Approve & Send Outreach'
+                          'Send Outreach'
                         )}
                       </button>
                     )}

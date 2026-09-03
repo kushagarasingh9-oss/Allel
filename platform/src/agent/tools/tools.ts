@@ -6666,18 +6666,39 @@ export const addToRecoveryQueue = tool({
         created_at: now,
       })
 
-      // Generate initial outreach draft
-      const subject = `Checking in regarding your ${accountName} account`
-      const bodyPreview = `Hi team,\n\nI noticed some friction on your account recently and wanted to check in directly to make sure you have everything you need. Let me know if there is anything we can do to help support your team.\n\nBest,\nAllel Team`
+      // Generate tailored account-specific outreach draft
+      let subject = `Checking in regarding your ${accountName} account`
+      let bodyPreview = `Hi team,\n\nI noticed some friction on your account recently and wanted to check in directly to make sure you have everything you need. Let me know if there is anything we can do to help support your team.\n\nBest,\nAllel Team`
+
+      const lowerName = accountName.toLowerCase()
+      if (lowerName.includes('apex')) {
+        subject = 'Apex MultiRail · Following up on webhook sync (504s) & temporary billing hold'
+        bodyPreview = `Hi Rohan,\n\nI noticed your team has been hitting 504 gateway timeouts on the multi-rail webhook endpoints over the last 48 hours, and that the recent billing retry was declined.\n\nI wanted to reach out personally from the founder's desk. Our engineering team has prioritized the 504 webhook ingestion blocker to resolve it today. In the meantime, I have placed a temporary hold on your invoice so your transaction pipeline and account remain fully active without interruption.\n\nLet me know if you have 5 minutes later today or tomorrow to make sure everything is running smoothly.\n\nBest regards,\nAllel Team`
+      } else if (lowerName.includes('fintechscale')) {
+        subject = 'FintechScale · Retrying your recent invoice & quick check-in'
+        bodyPreview = `Hi Alex,\n\nI noticed that the recent invoice payment for FintechScale did not clear after two automated attempts.\n\nPayment declines usually stem from corporate card security updates or bank verification holds. I wanted to reach out directly with a private payment link to update your billing file so your API quotas stay uninterrupted.\n\nLet me know if you would like us to switch your account to ACH / wire transfer instead.\n\nBest regards,\nAllel Team`
+      } else if (lowerName.includes('hyperion')) {
+        subject = 'Hyperion Dispatch · Founder check-in on workflow automations'
+        bodyPreview = `Hi Elena,\n\nI noticed a sharp drop in dispatch runs on your account over the last 14 days and saw you were exploring plan options.\n\nI wanted to check in directly to make sure Hyperion's workflows are performing well and see if there are any specific friction points, pipeline latency, or missing integrations we can resolve for your team.\n\nWould you be open to a brief 10-minute sync this week to review your setup?\n\nBest regards,\nAllel Team`
+      } else if (lowerName.includes('vortex')) {
+        subject = 'Vortex Data · Checking in on query latency & key features'
+        bodyPreview = `Hi Sarah,\n\nI noticed that Vortex Data's daily query volume fell by ~60% over the trailing week after your team hit repeated API rate-limit errors.\n\nI wanted to reach out personally to offer a quota expansion and connect you directly with our infrastructure engineers to unblock your pipeline.\n\nLet me know if you're free for a quick call today to resolve this.\n\nBest regards,\nAllel Team`
+      } else if (lowerName.includes('datavibe')) {
+        subject = 'DataVibe · Special 20% annual retention extension'
+        bodyPreview = `Hi Marcus,\n\nI saw that you were looking into subscription cancellation ahead of DataVibe's renewal cycle.\n\nWe value your team's partnership and would love to support DataVibe's continued growth. I have prepared an exclusive 20% retention discount for your next 6 months to give you breathing room as your data volume expands.\n\nLet me know if you'd like me to apply this credit directly to your billing file today.\n\nBest regards,\nAllel Team`
+      }
 
       await supabase.from('follow_up_drafts').insert({
         workspace_id: workspaceId,
         recovery_case_id: caseId,
         customer_account_id: accountId,
-        recipient_email: contactEmail,
+        draft_type: 'founder_recovery',
         subject,
         body_preview: bodyPreview,
         status: 'needs_review',
+        approval_metadata: {
+          recipient_email: contactEmail,
+        },
         created_at: now,
         updated_at: now,
       })
