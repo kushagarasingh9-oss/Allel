@@ -61,7 +61,7 @@ export async function calculateRecoveryMetrics(
       strictRecoveredCents += outcome.strict_recovered_cents || 0;
       protectedCents += outcome.protected_cents || 0;
 
-      const outcomeType = outcome.outcome_type || outcome.outcome;
+      const outcomeType = outcome.outcome_type || (outcome as any).outcome;
       const caseId = outcome.recovery_case_id;
       if (caseId) {
         if (outcomeType === 'engaged' || outcomeType === 'responded') {

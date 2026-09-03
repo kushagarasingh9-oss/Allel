@@ -116,8 +116,8 @@ export default function BriefPage() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#0d0d0f] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
-      {/* Clean Top Header */}
-      <header className="h-14 border-b border-white/[0.06] flex items-center shrink-0 bg-[#0d0d0f] z-30">
+      {/* Clean Top Header — No dividing border */}
+      <header className="h-14 flex items-center shrink-0 bg-[#0d0d0f] z-30">
         <div className="w-full max-w-[760px] mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <img
@@ -128,12 +128,12 @@ export default function BriefPage() {
             />
             <h1 className="text-[16px] font-medium tracking-tight text-white">Brief</h1>
 
-            {/* Clean shimmering Daily Brief text right next to Brief, aligned with the chat axis */}
+            {/* Clean shimmering Daily Brief text on the left */}
             {hasMessages && (
               <button
                 onClick={() => setIsCollapsed(!isCollapsed)}
                 className="flex items-center gap-1.5 ml-6 group cursor-pointer select-none text-left"
-                title={isCollapsed ? "Expand Daily Brief overlay" : "Collapse Daily Brief overlay"}
+                title={isCollapsed ? "Expand Daily Brief" : "Collapse Daily Brief"}
               >
                 <span className="text-[14px] font-medium tracking-tight silver-shimmer-text">
                   Daily Brief
@@ -178,10 +178,10 @@ export default function BriefPage() {
       {/* Main Content Area */}
       <div className="flex-1 h-full min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
         <div className="w-full max-w-[760px] mx-auto px-6 h-full flex flex-col relative min-h-0">
-          {/* Daily Brief Overlay Card — Gmail draft review dark format, floating cleanly over the chat axis with no lines */}
+          {/* Daily Brief Expandable Card — edges on both sides, dark format like Gmail draft review, no divider lines */}
           {hasMessages && !isCollapsed && (
-            <div className="absolute top-2 left-6 right-6 z-30 animate-in fade-in zoom-in-95 duration-200">
-              <div className="rounded-xl bg-[#111114]/95 border border-white/10 p-5 shadow-2xl backdrop-blur-xl">
+            <div className="w-full shrink-0 z-30 pt-2 pb-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="w-full rounded-xl bg-[#111114]/95 border border-white/10 p-5 shadow-2xl backdrop-blur-xl">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-[15px] font-medium tracking-tight text-white">
                     <span className="silver-shimmer-text">Hey Kushagra</span>, {greeting}.
@@ -219,6 +219,7 @@ export default function BriefPage() {
 
           {/* Initial Full-Page Narrative View when no conversation has started */}
           {!hasMessages && (
+            <div className="w-full pt-10 pb-36 h-full overflow-y-auto">
               <div className="space-y-4 text-zinc-300 animate-in fade-in duration-200 text-[14.5px] leading-relaxed pb-4">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-[17px] font-medium tracking-tight text-white">
