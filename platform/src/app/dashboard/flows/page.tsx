@@ -523,157 +523,145 @@ export default function WorkflowsPage() {
                         </span>
 
                         {/* Hover Diagnostic Briefing Card */}
-                        <div className={`absolute left-0 ${isLower ? 'bottom-full mb-2.5' : 'top-full mt-2.5'} hidden group-hover/diag:flex flex-col z-50 w-96 rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl pointer-events-none text-left`}>
-                          {/* Header */}
-                          <div className="font-medium text-[13px] text-white mb-2">
-                            {accountName(item)}
-                          </div>
+                        <div className={`absolute left-0 ${isLower ? 'bottom-full pb-1' : 'top-full pt-1'} hidden group-hover/diag:block z-50`}>
+                          <div className="w-96 rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl pointer-events-auto text-left">
+                            {/* Header */}
+                            <div className="font-medium text-[13px] text-white mb-2">
+                              {accountName(item)}
+                            </div>
 
-                          {/* Core Issue Diagnosis Paragraph */}
-                          <p className="text-xs text-zinc-300 leading-relaxed font-normal mb-3">
-                            {diag.issueSummary}
-                          </p>
+                            {/* Core Issue Diagnosis Paragraph */}
+                            <p className="text-xs text-zinc-300 leading-relaxed font-normal mb-3">
+                              {diag.issueSummary}
+                            </p>
 
-                          {/* Cross-Provider Signals */}
-                          <div className="space-y-1.5">
-                            {diag.stripe && (
-                              <div className="flex items-center gap-2 text-xs">
-                                <img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain shrink-0" />
-                                <span className="text-zinc-300 font-medium">Stripe:</span>
-                                <span className="text-zinc-400 font-normal truncate">{diag.stripe.detail}</span>
-                              </div>
-                            )}
-                            {diag.posthog && (
-                              <div className="flex items-center gap-2 text-xs">
-                                <img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain shrink-0" />
-                                <span className="text-zinc-300 font-medium">PostHog:</span>
-                                <span className="text-zinc-400 font-normal truncate">{diag.posthog.detail}</span>
-                              </div>
-                            )}
-                            {diag.support && (
-                              <div className="flex items-center gap-2 text-xs">
-                                <img src="/logos/intercom.svg" alt="Support" className="w-3.5 h-3.5 object-contain shrink-0" />
-                                <span className="text-zinc-300 font-medium">Support:</span>
-                                <span className="text-zinc-400 font-normal truncate">{diag.support.detail}</span>
-                              </div>
-                            )}
+                            {/* Cross-Provider Signals */}
+                            <div className="space-y-1.5">
+                              {diag.stripe && (
+                                <div className="flex items-center gap-2 text-xs">
+                                  <img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain shrink-0" />
+                                  <span className="text-zinc-300 font-medium">Stripe:</span>
+                                  <span className="text-zinc-400 font-normal truncate">{diag.stripe.detail}</span>
+                                </div>
+                              )}
+                              {diag.posthog && (
+                                <div className="flex items-center gap-2 text-xs">
+                                  <img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain shrink-0" />
+                                  <span className="text-zinc-300 font-medium">PostHog:</span>
+                                  <span className="text-zinc-400 font-normal truncate">{diag.posthog.detail}</span>
+                                </div>
+                              )}
+                              {diag.support && (
+                                <div className="flex items-center gap-2 text-xs">
+                                  <img src="/logos/intercom.svg" alt="Support" className="w-3.5 h-3.5 object-contain shrink-0" />
+                                  <span className="text-zinc-300 font-medium">Support:</span>
+                                  <span className="text-zinc-400 font-normal truncate">{diag.support.detail}</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-right">
+                  <td className="px-5 py-3.5 text-right">
                     {item.status === 'awaiting_approval' && (
-                      <div className="relative group/draft inline-block">
-                        <button
-                          disabled={sendingCaseId === item.id || sentSuccessCaseId === item.id}
-                          onClick={() => void handleQuickSend(item.id, accountName(item))}
-                          className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-80 shadow-xs"
-                        >
-                          {sendingCaseId === item.id ? (
-                            <>
-                              <Loader2 className="w-3 h-3 animate-spin text-black" />
-                              Sending…
-                            </>
-                          ) : sentSuccessCaseId === item.id ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
-                              Sent
-                            </>
-                          ) : (
-                            <>
-                              Send
-                            </>
-                          )}
-                        </button>
+                      <div className="inline-flex items-center justify-end gap-2.5">
+                        <div className="relative group/draft inline-block">
+                          <button
+                            onClick={() => void loadCaseDetail(item.id)}
+                            className="text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer py-1 px-1.5"
+                          >
+                            Review
+                          </button>
 
-                        {/* Floating Email Draft Preview Card on Hover */}
-                        <div className={`absolute right-0 ${isLower ? 'bottom-full pb-1' : 'top-full pt-1'} z-50 ${editingCaseId === item.id ? 'block' : 'hidden group-hover/draft:block'}`}>
-                          <div className="w-[460px] rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl text-left pointer-events-auto">
-                            {editingCaseId === item.id ? (
-                              <div>
-                                <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-white/[0.08]">
-                                  <div className="flex items-center gap-2 text-xs">
-                                    <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />
-                                    <span className="font-medium text-zinc-400">To:</span>
-                                    <span className="text-zinc-200 font-mono text-[11px]">{draftInfo.recipientEmail}</span>
+                          {/* Floating Email Draft Preview Card on Hover */}
+                          <div className={`absolute right-0 ${isLower ? 'bottom-full pb-1' : 'top-full pt-1'} z-50 ${editingCaseId === item.id ? 'block' : 'hidden group-hover/draft:block'}`}>
+                            <div className="w-[460px] rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl text-left pointer-events-auto">
+                              {editingCaseId === item.id ? (
+                                <div>
+                                  <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-white/[0.08]">
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />
+                                      <span className="font-medium text-zinc-400">To:</span>
+                                      <span className="text-zinc-200 font-mono text-[11px]">{draftInfo.recipientEmail}</span>
+                                    </div>
+                                    <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">
+                                      Editing Draft
+                                    </span>
                                   </div>
-                                  <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">
-                                    Editing Draft
-                                  </span>
-                                </div>
 
-                                <div className="mb-2.5">
-                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">
-                                    Subject
+                                  <div className="mb-2.5">
+                                    <div className="text-[11px] font-medium text-zinc-400 mb-1">
+                                      Subject
+                                    </div>
+                                    <input
+                                      type="text"
+                                      value={editSubject}
+                                      onChange={(e) => setEditSubject(e.target.value)}
+                                      className="w-full bg-black/60 border border-white/15 rounded-xs px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-white/40 font-medium"
+                                      placeholder="Subject..."
+                                    />
                                   </div>
-                                  <input
-                                    type="text"
-                                    value={editSubject}
-                                    onChange={(e) => setEditSubject(e.target.value)}
-                                    className="w-full bg-black/60 border border-white/15 rounded-xs px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-white/40 font-medium"
-                                    placeholder="Subject..."
-                                  />
-                                </div>
 
-                                <div className="mb-3">
-                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">
-                                    Body
+                                  <div className="mb-3">
+                                    <div className="text-[11px] font-medium text-zinc-400 mb-1">
+                                      Body
+                                    </div>
+                                    <textarea
+                                      rows={7}
+                                      value={editBody}
+                                      onChange={(e) => setEditBody(e.target.value)}
+                                      className="w-full bg-black/60 border border-white/15 rounded-xs p-2 text-xs text-zinc-200 focus:outline-none focus:border-white/40 resize-y font-sans leading-relaxed [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                                      placeholder="Email body..."
+                                    />
                                   </div>
-                                  <textarea
-                                    rows={8}
-                                    value={editBody}
-                                    onChange={(e) => setEditBody(e.target.value)}
-                                    className="w-full bg-black/60 border border-white/15 rounded-xs p-2 text-xs text-zinc-200 focus:outline-none focus:border-white/40 resize-y font-sans leading-relaxed"
-                                    placeholder="Email body..."
-                                  />
-                                </div>
 
-                                <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.06]">
-                                  <button
-                                    type="button"
-                                    disabled={savingDraft}
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setEditingCaseId(null)
-                                    }}
-                                    className="text-xs text-zinc-400 hover:text-white px-2.5 py-1 transition-colors cursor-pointer"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={savingDraft || draftSavedCaseId === item.id || !editSubject.trim() || !editBody.trim()}
-                                    onClick={async (e) => {
-                                      e.stopPropagation()
-                                      setSavingDraft(true)
-                                      try {
-                                        const res = await fetch(`/api/recovery/cases/${item.id}/draft`, {
-                                          method: 'POST',
-                                          headers: { 'Content-Type': 'application/json' },
-                                          body: JSON.stringify({
-                                            subject: editSubject,
-                                            body_preview: editBody,
-                                            recipient_email: draftInfo.recipientEmail,
-                                          }),
-                                        })
-                                        if (!res.ok) {
-                                          const err = await res.json().catch(() => ({}))
-                                          throw new Error(err.error || 'Failed to save draft')
-                                        }
-                                        setDraftSavedCaseId(item.id)
-                                        await refresh()
-                                        await new Promise(r => setTimeout(r, 900))
+                                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.06]">
+                                    <button
+                                      type="button"
+                                      disabled={savingDraft}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
                                         setEditingCaseId(null)
-                                      } catch (err) {
-                                        console.error('Failed to save draft:', err)
-                                      } finally {
-                                        setSavingDraft(false)
-                                        setDraftSavedCaseId(null)
-                                      }
-                                    }}
-                                    className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-75"
-                                  >
-                                    {draftSavedCaseId === item.id ? (
+                                      }}
+                                      className="text-xs text-zinc-400 hover:text-white px-2.5 py-1 transition-colors cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={savingDraft || draftSavedCaseId === item.id || !editSubject.trim() || !editBody.trim()}
+                                      onClick={async (e) => {
+                                        e.stopPropagation()
+                                        setSavingDraft(true)
+                                        try {
+                                          const res = await fetch(`/api/recovery/cases/${item.id}/draft`, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                              subject: editSubject,
+                                              body_preview: editBody,
+                                              recipient_email: draftInfo.recipientEmail,
+                                            }),
+                                          })
+                                          if (!res.ok) {
+                                            const err = await res.json().catch(() => ({}))
+                                            throw new Error(err.error || 'Failed to save draft')
+                                          }
+                                          setDraftSavedCaseId(item.id)
+                                          await refresh()
+                                          await new Promise(r => setTimeout(r, 900))
+                                          setEditingCaseId(null)
+                                        } catch (err) {
+                                          console.error('Failed to save draft:', err)
+                                        } finally {
+                                          setSavingDraft(false)
+                                          setDraftSavedCaseId(null)
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-75"
+                                    >
+                                      {draftSavedCaseId === item.id ? (
                                         <>
                                           <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
                                           Saved ✓
@@ -686,54 +674,76 @@ export default function WorkflowsPage() {
                                       ) : (
                                         'Save Draft'
                                       )}
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div>
-                                <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-white/[0.08]">
-                                  <div className="flex items-center gap-2 text-xs">
-                                    <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />
-                                    <span className="font-medium text-zinc-400">To:</span>
-                                    <span className="text-zinc-200 font-mono text-[11px]">{draftInfo.recipientEmail}</span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setEditingCaseId(item.id)
-                                      setEditSubject(draftInfo.subject)
-                                      setEditBody(draftInfo.bodyPreview)
-                                    }}
-                                    className="text-[11px] font-medium text-zinc-400 hover:text-white transition-colors cursor-pointer px-2 py-0.5 border border-white/10 hover:border-white/30 rounded-xs bg-white/[0.03]"
-                                  >
-                                    Edit Draft
-                                  </button>
-                                </div>
-
-                                <div className="mb-3">
-                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">
-                                    Subject
-                                  </div>
-                                  <div className="text-[13px] font-medium text-white leading-snug">
-                                    {draftInfo.subject}
+                                    </button>
                                   </div>
                                 </div>
-
+                              ) : (
                                 <div>
-                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">
-                                    Body
+                                  <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-white/[0.08]">
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />
+                                      <span className="font-medium text-zinc-400">To:</span>
+                                      <span className="text-zinc-200 font-mono text-[11px]">{draftInfo.recipientEmail}</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setEditingCaseId(item.id)
+                                        setEditSubject(draftInfo.subject)
+                                        setEditBody(draftInfo.bodyPreview)
+                                      }}
+                                      className="text-[11px] font-medium text-zinc-400 hover:text-white transition-colors cursor-pointer px-2 py-0.5 border border-white/10 hover:border-white/30 rounded-xs bg-white/[0.03]"
+                                    >
+                                      Edit Draft
+                                    </button>
                                   </div>
-                                  <p className="text-xs text-zinc-300 leading-relaxed font-normal whitespace-pre-wrap">
-                                    {draftInfo.bodyPreview}
-                                  </p>
+
+                                  <div className="mb-3">
+                                    <div className="text-[11px] font-medium text-zinc-400 mb-1">
+                                      Subject
+                                    </div>
+                                    <div className="text-[13px] font-medium text-white leading-snug">
+                                      {draftInfo.subject}
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <div className="text-[11px] font-medium text-zinc-400 mb-1">
+                                      Body
+                                    </div>
+                                    <p className="text-xs text-zinc-300 leading-relaxed font-normal whitespace-pre-wrap max-h-56 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                                      {draftInfo.bodyPreview}
+                                    </p>
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
                         </div>
+
+                        <button
+                          disabled={sendingCaseId === item.id || sentSuccessCaseId === item.id}
+                          onClick={() => void handleQuickSend(item.id, accountName(item))}
+                          className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-80 shadow-xs"
+                        >
+                          {sendingCaseId === item.id ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin text-black" />
+                              Sending…
+                            </>
+                          ) : sentSuccessCaseId === item.id ? (
+                            <>
+                              <Check className="w-3 h-3 text-black stroke-[3]" />
+                              Sent
+                            </>
+                          ) : (
+                            <>
+                              Send
+                            </>
+                          )}
+                        </button>
                       </div>
-                    )}       </div>
                     )}
                     {(item.status === 'sent' || item.status === 'monitoring') && (
                       <button
