@@ -980,8 +980,11 @@ export async function scanFleet(
     .select('*')
     .eq('workspace_id', workspaceId)
 
-  if (accountsError) throw accountsError
-  const accounts: RawAccountRow[] = (accountsData ?? []).filter((a: any) => !a.is_provisional)
+  const accounts: RawAccountRow[] = (accountsData ?? []).filter((a: any) => 
+    !a.is_provisional && 
+    !a.name?.startsWith('Stripe ') && 
+    !a.name?.startsWith('PostHog -probe')
+  )
 
   let totalMrrAtRiskCents = 0
   let totalMrrProtectedCents = 0
