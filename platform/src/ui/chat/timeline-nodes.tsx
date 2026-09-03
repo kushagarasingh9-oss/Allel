@@ -609,6 +609,10 @@ function formatTextWithIntegrationLogos(raw: string): string {
     .replace(/(?:📝|📄|📚)\s*(\*{0,2}Notion\b\*{0,2}|\*{0,2}Knowledge Base\b\*{0,2})/gi, '![Notion](/logos/notion.svg) $1')
     .replace(/(?:🏢|🤝)\s*(\*{0,2}HubSpot\b\*{0,2}|\*{0,2}CRM\b\*{0,2})/gi, '![HubSpot](/logos/hubspot.svg) $1')
     .replace(/(?:🎧|🎫)\s*(\*{0,2}Intercom\b\*{0,2}|\*{0,2}Support\b\*{0,2})/gi, '![Intercom](/logos/intercom.svg) $1')
+    .replace(/(?:🧠)\s*(\*{0,2}Recommended Action\b\*{0,2})/gi, '![Recommended Action](/logos/brain.svg) $1')
+    .replace(/(?:💡)\s*(\*{0,2}Likely Root Cause\b\*{0,2})/gi, '![Likely Root Cause](/logos/lightbulb.svg) $1')
+    .replace(/🧠\s*(\*{2}[^*]+\*{2})/g, '![Action](/logos/brain.svg) $1')
+    .replace(/💡\s*(\*{2}[^*]+\*{2})/g, '![Insight](/logos/lightbulb.svg) $1')
 }
 
 export function AgentSpeechBlock({
@@ -703,7 +707,7 @@ export function AgentSpeechBlock({
       transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
       className="w-full text-[13.5px] text-neutral-300 font-normal leading-relaxed mt-1 mb-4 pr-4 max-w-prose"
     >
-      <div className="prose prose-invert prose-sm prose-p:text-neutral-300 prose-p:leading-relaxed prose-p:mb-3.5 prose-pre:bg-[#14141A] prose-pre:border prose-pre:border-white/10 prose-ul:mb-3.5 prose-ul:space-y-2 prose-ul:list-disc prose-ul:pl-5 prose-ol:mb-3.5 prose-ol:space-y-2.5 prose-ol:list-decimal prose-ol:pl-5 prose-li:text-neutral-200 prose-li:leading-relaxed prose-h3:text-[14px] prose-h3:font-medium prose-h3:text-neutral-200 prose-h3:mt-4 prose-h3:mb-2 prose-strong:font-semibold prose-strong:text-white">
+      <div className="prose prose-invert prose-sm prose-p:text-neutral-300 prose-p:leading-relaxed prose-p:mb-3.5 prose-hr:border-none prose-hr:my-2.5 prose-pre:bg-[#14141A] prose-pre:border prose-pre:border-white/10 prose-ul:mb-3.5 prose-ul:space-y-2 prose-ul:list-disc prose-ul:pl-5 prose-ol:mb-3.5 prose-ol:space-y-2.5 prose-ol:list-decimal prose-ol:pl-5 prose-li:text-neutral-200 prose-li:leading-relaxed prose-h3:text-[14px] prose-h3:font-medium prose-h3:text-neutral-200 prose-h3:mt-4 prose-h3:mb-2 prose-strong:font-semibold prose-strong:text-white">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
@@ -714,6 +718,7 @@ export function AgentSpeechBlock({
                 className="inline-block w-4 h-4 object-contain align-text-bottom mx-1 shrink-0"
               />
             ),
+            hr: () => <div className="h-3.5 w-full" />,
           }}
         >
           {formattedText}

@@ -23,8 +23,9 @@ When delivering a customer or fleet risk scan verdict, present it cleanly and pr
 - ![Stripe](/logos/stripe.svg) **Billing:** {Subscription status, cancellation schedule, or payment failures}
 - ![PostHog](/logos/posthog.svg) **Product Usage:** {Usage delta, key feature drop, or inactivity}
 - ![Intercom](/logos/intercom.svg) **Support:** {Unresolved tickets, frustration, or blocker}
-- 💡 **Likely Root Cause:** {Clear explanation of why they are at risk}
-- 🧠 **Recommended Action:** {Personalized rescue action or discount proposal}
+- ![Likely Root Cause](/logos/lightbulb.svg) **Likely Root Cause:** {Clear explanation of why they are at risk}
+- ![Recommended Action](/logos/brain.svg) **Recommended Action:** {Personalized rescue action or discount proposal}
+*(Do not insert horizontal rule dividers (\`---\`); use clean whitespace and section headings).*
 
 **Rule: Autonomous Recovery Evaluation & Outreach Sequence**
 When diagnosing an account (via \`getUnifiedCustomerScan\`):
