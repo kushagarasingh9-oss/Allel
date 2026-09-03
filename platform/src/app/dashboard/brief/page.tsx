@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 import { useChatContext } from '@/ui/chat/chat-provider'
 import { DevinChatBox } from '@/ui/primitives/devin-chat-box'
 import { AgentFeed } from '@/ui/chat/agent-feed'
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw, ChevronUp, ChevronDown } from 'lucide-react'
 
 function InlineTool({ name, icon }: { name: string; icon: string }) {
   return (
@@ -30,6 +30,7 @@ export default function BriefPage() {
   } = useChatContext()
 
   const [inputText, setInputText] = useState('')
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const hasMessages = messages.length > 0
 
   const handleSubmit = (textToSend?: string) => {
@@ -74,29 +75,50 @@ export default function BriefPage() {
       <div className="flex-1 h-full min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
         {!hasMessages ? (
           <div className="w-full max-w-[700px] px-6 pt-10 pb-36 h-full overflow-y-auto">
-            {/* Pure Continuous Paragraph Flow — Zero Bullet Points, Perfect Baseline Alignment */}
-            <div className="space-y-4 text-zinc-300 animate-in fade-in duration-150 text-[14.5px] leading-relaxed">
-              <div>
-                <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">
-                  Hey Kushagra, good morning.
-                </h2>
-                <p className="mt-2.5 text-zinc-300">
-                  Here is your operational update across your customer accounts and connected tools today.
+            {isCollapsed ? (
+              /* Collapsed State: Shimmering Clean "Daily Brief" Text */
+              <div className="animate-in fade-in duration-200 py-1">
+                <button
+                  onClick={() => setIsCollapsed(false)}
+                  className="flex items-center gap-2 group cursor-pointer text-left select-none"
+                  title="Expand briefing"
+                >
+                  <span className="text-[15px] font-medium tracking-tight silver-shimmer-text">
+                    Daily Brief
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
+                </button>
+              </div>
+            ) : (
+              /* Expanded State: Pure Paragraph Narrative */
+              <div className="space-y-3.5 text-zinc-300 animate-in fade-in duration-200 text-[14.5px] leading-relaxed">
+                {/* Greeting in sync with font size + collapse toggle */}
+                <div className="flex items-center justify-between mb-1">
+                  <h2 className="text-[16px] sm:text-[17px] font-medium tracking-tight text-white">
+                    Hey Kushagra, good morning.
+                  </h2>
+                  <button
+                    onClick={() => setIsCollapsed(true)}
+                    className="flex items-center gap-1 p-1 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors cursor-pointer"
+                    title="Collapse to Daily Brief"
+                  >
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <p>
+                  In <InlineTool name="Gmail" icon="/logos/gmail.svg" />, Rohan from Apex MultiRail sent an email asking for wire details, and Sarah at FintechScale replied to yesterday’s check-in. Both threads are waiting on replies — should we prepare drafts for them?
+                </p>
+
+                <p>
+                  Across your billing in <InlineTool name="Stripe" icon="/logos/stripe.svg" />, Apex MultiRail had 2 card retries declined on <code className="text-xs font-mono bg-white/[0.06] px-1.5 py-0.5 rounded text-zinc-200">Card ····4242</code>, while FintechScale transitioned to past due following an unpaid invoice run. In <InlineTool name="PostHog" icon="/logos/posthog.svg" />, Apex MultiRail’s core query volume dropped 44% over the past week, and DataVibe triggered the cancel flow modal before abandoning the session.
+                </p>
+
+                <p>
+                  Over in <InlineTool name="Intercom" icon="/logos/intercom.svg" />, an urgent ticket was opened by Rohan Trivedi regarding checkout payment errors. Tailored drafts and recovery motions are staged — ask below to review any thread, inspect customer evidence, or take action across your tools.
                 </p>
               </div>
-
-              <p>
-                In <InlineTool name="Gmail" icon="/logos/gmail.svg" />, Rohan from Apex MultiRail sent an email asking for wire details, and Sarah at FintechScale replied to yesterday’s check-in. Both threads are waiting on replies — should we prepare drafts for them?
-              </p>
-
-              <p>
-                Across your billing in <InlineTool name="Stripe" icon="/logos/stripe.svg" />, Apex MultiRail had 2 card retries declined on <code className="text-xs font-mono bg-white/[0.06] px-1.5 py-0.5 rounded text-zinc-200">Card ····4242</code>, while FintechScale transitioned to past due following an unpaid invoice run. In <InlineTool name="PostHog" icon="/logos/posthog.svg" />, Apex MultiRail’s core query volume dropped 44% over the past week, and DataVibe triggered the cancel flow modal before abandoning the session.
-              </p>
-
-              <p>
-                Over in <InlineTool name="Intercom" icon="/logos/intercom.svg" />, an urgent ticket was opened by Rohan Trivedi regarding checkout payment errors. Tailored drafts and recovery motions are staged — ask below to review any thread, inspect customer evidence, or take action across your tools.
-              </p>
-            </div>
+            )}
           </div>
         ) : (
           /* Active Agent Execution Feed */
