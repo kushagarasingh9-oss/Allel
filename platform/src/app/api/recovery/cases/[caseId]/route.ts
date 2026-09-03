@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/foundation/database/server';
+import { createServiceClient } from '@/foundation/database/service';
 import { ensureWorkspaceForUser } from '@/data/workspaces/ensure-workspace';
 import { RecoveryApiError, requireWorkspaceRole } from '@/recovery/api-auth';
 
@@ -21,9 +21,10 @@ export async function GET(
 
   try {
     await requireWorkspaceRole(supabase, { workspaceId: workspace.id, userId: user.id });
+    const serviceClient = createServiceClient();
 
     // 1. Fetch case details
-    const { data: recoveryCase, error: caseError } = await supabase
+    const { data: recoveryCase, error: caseError } = await serviceClient
       .from('recovery_cases')
       .select('id, customer_account_id, case_key, status, resolution, severity, risk_score, score_confidence, revenue_priority, mrr_baseline_cents, trigger_provider, trigger_event_type, scenario_id, scenario_run_id, action_type, action_reason, suppression_reason, evidence_snapshot, opened_at, approved_at, sent_at, resolved_at, failed_at, updated_at, customer_accounts(name, domain)')
       .eq('id', caseId)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/foundation/database/server';
+import { createServiceClient } from '@/foundation/database/service';
 import { ensureWorkspaceForUser } from '@/data/workspaces/ensure-workspace';
 import { RecoveryApiError, requireWorkspaceRole } from '@/recovery/api-auth';
 
@@ -25,7 +26,8 @@ export async function GET(request: NextRequest) {
 
   try {
     await requireWorkspaceRole(supabase, { workspaceId: workspace.id, userId: user.id });
-    let query = supabase
+    const serviceClient = createServiceClient();
+    let query = serviceClient
       .from('recovery_cases')
       .select('*, customer_accounts(name, domain)')
       .eq('workspace_id', workspace.id)
