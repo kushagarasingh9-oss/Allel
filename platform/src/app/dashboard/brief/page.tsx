@@ -101,12 +101,6 @@ export default function BriefPage() {
     setInputText('')
   }
 
-  // Extract customer accounts from live brief items
-  const apexItem = briefData?.items?.find(i => i.headline?.includes('Apex') || i.customer_accounts?.name?.includes('Apex'))
-  const fintechItem = briefData?.items?.find(i => i.headline?.includes('Fintech') || i.customer_accounts?.name?.includes('Fintech'))
-  const dataVibeItem = briefData?.items?.find(i => i.headline?.includes('DataVibe') || i.customer_accounts?.name?.includes('DataVibe'))
-  const hyperionItem = briefData?.items?.find(i => i.headline?.includes('Hyperion') || i.customer_accounts?.name?.includes('Hyperion'))
-
   return (
     <div className="flex flex-col h-screen w-full bg-[#0d0d0f] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
       {/* Clean Top Header */}
@@ -163,7 +157,7 @@ export default function BriefPage() {
                 </button>
               </div>
             ) : (
-              /* Expanded State: Pure Flowing Paragraph Narrative */
+              /* Expanded State: Multi-Customer Flowing Paragraph Narrative */
               <div className="space-y-3.5 text-zinc-300 animate-in fade-in duration-200 text-[14.5px] leading-relaxed">
                 {/* Greeting in sync with font size + collapse toggle */}
                 <div className="flex items-center justify-between mb-1">
@@ -180,15 +174,19 @@ export default function BriefPage() {
                 </div>
 
                 <p>
-                  In <InlineTool name="Gmail" icon="/logos/gmail.svg" />, Rohan from Apex MultiRail sent an email asking for wire details, and Sarah at FintechScale replied to yesterday’s check-in. Both threads are waiting on replies — should we prepare drafts for them?
+                  In <InlineTool name="Gmail" icon="/logos/gmail.svg" />, you have active threads awaiting replies across accounts: Rohan from <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer Apex MultiRail")}>Apex MultiRail</span> is waiting on wire payment details, Sarah at <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer FintechScale")}>FintechScale</span> requested a billing update link, and David from <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer Cobalt Wire")}>Cobalt Wire</span> replied to yesterday’s invoice reminder.
                 </p>
 
                 <p>
-                  Across your billing in <InlineTool name="Stripe" icon="/logos/stripe.svg" />, {apexItem ? 'Apex MultiRail' : '2 accounts'} had card retries declined on <code className="text-xs font-mono bg-white/[0.06] px-1.5 py-0.5 rounded text-zinc-200">Card ····4242</code>, while {fintechItem ? 'FintechScale' : 'an account'} transitioned to past due following an unpaid invoice run{hyperionItem ? ' and Hyperion Dispatch was marked cancelled' : ''}. In <InlineTool name="PostHog" icon="/logos/posthog.svg" />, Apex MultiRail’s core query volume dropped 44% over the past week, and {dataVibeItem ? 'DataVibe' : 'a customer'} triggered the cancel flow modal before abandoning the session.
+                  Across your billing in <InlineTool name="Stripe" icon="/logos/stripe.svg" />, multiple accounts require immediate attention: <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer Apex MultiRail")}>Apex MultiRail</span> ($3,500 MRR) had 2 consecutive card retries declined on <code className="text-xs font-mono bg-white/[0.06] px-1.5 py-0.5 rounded text-zinc-200">Card ····4242</code>, while <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer Cobalt Wire")}>Cobalt Wire</span> ($2,060 MRR) and <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer FintechScale")}>FintechScale</span> ($2,000 MRR) transitioned to past due, and <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer Hyperion Dispatch")}>Hyperion Dispatch</span> ($3,000 MRR) was marked cancelled.
                 </p>
 
                 <p>
-                  Over in <InlineTool name="Intercom" icon="/logos/intercom.svg" />, an urgent ticket was opened by Rohan Trivedi regarding checkout payment errors. Tailored drafts and recovery motions are staged — ask below to review any thread, inspect customer evidence, or take action across your tools.
+                  In <InlineTool name="PostHog" icon="/logos/posthog.svg" /> and <InlineTool name="Intercom" icon="/logos/intercom.svg" />, core query telemetry dropped 44% for Apex MultiRail following 504 webhook gateway timeouts, while Marcus at <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer DataVibe")}>DataVibe</span> ($1,500 MRR) triggered the cancellation data export flow before abandoning his session.
+                </p>
+
+                <p className="pt-1 text-zinc-400">
+                  Click any account above or ask below to expand their full customer trace, review prepared drafts, or add them into Revenue Recovery.
                 </p>
               </div>
             )}
