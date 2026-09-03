@@ -253,6 +253,10 @@ export default function WorkflowsPage() {
   const [approving, setApproving] = useState<string | null>(null)
   const [sendingCaseId, setSendingCaseId] = useState<string | null>(null)
   const [sentSuccessCaseId, setSentSuccessCaseId] = useState<string | null>(null)
+  const [editingCaseId, setEditingCaseId] = useState<string | null>(null)
+  const [editSubject, setEditSubject] = useState('')
+  const [editBody, setEditBody] = useState('')
+  const [savingDraft, setSavingDraft] = useState(false)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
 
   const loadCaseDetail = useCallback(async (caseId: string) => {
@@ -504,45 +508,148 @@ export default function WorkflowsPage() {
                         <div className="relative group/draft inline-block">
                           <button
                             onClick={() => void loadCaseDetail(item.id)}
-                            className="text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer py-1 px-1"
+                            className="text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer py-1 px-1.5"
                           >
                             Review
                           </button>
 
                           {/* Floating Email Draft Preview Card on Hover */}
-                          <div className={`absolute right-0 ${isLower ? 'bottom-full mb-2.5' : 'top-full mt-2.5'} hidden group-hover/draft:flex flex-col z-50 w-[440px] rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl pointer-events-none text-left`}>
-                            <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-white/[0.08]">
-                              <div className="flex items-center gap-2 text-xs">
-                                <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />
-                                <span className="font-medium text-zinc-400">To:</span>
-                                <span className="text-zinc-200 font-mono text-[11px]">{draftInfo.recipientEmail}</span>
-                              </div>
-                              <span className="text-[9px] uppercase tracking-wider font-mono px-1.5 py-0.5 rounded-none border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
-                                Draft Ready
-                              </span>
-                            </div>
+                          <div className={`absolute right-0 ${isLower ? 'bottom-full pb-1' : 'top-full pt-1'} z-50 ${editingCaseId === item.id ? 'block' : 'hidden group-hover/draft:block'}`}>
+                            <div className="w-[460px] rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl text-left pointer-events-auto">
+                              {editingCaseId === item.id ? (
+                                <div>
+                                  <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-white/[0.08]">
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />
+                                      <span className="font-medium text-zinc-400">To:</span>
+                                      <span className="text-zinc-200 font-mono text-[11px]">{draftInfo.recipientEmail}</span>
+                                    </div>
+                                    <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">
+                                      Editing Draft
+                                    </span>
+                                  </div>
 
-                            <div className="mb-2.5">
-                              <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
-                                Subject
-                              </div>
-                              <div className="text-xs font-medium text-white leading-snug">
-                                {draftInfo.subject}
-                              </div>
-                            </div>
+                                  <div className="mb-2.5">
+                                    <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
+                                      Subject
+                                    </div>
+                                    <input
+                                      type="text"
+                                      value={editSubject}
+                                      onChange={(e) => setEditSubject(e.target.value)}
+                                      className="w-full bg-black/60 border border-white/15 rounded-xs px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-white/40 font-medium"
+                                      placeholder="Subject..."
+                                    />
+                                  </div>
 
-                            <div className="border-t border-white/[0.06] pt-2.5 mb-2.5">
-                              <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
-                                Message Preview
-                              </div>
-                              <p className="text-xs text-zinc-300 leading-relaxed font-normal whitespace-pre-wrap max-h-52 overflow-y-auto pr-1">
-                                {draftInfo.bodyPreview}
-                              </p>
-                            </div>
+                                  <div className="mb-3">
+                                    <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
+                                      Message Body
+                                    </div>
+                                    <textarea
+                                      rows={7}
+                                      value={editBody}
+                                      onChange={(e) => setEditBody(e.target.value)}
+                                      className="w-full bg-black/60 border border-white/15 rounded-xs p-2 text-xs text-zinc-200 focus:outline-none focus:border-white/40 resize-y font-sans leading-relaxed"
+                                      placeholder="Message body..."
+                                    />
+                                  </div>
 
-                            <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[10px] text-zinc-500 font-mono">
-                              <span>Click Review to edit in full</span>
-                              <span className="text-zinc-300">Click Send to dispatch</span>
+                                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.06]">
+                                    <button
+                                      type="button"
+                                      disabled={savingDraft}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setEditingCaseId(null)
+                                      }}
+                                      className="text-xs text-zinc-400 hover:text-white px-2.5 py-1 transition-colors cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={savingDraft || !editSubject.trim() || !editBody.trim()}
+                                      onClick={async (e) => {
+                                        e.stopPropagation()
+                                        setSavingDraft(true)
+                                        try {
+                                          const res = await fetch(`/api/recovery/cases/${item.id}/draft`, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                              subject: editSubject,
+                                              body_preview: editBody,
+                                              recipient_email: draftInfo.recipientEmail,
+                                            }),
+                                          })
+                                          if (!res.ok) {
+                                            const err = await res.json().catch(() => ({}))
+                                            throw new Error(err.error || 'Failed to save draft')
+                                          }
+                                          await refresh()
+                                          setEditingCaseId(null)
+                                          setNotice({ tone: 'success', text: `Draft saved for ${accountName(item)}.` })
+                                        } catch (err) {
+                                          setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'Failed to save draft' })
+                                        } finally {
+                                          setSavingDraft(false)
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-50"
+                                    >
+                                      {savingDraft ? (
+                                        <>
+                                          <Loader2 className="w-3 h-3 animate-spin text-black" />
+                                          Saving…
+                                        </>
+                                      ) : (
+                                        'Save Draft'
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-white/[0.08]">
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />
+                                      <span className="font-medium text-zinc-400">To:</span>
+                                      <span className="text-zinc-200 font-mono text-[11px]">{draftInfo.recipientEmail}</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setEditingCaseId(item.id)
+                                        setEditSubject(draftInfo.subject)
+                                        setEditBody(draftInfo.bodyPreview)
+                                      }}
+                                      className="text-[11px] font-medium text-zinc-400 hover:text-white transition-colors cursor-pointer px-2 py-0.5 border border-white/10 hover:border-white/30 rounded-xs bg-white/[0.03]"
+                                    >
+                                      Edit Draft
+                                    </button>
+                                  </div>
+
+                                  <div className="mb-2">
+                                    <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
+                                      Subject
+                                    </div>
+                                    <div className="text-xs font-medium text-white leading-snug">
+                                      {draftInfo.subject}
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-2.5">
+                                    <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
+                                      Message Preview
+                                    </div>
+                                    <p className="text-xs text-zinc-300 leading-relaxed font-normal whitespace-pre-wrap max-h-56 overflow-y-auto pr-1">
+                                      {draftInfo.bodyPreview}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -643,39 +750,118 @@ export default function WorkflowsPage() {
 
             {/* AI Recovery Outreach Draft */}
             <DetailSection title="AI Recovery Outreach">
-              {selected.drafts.length ? selected.drafts.map(draft => (
-                <div key={draft.id} className="rounded-sm border border-white/10 bg-black/30 p-4 mb-3">
-                  <div className="flex items-center justify-between text-xs text-zinc-400 mb-2">
-                    <span>To: <strong className="text-zinc-200">{draft.recipient_email || selected.contacts[0]?.email || 'Primary Contact'}</strong></span>
-                    <span className="capitalize text-zinc-500">{formatStatus(draft.status)}</span>
-                  </div>
-                  <div className="font-medium text-white text-sm mb-1">{draft.subject}</div>
-                  <div className="text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed border-t border-white/[0.06] pt-2.5 mt-2.5">{draft.body_preview}</div>
-                  <div className="mt-4 flex items-center justify-end">
-                    {draft.status === 'needs_review' && (
-                      <button
-                        disabled={sendingCaseId === selected.case.id || approving === draft.id || sentSuccessCaseId === selected.case.id}
-                        onClick={() => void handleQuickSend(selected.case.id, accountName(selected.case))}
-                        className="rounded-sm bg-white px-3.5 py-1.5 text-xs font-semibold text-black disabled:opacity-80 hover:bg-zinc-200 transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
-                      >
-                        {sendingCaseId === selected.case.id ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
-                            Sending…
-                          </>
-                        ) : sentSuccessCaseId === selected.case.id ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
-                            Sent
-                          </>
-                        ) : (
-                          'Send Outreach'
-                        )}
-                      </button>
+              {selected.drafts.length ? selected.drafts.map(draft => {
+                const isEditingModal = editingCaseId === selected.case.id
+                return (
+                  <div key={draft.id} className="rounded-sm border border-white/10 bg-black/30 p-4 mb-3">
+                    <div className="flex items-center justify-between text-xs text-zinc-400 mb-2">
+                      <span>To: <strong className="text-zinc-200">{draft.recipient_email || selected.contacts[0]?.email || 'Primary Contact'}</strong></span>
+                      {!isEditingModal && (
+                        <button
+                          onClick={() => {
+                            setEditingCaseId(selected.case.id)
+                            setEditSubject(draft.subject)
+                            setEditBody(draft.body_preview)
+                          }}
+                          className="text-[11px] font-medium text-zinc-400 hover:text-white transition-colors cursor-pointer px-2 py-0.5 border border-white/10 hover:border-white/30 rounded-xs bg-white/[0.03]"
+                        >
+                          Edit Draft
+                        </button>
+                      )}
+                    </div>
+
+                    {isEditingModal ? (
+                      <div className="space-y-3 mt-2">
+                        <div>
+                          <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">Subject</div>
+                          <input
+                            type="text"
+                            value={editSubject}
+                            onChange={(e) => setEditSubject(e.target.value)}
+                            className="w-full bg-black/60 border border-white/15 rounded-xs px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-white/40"
+                          />
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">Message</div>
+                          <textarea
+                            rows={8}
+                            value={editBody}
+                            onChange={(e) => setEditBody(e.target.value)}
+                            className="w-full bg-black/60 border border-white/15 rounded-xs p-2 text-xs text-zinc-200 focus:outline-none focus:border-white/40 resize-y font-sans leading-relaxed"
+                          />
+                        </div>
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.06]">
+                          <button
+                            type="button"
+                            disabled={savingDraft}
+                            onClick={() => setEditingCaseId(null)}
+                            className="text-xs text-zinc-400 hover:text-white px-2.5 py-1 transition-colors cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            disabled={savingDraft || !editSubject.trim() || !editBody.trim()}
+                            onClick={async () => {
+                              setSavingDraft(true)
+                              try {
+                                const res = await fetch(`/api/recovery/cases/${selected.case.id}/draft`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    subject: editSubject,
+                                    body_preview: editBody,
+                                    recipient_email: draft.recipient_email,
+                                  }),
+                                })
+                                if (!res.ok) throw new Error('Failed to save draft')
+                                await Promise.all([refresh(), loadCaseDetail(selected.case.id)])
+                                setEditingCaseId(null)
+                                setNotice({ tone: 'success', text: `Draft saved.` })
+                              } catch (err) {
+                                setNotice({ tone: 'error', text: 'Failed to save draft' })
+                              } finally {
+                                setSavingDraft(false)
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            {savingDraft ? <Loader2 className="w-3 h-3 animate-spin text-black" /> : 'Save Draft'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="font-medium text-white text-sm mb-1">{draft.subject}</div>
+                        <div className="text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed border-t border-white/[0.06] pt-2.5 mt-2.5">{draft.body_preview}</div>
+                        <div className="mt-4 flex items-center justify-end">
+                          {draft.status === 'needs_review' && (
+                            <button
+                              disabled={sendingCaseId === selected.case.id || approving === draft.id || sentSuccessCaseId === selected.case.id}
+                              onClick={() => void handleQuickSend(selected.case.id, accountName(selected.case))}
+                              className="rounded-sm bg-white px-3.5 py-1.5 text-xs font-semibold text-black disabled:opacity-80 hover:bg-zinc-200 transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+                            >
+                              {sendingCaseId === selected.case.id ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
+                                  Sending…
+                                </>
+                              ) : sentSuccessCaseId === selected.case.id ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
+                                  Sent
+                                </>
+                              ) : (
+                                'Send Outreach'
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </>
                     )}
                   </div>
-                </div>
-              )) : (
+                )
+              }) : (
                 <p className="text-xs text-zinc-500">No outreach draft queued for this case.</p>
               )}
             </DetailSection>
