@@ -4,7 +4,8 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useChatContext } from '@/ui/chat/chat-provider'
 import { DevinChatBox } from '@/ui/primitives/devin-chat-box'
 import { AgentFeed } from '@/ui/chat/agent-feed'
-import { RotateCcw, ChevronUp, ChevronDown, RefreshCw } from 'lucide-react'
+import { RotateCcw, ChevronUp, ChevronDown, RefreshCw, Sparkles } from 'lucide-react'
+import { motion, AnimatePresence } from 'motion/react'
 
 function InlineTool({ name, icon }: { name: string; icon: string }) {
   return (
@@ -157,36 +158,85 @@ export default function BriefPage() {
       <div className="flex-1 h-full min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
         <div className="w-full max-w-[760px] mx-auto px-6 h-full flex flex-col relative min-h-0">
           {/* Brief Collapsible Section — Always preserved at the top */}
-          <div className={hasMessages ? "shrink-0 pt-2 z-10 w-full" : "w-full pt-10 pb-36 h-full overflow-y-auto"}>
-            {isCollapsed ? (
-              /* Collapsed State: Shimmering Clean "Daily Brief" Text */
-              <div className="animate-in fade-in duration-200 py-1.5 mb-1.5">
-                <button
-                  onClick={() => setIsCollapsed(false)}
-                  className="flex items-center gap-2 group cursor-pointer text-left select-none"
-                  title="Expand briefing"
-                >
-                  <span className="text-[15px] font-medium tracking-tight silver-shimmer-text">
-                    Daily Brief
-                  </span>
-                  <ChevronDown className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
-                </button>
-              </div>
-            ) : (
-              /* Expanded State: Multi-Customer Flowing Paragraph Narrative */
-              <div className="space-y-3.5 text-zinc-300 animate-in fade-in duration-200 text-[14.5px] leading-relaxed pb-4 mb-2">
-                {/* Greeting in sync with font size + collapse toggle */}
-                <div className="flex items-center justify-between mb-1">
-                  <h2 className="text-[16px] sm:text-[17px] font-medium tracking-tight text-white">
+          {/* Brief Collapsible Section — Preserved cleanly at the top */}
+          {hasMessages ? (
+            <div className="w-full shrink-0 z-20 pt-1">
+              <AnimatePresence initial={false} mode="wait">
+                {isCollapsed ? (
+                  /* Collapsed State: Sleek Centered Open Tab Pill */
+                  <motion.div
+                    key="collapsed-brief"
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.18 }}
+                    className="w-full flex justify-center py-1.5"
+                  >
+                    <button
+                      onClick={() => setIsCollapsed(false)}
+                      className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900/90 hover:bg-zinc-800 border border-white/[0.08] hover:border-white/20 text-[12.5px] font-medium text-zinc-300 hover:text-white transition-all shadow-md group cursor-pointer select-none backdrop-blur-md"
+                      title="Expand briefing"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-200 transition-colors" />
+                      <span className="tracking-tight silver-shimmer-text">Daily Brief</span>
+                      <ChevronDown className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-300 transition-transform duration-200 group-hover:translate-y-0.5" />
+                    </button>
+                  </motion.div>
+                ) : (
+                  /* Expanded State: Clean Glass Card with Smooth Animation */
+                  <motion.div
+                    key="expanded-brief"
+                    initial={{ opacity: 0, height: 0, y: -6 }}
+                    animate={{ opacity: 1, height: "auto", y: 0 }}
+                    exit={{ opacity: 0, height: 0, y: -6 }}
+                    transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                    className="w-full overflow-hidden mb-3"
+                  >
+                    <div className="rounded-xl bg-zinc-950/90 border border-white/[0.08] p-5 shadow-xl backdrop-blur-md">
+                      <div className="flex items-center justify-between pb-3 mb-3 border-b border-white/[0.06]">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-zinc-400" />
+                          <h2 className="text-[15px] font-medium tracking-tight text-white">
+                            <span className="silver-shimmer-text">Hey Kushagra</span>, {greeting}.
+                          </h2>
+                        </div>
+                        <button
+                          onClick={() => setIsCollapsed(true)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer select-none"
+                          title="Collapse briefing"
+                        >
+                          <span>Collapse</span>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3.5 text-zinc-300 text-[14px] leading-relaxed font-sans">
+                        <p>
+                          In <InlineTool name="Gmail" icon="/logos/gmail.svg" />, you have active threads awaiting replies across accounts: Rohan from <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer Apex MultiRail")}>Apex MultiRail</span> is waiting on wire payment details, Sarah at <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer FintechScale")}>FintechScale</span> requested a billing update link, and David from <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer Cobalt Wire")}>Cobalt Wire</span> replied to yesterday’s invoice reminder.
+                        </p>
+                        <p>
+                          Across your billing in <InlineTool name="Stripe" icon="/logos/stripe.svg" />, multiple accounts require immediate attention: <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer Apex MultiRail")}>Apex MultiRail</span> had 2 consecutive card retries declined on <code className="text-xs font-mono bg-white/[0.06] px-1.5 py-0.5 rounded text-zinc-200">Card ····4242</code>, while <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer Cobalt Wire")}>Cobalt Wire</span> and <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer FintechScale")}>FintechScale</span> transitioned to past due following unpaid invoice runs, and <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer Hyperion Dispatch")}>Hyperion Dispatch</span> was marked cancelled.
+                        </p>
+                        <p>
+                          In <InlineTool name="PostHog" icon="/logos/posthog.svg" /> and <InlineTool name="Intercom" icon="/logos/intercom.svg" />, core query telemetry dropped 44% for Apex MultiRail following 504 webhook gateway timeouts, while Marcus at <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => handleSubmit("Inspect customer DataVibe")}>DataVibe</span> triggered the cancellation data export flow before abandoning his session.
+                        </p>
+                        <p className="pt-1 text-zinc-400 leading-relaxed text-[13.5px]">
+                          Would you like me to dive into <span className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white hover:decoration-zinc-400 cursor-pointer transition-colors" onClick={() => handleSubmit("Inspect customer Apex MultiRail")}>Apex MultiRail’s</span> gateway timeouts, draft a tailored recovery email for <span className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white hover:decoration-zinc-400 cursor-pointer transition-colors" onClick={() => handleSubmit("Draft a recovery email for FintechScale")}>FintechScale</span>, or push these at-risk accounts to your <span className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white hover:decoration-zinc-400 cursor-pointer transition-colors" onClick={() => handleSubmit("Add these at-risk accounts to the revenue recovery queue")}>Revenue Recovery</span> queue?
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ) : (
+            /* Initial Full-Page Narrative View when no conversation has started */
+            <div className="w-full pt-10 pb-36 h-full overflow-y-auto">
+              <div className="space-y-4 text-zinc-300 animate-in fade-in duration-200 text-[14.5px] leading-relaxed pb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-[17px] font-medium tracking-tight text-white">
                     <span className="silver-shimmer-text">Hey Kushagra</span>, {greeting}.
                   </h2>
-                  <button
-                    onClick={() => setIsCollapsed(true)}
-                    className="flex items-center gap-1 p-1 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors cursor-pointer"
-                    title="Collapse to Daily Brief"
-                  >
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  </button>
                 </div>
 
                 <p>
@@ -205,8 +255,8 @@ export default function BriefPage() {
                   Would you like me to dive into <span className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white hover:decoration-zinc-400 cursor-pointer transition-colors" onClick={() => handleSubmit("Inspect customer Apex MultiRail")}>Apex MultiRail’s</span> gateway timeouts, draft a tailored recovery email for <span className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white hover:decoration-zinc-400 cursor-pointer transition-colors" onClick={() => handleSubmit("Draft a recovery email for FintechScale")}>FintechScale</span>, or push these at-risk accounts to your <span className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white hover:decoration-zinc-400 cursor-pointer transition-colors" onClick={() => handleSubmit("Add these at-risk accounts to the revenue recovery queue")}>Revenue Recovery</span> queue?
                 </p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Active Agent Execution Feed */}
           {hasMessages && (

@@ -1695,6 +1695,27 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
         }
       }
 
+      // Deduplicate fleet scan tools: never render multiple fleet-wide scan nodes in the same turn
+      const isFleetScanTool =
+        toolName === 'getUnifiedFleetScan' ||
+        toolName === 'getFleetHealthSummary' ||
+        toolName === 'runRevenueRiskScan'
+
+      if (isFleetScanTool) {
+        // If a richer getUnifiedFleetScan exists later in this turn, skip less detailed summary tools
+        if (toolName === 'getFleetHealthSummary') {
+          const hasUnifiedLater = parts.slice(i + 1).some(p => extractToolName(p as Record<string, unknown>) === 'getUnifiedFleetScan')
+          if (hasUnifiedLater) {
+            continue
+          }
+        }
+        if (seenToolSignatures.has('fleet_scan_tool')) {
+          // Already rendered a fleet scan node in this turn — skip redundant duplicate node!
+          continue
+        }
+        seenToolSignatures.add('fleet_scan_tool')
+      }
+
       // Deduplicate identical tool actions in the same message turn
       const toolSigAccounts = group.map(g => {
         const inp = (g.part.input ?? g.part.args ?? g.part.toolInput ?? {}) as Record<string, any>
