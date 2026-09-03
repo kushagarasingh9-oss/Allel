@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, ArrowUpRight, Check, CheckCircle2, Loader2, RefreshCw, Search, SendHorizontal } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, Check, CheckCircle2, Loader2, RefreshCw, Search, Send } from 'lucide-react'
 
 type Metrics = {
   revenueSavedFormatted: string
@@ -739,7 +739,7 @@ export default function WorkflowsPage() {
                             </>
                           ) : (
                             <>
-                              <SendHorizontal className="w-3 h-3 text-white/90 group-hover/btn:text-white group-hover/btn:translate-x-0.5 transition-transform" />
+                              <Send className="w-3 h-3 text-white/90 group-hover/btn:text-white group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
                               <span>Send</span>
                             </>
                           )}
@@ -940,7 +940,7 @@ export default function WorkflowsPage() {
                                 </>
                               ) : (
                                 <>
-                                  <SendHorizontal className="w-3.5 h-3.5 text-white/90 group-hover/modalbtn:text-white group-hover/modalbtn:translate-x-0.5 transition-transform" />
+                                  <Send className="w-3.5 h-3.5 text-white/90 group-hover/modalbtn:text-white group-hover/modalbtn:translate-x-0.5 group-hover/modalbtn:-translate-y-0.5 transition-transform" />
                                   <span>Send Outreach</span>
                                 </>
                               )}
