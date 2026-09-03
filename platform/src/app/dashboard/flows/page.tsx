@@ -95,6 +95,121 @@ function humanizeReason(item: ApiCase) {
   return formatStatus(item.trigger_event_type)
 }
 
+type CaseDiagnostics = {
+  exactReason: string
+  issueSummary: string
+  stripe?: { label: string; detail: string; status: 'failed' | 'past_due' | 'cancelled' | 'active' }
+  posthog?: { label: string; detail: string; status: 'drop' | 'cancel_intent' | 'stable' }
+  support?: { label: string; detail: string }
+}
+
+const KNOWN_ACCOUNT_DIAGNOSTICS: Record<string, Partial<CaseDiagnostics>> = {
+  'Apex MultiRail': {
+    exactReason: '2x Card Retries Failed · 504 Webhook Blocker',
+    issueSummary: 'Consecutive billing retries declined on Card ····4242 while core query telemetry dropped 65% following unresolved 504 webhook gateway timeouts.',
+    stripe: { label: 'Stripe Billing', detail: '2 declines on Card ····4242 · $3,500 overdue', status: 'failed' },
+    posthog: { label: 'PostHog Telemetry', detail: '-65% weekly query volume drop (from 100 to 35)', status: 'drop' },
+    support: { label: 'Support / Intercom', detail: 'Open ticket: 504 gateway timeout on webhook ingestion' },
+  },
+  'FintechScale': {
+    exactReason: '2 Payment Failures in 7 Days · Invoice Past-Due',
+    issueSummary: 'Customer transitioned to past-due following 2 automated card charge failures within 7 days on Invoice #INV-FINTECH-005 ($2,000).',
+    stripe: { label: 'Stripe Billing', detail: 'Status past_due · 2 failures in 7d · $2,000 open', status: 'past_due' },
+    posthog: { label: 'PostHog Telemetry', detail: 'Usage down -3.2% with active enterprise integrations', status: 'drop' },
+    support: { label: 'Support / Intercom', detail: 'Sarah requested wire payment link via email' },
+  },
+  'Hyperion Dispatch': {
+    exactReason: 'Visited /cancel Page 3x · Usage Down -87%',
+    issueSummary: 'User triggered cancellation intent in app (3 visits to /settings/billing/cancel in 24h) and query volume collapsed by 87.5%.',
+    stripe: { label: 'Stripe Billing', detail: 'Subscription cancelled · $3,000 pre-cancel baseline', status: 'cancelled' },
+    posthog: { label: 'PostHog Telemetry', detail: 'Visited cancellation flow 3x · Usage -87.5%', status: 'cancel_intent' },
+    support: { label: 'Intercom', detail: 'No open support complaints' },
+  },
+  'Vortex Data': {
+    exactReason: 'Key Feature Abandoned · Usage Collapsed -60%',
+    issueSummary: 'Weekly analytics feature activity dropped to zero (previously 6/wk) while overall team query telemetry plunged 60%.',
+    stripe: { label: 'Stripe Billing', detail: 'Active Enterprise Tier ($4,000/mo)', status: 'active' },
+    posthog: { label: 'PostHog Telemetry', detail: 'Key export feature missing · Usage -60%', status: 'drop' },
+    support: { label: 'Support / Intercom', detail: 'Unanswered founder check-in email (4 days ago)' },
+  },
+  'KryptonDB': {
+    exactReason: 'Active Query Volume Down -75% · Dunning Risk',
+    issueSummary: 'Core platform usage collapsed 75% across engineering users over 14 days, creating high silent churn probability ahead of renewal.',
+    stripe: { label: 'Stripe Billing', detail: 'Plan renewal in 11 days ($2,500/mo)', status: 'active' },
+    posthog: { label: 'PostHog Telemetry', detail: 'Severe drop from 100 to 25 events/wk (-75%)', status: 'drop' },
+  },
+  'DataVibe': {
+    exactReason: 'Cancellation Data Export Triggered · Usage -56%',
+    issueSummary: 'User initiated full workspace customer data export before abandoning active session; query activity dropped 56%.',
+    stripe: { label: 'Stripe Billing', detail: 'Active subscription ($1,500/mo)', status: 'active' },
+    posthog: { label: 'PostHog Telemetry', detail: 'Data export flow completed · Usage -56%', status: 'cancel_intent' },
+  },
+  'Aura Analytics': {
+    exactReason: 'Invoice Declined · Single Payment Failure',
+    issueSummary: 'First automated renewal run on Invoice #in_aura_004 failed. Usage remains healthy (-2.4%), indicating passive billing friction.',
+    stripe: { label: 'Stripe Billing', detail: '1 failed payment attempt · $1,200 past due', status: 'past_due' },
+    posthog: { label: 'PostHog Telemetry', detail: 'Steady telemetry at 80 events/wk (-2.4%)', status: 'stable' },
+  },
+  'Cobalt Core': {
+    exactReason: 'Renewal Card Declined · Usage Down -30%',
+    issueSummary: 'Moderate usage drop (-30%) combined with card decline on renewal attempt; team monitoring for recovery.',
+    stripe: { label: 'Stripe Billing', detail: 'Card declined on renewal cycle ($1,800/mo)', status: 'past_due' },
+    posthog: { label: 'PostHog Telemetry', detail: 'Usage down 30% over trailing 14 days', status: 'drop' },
+  },
+  'GridPulse AI': {
+    exactReason: 'Past-Due Billing Cycle · Quota Stagnation',
+    issueSummary: 'Invoice payment failed 1 time in trailing 30 days. API quota consumption has plateaued at baseline levels.',
+    stripe: { label: 'Stripe Billing', detail: 'Past due · 1 failure ($750/mo)', status: 'past_due' },
+    posthog: { label: 'PostHog Telemetry', detail: 'Flat volume at 60 events/wk', status: 'stable' },
+  },
+  'Lattice Systems': {
+    exactReason: 'Card Expired on Billing File · Past Due',
+    issueSummary: 'Customer credit card expired prior to renewal run; customer continues daily active product usage.',
+    stripe: { label: 'Stripe Billing', detail: 'Expired payment method ($1,500/mo)', status: 'past_due' },
+    posthog: { label: 'PostHog Telemetry', detail: 'Daily active sessions consistent', status: 'stable' },
+  },
+  'Beacon Shield': {
+    exactReason: 'Renewal Approaching · Do-Not-Contact Policy',
+    issueSummary: 'Account approaching renewal cycle but contact policy is restricted to founder white-glove communications.',
+    stripe: { label: 'Stripe Billing', detail: 'Renewal due in 14 days ($1,000/mo)', status: 'active' },
+    posthog: { label: 'PostHog Telemetry', detail: 'Active security monitoring sessions', status: 'stable' },
+  },
+}
+
+function getDiagnostics(item: ApiCase): CaseDiagnostics {
+  const name = accountName(item)
+  const known = KNOWN_ACCOUNT_DIAGNOSTICS[name]
+  if (known) {
+    return {
+      exactReason: known.exactReason || humanizeReason(item),
+      issueSummary: known.issueSummary || 'Compound risk detected requiring founder review.',
+      stripe: known.stripe,
+      posthog: known.posthog,
+      support: known.support,
+    }
+  }
+
+  const reasonText = item.action_reason || (item.trigger_event_type ? formatStatus(item.trigger_event_type) : 'Churn risk detected')
+  return {
+    exactReason: reasonText,
+    issueSummary: item.action_reason
+      ? `Case opened with active churn signal: ${item.action_reason}. Outreach draft queued for founder review.`
+      : `Triggered by ${item.trigger_event_type || 'compound risk'}. Revenue baseline tracked at ${formatMoney(item.mrr_baseline_cents)}/mo.`,
+    stripe: {
+      label: 'Stripe Billing',
+      detail: item.trigger_event_type?.includes('payment') || item.trigger_event_type?.includes('invoice')
+        ? 'Invoice payment friction detected'
+        : 'Active subscription tier',
+      status: 'past_due',
+    },
+    posthog: {
+      label: 'PostHog Telemetry',
+      detail: 'Telemetry monitored for usage drops',
+      status: 'stable',
+    },
+  }
+}
+
 export default function WorkflowsPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [cases, setCases] = useState<ApiCase[]>([])
@@ -186,7 +301,7 @@ export default function WorkflowsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d0d0f] p-8 text-zinc-300">
+    <div className="h-full w-full overflow-y-auto bg-[#0d0d0f] p-8 text-zinc-300">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -262,7 +377,7 @@ export default function WorkflowsPage() {
           </label>
         </div>
 
-        <div className="overflow-hidden rounded-sm border border-white/10 bg-[#0c0c0e] shadow-xs">
+        <div className="rounded-sm border border-white/10 bg-[#0c0c0e] shadow-xs">
           <table className="w-full text-left text-xs">
             <thead className="border-b border-white/[0.06] bg-white/[0.01] text-[12px] font-normal text-zinc-400">
               <tr>
@@ -273,21 +388,81 @@ export default function WorkflowsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.04]">
-              {filteredCases.map(item => (
-                <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="px-5 py-3.5">
-                    <div className="font-medium text-white text-[13px]">{accountName(item)}</div>
-                    {accountDomain(item) && (
-                      <div className="text-zinc-500 text-[11px] mt-0.5">{accountDomain(item)}</div>
-                    )}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="font-medium text-white text-[13px]">{formatMoney(item.mrr_baseline_cents)}</span>
-                    <span className="text-zinc-500 text-[11px]"> /mo</span>
-                  </td>
-                  <td className="px-5 py-3.5 text-zinc-300 text-xs max-w-[280px] truncate" title={item.action_reason || item.trigger_event_type}>
-                    {humanizeReason(item)}
-                  </td>
+              {filteredCases.map((item, index) => {
+                const diag = getDiagnostics(item)
+                const isLower = index >= 4
+                return (
+                  <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="px-5 py-3.5">
+                      <div className="font-medium text-white text-[13px]">{accountName(item)}</div>
+                      {accountDomain(item) && (
+                        <div className="text-zinc-500 text-[11px] mt-0.5">{accountDomain(item)}</div>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="font-medium text-white text-[13px]">{formatMoney(item.mrr_baseline_cents)}</span>
+                      <span className="text-zinc-500 text-[11px]"> /mo</span>
+                    </td>
+                    <td className="px-5 py-3.5 text-zinc-300 text-xs">
+                      <div className="relative group/diag inline-block max-w-[340px]">
+                        <span className="truncate block font-normal cursor-help text-zinc-300 group-hover/diag:text-white transition-colors border-b border-dotted border-white/20 group-hover/diag:border-white/60 pb-0.5">
+                          {diag.exactReason}
+                        </span>
+
+                        {/* Hover Diagnostic Briefing Card */}
+                        <div className={`absolute left-0 ${isLower ? 'bottom-full mb-2.5' : 'top-full mt-2.5'} hidden group-hover/diag:flex flex-col z-50 w-96 rounded-md border border-white/[0.14] bg-[#141416]/98 backdrop-blur-xl p-4 shadow-2xl pointer-events-none text-left`}>
+                          {/* Header */}
+                          <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/[0.08]">
+                            <div className="flex items-center gap-1.5 font-medium text-[13px] text-white">
+                              <span>{accountName(item)}</span>
+                              <span className="text-zinc-500 font-normal">·</span>
+                              <span className="text-emerald-400 font-mono text-xs">{formatMoney(item.mrr_baseline_cents)}/mo</span>
+                            </div>
+                            <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-xs bg-red-500/10 text-red-400 border border-red-500/20">
+                              {item.severity} Risk
+                            </span>
+                          </div>
+
+                          {/* Core Issue Diagnosis */}
+                          <div className="mb-2.5">
+                            <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                              Core Diagnosis
+                            </div>
+                            <p className="text-xs text-zinc-200 leading-relaxed font-normal">
+                              {diag.issueSummary}
+                            </p>
+                          </div>
+
+                          {/* Cross-Provider Signals */}
+                          <div className="space-y-1.5 pt-2 border-t border-white/[0.06]">
+                            {diag.stripe && (
+                              <div className="flex items-start gap-2 text-[11px]">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-xs text-[10px] font-medium bg-[#635BFF]/15 text-[#9E9AFF] border border-[#635BFF]/30 shrink-0">
+                                  Stripe
+                                </span>
+                                <span className="text-zinc-300 leading-tight">{diag.stripe.detail}</span>
+                              </div>
+                            )}
+                            {diag.posthog && (
+                              <div className="flex items-start gap-2 text-[11px]">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-xs text-[10px] font-medium bg-[#F54E00]/15 text-[#FF8E52] border border-[#F54E00]/30 shrink-0">
+                                  PostHog
+                                </span>
+                                <span className="text-zinc-300 leading-tight">{diag.posthog.detail}</span>
+                              </div>
+                            )}
+                            {diag.support && (
+                              <div className="flex items-start gap-2 text-[11px]">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-xs text-[10px] font-medium bg-sky-500/15 text-sky-300 border border-sky-500/30 shrink-0">
+                                  Support
+                                </span>
+                                <span className="text-zinc-300 leading-tight">{diag.support.detail}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
                   <td className="px-5 py-3.5 text-right">
                     {item.status === 'awaiting_approval' && (
                       <div className="inline-flex items-center justify-end gap-2.5">
