@@ -205,7 +205,7 @@ import {
   webMapTool,
 } from '@/integrations/web-research/web-research'
 
-const FALLBACK_AGENT_MODEL_ID = 'gpt-5.6'
+const FALLBACK_AGENT_MODEL_ID = 'Kimi-K2.6'
 
 function envModelId(value: string | undefined): string | undefined {
   const trimmed = value?.trim()
@@ -1595,7 +1595,13 @@ export function resolveAgentModelId(options?: {
         ? envModelId(process.env.AGENT_AUTOMATION_MODEL_ID)
         : undefined
 
-  return channelModelId ?? DEFAULT_AGENT_MODEL_ID
+  return (
+    channelModelId ??
+    envModelId(process.env.OPENAI_MODEL_ID) ??
+    envModelId(process.env.AGENT_MODEL_ID) ??
+    DEFAULT_AGENT_MODEL_ID ??
+    'Kimi-K2.6'
+  )
 }
 
 /**
