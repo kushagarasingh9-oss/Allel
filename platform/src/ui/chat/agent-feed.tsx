@@ -926,6 +926,14 @@ function ToolResultSummary({
   // PostHog Events
   if (toolName === 'getPostHogEvents' && Array.isArray(data.events)) {
     const events = data.events as Array<Record<string, unknown>>
+    if (events.length === 0) {
+      return (
+        <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 mb-2 pl-7 py-0.5">
+          <img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain opacity-60" />
+          <span>No matching events found</span>
+        </div>
+      )
+    }
     return (
       <ExpandableResultList
         items={events}
