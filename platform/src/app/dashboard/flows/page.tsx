@@ -394,8 +394,20 @@ export default function WorkflowsPage() {
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(payload.error || 'Failed to dispatch outreach')
       setSentSuccessCaseId(caseId)
-      setCases(prev => prev.map(c => c.id === caseId ? { ...c, status: 'monitoring', sent_at: new Date().toISOString() } : c))
-      await new Promise(resolve => setTimeout(resolve, 800))
+      setCases(prev => prev.map(c => c.id === caseId ? {
+        ...c,
+        status: 'monitoring',
+        sent_at: new Date().toISOString(),
+        follow_up_drafts: (c.follow_up_drafts || []).map(d => ({
+          ...d,
+          status: 'sent',
+          approval_metadata: {
+            ...d.approval_metadata,
+            gmail_url: payload.gmailUrl || 'https://mail.google.com/mail/u/0/#sent',
+          },
+        })),
+      } : c))
+      await new Promise(resolve => setTimeout(resolve, 600))
       await refresh()
       if (selected && selected.case.id === caseId) {
         await loadCaseDetail(caseId)
@@ -404,7 +416,6 @@ export default function WorkflowsPage() {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Failed to dispatch outreach' })
     } finally {
       setSendingCaseId(null)
-      setTimeout(() => setSentSuccessCaseId(null), 2500)
     }
   }
 
@@ -519,7 +530,13 @@ export default function WorkflowsPage() {
                 return (
                   <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="px-5 py-3.5">
-                      <div className="font-medium text-white text-[13px]">{accountName(item)}</div>
+                      <div
+                        className="font-medium text-white text-[13px] hover:text-blue-400 cursor-pointer transition-colors"
+                        onClick={() => void loadCaseDetail(item.id)}
+                        title="View case details"
+                      >
+                        {accountName(item)}
+                      </div>
                       {accountDomain(item) && (
                         <div className="text-zinc-500 text-[11px] mt-0.5">{accountDomain(item)}</div>
                       )}
@@ -734,8 +751,130 @@ export default function WorkflowsPage() {
                           </div>
                         </div>
 
+                    {item.status === 'awaiting_approval' && sentSuccessCaseId !== item.id ? (
+                      <div className="relative group/draft inline-block">
+                        {/* Hover Preview Card for Outreach Draft */}
+                        <div className={`absolute right-0 ${isLower ? 'bottom-full pb-1' : 'top-full pt-1'} hidden group-hover/draft:block z-50`}>
+                          <div className="w-96 rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl text-left pointer-events-auto">
+                            <div className="flex items-center justify-between pb-3 border-b border-white/[0.08] mb-3">
+                              <span className="text-[11px] font-medium tracking-wider text-zinc-400 uppercase">
+                                Gmail Draft Preview
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-xs">
+                                  Awaiting Approval
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    if (editingDraftCaseId === item.id) {
+                                      setEditingDraftCaseId(null)
+                                    } else {
+                                      setEditingDraftCaseId(item.id)
+                                      setEditedBody(draftInfo.bodyPreview)
+                                    }
+                                  }}
+                                  className="text-[11px] text-zinc-400 hover:text-white px-1.5 py-0.5 rounded-xs hover:bg-white/[0.06] transition-colors cursor-pointer"
+                                >
+                                  {editingDraftCaseId === item.id ? 'Cancel' : 'Edit'}
+                                </button>
+                              </div>
+                            </div>
+
+                            {editingDraftCaseId === item.id ? (
+                              <div className="space-y-3">
+                                <div>
+                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">Subject</div>
+                                  <div className="text-xs text-zinc-200 font-medium bg-white/[0.04] p-2 rounded-xs border border-white/10 select-none">
+                                    {draftInfo.subject}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">Body</div>
+                                  <textarea
+                                    value={editedBody}
+                                    onChange={(e) => setEditedBody(e.target.value)}
+                                    rows={8}
+                                    className="w-full text-xs text-zinc-200 bg-black/40 border border-white/15 rounded-xs p-2.5 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/20 font-normal leading-relaxed resize-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                                    placeholder="Edit email outreach body..."
+                                  />
+                                </div>
+                                <div className="flex items-center justify-between pt-1">
+                                  <span className="text-[10px] text-zinc-500">Press Save to update draft preview</span>
+                                  <button
+                                    disabled={savingDraft}
+                                    onClick={async () => {
+                                      const draftRecord = item.follow_up_drafts?.[0]
+                                      setSavingDraft(true)
+                                      try {
+                                        if (draftRecord?.id) {
+                                          await fetch(`/api/recovery/cases/${item.id}/draft`, {
+                                            method: 'PATCH',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ body_preview: editedBody, body_full: editedBody }),
+                                          })
+                                        }
+                                        setCases(prev => prev.map(c => c.id === item.id ? {
+                                          ...c,
+                                          follow_up_drafts: c.follow_up_drafts?.map(d => ({ ...d, body_preview: editedBody }))
+                                        } : c))
+                                        setDraftSavedCaseId(item.id)
+                                        setTimeout(() => {
+                                          setDraftSavedCaseId(null)
+                                          setEditingDraftCaseId(null)
+                                        }, 1200)
+                                      } catch (err) {
+                                        console.error('Failed to save draft edit:', err)
+                                      } finally {
+                                        setSavingDraft(false)
+                                      }
+                                    }}
+                                    className="inline-flex items-center gap-1.5 rounded-xs border border-white/15 bg-white/[0.08] hover:bg-white/[0.14] hover:border-white/30 active:bg-white/[0.18] px-3 py-1 text-xs font-medium text-white transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+                                  >
+                                    {draftSavedCaseId === item.id ? (
+                                      <>
+                                        <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
+                                        <span className="text-emerald-300">Saved ✓</span>
+                                      </>
+                                    ) : savingDraft ? (
+                                      <>
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-300" />
+                                        <span>Saving…</span>
+                                      </>
+                                    ) : (
+                                      'Save Draft'
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                <div>
+                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">To</div>
+                                  <div className="text-xs text-zinc-200 font-mono bg-white/[0.02] px-2 py-1 rounded-xs border border-white/[0.06]">
+                                    {draftInfo.recipientEmail}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">Subject</div>
+                                  <div className="text-xs text-zinc-200 font-medium bg-white/[0.02] px-2 py-1 rounded-xs border border-white/[0.06]">
+                                    {draftInfo.subject}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="text-[11px] font-medium text-zinc-400 mb-1">Body</div>
+                                  <p className="text-xs text-zinc-300 leading-relaxed font-normal whitespace-pre-wrap max-h-56 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                                    {draftInfo.bodyPreview}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
                         <button
-                          disabled={sendingCaseId === item.id || sentSuccessCaseId === item.id}
+                          disabled={sendingCaseId === item.id}
                           onClick={() => void handleQuickSend(item.id, accountName(item))}
                           className="group/btn inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] hover:bg-[#0048D9] active:bg-[#003ec2] text-white px-3 py-1 text-xs font-medium transition-all cursor-pointer disabled:opacity-50 shadow-xs shadow-blue-500/20 hover:shadow-blue-500/35 border border-blue-400/30"
                         >
@@ -743,11 +882,6 @@ export default function WorkflowsPage() {
                             <>
                               <Loader2 className="w-3 h-3 animate-spin text-white/90" />
                               <span>Sending…</span>
-                            </>
-                          ) : sentSuccessCaseId === item.id ? (
-                            <>
-                              <Check className="w-3 h-3 text-white stroke-[2.5]" />
-                              <span>Sent</span>
                             </>
                           ) : (
                             <>
@@ -757,16 +891,18 @@ export default function WorkflowsPage() {
                           )}
                         </button>
                       </div>
-                    )}
-                    {(item.status === 'sent' || item.status === 'monitoring') && (
-                      <button
-                        onClick={() => void loadCaseDetail(item.id)}
+                    ) : (item.status === 'sent' || item.status === 'monitoring' || sentSuccessCaseId === item.id) ? (
+                      <a
+                        href={item.follow_up_drafts?.[0]?.approval_metadata?.gmail_url || 'https://mail.google.com/mail/u/0/#sent'}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="group/btn inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] hover:bg-[#0048D9] active:bg-[#003ec2] text-white px-3 py-1 text-xs font-medium transition-all cursor-pointer shadow-xs shadow-blue-500/20 hover:shadow-blue-500/35 border border-blue-400/30"
+                        title="Click to view sent email in Gmail"
                       >
                         <Check className="w-3 h-3 text-white stroke-[2.5]" />
                         <span>Sent</span>
-                      </button>
-                    )}
+                      </a>
+                    ) : null}
                     {item.status === 'resolved' && (
                       <button
                         onClick={() => void loadCaseDetail(item.id)}
@@ -954,10 +1090,16 @@ export default function WorkflowsPage() {
                               )}
                             </button>
                           ) : (selected.case.status === 'monitoring' || draft.status === 'sent') ? (
-                            <div className="inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] text-white px-3.5 py-1.5 text-xs font-medium border border-blue-400/30 shadow-xs shadow-blue-500/20">
+                            <a
+                              href={draft.approval_metadata?.gmail_url || 'https://mail.google.com/mail/u/0/#sent'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group/modalbtn inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] hover:bg-[#0048D9] active:bg-[#003ec2] text-white px-3.5 py-1.5 text-xs font-medium transition-all cursor-pointer shadow-xs shadow-blue-500/20 hover:shadow-blue-500/35 border border-blue-400/30"
+                              title="Click to view sent email in Gmail"
+                            >
                               <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
                               <span>Sent</span>
-                            </div>
+                            </a>
                           ) : null}
                         </div>
                         {(selected.case.status === 'monitoring' || draft.status === 'sent') && (
