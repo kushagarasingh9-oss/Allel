@@ -152,17 +152,17 @@ export default function WorkflowsPage() {
     <div className="min-h-screen bg-[#0d0d0f] p-8 text-zinc-300">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <img
               src="/logo-icon.png"
               alt="Allel"
-              className="w-6 h-6 object-contain shrink-0 mix-blend-screen bg-transparent"
-              style={{ width: 24, height: 24 }}
+              className="w-5 h-5 object-contain shrink-0 mix-blend-screen bg-transparent"
+              style={{ width: 20, height: 20 }}
             />
-            <h1 className="text-2xl sm:text-3xl font-medium tracking-tight text-white">Revenue Recovery</h1>
+            <h1 className="text-[17px] font-medium tracking-tight text-white">Revenue Recovery</h1>
           </div>
-          <button onClick={() => void refresh()} className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-[#141416] px-3.5 py-2 text-xs font-medium text-zinc-400 hover:text-white hover:border-white/20 transition-all shadow-xs">
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          <button onClick={() => void refresh()} className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[#141416] px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white hover:border-white/20 transition-all shadow-xs">
+            <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </button>
         </div>
 
@@ -181,7 +181,7 @@ export default function WorkflowsPage() {
         </div>
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-[#161618] p-1 shadow-xs">
+          <div className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-[#141416] p-1 shadow-xs">
             {['all', 'awaiting_approval', 'monitoring', 'resolved'].map(status => (
               <button
                 key={status}
@@ -202,12 +202,12 @@ export default function WorkflowsPage() {
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
               placeholder="Filter live cases..."
-              className="rounded-xl border border-white/[0.08] bg-[#161618] py-2 pl-9 pr-4 text-xs text-white outline-none focus:border-white/20 transition-colors placeholder:text-zinc-500 shadow-xs"
+              className="rounded-xl border border-white/[0.08] bg-[#141416] py-2 pl-9 pr-4 text-xs text-white outline-none focus:border-white/20 transition-colors placeholder:text-zinc-500 shadow-xs"
             />
           </label>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#161618] shadow-xs">
+        <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#141416] shadow-xs">
           <table className="w-full text-left text-xs">
             <thead className="bg-white/[0.02] border-b border-white/[0.06] text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">
               <tr><th className="p-3.5">Account</th><th className="p-3.5">Trigger</th><th className="p-3.5">Risk</th><th className="p-3.5">MRR</th><th className="p-3.5">Status</th><th className="p-3.5 text-right">Inspect</th></tr>
