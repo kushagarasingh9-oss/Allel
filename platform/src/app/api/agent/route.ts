@@ -330,9 +330,10 @@ The user previously said: "${previousUserText}"
 The assistant previously responded: "${previousAssistantText}"
 The user's message "${latestUserText}" is a direct follow-up / retry to the topic above.
 MAINTAIN TOPIC CONTINUITY:
-- If the previous turn was about checking or connecting Google Calendar, the user is telling you they connected it — call listCalendarEventsTool now!
+- If the previous turn was about checking or connecting Google Calendar, the user is telling you they connected it — call listCalendarEventsTool now! NEVER assume it is still disconnected.
 - If the previous turn was about Gmail, check Gmail!
 - If the previous turn was about a specific customer or recovery case, continue on that customer.
+- If the user's message is truly ambiguous and cannot be resolved from context, ask a 1-sentence smart clarifying question proposing 2 clear options.
 - DO NOT divert to an unrelated company-wide fleet scan, inbox check, or random tools unless explicitly requested.`
   } else {
     activeTurnInstruction += `\nFocus strictly on fulfilling this specific request. When tool calls are executed (e.g. getMyInbox, listCalendarEventsTool, getAllAccounts), synthesize the tool results into a structured executive response with official SVG brand logos and next steps. Do NOT output a greeting or repeat previous turns.`
