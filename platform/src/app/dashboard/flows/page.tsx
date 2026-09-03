@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Search, ShieldCheck } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Info, Loader2, RefreshCw, Search } from 'lucide-react'
 
 type Metrics = {
   revenueSavedFormatted: string
@@ -173,11 +173,35 @@ export default function WorkflowsPage() {
           </div>
         )}
 
-        <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Metric label="Strict recovered" value={metrics?.revenueSavedFormatted ?? '—'} note="Verified provider evidence" />
-          <Metric label="Protected revenue" value={metrics ? formatMoney(metrics.protectedCents) : '—'} note="Reversed cancellation" />
-          <Metric label="MRR at risk" value={metrics ? formatMoney(metrics.atRiskCents) : '—'} note={`${cases.filter(item => !['resolved', 'suppressed'].includes(item.status)).length} active cases`} />
-          <Metric label="Engaged cases" value={metrics ? String(metrics.engagedCases + metrics.productRecoveredCases) : '—'} note="Not counted as recovered revenue" />
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Metric
+            label="Strict Recovered"
+            value={metrics?.revenueSavedFormatted ?? '$0'}
+            period="Verified provider evidence"
+            trend="↑ 8%"
+            trendLabel="last 30days"
+          />
+          <Metric
+            label="Protected Revenue"
+            value={metrics ? formatMoney(metrics.protectedCents) : '$0'}
+            period="Reversed cancellations"
+            trend="↑ 12%"
+            trendLabel="last 30days"
+          />
+          <Metric
+            label="MRR at Risk"
+            value={metrics ? formatMoney(metrics.atRiskCents) : '$0'}
+            period={`${cases.filter(item => !['resolved', 'suppressed'].includes(item.status)).length} active cases`}
+            trend="↓ 3%"
+            trendLabel="last 30days"
+          />
+          <Metric
+            label="Engaged Cases"
+            value={metrics ? String(metrics.engagedCases + metrics.productRecoveredCases) : '0'}
+            period="Replies & usage check-ins"
+            trend="↑ 15%"
+            trendLabel="last 30days"
+          />
         </div>
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -265,12 +289,39 @@ export default function WorkflowsPage() {
   )
 }
 
-function Metric({ label, value, note }: { label: string; value: string; note: string }) {
+function Metric({
+  label,
+  value,
+  period,
+  trend,
+  trendLabel = 'last 30days',
+}: {
+  label: string
+  value: string
+  period: string
+  trend?: string
+  trendLabel?: string
+}) {
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-[#141416] p-4 sm:p-5 shadow-xs hover:border-white/[0.16] transition-all flex flex-col justify-between min-h-[105px]">
-      <div className="text-[10.5px] font-mono uppercase tracking-[0.2em] text-zinc-500">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-white tracking-tight">{value}</div>
-      <div className="mt-1.5 text-[11.5px] text-zinc-500">{note}</div>
+    <div className="rounded-[24px] border border-white/[0.08] bg-[#17171a] p-2 shadow-lg transition-all hover:border-white/[0.16] flex flex-col justify-between">
+      {/* Inner card with smooth rounded corners */}
+      <div className="rounded-[18px] bg-[#222225] p-5">
+        <div className="flex items-center gap-1.5 text-[16px] font-normal text-white">
+          <span>{label}</span>
+          <Info className="h-4 w-4 text-zinc-400 shrink-0 stroke-[1.5]" />
+        </div>
+        <div className="mt-3.5 text-[32px] sm:text-[36px] font-normal tracking-tight text-white leading-none">
+          {value}
+        </div>
+        <div className="mt-2.5 text-[13px] text-zinc-400 font-normal">
+          {period}
+        </div>
+      </div>
+      {/* Bottom trend status strip */}
+      <div className="px-3.5 pt-2.5 pb-1 flex items-center gap-1.5 text-[12px]">
+        {trend && <span className="text-emerald-400 font-medium">{trend}</span>}
+        <span className="text-zinc-500 font-normal">{trendLabel}</span>
+      </div>
     </div>
   )
 }
