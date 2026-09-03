@@ -26,6 +26,13 @@ type ApiCase = {
   evidence_snapshot: unknown[] | null
   opened_at: string
   customer_accounts: { name?: string | null; domain?: string | null } | Array<{ name?: string | null; domain?: string | null }> | null
+  follow_up_drafts?: Array<{
+    id: string
+    subject: string
+    body_preview: string
+    status: string
+    approval_metadata?: { recipient_email?: string } | null
+  }> | null
 }
 
 type CaseDetail = {
@@ -207,6 +214,32 @@ function getDiagnostics(item: ApiCase): CaseDiagnostics {
       detail: 'Telemetry monitored for usage drops',
       status: 'stable',
     },
+  }
+}
+
+function getCaseDraft(item: ApiCase) {
+  const drafts = item.follow_up_drafts
+  if (Array.isArray(drafts) && drafts.length > 0) {
+    const d = drafts[0]
+    return {
+      recipientEmail: d.approval_metadata?.recipient_email || `${accountName(item).toLowerCase().replace(/[^a-z0-9]/g, '')}@example.com`,
+      subject: d.subject,
+      bodyPreview: d.body_preview,
+    }
+  }
+  const name = accountName(item)
+  const lowerName = name.toLowerCase()
+  if (lowerName.includes('apex')) {
+    return {
+      recipientEmail: 'rohan@apexmultirail.co',
+      subject: 'Apex MultiRail · Following up on webhook sync (504s) & temporary billing hold',
+      bodyPreview: `Hi Rohan,\n\nI noticed your team has been hitting 504 gateway timeouts on the multi-rail webhook endpoints over the last 48 hours, and that the recent billing retry was declined.\n\nI wanted to reach out personally from the founder's desk. Our engineering team has prioritized the 504 webhook ingestion blocker to resolve it today. In the meantime, I have placed a temporary hold on your invoice so your transaction pipeline and account remain fully active without interruption.\n\nLet me know if you have 5 minutes later today or tomorrow to make sure everything is running smoothly.\n\nBest regards,\nAllel Team`,
+    }
+  }
+  return {
+    recipientEmail: `${lowerName.replace(/[^a-z0-9]/g, '')}@example.com`,
+    subject: `Checking in regarding your ${name} account`,
+    bodyPreview: `Hi team,\n\nI noticed some friction on your account recently and wanted to check in directly to make sure you have everything you need. Let me know if there is anything we can do to help support your team.\n\nBest,\nAllel Team`,
   }
 }
 
@@ -394,6 +427,7 @@ export default function WorkflowsPage() {
             <tbody className="divide-y divide-white/[0.04]">
               {filteredCases.map((item, index) => {
                 const diag = getDiagnostics(item)
+                const draftInfo = getCaseDraft(item)
                 const isLower = index >= 4
                 return (
                   <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
@@ -409,12 +443,12 @@ export default function WorkflowsPage() {
                     </td>
                     <td className="px-5 py-3.5 text-zinc-300 text-xs">
                       <div className="relative group/diag inline-block max-w-[340px]">
-                        <span className="truncate block font-normal cursor-help text-zinc-300 group-hover/diag:text-white transition-colors border-b border-dotted border-white/20 group-hover/diag:border-white/60 pb-0.5">
+                        <span className="truncate block font-normal cursor-help text-zinc-300 group-hover/diag:text-white transition-colors">
                           {diag.exactReason}
                         </span>
 
                         {/* Hover Diagnostic Briefing Card */}
-                        <div className={`absolute left-0 ${isLower ? 'bottom-full mb-2.5' : 'top-full mt-2.5'} hidden group-hover/diag:flex flex-col z-50 w-96 rounded-md border border-white/[0.14] bg-[#141416]/98 backdrop-blur-xl p-4 shadow-2xl pointer-events-none text-left`}>
+                        <div className={`absolute left-0 ${isLower ? 'bottom-full mb-2.5' : 'top-full mt-2.5'} hidden group-hover/diag:flex flex-col z-50 w-96 rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl pointer-events-none text-left`}>
                           {/* Header */}
                           <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/[0.08]">
                             <div className="flex items-center gap-1.5 font-medium text-[13px] text-white">
@@ -422,14 +456,14 @@ export default function WorkflowsPage() {
                               <span className="text-zinc-500 font-normal">·</span>
                               <span className="text-emerald-400 font-mono text-xs">{formatMoney(item.mrr_baseline_cents)}/mo</span>
                             </div>
-                            <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-xs bg-red-500/10 text-red-400 border border-red-500/20">
+                            <span className="text-[9px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-none bg-red-500/10 text-red-400 border border-red-500/20 font-mono">
                               {item.severity} Risk
                             </span>
                           </div>
 
                           {/* Core Issue Diagnosis */}
                           <div className="mb-2.5">
-                            <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                            <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
                               Core Diagnosis
                             </div>
                             <p className="text-xs text-zinc-200 leading-relaxed font-normal">
@@ -467,12 +501,52 @@ export default function WorkflowsPage() {
                   <td className="px-5 py-3.5 text-right">
                     {item.status === 'awaiting_approval' && (
                       <div className="inline-flex items-center justify-end gap-2.5">
-                        <button
-                          onClick={() => void loadCaseDetail(item.id)}
-                          className="text-xs text-zinc-400 hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
-                        >
-                          Review
-                        </button>
+                        <div className="relative group/draft inline-block">
+                          <button
+                            onClick={() => void loadCaseDetail(item.id)}
+                            className="text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer py-1 px-1"
+                          >
+                            Review
+                          </button>
+
+                          {/* Floating Email Draft Preview Card on Hover */}
+                          <div className={`absolute right-0 ${isLower ? 'bottom-full mb-2.5' : 'top-full mt-2.5'} hidden group-hover/draft:flex flex-col z-50 w-[440px] rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl pointer-events-none text-left`}>
+                            <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-white/[0.08]">
+                              <div className="flex items-center gap-2 text-xs">
+                                <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />
+                                <span className="font-medium text-zinc-400">To:</span>
+                                <span className="text-zinc-200 font-mono text-[11px]">{draftInfo.recipientEmail}</span>
+                              </div>
+                              <span className="text-[9px] uppercase tracking-wider font-mono px-1.5 py-0.5 rounded-none border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                                Draft Ready
+                              </span>
+                            </div>
+
+                            <div className="mb-2.5">
+                              <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
+                                Subject
+                              </div>
+                              <div className="text-xs font-medium text-white leading-snug">
+                                {draftInfo.subject}
+                              </div>
+                            </div>
+
+                            <div className="border-t border-white/[0.06] pt-2.5 mb-2.5">
+                              <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono mb-1">
+                                Message Preview
+                              </div>
+                              <p className="text-xs text-zinc-300 leading-relaxed font-normal whitespace-pre-wrap max-h-52 overflow-y-auto pr-1">
+                                {draftInfo.bodyPreview}
+                              </p>
+                            </div>
+
+                            <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[10px] text-zinc-500 font-mono">
+                              <span>Click Review to edit in full</span>
+                              <span className="text-zinc-300">Click Send to dispatch</span>
+                            </div>
+                          </div>
+                        </div>
+
                         <button
                           disabled={sendingCaseId === item.id || sentSuccessCaseId === item.id}
                           onClick={() => void handleQuickSend(item.id, accountName(item))}

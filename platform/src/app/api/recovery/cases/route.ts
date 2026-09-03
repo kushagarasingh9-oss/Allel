@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const serviceClient = createServiceClient();
     let query = serviceClient
       .from('recovery_cases')
-      .select('*, customer_accounts(name, domain)')
+      .select('*, customer_accounts(name, domain), follow_up_drafts(id, subject, body_preview, approval_metadata, status)')
       .eq('workspace_id', workspace.id)
       .order('opened_at', { ascending: false })
       .limit(limit);
