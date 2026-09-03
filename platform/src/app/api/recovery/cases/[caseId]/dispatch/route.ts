@@ -43,6 +43,7 @@ export async function POST(
       .update({
         status: 'monitoring',
         sent_at: now,
+        monitoring_started_at: now,
         updated_at: now,
       })
       .eq('id', caseId)
@@ -52,7 +53,7 @@ export async function POST(
       return NextResponse.json({ error: `Failed to update case: ${updateErr.message}` }, { status: 500 });
     }
 
-    // 3. Mark drafts as sent
+    // 3. Mark drafts as sent in follow_up_drafts and legacy draft_responses
     await serviceClient
       .from('follow_up_drafts')
       .update({
@@ -62,6 +63,17 @@ export async function POST(
       })
       .eq('recovery_case_id', caseId)
       .eq('workspace_id', workspace.id);
+
+    if (recoveryCase.customer_account_id) {
+      await serviceClient
+        .from('draft_responses')
+        .update({
+          status: 'sent',
+          sent_at: now,
+        })
+        .eq('customer_account_id', recoveryCase.customer_account_id)
+        .eq('workspace_id', workspace.id);
+    }
 
     // 4. Log immutable audit event
     await serviceClient.from('recovery_case_events').insert({

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, Check, CheckCircle2, Loader2, RefreshCw, Search } from 'lucide-react'
+import { AlertCircle, Check, CheckCircle2, Loader2, RefreshCw, Search, Send } from 'lucide-react'
 
 type Metrics = {
   revenueSavedFormatted: string
@@ -659,17 +659,17 @@ export default function WorkflowsPage() {
                                           setDraftSavedCaseId(null)
                                         }
                                       }}
-                                      className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-75"
+                                      className="inline-flex items-center gap-1.5 rounded-xs border border-white/15 bg-white/[0.08] hover:bg-white/[0.14] hover:border-white/30 active:bg-white/[0.18] px-3 py-1 text-xs font-medium text-white transition-all cursor-pointer disabled:opacity-50 shadow-xs"
                                     >
                                       {draftSavedCaseId === item.id ? (
                                         <>
-                                          <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
-                                          Saved ✓
+                                          <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
+                                          <span className="text-emerald-300">Saved ✓</span>
                                         </>
                                       ) : savingDraft ? (
                                         <>
-                                          <Loader2 className="w-3 h-3 animate-spin text-black" />
-                                          Saving…
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-300" />
+                                          <span>Saving…</span>
                                         </>
                                       ) : (
                                         'Save Draft'
@@ -725,21 +725,22 @@ export default function WorkflowsPage() {
                         <button
                           disabled={sendingCaseId === item.id || sentSuccessCaseId === item.id}
                           onClick={() => void handleQuickSend(item.id, accountName(item))}
-                          className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-80 shadow-xs"
+                          className="group/btn inline-flex items-center gap-1.5 rounded-xs border border-white/15 bg-white/[0.08] hover:bg-white/[0.14] hover:border-white/30 active:bg-white/[0.18] px-3 py-1 text-xs font-medium text-white transition-all cursor-pointer disabled:opacity-50 shadow-xs backdrop-blur-sm"
                         >
                           {sendingCaseId === item.id ? (
                             <>
-                              <Loader2 className="w-3 h-3 animate-spin text-black" />
-                              Sending…
+                              <Loader2 className="w-3 h-3 animate-spin text-zinc-300" />
+                              <span>Sending…</span>
                             </>
                           ) : sentSuccessCaseId === item.id ? (
                             <>
-                              <Check className="w-3 h-3 text-black stroke-[3]" />
-                              Sent
+                              <Check className="w-3 h-3 text-emerald-400 stroke-[2.5]" />
+                              <span className="text-emerald-300">Sent</span>
                             </>
                           ) : (
                             <>
-                              Send
+                              <Send className="w-3 h-3 text-zinc-400 group-hover/btn:text-white transition-colors" />
+                              <span>Send</span>
                             </>
                           )}
                         </button>
@@ -894,17 +895,17 @@ export default function WorkflowsPage() {
                                 setDraftSavedCaseId(null)
                               }
                             }}
-                            className="inline-flex items-center gap-1.5 rounded-sm bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-75"
+                            className="inline-flex items-center gap-1.5 rounded-xs border border-white/15 bg-white/[0.08] hover:bg-white/[0.14] hover:border-white/30 active:bg-white/[0.18] px-3 py-1 text-xs font-medium text-white transition-all cursor-pointer disabled:opacity-50 shadow-xs"
                           >
                             {draftSavedCaseId === selected.case.id ? (
                               <>
-                                <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
-                                Saved ✓
+                                <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
+                                <span className="text-emerald-300">Saved ✓</span>
                               </>
                             ) : savingDraft ? (
                               <>
-                                <Loader2 className="w-3 h-3 animate-spin text-black" />
-                                Saving…
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-300" />
+                                <span>Saving…</span>
                               </>
                             ) : (
                               'Save Draft'
@@ -917,28 +918,37 @@ export default function WorkflowsPage() {
                         <div className="font-medium text-white text-sm mb-1">{draft.subject}</div>
                         <div className="text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed border-t border-white/[0.06] pt-2.5 mt-2.5">{draft.body_preview}</div>
                         <div className="mt-4 flex items-center justify-end">
-                          {draft.status === 'needs_review' && (
+                          {draft.status === 'needs_review' && selected.case.status !== 'monitoring' && selected.case.status !== 'resolved' && (
                             <button
                               disabled={sendingCaseId === selected.case.id || approving === draft.id || sentSuccessCaseId === selected.case.id}
                               onClick={() => void handleQuickSend(selected.case.id, accountName(selected.case))}
-                              className="rounded-sm bg-white px-3.5 py-1.5 text-xs font-semibold text-black disabled:opacity-80 hover:bg-zinc-200 transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+                              className="group/modalbtn inline-flex items-center gap-1.5 rounded-xs border border-white/15 bg-white/[0.08] hover:bg-white/[0.14] hover:border-white/30 active:bg-white/[0.18] px-3.5 py-1.5 text-xs font-medium text-white transition-all cursor-pointer disabled:opacity-50 shadow-xs backdrop-blur-sm"
                             >
                               {sendingCaseId === selected.case.id ? (
                                 <>
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
-                                  Sending…
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-300" />
+                                  <span>Sending…</span>
                                 </>
                               ) : sentSuccessCaseId === selected.case.id ? (
                                 <>
-                                  <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
-                                  Sent
+                                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
+                                  <span className="text-emerald-300">Sent</span>
                                 </>
                               ) : (
-                                'Send Outreach'
+                                <>
+                                  <Send className="w-3.5 h-3.5 text-zinc-400 group-hover/modalbtn:text-white transition-colors" />
+                                  <span>Send Outreach</span>
+                                </>
                               )}
                             </button>
                           )}
                         </div>
+                        {(selected.case.status === 'monitoring' || draft.status === 'sent') && (
+                          <div className="mt-3 flex items-center gap-2 rounded-xs border border-sky-500/20 bg-sky-500/10 px-3 py-2 text-xs text-sky-300">
+                            <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse shrink-0" />
+                            <span>Outreach dispatched. Actively listening for webhook 504 resolution, payment clearance, or customer reply.</span>
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
