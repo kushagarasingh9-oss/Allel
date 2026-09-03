@@ -12,6 +12,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Bot,
+  ShieldCheck,
   Workflow,
   Cable,
   MessagesSquare,

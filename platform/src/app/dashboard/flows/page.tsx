@@ -149,37 +149,26 @@ export default function WorkflowsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#121214] p-8 text-zinc-300">
+    <div className="min-h-screen bg-[#0d0d0f] p-8 text-zinc-300">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-7 flex items-center justify-between">
+        <div className="mb-8 flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2 text-white">
-              <ShieldCheck className="h-5 w-5" />
-              <h1 className="text-xl font-semibold">Revenue Recovery</h1>
-            </div>
-            <p className="mt-1 text-sm text-zinc-400">Live recovery cases, evidence, queue state, and approval provenance.</p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-              <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300">
-                Test-mode recovery simulation. No production customer funds are represented.
-              </span>
-              <span className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-400">
-                Risk index, not a predicted probability of churn.
-              </span>
-            </div>
+            <h1 className="text-3xl font-medium tracking-tight text-white">Revenue Recovery</h1>
+            <p className="mt-1 text-[14px] text-zinc-400">Autonomous churn prevention, telemetry correlation, and founder-approved recovery.</p>
           </div>
-          <button onClick={() => void refresh()} className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs hover:bg-white/5">
+          <button onClick={() => void refresh()} className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-[#161618] px-3.5 py-2 text-xs font-medium text-zinc-300 hover:text-white hover:border-white/20 transition-all shadow-xs">
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </button>
         </div>
 
         {notice && (
-          <div className={`mb-5 flex items-center gap-2 rounded-lg border p-3 text-sm ${notice.tone === 'error' ? 'border-red-900/60 bg-red-950/30 text-red-200' : 'border-emerald-900/60 bg-emerald-950/30 text-emerald-200'}`}>
+          <div className={`mb-5 flex items-center gap-2 rounded-xl border p-3 text-sm ${notice.tone === 'error' ? 'border-red-900/60 bg-red-950/30 text-red-200' : 'border-emerald-900/60 bg-emerald-950/30 text-emerald-200'}`}>
             {notice.tone === 'error' ? <AlertCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
             {notice.text}
           </div>
         )}
 
-        <div className="mb-7 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Metric label="Strict recovered" value={metrics?.revenueSavedFormatted ?? '—'} note="Verified provider evidence" />
           <Metric label="Protected revenue" value={metrics ? formatMoney(metrics.protectedCents) : '—'} note="Reversed cancellation" />
           <Metric label="MRR at risk" value={metrics ? formatMoney(metrics.atRiskCents) : '—'} note={`${cases.filter(item => !['resolved', 'suppressed'].includes(item.status)).length} active cases`} />
@@ -187,33 +176,53 @@ export default function WorkflowsPage() {
         </div>
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex gap-2">
+          <div className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-[#161618] p-1 shadow-xs">
             {['all', 'awaiting_approval', 'monitoring', 'resolved'].map(status => (
-              <button key={status} onClick={() => setStatusFilter(status)} className={`rounded-lg px-3 py-2 text-xs capitalize ${statusFilter === status ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:text-white'}`}>
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
+                  statusFilter === status
+                    ? 'bg-white text-black font-semibold shadow-xs'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+                }`}
+              >
                 {formatStatus(status)}
               </button>
             ))}
           </div>
           <label className="relative">
-            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-500" />
-            <input value={searchQuery} onChange={event => setSearchQuery(event.target.value)} placeholder="Filter live cases" className="rounded-lg border border-white/10 bg-black/20 py-2 pl-9 pr-3 text-xs outline-none focus:border-white/20" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+            <input
+              value={searchQuery}
+              onChange={event => setSearchQuery(event.target.value)}
+              placeholder="Filter live cases..."
+              className="rounded-xl border border-white/[0.08] bg-[#161618] py-2 pl-9 pr-4 text-xs text-white outline-none focus:border-white/20 transition-colors placeholder:text-zinc-500 shadow-xs"
+            />
           </label>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-white/10">
+        <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#161618] shadow-xs">
           <table className="w-full text-left text-xs">
-            <thead className="bg-white/[0.03] text-zinc-500">
-              <tr><th className="p-3">Account</th><th className="p-3">Trigger</th><th className="p-3">Risk</th><th className="p-3">MRR</th><th className="p-3">Status</th><th className="p-3 text-right">Inspect</th></tr>
+            <thead className="bg-white/[0.02] border-b border-white/[0.06] text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+              <tr><th className="p-3.5">Account</th><th className="p-3.5">Trigger</th><th className="p-3.5">Risk</th><th className="p-3.5">MRR</th><th className="p-3.5">Status</th><th className="p-3.5 text-right">Inspect</th></tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-white/[0.04]">
               {filteredCases.map(item => (
-                <tr key={item.id} className="hover:bg-white/[0.02]">
-                  <td className="p-3 font-medium text-white">{accountName(item)}</td>
-                  <td className="p-3"><div className="capitalize text-zinc-300">{item.trigger_provider}</div><div className="text-zinc-500">{formatStatus(item.trigger_event_type)}</div></td>
-                  <td className="p-3"><div className="capitalize">{item.severity}</div><div className="text-zinc-500">{item.risk_score}/100 · {(item.score_confidence * 100).toFixed(0)}% confidence</div></td>
-                  <td className="p-3 text-white">{formatMoney(item.mrr_baseline_cents)}</td>
-                  <td className="p-3 capitalize">{formatStatus(item.status)}</td>
-                  <td className="p-3 text-right"><button onClick={() => void loadCaseDetail(item.id)} className="rounded-md border border-white/10 px-2.5 py-1.5 text-white hover:bg-white/5">Inspect</button></td>
+                <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="p-3.5 font-medium text-white">{accountName(item)}</td>
+                  <td className="p-3.5"><div className="capitalize text-zinc-300 font-medium">{item.trigger_provider}</div><div className="text-zinc-500 text-[11px]">{formatStatus(item.trigger_event_type)}</div></td>
+                  <td className="p-3.5"><div className="capitalize font-medium">{item.severity}</div><div className="text-zinc-500 text-[11px]">{item.risk_score}/100 · {(item.score_confidence * 100).toFixed(0)}% confidence</div></td>
+                  <td className="p-3.5 font-medium text-white">{formatMoney(item.mrr_baseline_cents)}</td>
+                  <td className="p-3.5 capitalize text-zinc-300">{formatStatus(item.status)}</td>
+                  <td className="p-3.5 text-right">
+                    <button
+                      onClick={() => void loadCaseDetail(item.id)}
+                      className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-white hover:bg-white/[0.08] hover:border-white/20 transition-colors"
+                    >
+                      Inspect
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -224,18 +233,26 @@ export default function WorkflowsPage() {
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setSelected(null)}>
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-white/10 bg-[#171719] p-6" onClick={event => event.stopPropagation()}>
-            <div className="mb-5 flex items-start justify-between">
-              <div><h2 className="text-lg font-semibold text-white">{selected.account?.name || accountName(selected.case)}</h2><p className="text-xs text-zinc-500">Case {selected.case.id}</p></div>
-              <button onClick={() => setSelected(null)} className="text-xs text-zinc-400 hover:text-white">Close</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs" onClick={() => setSelected(null)}>
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/[0.1] bg-[#141416] p-6 shadow-2xl" onClick={event => event.stopPropagation()}>
+            <div className="mb-6 flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-white">{selected.account?.name || accountName(selected.case)}</h2>
+                <p className="text-xs text-zinc-500 mt-0.5">Case {selected.case.id}</p>
+              </div>
+              <button
+                onClick={() => setSelected(null)}
+                className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                Close
+              </button>
             </div>
 
-            <DetailSection title="Evidence"><pre className="whitespace-pre-wrap text-xs text-zinc-400">{JSON.stringify(selected.case.evidence_snapshot || [], null, 2)}</pre></DetailSection>
+            <DetailSection title="Evidence"><pre className="whitespace-pre-wrap text-xs text-zinc-400 font-mono">{JSON.stringify(selected.case.evidence_snapshot || [], null, 2)}</pre></DetailSection>
             <DetailSection title="Canonical features"><div className="grid grid-cols-2 gap-2 text-xs"><Fact label="Payment failures (30d)" value={selected.features?.failed_payment_count_30d ?? '—'} /><Fact label="Usage change" value={selected.features?.usage_delta_percent == null ? '—' : `${selected.features.usage_delta_percent}%`} /><Fact label="Unreplied outbound" value={selected.features?.unreplied_outbound_count ?? '—'} /><Fact label="Last successful payment" value={selected.features?.last_payment_succeeded_at ? new Date(selected.features.last_payment_succeeded_at).toLocaleString() : '—'} /></div></DetailSection>
             <DetailSection title="Contacts">{selected.contacts.length ? selected.contacts.map(contact => <div key={contact.email} className="mb-1 text-xs text-zinc-300">{contact.email} {contact.is_primary ? '· primary' : ''} {contact.is_provisional ? '· provisional' : '· verified contact'}</div>) : <p className="text-xs text-zinc-500">No linked contacts.</p>}</DetailSection>
-            <DetailSection title="Drafts">{selected.drafts.length ? selected.drafts.map(draft => <div key={draft.id} className="mb-3 rounded-lg border border-white/10 p-3"><div className="font-medium text-white">{draft.subject}</div><div className="mt-1 text-xs text-zinc-400">{draft.body_preview}</div><div className="mt-2 flex items-center justify-between text-xs"><span className="capitalize text-zinc-500">{formatStatus(draft.status)}</span>{draft.status === 'needs_review' && <button disabled={approving === draft.id} onClick={() => void approveDraft(draft.id, selected.case.id)} className="rounded-md bg-white px-3 py-1.5 font-medium text-black disabled:opacity-50">{approving === draft.id ? 'Approving…' : 'Approve only'}</button>}</div></div>) : <p className="text-xs text-zinc-500">No draft linked to this case.</p>}</DetailSection>
-            <DetailSection title="Workflow jobs">{selected.jobs.length ? selected.jobs.map(job => <div key={job.id} className="mb-1 flex justify-between text-xs"><span>{formatStatus(job.job_type)}</span><span className={job.status === 'dead_letter' ? 'text-red-300' : 'text-zinc-500'}>{formatStatus(job.status)}</span></div>) : <p className="text-xs text-zinc-500">No jobs linked to this case.</p>}</DetailSection>
+            <DetailSection title="Drafts">{selected.drafts.length ? selected.drafts.map(draft => <div key={draft.id} className="mb-3 rounded-xl border border-white/[0.08] bg-black/30 p-3.5"><div className="font-medium text-white">{draft.subject}</div><div className="mt-1 text-xs text-zinc-400">{draft.body_preview}</div><div className="mt-3 flex items-center justify-between text-xs"><span className="capitalize text-zinc-500">{formatStatus(draft.status)}</span>{draft.status === 'needs_review' && <button disabled={approving === draft.id} onClick={() => void approveDraft(draft.id, selected.case.id)} className="rounded-lg bg-white px-3 py-1.5 font-medium text-black disabled:opacity-50 hover:bg-zinc-200 transition-colors">{approving === draft.id ? 'Approving…' : 'Approve only'}</button>}</div></div>) : <p className="text-xs text-zinc-500">No draft linked to this case.</p>}</DetailSection>
+            <DetailSection title="Workflow jobs">{selected.jobs.length ? selected.jobs.map(job => <div key={job.id} className="mb-1.5 flex justify-between text-xs"><span>{formatStatus(job.job_type)}</span><span className={job.status === 'dead_letter' ? 'text-red-300 font-medium' : 'text-zinc-500'}>{formatStatus(job.status)}</span></div>) : <p className="text-xs text-zinc-500">No jobs linked to this case.</p>}</DetailSection>
           </div>
         </div>
       )}
@@ -244,13 +261,29 @@ export default function WorkflowsPage() {
 }
 
 function Metric({ label, value, note }: { label: string; value: string; note: string }) {
-  return <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4"><div className="text-xs text-zinc-500">{label}</div><div className="mt-1 text-2xl font-semibold text-white">{value}</div><div className="mt-1 text-[11px] text-zinc-600">{note}</div></div>
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-[#161618] p-5 shadow-xs hover:border-white/[0.18] transition-all flex flex-col justify-between min-h-[110px]">
+      <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+      <div className="mt-2 text-2xl sm:text-3xl font-semibold text-white tracking-tight">{value}</div>
+      <div className="mt-2 text-[12px] text-zinc-400">{note}</div>
+    </div>
+  )
 }
 
 function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="mb-5"><h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500">{title}</h3><div className="rounded-lg bg-black/20 p-3">{children}</div></section>
+  return (
+    <section className="mb-5">
+      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-500">{title}</h3>
+      <div className="rounded-xl border border-white/[0.06] bg-[#0d0d0f] p-3.5">{children}</div>
+    </section>
+  )
 }
 
 function Fact({ label, value }: { label: string; value: string | number }) {
-  return <div className="rounded-md bg-white/[0.03] p-2"><div className="text-zinc-500">{label}</div><div className="mt-1 text-white">{value}</div></div>
+  return (
+    <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] p-2.5">
+      <div className="text-zinc-500 text-[11px]">{label}</div>
+      <div className="mt-1 text-white font-medium">{value}</div>
+    </div>
+  )
 }
