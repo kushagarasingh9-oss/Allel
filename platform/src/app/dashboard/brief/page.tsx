@@ -88,7 +88,7 @@ export default function BriefPage() {
     }
   }
 
-  const handleSubmit = (textToSend?: string) => {
+  const handleSubmit = useCallback((textToSend?: string) => {
     const query = (textToSend || inputText).trim()
     if (!query) return
 
@@ -99,7 +99,18 @@ export default function BriefPage() {
 
     sendMessage({ text: query })
     setInputText('')
-  }
+  }, [inputText, isLoading, stop, sendMessage])
+
+  useEffect(() => {
+    const handleProceed = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.text) {
+        handleSubmit(detail.text)
+      }
+    }
+    window.addEventListener('allel:proceed-tasks', handleProceed)
+    return () => window.removeEventListener('allel:proceed-tasks', handleProceed)
+  }, [handleSubmit])
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#0d0d0f] text-[#F4F4F5] relative overflow-hidden font-sans select-none">

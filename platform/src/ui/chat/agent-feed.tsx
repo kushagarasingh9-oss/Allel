@@ -219,13 +219,15 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   searchPostHogPersons: <img src="/logos/posthog.svg" alt="PostHog" className="w-4 h-4 object-contain shrink-0" />,
   createPostHogAnnotation: <img src="/logos/posthog.svg" alt="PostHog" className="w-4 h-4 object-contain shrink-0" />,
 
-  // Recovery pipeline tools
-  runRevenueRiskScan: <Search className="w-4 h-4 text-neutral-400" />,
+  // Recovery & Stripe pipeline tools
+  createRescueDiscountTool: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  applySubscriptionCouponTool: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  runRevenueRiskScan: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   getUnifiedCustomerScan: <Search className="w-4 h-4 text-neutral-400" />,
-  getAccountRecoveryStatus: <Search className="w-4 h-4 text-neutral-400" />,
-  getUnifiedFleetScan: <Search className="w-4 h-4 text-neutral-400" />,
-  getRecoveryCases: <Search className="w-4 h-4 text-neutral-400" />,
-  getRecoveryCaseDetail: <Search className="w-4 h-4 text-neutral-400" />,
+  getAccountRecoveryStatus: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  getUnifiedFleetScan: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  getRecoveryCases: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  getRecoveryCaseDetail: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
 
   addTimelineEvent: <Database className="w-4 h-4 text-neutral-500" />,
   createSignal: <Zap className="w-4 h-4 text-neutral-500" />,
@@ -383,7 +385,7 @@ function getProviderFromTool(toolName: string, errorMsg: string): { name: string
   else if (lowName.includes('calendar') || lowMsg.includes('calendar')) { slug = 'google_calendar'; name = 'Google Calendar' }
   else if (lowName.includes('gmail') || toolName === 'getMyInbox' || lowMsg.includes('gmail')) { slug = 'gmail'; name = 'Gmail' }
   else if (lowName.includes('slack') || lowMsg.includes('slack')) { slug = 'slack'; name = 'Slack' }
-  else if (lowName.includes('stripe') || lowMsg.includes('stripe')) { slug = 'stripe'; name = 'Stripe' }
+  else if (lowName.includes('stripe') || lowMsg.includes('stripe') || lowName.includes('discount') || lowName.includes('coupon') || lowName.includes('recovery')) { slug = 'stripe'; name = 'Stripe' }
   else if (lowName.includes('posthog') || lowMsg.includes('posthog')) { slug = 'posthog'; name = 'PostHog' }
   else if (lowName.includes('linear') || lowMsg.includes('linear')) { slug = 'linear'; name = 'Linear' }
   else if (lowName.includes('sentry') || lowMsg.includes('sentry')) { slug = 'sentry'; name = 'Sentry' }
@@ -959,7 +961,7 @@ function ToolResultSummary({
     return (
       <div className="flex flex-col gap-1 mb-2">
         <MiniResultCard
-          icon={<Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+          icon={<img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain shrink-0" />}
           title={<span className="text-white font-medium">Portfolio Revenue Risk Scan</span>}
           subtitle={`Total MRR at Risk: $${((Number(data.totalMrrAtRiskCents) || 0) / 100).toLocaleString()} across ${String(data.totalAccountsScanned || 0)} accounts`}
         />

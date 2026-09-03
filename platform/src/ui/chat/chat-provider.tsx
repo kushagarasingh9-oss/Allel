@@ -235,7 +235,6 @@ export function ChatProvider({
         if (typeof window !== "undefined") {
           try {
             const url = new URL(window.location.href)
-            url.pathname = "/dashboard"
             url.searchParams.set("sessionId", currentSessionId)
             window.history.pushState({}, "", url.toString())
           } catch {
@@ -482,7 +481,9 @@ export function ChatProvider({
     try {
       const url = new URL(window.location.href)
       if (url.searchParams.get("sessionId") !== currentSessionId) {
-        url.pathname = "/dashboard"
+        if (!url.pathname.startsWith("/dashboard/brief")) {
+          url.pathname = "/dashboard"
+        }
         url.searchParams.set("sessionId", currentSessionId)
         window.history.pushState({}, "", url.toString())
       }
@@ -531,7 +532,9 @@ export function ChatProvider({
     if (typeof window !== "undefined") {
       try {
         const url = new URL(window.location.href)
-        url.pathname = "/dashboard"
+        if (!url.pathname.startsWith("/dashboard/brief")) {
+          url.pathname = "/dashboard"
+        }
         url.searchParams.delete("sessionId")
         window.history.pushState({}, "", url.toString())
       } catch {
@@ -569,7 +572,9 @@ export function ChatProvider({
     if (typeof window !== "undefined") {
       try {
         const url = new URL(window.location.href)
-        url.pathname = "/dashboard"
+        if (!url.pathname.startsWith("/dashboard/brief")) {
+          url.pathname = "/dashboard"
+        }
         url.searchParams.set("sessionId", session.id)
         window.history.pushState({}, "", url.toString())
       } catch {
@@ -662,7 +667,9 @@ export function ChatProvider({
       if (typeof window !== "undefined") {
         try {
           const url = new URL(window.location.href)
-          url.pathname = "/dashboard"
+          if (!url.pathname.startsWith("/dashboard/brief")) {
+            url.pathname = "/dashboard"
+          }
           url.searchParams.delete("sessionId")
           window.history.pushState({}, "", url.toString())
         } catch {

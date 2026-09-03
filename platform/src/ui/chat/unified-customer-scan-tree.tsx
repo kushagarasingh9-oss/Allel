@@ -9,7 +9,7 @@ import {
   type CustomerProviderIdentity,
   type CustomerProviderStatus,
 } from "@/recovery/customer-scan-types"
-import { AlertTriangle, ChevronDown, ChevronRight, Phone } from "lucide-react"
+import { AlertTriangle, ChevronDown, ChevronRight, Phone, Send, CheckCircle2 } from "lucide-react"
 
 const PROVIDER_LOGOS: Record<string, string> = {
   stripe: "/logos/stripe.svg",
@@ -638,21 +638,50 @@ export function DraftedEmailCard({
       </div>
 
       {isExpanded && (
-        <div className="ml-6 mt-1 mb-1 p-3 rounded bg-neutral-900/90 border border-white/10 text-[12px] text-neutral-300 leading-relaxed font-sans">
-          <div className="text-[11px] text-neutral-400 border-b border-white/5 pb-1.5 mb-2 flex items-center justify-between">
-            <span><strong className="text-neutral-300">To:</strong> {recipient}</span>
-            <div className="flex items-center gap-1.5 text-neutral-400">
+        <div className="ml-6 mt-1 mb-1 p-3.5 rounded-lg bg-[#141416] border border-white/10 text-[12px] text-zinc-300 leading-relaxed font-sans shadow-lg">
+          <div className="text-[11px] text-zinc-400 border-b border-white/[0.06] pb-2 mb-2.5 flex items-center justify-between">
+            <span className="truncate max-w-[260px]"><strong className="text-zinc-200 font-medium">To:</strong> {recipient}</span>
+            <div className="flex items-center gap-1.5 text-zinc-400 text-xs">
               <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />
               <span>{badge}</span>
             </div>
           </div>
           {subject && (
-            <div className="text-[12px] font-semibold text-neutral-200 mb-2 pb-1 border-b border-white/5">
+            <div className="text-[12.5px] font-medium text-white mb-2 pb-1.5 border-b border-white/[0.06]">
               Subject: {subject}
             </div>
           )}
-          <div className="whitespace-pre-wrap font-sans text-neutral-200">
+          <div className="whitespace-pre-wrap font-sans text-zinc-200 text-xs leading-relaxed bg-black/30 p-2.5 rounded border border-white/[0.04]">
             {body || 'No message body available.'}
+          </div>
+
+          {/* Action Bar for Founder Approval */}
+          <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 text-[11px] text-amber-400 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <span>Needs founder approval</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href="/dashboard/flows"
+                className="text-[11px] text-zinc-400 hover:text-white px-2 py-1 rounded hover:bg-white/[0.04] transition-colors"
+              >
+                View in Recovery →
+              </a>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  window.dispatchEvent(new CustomEvent('allel:proceed-tasks', {
+                    detail: { text: `Approve and send the recovery email to ${recipient}` }
+                  }))
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white text-black hover:bg-zinc-200 text-xs font-medium cursor-pointer transition-all shadow-sm active:scale-95"
+              >
+                <Send className="w-3 h-3 text-black" />
+                <span>Approve & Send</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
