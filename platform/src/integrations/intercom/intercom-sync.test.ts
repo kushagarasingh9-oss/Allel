@@ -234,4 +234,103 @@ describe('Intercom Workspace Sync Full Orchestration', () => {
     assert.equal(result.syncedAccounts, 0);
     assert.equal(conversationAttributed, false);
   });
+
+  it('4. Attributed support conversations enqueue project_account_features with frustration signals', async () => {
+    let enqueuedJobPayload: any = null;
+
+    const mockSupabase = {
+      from: (table: string) => {
+        const chain: any = {};
+        chain.select = () => chain;
+        chain.contains = () => chain;
+        chain.eq = () => chain;
+        chain.delete = () => chain;
+        chain.maybeSingle = async () => ({ data: null, error: null });
+        chain.single = async () => ({ data: null, error: null });
+        chain.insert = () => chain;
+        chain.update = () => chain;
+        chain.upsert = (payload: any) => {
+          if (table === 'workflow_jobs') enqueuedJobPayload = payload;
+          return chain;
+        };
+        chain.then = (resolve: (v: any) => any) => {
+          if (table === 'account_contacts') {
+            return resolve({
+              data: [
+                {
+                  email: 'support@cloudscale.io',
+                  customer_account_id: 'acc-cloudscale-1',
+                  is_primary: true,
+                  is_provisional: false,
+                },
+              ],
+              error: null,
+            });
+          }
+          if (table === 'provider_identities') {
+            return resolve({ data: [], error: null });
+          }
+          return resolve({ data: null, error: null });
+        };
+        return chain;
+      },
+      rpc: async () => ({
+        data: { status: 'ok', accountId: 'acc-cloudscale-1' },
+        error: null,
+      }),
+    } as any;
+
+    global.fetch = async (url: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/contacts')) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: [
+              {
+                id: 'intercom-c-scale',
+                email: 'support@cloudscale.io',
+                name: 'Scale Admin',
+              },
+            ],
+          }),
+        } as any;
+      }
+      if (urlStr.includes('/conversations')) {
+        return {
+          ok: true,
+          json: async () => ({
+            conversations: [
+              {
+                id: 'convo-urgent-1',
+                title: 'CRITICAL BUG: Workflow engine completely broken and failing',
+                contacts: {
+                  contacts: [{ id: 'intercom-c-scale', email: 'support@cloudscale.io' }],
+                },
+                source: { body: 'This is terrible and completely broken, we are extremely frustrated!' },
+                updated_at: Math.floor(Date.now() / 1000),
+              },
+            ],
+          }),
+        } as any;
+      }
+      return { ok: true, json: async () => ({}) } as any;
+    };
+
+    const result = await syncIntercomWorkspace('ws-test-intercom', {
+      refreshBrief: false,
+      supabaseClient: mockSupabase,
+      credentialsOverride: mockCreds,
+    });
+
+    assert.equal(result.syncedAccounts, 1);
+    assert.equal(result.openConversations, 1);
+    assert.notEqual(enqueuedJobPayload, null);
+
+    const patch = enqueuedJobPayload.payload.patch;
+    assert.equal(patch.supportAvailable, true);
+    assert.equal(patch.openSupportConversationCount, 1);
+    assert.equal(patch.hasFrustrationSignals, true);
+    assert.notEqual(patch.lastSupportTicketAt, null);
+  });
 });

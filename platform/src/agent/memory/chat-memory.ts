@@ -80,9 +80,21 @@ function isMissingAgentConversationSessionColumnError(error: unknown) {
 function dedupeMessages(messages: TrustedUIMessage[]) {
   const deduped: TrustedUIMessage[] = []
   const seenIds = new Set<string>()
+  const seenAssistantTexts = new Set<string>()
 
   for (const message of messages) {
-    if (seenIds.has(message.id)) continue
+    if (typeof message.id === 'string' && message.id.length > 0 && seenIds.has(message.id)) continue
+
+    // Drop assistant messages that duplicate existing assistant text content across turns
+    if (message.role === 'assistant') {
+      const text = getMessageTextContent(message).trim()
+      if (text.length > 0 && seenAssistantTexts.has(text)) {
+        continue
+      }
+      if (text.length > 0) {
+        seenAssistantTexts.add(text)
+      }
+    }
 
     // Drop consecutive same-role messages with identical text content.
     // These arise when the fallback synthesis duplicates a response that
@@ -99,14 +111,18 @@ function dedupeMessages(messages: TrustedUIMessage[]) {
           if (curParts > prevParts) {
             deduped[deduped.length - 1] = message
           }
-          seenIds.add(message.id)
+          if (typeof message.id === 'string' && message.id.length > 0) {
+            seenIds.add(message.id)
+          }
           continue
         }
       }
     }
 
     deduped.push(message)
-    seenIds.add(message.id)
+    if (typeof message.id === 'string' && message.id.length > 0) {
+      seenIds.add(message.id)
+    }
   }
 
   return deduped
@@ -353,17 +369,27 @@ export function mergeConversationHistory(options: {
   }
 
   // Server-first merge: treat persisted messages as the canonical truth.
-  // Only append incoming messages whose IDs are not already in the
-  // persisted set. This prevents the old overlap-based slice from
-  // accidentally dropping assistant messages when the overlap index
-  // resolves to 0 (first message).
   const persistedIds = new Set(
-    persistedMessages.map((message) => message.id)
+    persistedMessages.map((message) => message.id).filter(Boolean)
   )
 
-  const newIncoming = incomingMessages.filter(
-    (message) => !persistedIds.has(message.id)
+  const persistedAssistantTexts = new Set(
+    persistedMessages
+      .filter((m) => m.role === 'assistant')
+      .map((m) => getMessageTextContent(m).trim())
+      .filter((t) => t.length > 0)
   )
+
+  const newIncoming = incomingMessages.filter((message) => {
+    if (message.id && persistedIds.has(message.id)) {
+      return false
+    }
+    const text = getMessageTextContent(message).trim()
+    if (text.length > 0 && message.role === 'assistant' && persistedAssistantTexts.has(text)) {
+      return false
+    }
+    return true
+  })
 
   const merged = [...persistedMessages, ...newIncoming]
 

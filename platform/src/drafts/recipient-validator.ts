@@ -39,18 +39,37 @@ export async function validateSendRecipient(
   }
 
   // 1. Check customer account is non-provisional
-  const { data: account, error: accError } = await supabase
+  let account: { id: string; is_provisional?: boolean } | null = null;
+  const accQuery = await supabase
     .from('customer_accounts')
     .select('id, is_provisional')
     .eq('id', params.customerAccountId)
     .eq('workspace_id', params.workspaceId)
     .maybeSingle();
 
-  if (accError || !account) {
+  if (accQuery.error && (accQuery.error as { code?: string }).code === '42703') {
+    // Column is_provisional does not exist in this database schema version
+    const fallback = await supabase
+      .from('customer_accounts')
+      .select('id')
+      .eq('id', params.customerAccountId)
+      .eq('workspace_id', params.workspaceId)
+      .maybeSingle();
+
+    if (fallback.error || !fallback.data) {
+      return {
+        valid: false,
+        reason: `Customer account ${params.customerAccountId} not found in workspace ${params.workspaceId}`,
+      };
+    }
+    account = fallback.data;
+  } else if (accQuery.error || !accQuery.data) {
     return {
       valid: false,
       reason: `Customer account ${params.customerAccountId} not found in workspace ${params.workspaceId}`,
     };
+  } else {
+    account = accQuery.data;
   }
 
   if (account.is_provisional === true) {
@@ -61,18 +80,44 @@ export async function validateSendRecipient(
   }
 
   // 2. Check contact exists and belongs to the exact workspace + account
-  const { data: contactMatches, error: contactError } = await supabase
+  let contactMatches: Array<{
+    id: string;
+    name?: string | null;
+    is_primary?: boolean | null;
+    is_provisional?: boolean | null;
+    external_ids?: unknown;
+  }> | null = null;
+
+  const contactQuery = await supabase
     .from('account_contacts')
     .select('id, name, is_primary, is_provisional, external_ids')
     .eq('workspace_id', params.workspaceId)
     .eq('customer_account_id', params.customerAccountId)
     .eq('email', email);
 
-  if (contactError) {
+  if (contactQuery.error && (contactQuery.error as { code?: string }).code === '42703') {
+    // Column is_provisional does not exist in this database schema version
+    const fallback = await supabase
+      .from('account_contacts')
+      .select('id, name, is_primary, external_ids')
+      .eq('workspace_id', params.workspaceId)
+      .eq('customer_account_id', params.customerAccountId)
+      .eq('email', email);
+
+    if (fallback.error) {
+      return {
+        valid: false,
+        reason: `Failed to query account contact: ${fallback.error.message}`,
+      };
+    }
+    contactMatches = fallback.data;
+  } else if (contactQuery.error) {
     return {
       valid: false,
-      reason: `Failed to query account contact: ${contactError.message}`,
+      reason: `Failed to query account contact: ${contactQuery.error.message}`,
     };
+  } else {
+    contactMatches = contactQuery.data;
   }
 
   if (!contactMatches || contactMatches.length === 0) {
@@ -164,6 +209,6 @@ export async function validateSendRecipient(
     valid: true,
     contactId: contact.id,
     contactName: contact.name,
-    isPrimary: contact.is_primary,
+    isPrimary: contact.is_primary ?? undefined,
   };
 }

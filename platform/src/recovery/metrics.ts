@@ -28,7 +28,7 @@ export async function calculateRecoveryMetrics(
   // 2. Query draft outcomes — filter by test_mode to never mix test/prod dollars
   const { data: outcomes, error: outcomesError } = await supabase
     .from('draft_outcomes')
-    .select('id, recovery_case_id, outcome_type, strict_recovered_cents, protected_cents, is_test_mode')
+    .select('id, recovery_case_id, outcome, outcome_type, strict_recovered_cents, protected_cents, is_test_mode')
     .eq('workspace_id', workspaceId)
     .eq('is_test_mode', isTestMode)
     .gte('created_at', observationStart)
@@ -42,8 +42,6 @@ export async function calculateRecoveryMetrics(
   let strictRecoveredCents = 0;
   let protectedCents = 0;
   let atRiskCents = 0;
-  let engagedCases = 0;
-  let productRecoveredCases = 0;
   let churnedCases = 0;
   let pendingCases = 0;
   let unknownCases = 0;
@@ -53,6 +51,8 @@ export async function calculateRecoveryMetrics(
   // We sum strict_recovered_cents and protected_cents across all of them,
   // but deduplicate by outcome row id to avoid double-counting retried inserts.
   const seenOutcomeIds = new Set<string>();
+  const engagedCaseIds = new Set<string>();
+  const productRecoveredCaseIds = new Set<string>();
 
   if (outcomes) {
     for (const outcome of outcomes) {
@@ -60,6 +60,18 @@ export async function calculateRecoveryMetrics(
       if (outcome.id) seenOutcomeIds.add(outcome.id);
       strictRecoveredCents += outcome.strict_recovered_cents || 0;
       protectedCents += outcome.protected_cents || 0;
+
+      const outcomeType = outcome.outcome_type || outcome.outcome;
+      const caseId = outcome.recovery_case_id;
+      if (caseId) {
+        if (outcomeType === 'engaged' || outcomeType === 'responded') {
+          engagedCaseIds.add(caseId);
+        } else if (outcomeType === 'product_recovered' || outcomeType === 'recovered') {
+          if ((outcome.strict_recovered_cents || 0) === 0 && (outcome.protected_cents || 0) === 0) {
+            productRecoveredCaseIds.add(caseId);
+          }
+        }
+      }
     }
   }
 
@@ -74,13 +86,16 @@ export async function calculateRecoveryMetrics(
         atRiskCents += c.mrr_baseline_cents || 0;
         pendingCases++;
       } else if (c.status === 'resolved') {
-        if (c.resolution === 'engaged') engagedCases++;
-        else if (c.resolution === 'product_recovered') productRecoveredCases++;
+        if (c.resolution === 'engaged' && c.id) engagedCaseIds.add(c.id);
+        else if (c.resolution === 'product_recovered' && c.id) productRecoveredCaseIds.add(c.id);
         else if (c.resolution === 'churned') churnedCases++;
         else if (c.resolution === 'expired_unknown') unknownCases++;
       }
     }
   }
+
+  const engagedCases = engagedCaseIds.size;
+  const productRecoveredCases = productRecoveredCaseIds.size;
 
   return {
     testMode: isTestMode,

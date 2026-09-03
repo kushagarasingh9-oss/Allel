@@ -8,13 +8,15 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 export interface TimelineNodeProps {
-  title: string
+  title: React.ReactNode
   icon?: React.ReactNode
   isCompleted?: boolean
   isLoading?: boolean
   isCollapsible?: boolean
   children?: React.ReactNode
   className?: string
+  defaultOpen?: boolean
+  autoCollapse?: boolean
 }
 
 export type ReasoningBatchState = {
@@ -154,6 +156,46 @@ export function getBatchActionTitle(toolNames: string[] = [], isExecuting: boole
       return "Scanning customer billing & risk..."
     }
     return "Analyzed customer billing & risk"
+  }
+
+  // Unified Customer Scan & Health
+  if (
+    tools.has('getUnifiedCustomerScan') ||
+    tools.has('getAccountRecoveryStatus') ||
+    lowerTools.some((t) => t.includes('customerscan') || t.includes('unifiedcustomer'))
+  ) {
+    return isExecuting ? "Scanning customer across connected integrations..." : "Searched customer health & telemetry"
+  }
+
+  // Fleet Scan & Multi-Provider Revenue Risk
+  if (
+    tools.has('getUnifiedFleetScan') ||
+    tools.has('runRevenueRiskScan') ||
+    tools.has('scanFleetAccountsTool') ||
+    lowerTools.some((t) => t.includes('fleet') || t.includes('revenuerisk'))
+  ) {
+    return isExecuting ? "Auditing fleet revenue risk across connected stack..." : "Audited workspace revenue risk"
+  }
+
+  // Intercom & Customer Support
+  if (
+    tools.has('listIntercomConvos') ||
+    tools.has('getIntercomConvo') ||
+    tools.has('searchIntercomConvosTool') ||
+    tools.has('replyToIntercomConvo') ||
+    tools.has('createIntercomNote') ||
+    tools.has('syncIntercomWorkspaceTool') ||
+    lowerTools.some((t) => t.includes('intercom'))
+  ) {
+    if (isExecuting) {
+      const activeTool = toolNames?.[toolNames.length - 1]
+      if (activeTool === 'replyToIntercomConvo') return "Intercom: Sending reply to customer..."
+      if (activeTool === 'createIntercomNote') return "Intercom: Logging internal support note..."
+      if (activeTool === 'searchIntercomConvosTool') return "Intercom: Searching conversations..."
+      if (activeTool === 'getIntercomConvo') return "Intercom: Reading conversation thread..."
+      return "Scanning customer support conversations & blockers..."
+    }
+    return "Reviewed Intercom support tickets"
   }
 
   // Linear
@@ -303,21 +345,27 @@ export function TimelineNode({
   isCompleted,
   isLoading,
   children,
-  className
+  className,
+  defaultOpen,
+  autoCollapse = true,
 }: TimelineNodeProps) {
-  const [isOpen, setIsOpen] = React.useState(!isCompleted || Boolean(isLoading))
+  const [isOpen, setIsOpen] = React.useState(
+    defaultOpen !== undefined
+      ? defaultOpen
+      : (!isCompleted || Boolean(isLoading))
+  )
   const hasAutoCollapsedRef = React.useRef(false)
 
   React.useEffect(() => {
     if (isLoading) {
       setIsOpen(true)
       hasAutoCollapsedRef.current = false
-    } else if (isCompleted && !hasAutoCollapsedRef.current) {
+    } else if (isCompleted && autoCollapse && !hasAutoCollapsedRef.current) {
       hasAutoCollapsedRef.current = true
       const timer = setTimeout(() => setIsOpen(false), 1400)
       return () => clearTimeout(timer)
     }
-  }, [isLoading, isCompleted])
+  }, [isLoading, isCompleted, autoCollapse])
 
   return (
     <div className={cn("relative flex flex-col group", className)}>
@@ -374,7 +422,8 @@ export function TimelineNode({
 function sanitizeReasoningText(raw: string): string {
   if (!raw) return ""
 
-  let clean = raw
+  const clean = raw
+    .replace(/<\/?think>/gi, '')
     // Strip API keys, tokens, and secrets
     .replace(/\b(?:sk|rk|pk|tvly|phc|phx|whsec)_[a-zA-Z0-9_\-]{8,}\b/gi, '[REDACTED_KEY]')
     .replace(/\bBearer\s+[a-zA-Z0-9_\-\.]{16,}\b/gi, 'Bearer [REDACTED]')
@@ -399,7 +448,7 @@ function sanitizeReasoningText(raw: string): string {
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 
-  return clean || "Evaluating context and executing requested workflow."
+  return clean
 }
 
 export function MonologueBlock({
@@ -411,8 +460,15 @@ export function MonologueBlock({
   label?: string
   isExecuting?: boolean
 }) {
-  const [expanded, setExpanded] = React.useState(isExecuting)
+  const sanitizedText = React.useMemo(() => {
+    if (!text || !text.trim()) return ""
+    return sanitizeReasoningText(text)
+  }, [text])
+
+  const hasText = Boolean(sanitizedText)
+  const [expanded, setExpanded] = React.useState(isExecuting && hasText)
   const prevExecutingRef = React.useRef(isExecuting)
+  const prevHasTextRef = React.useRef(hasText)
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
   const startTimeRef = React.useRef(Date.now())
   const [elapsedSeconds, setElapsedSeconds] = React.useState(0)
@@ -423,15 +479,22 @@ export function MonologueBlock({
     if (expanded && scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
     }
-  }, [text, expanded])
+  }, [sanitizedText, expanded])
 
-  // When execution finishes (isExecuting goes from true -> false), smoothly auto-collapse the drawer
+  // When reasoning text first arrives while executing, expand smoothly into view
+  React.useEffect(() => {
+    if (!prevHasTextRef.current && hasText && isExecuting) {
+      setExpanded(true)
+    }
+    prevHasTextRef.current = hasText
+  }, [hasText, isExecuting])
+
+  // When execution finishes (isExecuting goes from true -> false), smoothly auto-collapse (compress) the drawer
   React.useEffect(() => {
     if (prevExecutingRef.current && !isExecuting) {
-      // Completed! Auto-collapse the drawer after a brief pause so it doesn't disturb other nodes
       const timer = setTimeout(() => {
         setExpanded(false)
-      }, 500)
+      }, 400)
       return () => clearTimeout(timer)
     }
     prevExecutingRef.current = isExecuting
@@ -452,20 +515,20 @@ export function MonologueBlock({
     }
   }, [isExecuting, durationSeconds])
 
-  // Label: Live "Thinking (Xs)" while in-flight, and "Thought for Xs" when finished
-  const thinkingLabel = React.useMemo(() => {
-    if (label) return label
-    if (isExecuting) {
-      return `Thinking (${elapsedSeconds}s)`
-    }
-    const sec = durationSeconds ?? elapsedSeconds ?? 1
-    return `Thought for ${sec}s`
-  }, [label, isExecuting, elapsedSeconds, durationSeconds])
+  // Phase 1: Initial prompt submission before thinking tokens arrive (first 4-5s)
+  // Render clean non-expandable shimmering Thinking... text
+  if (isExecuting && !hasText) {
+    return (
+      <div className="flex items-center gap-2 py-0.5 select-none">
+        <span className="text-[13px] font-medium tracking-normal thinking-shimmer-text">
+          Thinking...
+        </span>
+      </div>
+    )
+  }
 
-  const sanitizedText = React.useMemo(() => {
-    if (!text || !text.trim()) return ""
-    return sanitizeReasoningText(text)
-  }, [text])
+  // Phase 2 & 3: Active thoughts in-flight or completed
+  const displayDuration = durationSeconds ?? (elapsedSeconds > 0 ? elapsedSeconds : Math.max(1, Math.min(15, Math.round(sanitizedText.split(/\s+/).length / 25))))
 
   return (
     <div className="group text-[13px] text-neutral-400 font-normal leading-relaxed py-0.5">
@@ -480,7 +543,17 @@ export function MonologueBlock({
             expanded && "rotate-90"
           )}
         />
-        <span className="font-medium text-neutral-400">{thinkingLabel}</span>
+        {label ? (
+          <span className="font-medium text-neutral-400">{label}</span>
+        ) : isExecuting ? (
+          <span className="font-medium text-[13px] thinking-shimmer-text">
+            Thinking ({elapsedSeconds}s)
+          </span>
+        ) : (
+          <span className="font-medium text-[13px] text-neutral-400">
+            Thought for {displayDuration}s
+          </span>
+        )}
       </button>
       <AnimatePresence initial={false}>
         {expanded && (
@@ -495,13 +568,7 @@ export function MonologueBlock({
               ref={scrollContainerRef}
               className="max-h-[110px] overflow-y-auto custom-scrollbar pr-2 text-neutral-400/90 whitespace-pre-wrap leading-relaxed text-[12px] border-l border-white/10 pl-2.5"
             >
-              {sanitizedText ? (
-                sanitizedText
-              ) : (
-                <div className="flex items-center py-1">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-500 shrink-0" />
-                </div>
-              )}
+              {sanitizedText}
             </div>
           </motion.div>
         )}
@@ -526,6 +593,7 @@ const PROVIDER_LOGOS: Record<string, string> = {
   notion: '/logos/notion.svg',
   google_calendar: '/logos/google-calendar.svg',
   airtable: '/logos/airtable.svg',
+  intercom: '/logos/intercom.svg',
 }
 
 function formatTextWithIntegrationLogos(raw: string): string {
@@ -586,51 +654,40 @@ export function AgentSpeechBlock({
   const currentText = isStreaming ? (displayedLength > 0 ? text.slice(0, displayedLength) : text) : text
 
   const detectMissingIntegrations = React.useMemo(() => {
-    const low = text.toLowerCase()
-    
-    // Only detect if text explicitly indicates an integration is disconnected or failing authentication
-    const indicatesMissing =
-      (low.includes('not connected') ||
-        low.includes('unconnected') ||
-        low.includes('need to connect') ||
-        low.includes('please connect') ||
-        low.includes("isn't connected") ||
-        low.includes("aren't connected") ||
-        low.includes('not authenticated') ||
-        low.includes('invalid authentication credentials') ||
-        low.includes('requires authentication')) &&
-      !low.includes('successfully synced') &&
-      !low.includes('successfully connected')
+    if (!text || !text.trim()) return []
 
-    if (!indicatesMissing) {
-      return []
-    }
+    const PROVIDERS_CONFIG = [
+      { name: 'Intercom', slug: 'intercom', logoUrl: PROVIDER_LOGOS.intercom },
+      { name: 'Gmail', slug: 'gmail', logoUrl: PROVIDER_LOGOS.gmail },
+      { name: 'Slack', slug: 'slack', logoUrl: PROVIDER_LOGOS.slack },
+      { name: 'Stripe', slug: 'stripe', logoUrl: PROVIDER_LOGOS.stripe },
+      { name: 'PostHog', slug: 'posthog', logoUrl: PROVIDER_LOGOS.posthog },
+      { name: 'Linear', slug: 'linear', logoUrl: PROVIDER_LOGOS.linear },
+      { name: 'Sentry', slug: 'sentry', logoUrl: PROVIDER_LOGOS.sentry },
+      { name: 'HubSpot', slug: 'hubspot', logoUrl: PROVIDER_LOGOS.hubspot },
+      { name: 'Notion', slug: 'notion', logoUrl: PROVIDER_LOGOS.notion },
+    ]
 
     const found: Array<{ name: string; slug: string; logoUrl?: string }> = []
-    if ((low.includes('gmail') || low.includes('email')) && !found.some(f => f.slug === 'gmail')) {
-      found.push({ name: 'Gmail', slug: 'gmail', logoUrl: PROVIDER_LOGOS.gmail })
+
+    for (const p of PROVIDERS_CONFIG) {
+      // Must explicitly mention the provider name in close proximity to a disconnected/unconnected phrase
+      const disconnectedPatterns = [
+        new RegExp(`\\b${p.slug}\\b[^.\\n]*?(?:not connected|isn't connected|disconnected|unconnected|needs to be connected|no connected data)`, 'i'),
+        new RegExp(`(?:not connected|isn't connected|disconnected|unconnected|connect)\\s+(?:to\\s+)?\\b${p.slug}\\b`, 'i'),
+      ]
+
+      const isExplicitlyDisconnected = disconnectedPatterns.some((rgx) => rgx.test(text))
+
+      // Double check that it is NOT also reported as successfully active, found, or having live data
+      const isFoundOrActive = new RegExp(`(?:found|active|connected|synced|past due|events|invoices)\\s+[^.\\n]*?\\b${p.slug}\\b`, 'i').test(text) ||
+                              new RegExp(`\\b${p.slug}\\b[^.\\n]*?(?:found|active|synced|past due|live)`, 'i').test(text)
+
+      if (isExplicitlyDisconnected && !isFoundOrActive) {
+        found.push({ name: p.name, slug: p.slug, logoUrl: p.logoUrl })
+      }
     }
-    if (low.includes('slack') && !found.some(f => f.slug === 'slack')) {
-      found.push({ name: 'Slack', slug: 'slack', logoUrl: PROVIDER_LOGOS.slack })
-    }
-    if (low.includes('stripe') && !found.some(f => f.slug === 'stripe')) {
-      found.push({ name: 'Stripe', slug: 'stripe', logoUrl: PROVIDER_LOGOS.stripe })
-    }
-    if (low.includes('posthog') && !found.some(f => f.slug === 'posthog')) {
-      found.push({ name: 'PostHog', slug: 'posthog', logoUrl: PROVIDER_LOGOS.posthog })
-    }
-    if (low.includes('linear') && !found.some(f => f.slug === 'linear')) {
-      found.push({ name: 'Linear', slug: 'linear', logoUrl: PROVIDER_LOGOS.linear })
-    }
-    if (low.includes('sentry') && !found.some(f => f.slug === 'sentry')) {
-      found.push({ name: 'Sentry', slug: 'sentry', logoUrl: PROVIDER_LOGOS.sentry })
-    }
-    if (low.includes('hubspot') && !found.some(f => f.slug === 'hubspot')) {
-      found.push({ name: 'HubSpot', slug: 'hubspot', logoUrl: PROVIDER_LOGOS.hubspot })
-    }
-    if (low.includes('notion') && !found.some(f => f.slug === 'notion')) {
-      found.push({ name: 'Notion', slug: 'notion', logoUrl: PROVIDER_LOGOS.notion })
-    }
+
     return found
   }, [text])
 

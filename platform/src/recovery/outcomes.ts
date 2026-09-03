@@ -39,7 +39,7 @@ export async function processOutcomeEvidence(
   const isTestMode = params.isTestMode ?? RECOVERY_CONFIG.TEST_MODE;
 
   // 1. Find all open/monitoring cases for this account
-  const { data: openCases } = await supabase
+  const { data: openCases, error: openCasesError } = await supabase
     .from('recovery_cases')
     .select('*')
     .eq('workspace_id', params.workspaceId)
@@ -47,8 +47,37 @@ export async function processOutcomeEvidence(
     .in('status', ['open', 'analyzing', 'action_proposed', 'awaiting_approval', 'approved', 'sent', 'monitoring'])
     .order('opened_at', { ascending: false });
 
+  if (openCasesError) {
+    throw new Error(`Failed to query open recovery cases: ${openCasesError.message}`);
+  }
+
   if (!openCases || openCases.length === 0) {
     return { resolvedCase: null, outcomeType: null, recoveredCents: 0, protectedCents: 0 };
+  }
+
+  // Pre-attribution deduplication check: avoid re-processing claimed evidence
+  if (params.evidenceEventId) {
+    const { data: existingByEvent } = await supabase
+      .from('draft_outcomes')
+      .select('id')
+      .eq('workspace_id', params.workspaceId)
+      .eq('evidence_event_id', params.evidenceEventId)
+      .maybeSingle();
+    if (existingByEvent) {
+      return { resolvedCase: null, outcomeType: null, recoveredCents: 0, protectedCents: 0 };
+    }
+  }
+  if (params.evidenceExternalId && params.evidenceProvider) {
+    const { data: existingByExt } = await supabase
+      .from('draft_outcomes')
+      .select('id')
+      .eq('workspace_id', params.workspaceId)
+      .eq('evidence_provider', params.evidenceProvider)
+      .eq('evidence_external_id', params.evidenceExternalId)
+      .maybeSingle();
+    if (existingByExt) {
+      return { resolvedCase: null, outcomeType: null, recoveredCents: 0, protectedCents: 0 };
+    }
   }
 
   // 2. Find the best matching case (apply attribution gates)
@@ -102,11 +131,31 @@ export async function processOutcomeEvidence(
     return { resolvedCase: null, outcomeType: null, recoveredCents: 0, protectedCents: 0 };
   }
 
-  // 4. Record in draft_outcomes table
+  // 4. Find draft ID if available
+  const { data: draftRow } = await supabase
+    .from('follow_up_drafts')
+    .select('id')
+    .eq('workspace_id', params.workspaceId)
+    .eq('customer_account_id', params.customerAccountId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // Map to legacy outcome classification column
+  const outcomeEnum =
+    outcomeType === 'strictly_recovered' || outcomeType === 'product_recovered'
+      ? 'recovered'
+      : outcomeType === 'engaged'
+        ? 'responded'
+        : 'unknown';
+
+  // Record in draft_outcomes table
   const { error: insertError } = await supabase.from('draft_outcomes').insert({
     workspace_id: params.workspaceId,
     customer_account_id: params.customerAccountId,
+    draft_id: draftRow?.id ?? null,
     recovery_case_id: activeCase.id,
+    outcome: outcomeEnum,
     outcome_type: outcomeType,
     evidence_provider: params.evidenceProvider,
     evidence_event_id: params.evidenceEventId || null,
@@ -247,6 +296,26 @@ function findBestAttributionCase(
       );
       if (!hasInvoiceMatch) {
         continue; // unrelated invoice must not close this billing case
+      }
+    }
+
+    // G5: Trigger compatibility
+    const triggerEventType: string = typeof c.trigger_event_type === 'string' ? c.trigger_event_type : '';
+    const actionType: string = typeof c.action_type === 'string' ? c.action_type : '';
+
+    if (params.evidenceEventType === 'invoice.paid') {
+      const isBillingCase = ['billing_failure', 'billing_recovery_email', 'compound'].some(t =>
+        triggerEventType.includes(t) ||
+        actionType.includes('billing') ||
+        actionType.includes('compound')
+      );
+      if (!isBillingCase) {
+        continue; // skip incompatible case so older compatible billing cases are inspected
+      }
+    } else if (params.evidenceEventType === 'customer.subscription.updated') {
+      const isCancellationCase = triggerEventType.includes('cancel') || actionType.includes('cancellation');
+      if (!isCancellationCase) {
+        continue;
       }
     }
 

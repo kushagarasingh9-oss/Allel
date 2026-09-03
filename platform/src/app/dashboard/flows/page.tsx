@@ -157,7 +157,15 @@ export default function WorkflowsPage() {
               <ShieldCheck className="h-5 w-5" />
               <h1 className="text-xl font-semibold">Revenue Recovery</h1>
             </div>
-            <p className="mt-2 text-sm text-zinc-500">Live recovery cases, evidence, queue state, and approval provenance.</p>
+            <p className="mt-1 text-sm text-zinc-400">Live recovery cases, evidence, queue state, and approval provenance.</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300">
+                Test-mode recovery simulation. No production customer funds are represented.
+              </span>
+              <span className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-400">
+                Risk index, not a predicted probability of churn.
+              </span>
+            </div>
           </div>
           <button onClick={() => void refresh()} className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs hover:bg-white/5">
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh

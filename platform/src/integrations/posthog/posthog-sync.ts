@@ -65,6 +65,55 @@ type PostHogEvent = {
   }
 }
 
+export type LifecycleEventConfig = {
+  signup: string[]
+  onboardingCompleted: string[]
+  activationCompleted: string[]
+  keyFeatureUsed: string[]
+  planSelected: string[]
+  cancellationIntent: string[]
+  dataExportIntent: string[]
+  seatContraction: string[]
+}
+
+export const DEFAULT_LIFECYCLE_CONFIG: LifecycleEventConfig = {
+  signup: ['user_signed_up', 'signup_completed', '$pageview_signup'],
+  onboardingCompleted: ['onboarding_completed', 'workspace_created', 'team_invited'],
+  activationCompleted: ['activation_completed', 'first_workflow_run', 'integration_connected'],
+  keyFeatureUsed: ['core_feature_used', 'report_generated', 'api_request_sent'],
+  planSelected: ['plan_selected', 'checkout_started'],
+  cancellationIntent: [
+    'subscription_cancel_clicked',
+    'downgrade_clicked',
+    'allel_cancel_intent',
+    'cancel_subscription_initiated',
+  ],
+  dataExportIntent: [
+    'data_export_requested',
+    'bulk_export_clicked',
+    'csv_downloaded',
+    'backup_downloaded',
+    'export_all_data',
+  ],
+  seatContraction: [
+    'member_removed',
+    'seat_deleted',
+    'team_member_left',
+    'integration_disconnected',
+    'api_key_revoked',
+  ],
+}
+
+export const CANCELLATION_URL_PATTERNS: RegExp[] = [
+  /\/settings\/billing\/cancel/i,
+  /\/cancel-subscription/i,
+  /\/downgrade/i,
+  /\/billing\/delete/i,
+  /\/settings\/export/i,
+  /\/export-data/i,
+  /cancel|churn|downgrade/i,
+]
+
 type AccountAggregate = {
   accountId: string
   accountName: string
@@ -78,6 +127,11 @@ type AccountAggregate = {
   cancelVisits: number
   topEvents: Map<string, number>
   hasCancelIntent: boolean
+  signupAt: string | null
+  onboardingCompletedAt: string | null
+  activationCompletedAt: string | null
+  hasKeyFeatureUsed: boolean
+  cancelIntentAt: string | null
 }
 
 export type PostHogWorkspaceSyncResult = {
@@ -307,11 +361,11 @@ export async function syncPostHogWorkspace(
     fetchAllPersons(apiKey, projectId, apiHost),
     supabase
       .from('customer_accounts')
-      .select('id, name, account_status, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, summary, last_touch_at, renewal_at, is_provisional')
+      .select('id, name, account_status, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, summary, last_touch_at, renewal_at')
       .eq('workspace_id', workspaceId),
     supabase
       .from('account_contacts')
-      .select('email, customer_account_id, external_ids, is_provisional')
+      .select('email, customer_account_id, external_ids')
       .eq('workspace_id', workspaceId),
   ])
 
@@ -414,9 +468,8 @@ export async function syncPostHogWorkspace(
           usage_delta_percent: 0,
           next_action: 'Wait for more product activity before taking action.',
           summary: 'Provisional PostHog account created from live usage identity.',
-          is_provisional: true,
         })
-        .select('id, name, account_status, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, summary, last_touch_at, renewal_at, is_provisional')
+        .select('id, name, account_status, mrr_cents, risk_level, risk_score, usage_delta_percent, open_issue, next_action, summary, last_touch_at, renewal_at')
         .single()
 
       if (insertAccountError) throw insertAccountError
@@ -536,6 +589,11 @@ export async function syncPostHogWorkspace(
         cancelVisits: 0,
         topEvents: new Map<string, number>(),
         hasCancelIntent: false,
+        signupAt: null,
+        onboardingCompletedAt: null,
+        activationCompletedAt: null,
+        hasKeyFeatureUsed: false,
+        cancelIntentAt: null,
       }
       aggregates.set(account.id, aggregate)
     }
@@ -586,6 +644,7 @@ export async function syncPostHogWorkspace(
 
     const isCurrentWindow = timestamp >= sevenDaysAgo
     const eventName = event.event ?? 'event'
+    const eventTimeIso = event.timestamp ? new Date(event.timestamp).toISOString() : syncRunStart
 
     if (isCurrentWindow) {
       aggregate.currentEvents += 1
@@ -595,16 +654,47 @@ export async function syncPostHogWorkspace(
 
     aggregate.topEvents.set(eventName, (aggregate.topEvents.get(eventName) ?? 0) + 1)
 
-    // §13.10: Cancel intent detection
+    // Check lifecycle milestones
+    if (DEFAULT_LIFECYCLE_CONFIG.signup.includes(eventName)) {
+      if (!aggregate.signupAt || new Date(eventTimeIso) < new Date(aggregate.signupAt)) {
+        aggregate.signupAt = eventTimeIso
+      }
+    }
+
+    if (DEFAULT_LIFECYCLE_CONFIG.onboardingCompleted.includes(eventName)) {
+      if (!aggregate.onboardingCompletedAt || new Date(eventTimeIso) > new Date(aggregate.onboardingCompletedAt)) {
+        aggregate.onboardingCompletedAt = eventTimeIso
+      }
+    }
+
+    if (DEFAULT_LIFECYCLE_CONFIG.activationCompleted.includes(eventName)) {
+      if (!aggregate.activationCompletedAt || new Date(eventTimeIso) > new Date(aggregate.activationCompletedAt)) {
+        aggregate.activationCompletedAt = eventTimeIso
+      }
+    }
+
+    if (DEFAULT_LIFECYCLE_CONFIG.keyFeatureUsed.includes(eventName)) {
+      aggregate.hasKeyFeatureUsed = true
+    }
+
+    // §13.10: Cancel & Exfiltration intent detection
+    const isCancelUrl =
+      eventName === '$pageview' &&
+      typeof event.properties?.$current_url === 'string' &&
+      CANCELLATION_URL_PATTERNS.some((pattern) => pattern.test(event.properties!.$current_url as string))
+
     const isCancelIntent =
-      eventName === 'allel_cancel_intent' ||
-      (eventName === '$pageview' &&
-        typeof event.properties?.$current_url === 'string' &&
-        /cancel|churn|downgrade/i.test(event.properties.$current_url as string))
+      DEFAULT_LIFECYCLE_CONFIG.cancellationIntent.includes(eventName) ||
+      DEFAULT_LIFECYCLE_CONFIG.dataExportIntent.includes(eventName) ||
+      DEFAULT_LIFECYCLE_CONFIG.seatContraction.includes(eventName) ||
+      isCancelUrl
 
     if (isCancelIntent) {
       aggregate.hasCancelIntent = true
       aggregate.cancelVisits += 1
+      if (!aggregate.cancelIntentAt || new Date(eventTimeIso) > new Date(aggregate.cancelIntentAt)) {
+        aggregate.cancelIntentAt = eventTimeIso
+      }
     }
   }
 
@@ -626,28 +716,28 @@ export async function syncPostHogWorkspace(
     const topEvent = [...aggregate.topEvents.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
     // Build the feature patch for the canonical projector
+    const isKeyFeatureMissing =
+      !aggregate.hasKeyFeatureUsed &&
+      aggregate.previousEvents >= RECOVERY_CONFIG.KEY_FEATURE_MIN_BASELINE_EVENTS
+
     const featurePatch: Record<string, unknown> = {
       usageAvailable: true,
       usageCurrent7d: aggregate.currentEvents,
       usagePrevious7d: aggregate.previousEvents,
       usageFreshAt: syncRunStart,
       lastProductActivityAt: aggregate.lastSeenAt,
+      signupAt: aggregate.signupAt,
+      onboardingCompletedAt: aggregate.onboardingCompletedAt,
+      activationCompletedAt: aggregate.activationCompletedAt,
+      keyFeatureMissing: isKeyFeatureMissing,
+      cancelIntentAt: aggregate.hasCancelIntent ? (aggregate.cancelIntentAt || syncRunStart) : null,
     }
 
     if (delta !== null) {
       featurePatch.usageDeltaPercent = delta
     }
 
-    if (aggregate.hasCancelIntent) {
-      featurePatch.cancelIntentAt = syncRunStart
-    }
-
-    // §13.9: Key feature disappearance
-    if (
-      aggregate.previousEvents >= RECOVERY_CONFIG.KEY_FEATURE_MIN_BASELINE_EVENTS &&
-      aggregate.currentEvents === 0
-    ) {
-      featurePatch.keyFeatureMissing = true
+    if (isKeyFeatureMissing) {
       featurePatch.keyFeatureCurrent7d = 0
       featurePatch.keyFeaturePrevious7d = aggregate.previousEvents
     }
@@ -686,8 +776,6 @@ export async function syncPostHogWorkspace(
       // Non-fatal: job may already exist from webhook ingestion
       console.warn('[posthog-sync] job upsert warning:', jobError.message)
     }
-
-    syncedAccounts += 1
 
     // Rough high-risk estimate for logging (real label set by decision engine)
     const isLikelyHighRisk = aggregate.hasCancelIntent || (delta !== null && delta <= -40)

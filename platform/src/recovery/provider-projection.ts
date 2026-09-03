@@ -8,6 +8,7 @@
  */
 
 import type { AccountFeatures } from './types';
+import { RECOVERY_CONFIG } from './config';
 
 // ---------------------------------------------------------------------------
 // §40.5.1  Typed projection result
@@ -313,6 +314,23 @@ export function projectPostHogEvent(
 
   const isRecoveryAction = eventName === 'allel_recovery_action';
 
+  // §40.8: Three-signal product recovery detection
+  // 1. Explicit recovery action event
+  // 2. Usage returns to >=80% of prior baseline
+  const hasUsageRebound =
+    typeof patch.usageCurrent7d === 'number' &&
+    typeof patch.usagePrevious7d === 'number' &&
+    patch.usagePrevious7d > 0 &&
+    patch.usageCurrent7d >= RECOVERY_CONFIG.USAGE_RECOVERY_BASELINE_RATIO * patch.usagePrevious7d;
+
+  // 3. Restoration of previously missing key feature
+  const hasFeatureRestored =
+    typeof patch.keyFeatureCurrent7d === 'number' &&
+    patch.keyFeatureCurrent7d > 0 &&
+    patch.keyFeatureMissing === false;
+
+  const isProductRecovered = isRecoveryAction || hasUsageRebound || hasFeatureRestored;
+
   return {
     provider: 'posthog',
     eventId: webhookEventId,
@@ -328,7 +346,7 @@ export function projectPostHogEvent(
         fact,
       },
     ],
-    outcomeCandidate: isRecoveryAction ? { kind: 'usage_rebound' } : null,
+    outcomeCandidate: isProductRecovered ? { kind: 'usage_rebound' } : null,
   };
 }
 

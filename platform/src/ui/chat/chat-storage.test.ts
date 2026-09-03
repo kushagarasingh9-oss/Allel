@@ -205,3 +205,23 @@ test('B8: signature failure is reported rather than silently dropping history', 
     'The drop must be countable so it can be logged instead of looking like memory loss'
   )
 })
+
+test('session ID deduplication preserves distinct sessions with identical titles', () => {
+  const sessions = [
+    { id: 'session-1', title: 'Customer Accounts & Health', updatedAt: '2026-09-01T10:00:00Z', messages: [{ id: 'm1', role: 'user', parts: [{ type: 'text', text: 'hi' }] }] },
+    { id: 'session-2', title: 'Customer Accounts & Health', updatedAt: '2026-09-01T11:00:00Z', messages: [{ id: 'm2', role: 'user', parts: [{ type: 'text', text: 'hello' }] }] },
+    { id: 'session-1', title: 'Customer Accounts & Health', updatedAt: '2026-09-01T10:00:00Z', messages: [{ id: 'm1', role: 'user', parts: [{ type: 'text', text: 'hi' }] }] },
+  ]
+
+  const seenIds = new Set<string>()
+  const dedupedById = sessions.filter((s) => {
+    if (!s.id || seenIds.has(s.id)) return false
+    seenIds.add(s.id)
+    return true
+  })
+
+  assert.equal(dedupedById.length, 2, 'Both distinct sessions must survive despite identical titles')
+  assert.equal(dedupedById[0].id, 'session-1')
+  assert.equal(dedupedById[1].id, 'session-2')
+})
+

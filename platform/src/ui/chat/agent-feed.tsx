@@ -13,7 +13,7 @@
  */
 
 import * as React from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, AnimatePresence } from "motion/react"
 import { cn } from "@/foundation/utils"
 import { useChatContext } from "./chat-provider"
 import { createClient } from "@/foundation/database/client"
@@ -28,8 +28,10 @@ import {
   AgentReasoningBatch,
   AgentApprovalBlock,
 } from "./timeline-nodes"
+import { UnifiedCustomerScanTree, AccountRecoveryStatusTree, DraftedEmailCard } from "./unified-customer-scan-tree"
+import type { CustomerRiskScan } from "@/recovery/customer-scan-types"
 import { USER_EMOJI_PALETTE } from "@/foundation/utils/emoji-palette"
-import { Search, Loader2, Zap, Database, Mail, CreditCard, MessageSquare, Calendar, User, Globe, AlertCircle, ChevronRight, Check } from "lucide-react"
+import { Search, Loader2, Zap, Database, Mail, CreditCard, MessageSquare, Calendar, User, Globe, AlertCircle, ChevronRight, Check, BarChart2, ShieldAlert } from "lucide-react"
 import {
   SiIntercom,
   SiLinear,
@@ -69,6 +71,16 @@ function WebFavicon({ url, fallbackFavicon }: { url?: string; fallbackFavicon?: 
   )
 }
 
+function InterconnectedIntegrationBadge() {
+  return (
+    <div className="flex items-center gap-1.5 shrink-0 mr-2">
+      <img src="/logos/stripe.svg" alt="Stripe" className="w-3 h-3 object-contain shrink-0" />
+      <img src="/logos/posthog.svg" alt="PostHog" className="w-3 h-3 object-contain shrink-0" />
+      <img src="/logos/intercom.svg" alt="Intercom" className="w-3 h-3 object-contain shrink-0" />
+    </div>
+  )
+}
+
 // ─── Tool → Icon mapping (Only official SVG logos for connected integrations) ────────────────────────────────────────────
 const TOOL_ICONS: Record<string, React.ReactNode> = {
   getExistingDrafts: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
@@ -81,12 +93,68 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   deliverSlackBriefTool: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
   buildDailyBriefFromLiveState: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   createRescueDiscountTool: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
-  searchLinearIssuesTool: <img src="/logos/linear.svg" alt="Linear" className="w-4 h-4 object-contain shrink-0" />,
-  listSentryIssuesTool: <img src="/logos/sentry-light.svg" alt="Sentry" className="w-4 h-4 object-contain shrink-0" />,
-  searchHubSpotContactsTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
-  searchNotionTool: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
-  listAirtableBasesTool: <img src="/logos/airtable.svg" alt="Airtable" className="w-4 h-4 object-contain shrink-0" />,
+  // Intercom tools
+  listIntercomConvos: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  getIntercomConvo: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
   searchIntercomConvosTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  replyToIntercomConvoTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  createIntercomTicketTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  getIntercomAccountMetricsTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  listIntercomArticlesTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  getIntercomAdminStatusTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  addIntercomInternalNoteTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  snoozeIntercomConvoTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  closeIntercomConvoTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  assignIntercomConvoTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  tagIntercomConvoTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+  untagIntercomConvoTool: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
+
+  // Linear tools
+  searchLinearIssuesTool: <img src="/logos/linear.svg" alt="Linear" className="w-4 h-4 object-contain shrink-0" />,
+  listLinearIssuesTool: <img src="/logos/linear.svg" alt="Linear" className="w-4 h-4 object-contain shrink-0" />,
+  getLinearIssueTool: <img src="/logos/linear.svg" alt="Linear" className="w-4 h-4 object-contain shrink-0" />,
+  listLinearTeamsTool: <img src="/logos/linear.svg" alt="Linear" className="w-4 h-4 object-contain shrink-0" />,
+  listLinearProjectsTool: <img src="/logos/linear.svg" alt="Linear" className="w-4 h-4 object-contain shrink-0" />,
+  createLinearIssueTool: <img src="/logos/linear.svg" alt="Linear" className="w-4 h-4 object-contain shrink-0" />,
+  updateLinearIssueTool: <img src="/logos/linear.svg" alt="Linear" className="w-4 h-4 object-contain shrink-0" />,
+  addCommentToLinearIssueTool: <img src="/logos/linear.svg" alt="Linear" className="w-4 h-4 object-contain shrink-0" />,
+
+  // Sentry tools
+  listSentryIssuesTool: <img src="/logos/sentry-light.svg" alt="Sentry" className="w-4 h-4 object-contain shrink-0" />,
+  getSentryIssueTool: <img src="/logos/sentry-light.svg" alt="Sentry" className="w-4 h-4 object-contain shrink-0" />,
+  resolveSentryIssueTool: <img src="/logos/sentry-light.svg" alt="Sentry" className="w-4 h-4 object-contain shrink-0" />,
+  getSentryIssueDetailTool: <img src="/logos/sentry-light.svg" alt="Sentry" className="w-4 h-4 object-contain shrink-0" />,
+
+  // HubSpot tools
+  searchHubspotContactsTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
+  listHubspotContactsTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
+  getHubspotContactTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
+  listHubspotDealsTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
+  getHubspotDealTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
+  searchHubspotCompaniesTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
+  createHubspotContactTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
+  updateHubspotContactTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
+  createHubspotDealTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
+  updateHubspotDealStageTool: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
+
+  // Notion & Airtable tools
+  searchNotionTool: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
+  searchNotionDocsTool: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
+  readNotionPageTool: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
+  listNotionDatabasesTool: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
+  queryNotionDatabaseTool: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
+  searchNotionPagesTool: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
+  getNotionPageDetailTool: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
+  createNotionPageTool: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
+  updateNotionPageTool: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
+  archiveNotionPageTool: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
+  listAirtableBasesTool: <img src="/logos/airtable.svg" alt="Airtable" className="w-4 h-4 object-contain shrink-0" />,
+  listAirtableRecordsTool: <img src="/logos/airtable.svg" alt="Airtable" className="w-4 h-4 object-contain shrink-0" />,
+  getAirtableRecordTool: <img src="/logos/airtable.svg" alt="Airtable" className="w-4 h-4 object-contain shrink-0" />,
+  createAirtableRecordTool: <img src="/logos/airtable.svg" alt="Airtable" className="w-4 h-4 object-contain shrink-0" />,
+  updateAirtableRecordTool: <img src="/logos/airtable.svg" alt="Airtable" className="w-4 h-4 object-contain shrink-0" />,
+
+  // Calendar tools
   listCalendarEventsTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   getCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   getCalendarEventDetailTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
@@ -98,11 +166,15 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   checkCalendarFreeBusy: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   queryFreeBusyTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   listCalendarsTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  
+  // Slack tools
   getSlackHistory: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
+  postSlackMessage: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
   sendSlackMessage: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
   searchSlack: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
   replyInSlackThread: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
   getSlackChannels: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
+  
   syncWorkspaceTool: <Zap className="w-4 h-4 text-neutral-500" />,
   triggerStripeSync: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   triggerGmailSync: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
@@ -148,6 +220,10 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   createPostHogAnnotation: <img src="/logos/posthog.svg" alt="PostHog" className="w-4 h-4 object-contain shrink-0" />,
 
   // Recovery pipeline tools
+  runRevenueRiskScan: <Search className="w-4 h-4 text-neutral-400" />,
+  getUnifiedCustomerScan: <Search className="w-4 h-4 text-neutral-400" />,
+  getAccountRecoveryStatus: <Search className="w-4 h-4 text-neutral-400" />,
+  getUnifiedFleetScan: <Search className="w-4 h-4 text-neutral-400" />,
   getRecoveryCases: <Search className="w-4 h-4 text-neutral-400" />,
   getRecoveryCaseDetail: <Search className="w-4 h-4 text-neutral-400" />,
 
@@ -164,6 +240,10 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
 
 // ─── Human-readable names for tools ──────────────────────────────────
 const TOOL_LABELS: Record<string, string> = {
+  runRevenueRiskScan: "Running multi-provider revenue risk scan",
+  getUnifiedCustomerScan: "Searching customer across connected integrations",
+  getAccountRecoveryStatus: "Checking account recovery & planning outreach",
+  getUnifiedFleetScan: "Scanning workspace revenue & fleet health",
   requestMoreTools: "Expanding tool capabilities",
   webSearchTool: "Searching web intelligence",
   webExtractTool: "Extracting webpage content",
@@ -173,7 +253,7 @@ const TOOL_LABELS: Record<string, string> = {
   getAccountDetails: "Reading account profile",
   getAllAccounts: "Scanning customer accounts",
   getRecentSignals: "Analyzing workspace signals & activity",
-  getExistingDrafts: "Checking draft responses",
+  getExistingDrafts: "Checking pending drafts",
   getStripeAccountState: "Querying Stripe billing state",
   searchStripeCustomersTool: "Searching Stripe customers",
   listStripeInvoicesTool: "Listing Stripe invoices",
@@ -234,6 +314,49 @@ const TOOL_LABELS: Record<string, string> = {
   searchSlack: "Searching Slack messages",
   replyInSlackThread: "Replying in Slack thread",
   getSlackChannels: "Listing Slack channels",
+  listIntercomConvos: "Scanning Intercom conversations",
+  getIntercomConvo: "Reading Intercom conversation",
+  searchIntercomConvosTool: "Searching Intercom tickets",
+  replyToIntercomConvoTool: "Replying to Intercom conversation",
+  createIntercomTicketTool: "Creating Intercom ticket",
+  snoozeIntercomConvoTool: "Snoozing Intercom conversation",
+  closeIntercomConvoTool: "Closing Intercom conversation",
+  listSentryIssuesTool: "Scanning active error signals",
+  getSentryIssueDetailTool: "Reading Sentry error details",
+  updateSentryIssueStatusTool: "Updating Sentry error status",
+  searchLinearIssuesTool: "Searching Linear issue tracker",
+  listLinearTeamsTool: "Listing Linear teams",
+  listLinearProjectsTool: "Listing Linear projects",
+  createLinearIssueTool: "Creating Linear issue",
+  updateLinearIssueTool: "Updating Linear issue",
+  listHubSpotContactsTool: "Reading HubSpot CRM contacts",
+  listHubSpotDealsTool: "Scanning HubSpot sales pipeline",
+  searchHubSpotCompaniesTool: "Searching HubSpot companies",
+  createHubSpotContactTool: "Creating HubSpot contact",
+  updateHubSpotContactTool: "Updating HubSpot contact",
+  createHubSpotDealTool: "Creating HubSpot deal",
+  searchNotionTool: "Searching Notion workspace",
+  searchNotionPagesTool: "Searching Notion pages",
+  getNotionPageDetailTool: "Reading Notion page content",
+  createNotionPageTool: "Creating Notion page",
+  appendNotionBlockTool: "Updating Notion page content",
+  approveDraft: "Approving response draft",
+  rejectDraft: "Rejecting response draft",
+  updateDraftContent: "Editing response draft",
+  sendApprovedDraft: "Sending approved draft",
+  resolveSignal: "Resolving workspace signal",
+  updateAccountInfo: "Updating account details",
+  addAccountNote: "Adding account note",
+  archiveAccount: "Archiving customer account",
+  addAccountContact: "Adding customer contact",
+  updateAccountContact: "Updating customer contact",
+  getChurnScoreHistory: "Analyzing churn score history",
+  getAccountMemory: "Reading durable account memory",
+  editSlackMessage: "Editing Slack message",
+  deleteSlackMsg: "Deleting Slack message",
+  scheduleSlackMsg: "Scheduling Slack message",
+  reactToSlackMessage: "Adding reaction in Slack",
+  listSlackUsers: "Listing Slack workspace members",
 }
 
 const PROVIDER_LOGOS: Record<string, string> = {
@@ -247,6 +370,7 @@ const PROVIDER_LOGOS: Record<string, string> = {
   notion: '/logos/notion.svg',
   google_calendar: '/logos/google-calendar.svg',
   airtable: '/logos/airtable.svg',
+  intercom: '/logos/intercom.svg',
 }
 
 function getProviderFromTool(toolName: string, errorMsg: string): { name: string; slug: string; logoUrl?: string } | null {
@@ -255,7 +379,8 @@ function getProviderFromTool(toolName: string, errorMsg: string): { name: string
   let slug: string | null = null
   let name = ''
 
-  if (lowName.includes('calendar') || lowMsg.includes('calendar')) { slug = 'google_calendar'; name = 'Google Calendar' }
+  if (lowName.includes('intercom') || lowMsg.includes('intercom')) { slug = 'intercom'; name = 'Intercom' }
+  else if (lowName.includes('calendar') || lowMsg.includes('calendar')) { slug = 'google_calendar'; name = 'Google Calendar' }
   else if (lowName.includes('gmail') || toolName === 'getMyInbox' || lowMsg.includes('gmail')) { slug = 'gmail'; name = 'Gmail' }
   else if (lowName.includes('slack') || lowMsg.includes('slack')) { slug = 'slack'; name = 'Slack' }
   else if (lowName.includes('stripe') || lowMsg.includes('stripe')) { slug = 'stripe'; name = 'Stripe' }
@@ -264,7 +389,6 @@ function getProviderFromTool(toolName: string, errorMsg: string): { name: string
   else if (lowName.includes('sentry') || lowMsg.includes('sentry')) { slug = 'sentry'; name = 'Sentry' }
   else if (lowName.includes('hubspot') || lowMsg.includes('hubspot')) { slug = 'hubspot'; name = 'HubSpot' }
   else if (lowName.includes('notion') || lowMsg.includes('notion')) { slug = 'notion'; name = 'Notion' }
-  else if (lowName.includes('calendar') || lowMsg.includes('calendar')) { slug = 'google_calendar'; name = 'Google Calendar' }
 
   if (!slug) return null
   return { name, slug, logoUrl: PROVIDER_LOGOS[slug] }
@@ -349,6 +473,8 @@ function ToolThinkingSummary({ toolName, input }: { toolName: string; input: unk
     summary = to ? `Composing email to ${to}` : 'Composing email'
   } else if (toolName === 'getGmailThreadsForAccount') {
     summary = 'Pulling email threads for account'
+  } else if (toolName === 'getExistingDrafts') {
+    summary = 'Checking draft review queue'
   }
   // Slack tools
   else if (toolName === 'getSlackHistory') {
@@ -407,6 +533,8 @@ function ToolThinkingSummary({ toolName, input }: { toolName: string; input: unk
     summary = 'Analyzing product engagement analytics'
   } else if (toolName === 'listIntercomConvos') {
     summary = 'Scanning Intercom support conversations'
+  } else if (toolName === 'getUnifiedCustomerScan' || toolName === 'getAccountRecoveryStatus') {
+    return null
   }
   // Generic — use the TOOL_LABELS display name
   else {
@@ -456,7 +584,127 @@ function AccountsListResult({ accounts }: { accounts: Array<Record<string, unkno
   )
 }
 
-function ToolResultSummary({ toolName, result }: { toolName: string; result: unknown }) {
+function ExpandableResultList<T>({
+  items,
+  initialCount = 5,
+  itemLabel = 'items',
+  renderItem,
+}: {
+  items: T[]
+  initialCount?: number
+  itemLabel?: string
+  renderItem: (item: T, index: number) => React.ReactNode
+}) {
+  const [isExpanded, setIsExpanded] = React.useState(false)
+  const displayItems = isExpanded ? items : items.slice(0, initialCount)
+  const remainingCount = items.length - initialCount
+
+  return (
+    <div className="flex flex-col gap-1 mb-2">
+      {displayItems.map((item, index) => renderItem(item, index))}
+      {remainingCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-[12px] text-neutral-400 hover:text-white pl-7 py-1 text-left flex items-center gap-1.5 transition-colors cursor-pointer select-none group"
+        >
+          <span className="group-hover:underline">
+            {isExpanded ? `Show fewer ${itemLabel}` : `+ ${remainingCount} more ${itemLabel}`}
+          </span>
+          <ChevronRight
+            className={`w-3 h-3 transition-transform duration-200 ${
+              isExpanded ? '-rotate-90 text-neutral-300' : 'rotate-90 text-neutral-400 group-hover:text-white'
+            }`}
+          />
+        </button>
+      )}
+    </div>
+  )
+}
+
+function ActiveScanningTitle({
+  toolName,
+  input,
+  defaultLabel,
+}: {
+  toolName: string
+  input: any
+  defaultLabel: string
+}) {
+  const [phaseIndex, setPhaseIndex] = React.useState(0)
+  const inputObj = (input || {}) as Record<string, any>
+  const target = inputObj.name || inputObj.query || inputObj.email || ''
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setPhaseIndex((prev) => prev + 1)
+    }, 1800)
+    return () => clearInterval(timer)
+  }, [])
+
+  if (toolName === 'getUnifiedCustomerScan') {
+    const phases = [
+      target ? `Scanning ${target} across connected stack…` : 'Scanning customer across connected stack…',
+      'Querying Stripe: Checking customer subscription & invoices…',
+      'Streaming PostHog: Checking user event stream & volume trends…',
+      'Auditing Intercom: Detecting customer blockers & frustration signals…',
+      'Correlating telemetry & evaluating churn risk…',
+    ]
+    return <span>{phases[phaseIndex % phases.length]}</span>
+  }
+
+  if (toolName === 'runRevenueRiskScan' || toolName === 'getUnifiedFleetScan') {
+    const phases = [
+      'Auditing fleet revenue risk across connected stack…',
+      'Stripe: Checking past-due subscriptions & failed charges…',
+      'PostHog: Calculating telemetry drop rates…',
+      'Intercom: Identifying unresolved blockers…',
+      'Aggregating fleet at-risk MRR…',
+    ]
+    return <span>{phases[phaseIndex % phases.length]}</span>
+  }
+
+  if (toolName.includes('PostHog') || toolName.includes('posthog')) {
+    const phases = [
+      'Connecting to PostHog analytics…',
+      'Streaming event definitions & usage trends…',
+      'Analyzing engagement metrics…',
+    ]
+    return <span>{phases[phaseIndex % phases.length]}</span>
+  }
+
+  if (toolName.includes('Stripe') || toolName.includes('stripe')) {
+    const phases = [
+      'Connecting to Stripe Billing API…',
+      'Auditing invoices & payment retries…',
+      'Reconciling customer subscription…',
+    ]
+    return <span>{phases[phaseIndex % phases.length]}</span>
+  }
+
+  if (toolName.includes('Intercom') || toolName.includes('intercom')) {
+    const phases = [
+      'Connecting to Intercom API…',
+      'Scanning customer conversations…',
+      'Evaluating support sentiment & blockers…',
+    ]
+    return <span>{phases[phaseIndex % phases.length]}</span>
+  }
+
+  return <span>{defaultLabel}</span>
+}
+
+function ToolResultSummary({
+  toolName,
+  result,
+  input,
+  isStreaming,
+}: {
+  toolName: string
+  result: unknown
+  input?: unknown
+  isStreaming?: boolean
+}) {
   if (!result || typeof result !== 'object') return null
   const data = result as Record<string, unknown>
 
@@ -548,11 +796,53 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
 
   // Draft generated
   if (toolName === 'generateFollowUpDraft' && data.success) {
+    const inputObj = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
+    const recipient = String(data.recipientEmail ?? data.to ?? inputObj.contactEmail ?? 'Customer Contact')
+    const subject = String(data.subject ?? inputObj.subject ?? 'Recovery follow-up draft')
+    const body = String(data.body ?? data.preview ?? inputObj.context ?? '')
+
     return (
-      <MiniResultCard
-        icon={<img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain" />}
-        title={<span className="text-white">Draft created: {String(data.subject ?? '')}</span>}
-        subtitle={`For ${String(data.accountName ?? 'account')} · ${String(data.draftType ?? '')}`}
+      <div className="flex flex-col gap-1 mb-2">
+        <DraftedEmailCard
+          draft={{
+            subject,
+            recipientEmail: recipient,
+            body,
+          }}
+          badge="Draft · Pending Review"
+          type="draft"
+        />
+      </div>
+    )
+  }
+
+  // Existing follow-up drafts list
+  if (toolName === 'getExistingDrafts' && Array.isArray(data.drafts)) {
+    const drafts = data.drafts as Array<Record<string, unknown>>
+    if (drafts.length === 0) {
+      return (
+        <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 mb-2">
+          <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain opacity-60" /> No pending drafts in queue
+        </div>
+      )
+    }
+    return (
+      <ExpandableResultList
+        items={drafts}
+        initialCount={3}
+        itemLabel="drafts"
+        renderItem={(d, i) => (
+          <DraftedEmailCard
+            key={i}
+            draft={{
+              subject: String(d.subject || 'Follow-up draft'),
+              recipientEmail: String(d.recipient ?? d.account ?? 'Account'),
+              body: String(d.body || d.preview || d.due || `Status: ${d.status}`),
+            }}
+            badge={`Status: ${String(d.status ?? 'pending')}`}
+            type="draft"
+          />
+        )}
       />
     )
   }
@@ -577,8 +867,11 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
   if (toolName === 'webSearchTool' && data.results && Array.isArray(data.results)) {
     const results = data.results as Array<Record<string, unknown>>
     return (
-      <div className="flex flex-col gap-1 mb-2">
-        {results.slice(0, 3).map((item, i) => {
+      <ExpandableResultList
+        items={results}
+        initialCount={3}
+        itemLabel="results"
+        renderItem={(item, i) => {
           const url = String(item.url || '')
           const domain = url ? (function () {
             try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '' }
@@ -607,20 +900,31 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
               />
             </a>
           )
-        })}
-      </div>
+        }}
+      />
     )
   }
 
   // Gmail Send / Reply result
-  if ((toolName === 'sendGmailReply' || toolName === 'composeNewEmail') && (data.success || data.messageId || data.threadId || data.status === 'sent')) {
-    const to = String(data.recipientEmail ?? data.to ?? 'Recipient')
+  if (
+    (toolName === 'sendGmailReply' || toolName === 'composeNewEmail' || toolName === 'sendApprovedDraft') &&
+    (data.success || data.messageId || data.threadId || data.status === 'sent')
+  ) {
+    const inputObj = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
+    const recipient = String(data.recipientEmail ?? data.to ?? inputObj.to ?? inputObj.recipientEmail ?? 'Recipient')
+    const subject = String(data.subject ?? inputObj.subject ?? (toolName === 'sendGmailReply' ? 'Email reply' : 'Outreach email'))
+    const body = String(data.body ?? inputObj.body ?? '')
+
     return (
       <div className="flex flex-col gap-1 mb-2">
-        <MiniResultCard
-          icon={<img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
-          title={<span className="text-white">Email sent</span>}
-          subtitle={to ? `Delivered to ${to}` : 'Sent via Gmail'}
+        <DraftedEmailCard
+          draft={{
+            subject,
+            recipientEmail: recipient,
+            body,
+          }}
+          badge={data.messageId ? `Delivered (ID: ${String(data.messageId).slice(0, 8)}…)` : 'Delivered via Gmail'}
+          type="sent"
         />
       </div>
     )
@@ -637,6 +941,45 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
           subtitle={`From: ${String(thread.from ?? thread.lastSenderEmail ?? 'Sender')}`}
         />
       </div>
+    )
+  }
+
+  // Calendar Events List
+  if ((toolName === 'listCalendarEventsTool' || toolName === 'searchCalendarEventsTool') && Array.isArray(data.events)) {
+    const events = data.events as Array<Record<string, unknown>>
+    if (events.length === 0) {
+      return (
+        <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 mb-2">
+          <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-3.5 h-3.5 object-contain opacity-60" />
+          <span>No calendar events found</span>
+        </div>
+      )
+    }
+    return (
+      <ExpandableResultList
+        items={events}
+        initialCount={4}
+        itemLabel="events"
+        renderItem={(ev, i) => {
+          const start = ev.start as string | undefined
+          let formattedTime = ''
+          if (start) {
+            try {
+              formattedTime = new Date(start).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+            } catch {
+              formattedTime = String(start)
+            }
+          }
+          return (
+            <MiniResultCard
+              key={i}
+              icon={<img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-3.5 h-3.5 object-contain shrink-0" />}
+              title={<span className="text-white truncate">{String(ev.summary || ev.title || 'Calendar Event')}</span>}
+              subtitle={formattedTime || 'Upcoming meeting'}
+            />
+          )
+        }}
+      />
     )
   }
 
@@ -670,19 +1013,19 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
   if (toolName === 'listPostHogInsights' && Array.isArray(data.insights)) {
     const insights = data.insights as Array<Record<string, unknown>>
     return (
-      <div className="flex flex-col gap-1 mb-2">
-        {insights.slice(0, 4).map((ins, i) => (
+      <ExpandableResultList
+        items={insights}
+        initialCount={4}
+        itemLabel="insights"
+        renderItem={(ins, i) => (
           <MiniResultCard
             key={i}
             icon={<img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain shrink-0" />}
             title={<span className="text-white">{String(ins.name ?? 'Insight')}</span>}
             subtitle={String(ins.description || 'Saved metric insight')}
           />
-        ))}
-        {insights.length > 4 && (
-          <div className="text-[11.5px] text-neutral-500 pl-7">+ {insights.length - 4} more insights</div>
         )}
-      </div>
+      />
     )
   }
 
@@ -690,8 +1033,11 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
   if (toolName === 'getPostHogEvents' && Array.isArray(data.events)) {
     const events = data.events as Array<Record<string, unknown>>
     return (
-      <div className="flex flex-col gap-1 mb-2">
-        {events.slice(0, 4).map((ev, i) => {
+      <ExpandableResultList
+        items={events}
+        initialCount={4}
+        itemLabel="events"
+        renderItem={(ev, i) => {
           const isCancel = String(ev.event).includes('cancel')
           return (
             <MiniResultCard
@@ -710,10 +1056,30 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
               }
             />
           )
-        })}
-        {events.length > 4 && (
-          <div className="text-[11.5px] text-neutral-500 pl-7">+ {events.length - 4} more events</div>
-        )}
+        }}
+      />
+    )
+  }
+
+  // Unified Customer Risk Scan
+  if (toolName === 'getUnifiedCustomerScan' && data) {
+    return <UnifiedCustomerScanTree data={data as unknown as CustomerRiskScan} animateProgressive={isStreaming} />
+  }
+
+  // Account Recovery Status & Outreach Planning
+  if (toolName === 'getAccountRecoveryStatus' && data) {
+    return <AccountRecoveryStatusTree data={data as Record<string, any>} />
+  }
+
+  // Unified Fleet Scan
+  if (toolName === 'getUnifiedFleetScan' && data.totalMrrAtRiskCents !== undefined) {
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        <MiniResultCard
+          icon={<Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+          title={<span className="text-white font-medium">Portfolio Revenue Risk Scan</span>}
+          subtitle={`Total MRR at Risk: $${((Number(data.totalMrrAtRiskCents) || 0) / 100).toLocaleString()} across ${String(data.totalAccountsScanned || 0)} accounts`}
+        />
       </div>
     )
   }
@@ -747,6 +1113,415 @@ function ToolResultSummary({ toolName, result }: { toolName: string; result: unk
             icon={<img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain shrink-0" />}
             title={<span className="font-mono text-[11.5px] text-white">{String(def.name)}</span>}
             subtitle={`${def.volume30d ?? 0} events / 30d`}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // PostHog Live Account Usage
+  if (toolName === 'getPostHogAccountUsage' && (data.events7d !== undefined || data.events30d !== undefined)) {
+    const trend = String(data.trend || 'active')
+    const trendColor = trend === 'declining' ? 'text-rose-400 font-semibold' : trend === 'improving' ? 'text-emerald-400 font-semibold' : 'text-neutral-400'
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        <MiniResultCard
+          icon={<img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          title={<span className="text-white font-medium">Live Product Engagement</span>}
+          subtitle={
+            <span className="flex items-center gap-1.5">
+              <span>{String(data.events7d ?? 0)} events / 7d · {String(data.events30d ?? 0)} events / 30d</span>
+              {trend && <span className={`capitalize ${trendColor}`}>· {trend}</span>}
+            </span>
+          }
+        />
+      </div>
+    )
+  }
+
+  // PostHog Feature Flags
+  if (toolName === 'listPostHogFeatureFlags' && Array.isArray(data.flags)) {
+    const flags = data.flags as Array<Record<string, unknown>>
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        {flags.slice(0, 4).map((flag, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="font-mono text-[11.5px] text-white">{String(flag.key || flag.name || 'Flag')}</span>}
+            subtitle={flag.active ? <span className="text-emerald-400 font-medium">Enabled (100%)</span> : <span className="text-neutral-500">Disabled</span>}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // PostHog Users / Persons
+  if (toolName === 'searchPostHogPersons' && Array.isArray(data.persons)) {
+    const persons = data.persons as Array<Record<string, unknown>>
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        {persons.slice(0, 4).map((p, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/posthog.svg" alt="PostHog" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-white truncate">{String(p.name || p.email || (Array.isArray(p.distinct_ids) ? p.distinct_ids[0] : 'User'))}</span>}
+            subtitle={p.email ? String(p.email) : `ID: ${String(p.id).slice(0, 12)}…`}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // Churn Score History
+  if (toolName === 'getChurnScoreHistory' && (Array.isArray(data.history) || Array.isArray(data.scores))) {
+    const scores = (data.history || data.scores) as Array<Record<string, unknown>>
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        {scores.slice(0, 3).map((item, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+            title={<span className="text-white font-medium">Risk Score: {String(item.score ?? item.churnScore ?? '?')}/100</span>}
+            subtitle={item.calculatedAt ? `Assessed on ${new Date(String(item.calculatedAt)).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}` : 'Historical assessment'}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // Account Timeline
+  if (toolName === 'getAccountTimeline' && Array.isArray(data.events || data.timeline)) {
+    const events = (data.events || data.timeline) as Array<Record<string, unknown>>
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        {events.slice(0, 3).map((ev, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<Database className="w-3.5 h-3.5 text-neutral-400 shrink-0" />}
+            title={<span className="text-white truncate">{String(ev.eventType || ev.title || 'Timeline Event')}</span>}
+            subtitle={String(ev.description || ev.detail || '')}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // Account Memory
+  if (toolName === 'getAccountMemory' && (data.memory || data.memories || data.summary)) {
+    const summary = String(data.summary || (data.memory as any)?.summary || 'Durable account memory context')
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        <MiniResultCard
+          icon={<Database className="w-3.5 h-3.5 text-neutral-400 shrink-0" />}
+          title={<span className="text-white font-medium">Account Context & Memory</span>}
+          subtitle={summary}
+        />
+      </div>
+    )
+  }
+
+  // Slack Channels
+  if (toolName === 'getSlackChannels' && Array.isArray(data.channels)) {
+    const channels = data.channels as Array<Record<string, unknown>>
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        {channels.slice(0, 4).map((ch, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/slack.svg" alt="Slack" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-white">#{String(ch.name || 'channel')}</span>}
+            subtitle={`${ch.numMembers ?? ch.memberCount ?? 0} members · ${ch.isPrivate ? 'Private' : 'Public'}`}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // Active integration connections audit
+  if (toolName === 'inspectIntegrationConnectionsTool') {
+    const rawList = Array.isArray(result) ? result : Array.isArray(data.results) ? data.results : Array.isArray(data.connections) ? data.connections : []
+    const connected = rawList.filter((c: any) => c && (c.isUsable || c.status === 'connected' || c.status === 'active'))
+    if (connected.length === 0) {
+      return (
+        <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 py-0.5 mb-2">
+          <AlertCircle className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+          <span>No integrations connected yet</span>
+        </div>
+      )
+    }
+    return (
+      <div className="flex flex-col gap-0.5 mb-2">
+        {connected.map((conn: any, i: number) => {
+          const slug = String(conn.provider || '').toLowerCase()
+          const logo = PROVIDER_LOGOS[slug]
+          return (
+            <MiniResultCard
+              key={i}
+              index={i}
+              icon={logo ? <img src={logo} alt={conn.label || conn.provider} className="w-3.5 h-3.5 object-contain shrink-0" /> : <Check className="w-3.5 h-3.5 text-neutral-400 shrink-0" />}
+              title={<span className="text-white font-medium">{conn.label || conn.provider}</span>}
+            />
+          )
+        })}
+      </div>
+    )
+  }
+  if ((toolName === 'listIntercomConvos' || toolName === 'searchIntercomConvosTool') && Array.isArray(data.conversations)) {
+    const convos = data.conversations as Array<Record<string, unknown>>
+    if (convos.length === 0) {
+      return (
+        <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 mb-2">
+          <img src="/logos/intercom.svg" alt="Intercom" className="w-3.5 h-3.5 object-contain opacity-60" />
+          <span>No {String(data.state || 'open')} Intercom conversations found</span>
+        </div>
+      )
+    }
+    return (
+      <ExpandableResultList
+        items={convos}
+        initialCount={5}
+        itemLabel="conversations"
+        renderItem={(convo, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/intercom.svg" alt="Intercom" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-white truncate">{String(convo.title || 'Support ticket')}</span>}
+            subtitle={`${convo.contact ? `From ${convo.contact}` : 'User'} · ${String(convo.state || 'open')}${convo.assignee && convo.assignee !== 'Unassigned' ? ` · Assigned to ${convo.assignee}` : ''}`}
+          />
+        )}
+      />
+    )
+  }
+
+  // Intercom Single Conversation Detail
+  if (toolName === 'getIntercomConvo' && (data.id || data.title)) {
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        <MiniResultCard
+          icon={<img src="/logos/intercom.svg" alt="Intercom" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          title={<span className="text-white">{String(data.title || 'Intercom conversation')}</span>}
+          subtitle={`Contact: ${String(data.contact || 'User')} · ${String(data.state || 'open')}`}
+        />
+      </div>
+    )
+  }
+
+  // Linear Issues
+  if (toolName === 'searchLinearIssuesTool' && Array.isArray(data.issues)) {
+    const issues = data.issues as Array<Record<string, unknown>>
+    if (issues.length === 0) {
+      return (
+        <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 mb-2">
+          <img src="/logos/linear.svg" alt="Linear" className="w-3.5 h-3.5 object-contain opacity-60" />
+          <span>No Linear issues found</span>
+        </div>
+      )
+    }
+    return (
+      <ExpandableResultList
+        items={issues}
+        initialCount={4}
+        itemLabel="issues"
+        renderItem={(issue, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/linear.svg" alt="Linear" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-white truncate">{issue.identifier ? `${String(issue.identifier)}: ` : ''}{String(issue.title ?? 'Issue')}</span>}
+            subtitle={`${String(issue.state || 'Open')} · Priority: ${String(issue.priority || 'Normal')}`}
+          />
+        )}
+      />
+    )
+  }
+
+  // Sentry Error Issues
+  if (toolName === 'listSentryIssuesTool' && Array.isArray(data.issues)) {
+    const issues = data.issues as Array<Record<string, unknown>>
+    if (issues.length === 0) {
+      return (
+        <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 mb-2">
+          <img src="/logos/sentry-light.svg" alt="Sentry" className="w-3.5 h-3.5 object-contain opacity-60" />
+          <span>No active Sentry errors</span>
+        </div>
+      )
+    }
+    return (
+      <ExpandableResultList
+        items={issues}
+        initialCount={4}
+        itemLabel="error signals"
+        renderItem={(issue, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/sentry-light.svg" alt="Sentry" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-rose-300 truncate font-mono text-[11.5px]">{String(issue.title || issue.culprit || 'Error event')}</span>}
+            subtitle={`${String(issue.count ?? 1)} events · ${String(issue.project || 'Production')}`}
+          />
+        )}
+      />
+    )
+  }
+
+  // HubSpot Contacts & Deals
+  if (toolName === 'listHubSpotContactsTool' && Array.isArray(data.contacts)) {
+    const contacts = data.contacts as Array<Record<string, unknown>>
+    return (
+      <ExpandableResultList
+        items={contacts}
+        initialCount={4}
+        itemLabel="contacts"
+        renderItem={(c, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/hubspot.svg" alt="HubSpot" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-white truncate">{String(c.firstname || c.name || c.email || 'Contact')} {String(c.lastname || '')}</span>}
+            subtitle={c.email ? String(c.email) : c.company ? String(c.company) : 'CRM Contact'}
+          />
+        )}
+      />
+    )
+  }
+
+  if (toolName === 'listHubSpotDealsTool' && Array.isArray(data.deals)) {
+    const deals = data.deals as Array<Record<string, unknown>>
+    return (
+      <ExpandableResultList
+        items={deals}
+        initialCount={4}
+        itemLabel="deals"
+        renderItem={(d, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/hubspot.svg" alt="HubSpot" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-white truncate">{String(d.dealname || d.name || 'Deal')}</span>}
+            subtitle={`Stage: ${String(d.dealstage || d.stage || 'Pipeline')} · ${d.amount ? `$${d.amount}` : '$0'}`}
+          />
+        )}
+      />
+    )
+  }
+
+  // Slack Messages
+  if ((toolName === 'getSlackHistory' || toolName === 'searchSlack') && Array.isArray(data.messages)) {
+    const msgs = data.messages as Array<Record<string, unknown>>
+    return (
+      <ExpandableResultList
+        items={msgs}
+        initialCount={3}
+        itemLabel="messages"
+        renderItem={(m, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/slack.svg" alt="Slack" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-white truncate">{String(m.user || m.username || 'Slack')}</span>}
+            subtitle={String(m.text || m.message || '').slice(0, 90)}
+          />
+        )}
+      />
+    )
+  }
+
+  // Notion Pages
+  if ((toolName === 'searchNotionPagesTool' || toolName === 'searchNotionTool') && Array.isArray(data.pages || data.results)) {
+    const pages = (data.pages || data.results) as Array<Record<string, unknown>>
+    if (pages.length === 0) {
+      return (
+        <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 mb-2">
+          <img src="/logos/notion.svg" alt="Notion" className="w-3.5 h-3.5 object-contain opacity-60" />
+          <span>No matching Notion pages</span>
+        </div>
+      )
+    }
+    return (
+      <ExpandableResultList
+        items={pages}
+        initialCount={4}
+        itemLabel="pages"
+        renderItem={(p, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/notion.svg" alt="Notion" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-white truncate">{String(p.title || p.name || 'Notion Page')}</span>}
+            subtitle={p.url ? String(p.url) : 'Notion Document'}
+          />
+        )}
+      />
+    )
+  }
+
+  // Stripe Customers
+  if (toolName === 'searchStripeCustomersTool' && Array.isArray(data.customers)) {
+    const customers = data.customers as Array<Record<string, unknown>>
+    return (
+      <ExpandableResultList
+        items={customers}
+        initialCount={4}
+        itemLabel="customers"
+        renderItem={(c, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-white truncate">{String(c.name || c.email || 'Customer')}</span>}
+            subtitle={`Email: ${String(c.email || 'unknown')}${c.currency ? ` · ${String(c.currency).toUpperCase()}` : ''}`}
+          />
+        )}
+      />
+    )
+  }
+
+  // Stripe Invoices
+  if (toolName === 'listStripeInvoicesTool' && Array.isArray(data.invoices)) {
+    const invoices = data.invoices as Array<Record<string, unknown>>
+    return (
+      <ExpandableResultList
+        items={invoices}
+        initialCount={4}
+        itemLabel="invoices"
+        renderItem={(inv, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-white truncate">{String(inv.number || inv.id || 'Invoice')}</span>}
+            subtitle={`Amount: ${inv.amount ? `$${(Number(inv.amount) / 100).toFixed(2)}` : '$0.00'} · Status: ${String(inv.status || 'paid')}`}
+          />
+        )}
+      />
+    )
+  }
+
+  // Stripe Coupons
+  if (toolName === 'listStripeCouponsTool' && Array.isArray(data.coupons)) {
+    const coupons = data.coupons as Array<Record<string, unknown>>
+    return (
+      <ExpandableResultList
+        items={coupons}
+        initialCount={4}
+        itemLabel="coupons"
+        renderItem={(cpn, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain shrink-0" />}
+            title={<span className="text-white truncate">{String(cpn.name || cpn.id || 'Coupon')}</span>}
+            subtitle={cpn.percentOff ? `${cpn.percentOff}% off` : cpn.amountOff ? `$${Number(cpn.amountOff) / 100} off` : 'Discount coupon'}
+          />
+        )}
+      />
+    )
+  }
+
+  // Workspace Signals
+  if (toolName === 'getRecentSignals' && Array.isArray(data.signals)) {
+    const signals = data.signals as Array<Record<string, unknown>>
+    if (signals.length === 0) return null
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        {signals.slice(0, 3).map((sig, i) => (
+          <MiniResultCard
+            key={i}
+            icon={<Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+            title={<span className="text-white truncate">{String(sig.signalType || sig.title || 'Signal')}</span>}
+            subtitle={String(sig.description || 'Workspace signal')}
           />
         ))}
       </div>
@@ -1003,11 +1778,39 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
         const state = String(single.part.state ?? '')
         const toolInput = single.part.input ?? single.part.args ?? single.part.toolInput ?? null
 
+        let dynamicLabel = baseLabel
+        if (toolName === 'getUnifiedCustomerScan') {
+          const inputObj = (toolInput || {}) as Record<string, any>
+          const rawLookup = inputObj.name || inputObj.query || inputObj.email || (single.part.output as any)?.accountName || ''
+          const output = single.part.output as any
+          const evaluatedProviders = output?.providerResults
+            ? Object.values(output.providerResults)
+                .filter((p: any) => p && p.status !== 'unavailable')
+                .map((p: any) => {
+                  const prov = (p.provider || '').toLowerCase()
+                  return prov === 'posthog' ? 'PostHog' : prov === 'stripe' ? 'Stripe' : prov === 'intercom' ? 'Intercom' : prov === 'gmail' ? 'Gmail' : p.provider
+                })
+            : []
+
+          if (evaluatedProviders.length > 0) {
+            const providerStr = evaluatedProviders.length === 1
+              ? evaluatedProviders[0]
+              : evaluatedProviders.slice(0, -1).join(', ') + ' & ' + evaluatedProviders[evaluatedProviders.length - 1]
+            dynamicLabel = rawLookup
+              ? `Searching ${rawLookup} across ${providerStr}`
+              : `Searching customer across ${providerStr}`
+          } else if (rawLookup) {
+            dynamicLabel = `Searching customer ${rawLookup}`
+          } else {
+            dynamicLabel = "Searching customer across connected integrations"
+          }
+        }
+
         if (state === "input-streaming" || state === "input-available") {
           toolBatch.push(
             <TimelineNode
               key={`tool-${single.index}`}
-              title={baseLabel}
+              title={<ActiveScanningTitle toolName={toolName} input={toolInput} defaultLabel={dynamicLabel} />}
               icon={icon}
               isLoading={isStillLoading}
               isCompleted={!isStillLoading}
@@ -1017,16 +1820,19 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
           )
           toolBatchCount++
         } else if (state === "output-available") {
+          const isCustomTreeTool = toolName === 'getUnifiedCustomerScan' || toolName === 'getAccountRecoveryStatus'
           toolBatch.push(
             <TimelineNode
               key={`tool-${single.index}`}
-              title={baseLabel}
+              title={dynamicLabel}
               icon={icon}
               isCompleted={true}
               isCollapsible={true}
+              autoCollapse={!isCustomTreeTool}
+              defaultOpen={isCustomTreeTool ? true : undefined}
             >
               <ToolThinkingSummary toolName={toolName} input={toolInput} />
-              <ToolResultSummary toolName={toolName} result={single.part.output} />
+              <ToolResultSummary toolName={toolName} result={single.part.output} input={toolInput} isStreaming={isChatStreaming} />
             </TimelineNode>
           )
           toolBatchCount++
@@ -1073,7 +1879,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
                 return (
                   <div key={item.index} className="flex flex-col gap-0.5 border-l border-white/10 pl-2.5 my-0.5">
                     <ToolThinkingSummary toolName={toolName} input={toolInput} />
-                    {item.part.output ? <ToolResultSummary toolName={toolName} result={item.part.output} /> : null}
+                    {item.part.output ? <ToolResultSummary toolName={toolName} result={item.part.output} input={toolInput} isStreaming={isChatStreaming} /> : null}
                   </div>
                 )
               })}
@@ -1191,15 +1997,17 @@ export function formatCleanErrorMessage(rawMsg: unknown, toolName?: string): str
       msg = obj.error
     } else if (typeof (obj.error as any)?.message === "string") {
       msg = (obj.error as any).message
+    } else if (String(rawMsg).includes("Event") || ("isTrusted" in obj) || ("type" in obj && typeof obj.type === "string")) {
+      msg = "A connection or network event occurred. Please try again."
     } else {
-      msg = "A connection or network event error occurred. Please try again."
+      msg = "An unexpected error occurred. Please try again."
     }
   } else {
     msg = String(rawMsg)
   }
 
-  if (msg === "[object Event]" || msg === "[object Object]") {
-    msg = "A connection or network event error occurred. Please try again."
+  if (msg === "[object Event]" || msg === "[object Object]" || msg.includes("[object Event]")) {
+    msg = "A connection or network event occurred. Please try again."
   }
 
   try {
@@ -1513,9 +2321,10 @@ const DEMO_SEED_MESSAGES: UIMessage[] = [
 ]
 
 export function AgentFeed() {
-  const { messages, sendMessage, isLoading, status, hydrationStatus, error } = useChatContext()
+  const { currentSessionId, messages, sendMessage, isLoading, status, hydrationStatus, error } = useChatContext()
   const feedRef = React.useRef<HTMLDivElement>(null)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
+  const prevSessionIdRef = React.useRef(currentSessionId)
 
   // Filter out temporary test artifacts, deduplicate identical repeated messages, and avoid repeating stopped banners
   const displayMessages = React.useMemo(() => {
@@ -1621,6 +2430,42 @@ export function AgentFeed() {
       container.removeEventListener("scroll", handleScroll)
     }
   }, [])
+
+  // Auto-scroll to bottom whenever a chat session is opened/loaded from history or hydrated
+  React.useEffect(() => {
+    if (hydrationStatus === "loading") return
+    if (messages.length === 0) return
+
+    const container = feedRef.current
+    if (!container) return
+
+    isUserScrolledUpRef.current = false
+    container.scrollTop = container.scrollHeight
+
+    const t1 = setTimeout(() => {
+      if (container && !isUserScrolledUpRef.current) {
+        container.scrollTop = container.scrollHeight
+      }
+    }, 40)
+
+    const t2 = setTimeout(() => {
+      if (container && !isUserScrolledUpRef.current) {
+        container.scrollTop = container.scrollHeight
+      }
+    }, 120)
+
+    const t3 = setTimeout(() => {
+      if (container && !isUserScrolledUpRef.current) {
+        container.scrollTop = container.scrollHeight
+      }
+    }, 300)
+
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+    }
+  }, [currentSessionId, hydrationStatus])
 
   // When a new user message is sent, unlock and scroll down immediately
   React.useEffect(() => {
@@ -1738,7 +2583,7 @@ export function AgentFeed() {
                   const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
                   const text = lastUserMsg?.parts?.find((p) => p.type === "text" && "text" in p && typeof p.text === "string")
                   const prompt = (text && "text" in text ? text.text : "Please complete the analysis.") as string
-                  sendMessage({ role: "user", parts: [{ type: "text", text: prompt }] } as any)
+                  sendMessage({ text: prompt })
                 }}
                 className="shrink-0 px-2.5 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-red-300 hover:text-white text-[11.5px] font-medium transition-colors cursor-pointer"
               >

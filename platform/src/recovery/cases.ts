@@ -30,6 +30,25 @@ export function constructCaseKey(params: {
   }
 }
 
+export function resolveOutcomeWindowDays(actionType?: string | null, triggerEventType?: string | null): number {
+  const action = (actionType || '').toLowerCase();
+  const trigger = (triggerEventType || '').toLowerCase();
+
+  if (action.includes('reactivation') || trigger.includes('cancelled') || trigger.includes('canceled')) {
+    return RECOVERY_CONFIG.CANCELLATION_RECOVERY_WINDOW_DAYS; // 45 days
+  }
+  if (action.includes('cancel') || trigger.includes('cancel')) {
+    return RECOVERY_CONFIG.CANCEL_INTENT_PROTECTION_WINDOW_DAYS; // 30 days
+  }
+  if (action.includes('usage') || trigger.includes('usage') || action.includes('feature') || trigger.includes('feature')) {
+    return RECOVERY_CONFIG.USAGE_RECOVERY_WINDOW_DAYS; // 21 days
+  }
+  if (action.includes('gmail') || trigger.includes('gmail') || trigger.includes('communication')) {
+    return RECOVERY_CONFIG.GMAIL_ENGAGEMENT_WINDOW_DAYS; // 14 days
+  }
+  return RECOVERY_CONFIG.INVOICE_RECOVERY_WINDOW_DAYS; // 30 days default
+}
+
 export async function openOrUpdateRecoveryCase(
   supabase: SupabaseClient,
   params: {
@@ -49,7 +68,8 @@ export async function openOrUpdateRecoveryCase(
   }
 ): Promise<{ recoveryCase: RecoveryCase; isNew: boolean }> {
   const now = new Date().toISOString();
-  const outcomeDeadlineAt = new Date(Date.now() + RECOVERY_CONFIG.INVOICE_RECOVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const windowDays = resolveOutcomeWindowDays(params.actionDecision?.actionType, params.triggerEventType);
+  const outcomeDeadlineAt = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000).toISOString();
 
   // Check if case exists
   const { data: existing } = await supabase

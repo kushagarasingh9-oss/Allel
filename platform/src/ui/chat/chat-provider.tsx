@@ -131,10 +131,12 @@ export function ChatProvider({
 }) {
   const storageUserId = storageScope?.userId ?? null
   const storageWorkspaceId = storageScope?.workspaceId ?? null
-  const [activeSessionId, setActiveSessionId] = React.useState<string | null>(null)
+
   const [savedSessions, setSavedSessions] = React.useState<SavedChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = React.useState<string>(() => {
     if (typeof window !== "undefined") {
+      const urlSession = new URLSearchParams(window.location.search).get("sessionId")
+      if (urlSession) return urlSession
       const stored = window.localStorage.getItem("allel.current-session-id") || window.sessionStorage.getItem("allel.current-session-id")
       if (stored) return stored
     }
@@ -144,23 +146,23 @@ export function ChatProvider({
     }
     return fresh
   })
+
+  const currentSessionIdRef = React.useRef(currentSessionId)
+  currentSessionIdRef.current = currentSessionId
+
+  const isSwitchingSessionRef = React.useRef(false)
+  const isHydratingSessionRef = React.useRef(false)
   const pendingLoadRef = React.useRef<UIMessage[] | null>(null)
   const skipHydrationRef = React.useRef(false)
   const restoredSessionIdRef = React.useRef<string | null>(null)
 
   const resolvedStorageScope = React.useMemo(() => {
     if (!storageUserId || !storageWorkspaceId) return null
-    if (activeSessionId) {
-      return buildAgentChatStorageScope(
-        { userId: storageUserId, workspaceId: storageWorkspaceId },
-        activeSessionId
-      )
-    }
-    return resolveChatStorageScope({
-      userId: storageUserId,
-      workspaceId: storageWorkspaceId,
-    })
-  }, [storageUserId, storageWorkspaceId, activeSessionId])
+    return buildAgentChatStorageScope(
+      { userId: storageUserId, workspaceId: storageWorkspaceId },
+      currentSessionId
+    )
+  }, [storageUserId, storageWorkspaceId, currentSessionId])
 
   const scopeKey = resolvedStorageScope
     ? `${resolvedStorageScope.userId}:${resolvedStorageScope.workspaceId}:${resolvedStorageScope.sessionId}`
@@ -205,7 +207,27 @@ export function ChatProvider({
     clearError,
   } = useChat({
     chat,
+    onError: (err) => {
+      console.warn("[chat-provider] Handled chat error:", err)
+    },
   })
+
+  // Prevent raw browser DOM Event rejections (e.g. chunk loading / network disconnect)
+  // from crashing the application with [object Event]
+  React.useEffect(() => {
+    if (typeof window === "undefined") return
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (
+        event.reason instanceof Event ||
+        (event.reason && typeof event.reason === "object" && "isTrusted" in event.reason) ||
+        String(event.reason) === "[object Event]"
+      ) {
+        event.preventDefault()
+      }
+    }
+    window.addEventListener("unhandledrejection", handleUnhandledRejection)
+    return () => window.removeEventListener("unhandledrejection", handleUnhandledRejection)
+  }, [])
 
   const wrappedSendMessage = React.useCallback(
     (options: { text: string }) => {
@@ -243,7 +265,6 @@ export function ChatProvider({
       personaId: AGENT_ID,
     })
 
-    // Store under the same key format for backward compatibility
     const payload = { alex: sanitized, henry: [], sarah: [] }
     window.sessionStorage.setItem(
       buildPersonaThreadStorageKey(resolvedStorageScope),
@@ -253,12 +274,11 @@ export function ChatProvider({
 
   // Automatically persist messages whenever stream finishes or updates
   React.useEffect(() => {
-    if (messages.length > 0 && status === "ready") {
+    if (messages.length > 0 && status === "ready" && !isSwitchingSessionRef.current) {
       persistThread()
     }
   }, [messages, status, persistThread])
 
-  // Build a single-entry threadStateByAgent for backward compatibility
   const threadState = React.useMemo(() => {
     const state = getThreadState(chat)
     return {
@@ -313,24 +333,24 @@ export function ChatProvider({
   // ── Server Hydration ──
   React.useEffect(() => {
     if (typeof window === "undefined" || !resolvedStorageScope || !chatRef.current) return
-    // Skip server hydration when explicitly loading from local history
     if (skipHydrationRef.current) {
       skipHydrationRef.current = false
       setHydrationStatus("restored")
       return
     }
-    // Deliberately no "local state already populated, skip the fetch" shortcut.
     let cancelled = false
+    const targetSessionId = resolvedStorageScope.sessionId
+    isHydratingSessionRef.current = true
     setHydrationStatus("loading")
 
     async function hydrateFromServer() {
       try {
         const params = new URLSearchParams({
           agentId: AGENT_ID,
-          sessionId: resolvedStorageScope!.sessionId,
+          sessionId: targetSessionId,
         })
         const response = await fetch(`/api/agent/history?${params}`)
-        if (cancelled) return
+        if (cancelled || targetSessionId !== currentSessionIdRef.current) return
 
         if (!response.ok) {
           setHydrationStatus("empty")
@@ -340,7 +360,7 @@ export function ChatProvider({
         const data = await response.json()
         const serverMessages = data.messages as UIMessage[] | undefined
 
-        if (serverMessages && serverMessages.length > 0 && !cancelled && chatRef.current) {
+        if (serverMessages && serverMessages.length > 0 && !cancelled && targetSessionId === currentSessionIdRef.current && chatRef.current) {
           const merged = reconcileConversationHistory(
             chatRef.current.chat.messages,
             serverMessages
@@ -353,13 +373,14 @@ export function ChatProvider({
           setHydrationStatus("empty")
         }
       } catch {
-        if (!cancelled) setHydrationStatus("empty")
+        if (!cancelled && targetSessionId === currentSessionIdRef.current) setHydrationStatus("empty")
+      } finally {
+        isHydratingSessionRef.current = false
       }
     }
 
     hydrateFromServer()
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { cancelled = true; isHydratingSessionRef.current = false }
   }, [resolvedStorageScope?.sessionId])
 
   // ── Observable callbacks ──
@@ -367,11 +388,11 @@ export function ChatProvider({
     if (!chatRef.current) return
     const observableChat = chatRef.current.chat as ObservableChat
     const unregisterMessages = observableChat["~registerMessagesCallback"]?.(() => {
-      persistThread()
+      if (!isSwitchingSessionRef.current) {
+        persistThread()
+      }
     })
-    const unregisterStatus = observableChat["~registerStatusCallback"]?.(() => {
-      // status change handled by useChat hook
-    })
+    const unregisterStatus = observableChat["~registerStatusCallback"]?.(() => {})
 
     const cleanups = [unregisterMessages, unregisterStatus].filter(
       (cleanup): cleanup is () => void => typeof cleanup === "function"
@@ -380,15 +401,11 @@ export function ChatProvider({
     return () => {
       cleanups.forEach((cleanup) => cleanup())
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedStorageScope?.sessionId])
 
   const isLoading = status === "submitted" || status === "streaming"
 
-  // setAgentId is a no-op now (kept for backward compat)
-  const setAgentId = React.useCallback((_id: PersonaId) => {
-    // No-op: single unified agent
-  }, [])
+  const setAgentId = React.useCallback((_id: PersonaId) => {}, [])
 
   const resetActiveThread = React.useCallback(async () => {
     stop()
@@ -400,12 +417,8 @@ export function ChatProvider({
     if (typeof window === "undefined") return
 
     try {
-      const response = await fetch(`/api/agent?agentId=${AGENT_ID}`, {
+      const response = await fetch(`/api/agent/sessions?sessionId=${encodeURIComponent(currentSessionId)}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: resolvedStorageScope?.sessionId,
-        }),
       })
 
       if (!response.ok) {
@@ -417,46 +430,52 @@ export function ChatProvider({
   }, [
     chat,
     clearError,
+    currentSessionId,
     persistThread,
-    resolvedStorageScope?.sessionId,
     setMessages,
     stop,
   ])
 
   // ── Saved Chat History Management ──
-  // Load saved sessions from localStorage on mount, re-title and deduplicate
+  // Reconcile saved sessions with authoritative server sessions on mount
   React.useEffect(() => {
     if (typeof window === "undefined") return
-    try {
-      const raw = window.localStorage.getItem("allel.chat-history.v1")
-      if (raw) {
-        const parsed = JSON.parse(raw) as SavedChatSession[]
-        // Re-generate titles for all stored sessions using the latest logic
-        const refreshed = parsed.map((session) => ({
-          ...session,
-          title: session.messages?.length > 0
-            ? generateRefinedTitle(session.messages)
-            : session.title,
-        }))
-        // Deduplicate: if multiple entries share the same title, keep only the newest
-        const seen = new Set<string>()
-        const deduped = refreshed.filter((session) => {
-          if (seen.has(session.title)) return false
-          seen.add(session.title)
-          return true
-        })
-        setSavedSessions(deduped)
-        // Persist the cleaned list back
-        window.localStorage.setItem("allel.chat-history.v1", JSON.stringify(deduped))
+
+    async function syncSavedSessions() {
+      try {
+        const res = await fetch("/api/agent/sessions")
+        if (res.ok) {
+          const data = await res.json()
+          if (Array.isArray(data.sessions)) {
+            const serverSessionIds = new Set(data.sessions.map((s: any) => s.sessionId))
+            const raw = window.localStorage.getItem("allel.chat-history.v1")
+            if (raw) {
+              const parsed = JSON.parse(raw) as SavedChatSession[]
+              if (Array.isArray(parsed)) {
+                const validSessions = parsed.filter((s) => s && s.id && serverSessionIds.has(s.id))
+                setSavedSessions(validSessions)
+                window.localStorage.setItem("allel.chat-history.v1", JSON.stringify(validSessions))
+                return
+              }
+            } else if (data.sessions.length === 0) {
+              setSavedSessions([])
+            }
+          }
+        }
+      } catch {
+        // Ignore network failure
       }
-    } catch {
-      // Ignore storage read error
     }
+
+    syncSavedSessions()
   }, [])
 
-  // Auto-save active chat session immediately on user prompt and refresh history
+  // Auto-save active chat session ONLY when streaming completes (status === 'ready')
   React.useEffect(() => {
     if (typeof window === "undefined" || messages.length === 0) return
+    if (isSwitchingSessionRef.current || isHydratingSessionRef.current) return
+    if (status !== "ready") return // Settle all updates before persisting
+
     const hasUserMsg = messages.some((m) => m.role === "user")
     if (!hasUserMsg) return
 
@@ -471,38 +490,43 @@ export function ChatProvider({
       // Ignore
     }
 
-    const title = generateRefinedTitle(messages)
-
-    const sessionItem: SavedChatSession = {
-      id: currentSessionId,
-      title,
-      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      messageCount: messages.length,
-      messages,
-    }
-
     setSavedSessions((prev) => {
       const existing = prev.find((s) => s.id === currentSessionId)
+      // Keep established title; only derive new title if uninitialized
+      const title = existing && existing.title && existing.title !== "New Session" && existing.title !== "New Conversation"
+        ? existing.title
+        : generateRefinedTitle(messages)
+
       if (existing && existing.messageCount === messages.length && existing.title === title) {
         return prev
       }
 
+      const sessionItem: SavedChatSession = {
+        id: currentSessionId,
+        title,
+        createdAt: existing?.createdAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        messageCount: messages.length,
+        messages,
+      }
+
       const filtered = prev.filter((s) => s.id !== currentSessionId)
-      const updated = [sessionItem, ...filtered].slice(0, 30)
+      const updated = [sessionItem, ...filtered]
       try {
         window.localStorage.setItem("allel.chat-history.v1", JSON.stringify(updated))
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("allel:refresh-history"))
+        }, 0)
       } catch {
         // Ignore
       }
       return updated
     })
-
-    window.dispatchEvent(new CustomEvent("allel:refresh-history"))
   }, [messages, currentSessionId, status])
 
   const startNewChat = React.useCallback(() => {
     stop()
     clearError()
+    isSwitchingSessionRef.current = true
     const newSessionId = `session-${Date.now()}`
     if (typeof window !== "undefined") {
       try {
@@ -530,15 +554,18 @@ export function ChatProvider({
       chatRef.current.chat.messages = []
     }
     restoredSessionIdRef.current = newSessionId
-    setActiveSessionId(newSessionId)
+    currentSessionIdRef.current = newSessionId
     setCurrentSessionId(newSessionId)
     setMessages([])
+    isSwitchingSessionRef.current = false
     window.dispatchEvent(new CustomEvent("allel:refresh-history"))
   }, [clearError, setMessages, stop, storageUserId, storageWorkspaceId])
 
   const loadChatSession = React.useCallback((session: SavedChatSession) => {
     stop()
     clearError()
+    isSwitchingSessionRef.current = true
+
     if (typeof window !== "undefined") {
       try {
         const url = new URL(window.location.href)
@@ -567,39 +594,43 @@ export function ChatProvider({
     pendingLoadRef.current = session.messages
     skipHydrationRef.current = true
     restoredSessionIdRef.current = session.id
-    setActiveSessionId(session.id)
+    currentSessionIdRef.current = session.id
     setCurrentSessionId(session.id)
     setMessages(session.messages)
+    isSwitchingSessionRef.current = false
     window.dispatchEvent(new CustomEvent("allel:refresh-history"))
   }, [clearError, setMessages, stop, storageUserId, storageWorkspaceId])
 
   // Listen for custom allel:load-session event from sidebar for smooth hydration without full browser reload
   React.useEffect(() => {
     const handleLoadSession = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
+      const detail = (e as CustomEvent).detail
       if (detail && detail.sessionId) {
-        const found = savedSessions.find((s) => s.id === detail.sessionId);
+        const found = savedSessions.find((s) => s.id === detail.sessionId)
         if (found) {
-          loadChatSession(found);
+          loadChatSession(found)
         } else {
-          stop();
-          clearError();
+          stop()
+          clearError()
+          isSwitchingSessionRef.current = true
           if (typeof window !== "undefined") {
-            window.sessionStorage.setItem("allel.current-session-id", detail.sessionId);
-            window.localStorage.setItem("allel.current-session-id", detail.sessionId);
+            window.sessionStorage.setItem("allel.current-session-id", detail.sessionId)
+            window.localStorage.setItem("allel.current-session-id", detail.sessionId)
           }
-          chatRef.current = null;
-          setActiveSessionId(detail.sessionId);
-          setCurrentSessionId(detail.sessionId);
+          chatRef.current = null
+          restoredSessionIdRef.current = null
+          currentSessionIdRef.current = detail.sessionId
+          setCurrentSessionId(detail.sessionId)
+          isSwitchingSessionRef.current = false
         }
       }
-    };
-    window.addEventListener("allel:load-session", handleLoadSession);
-    return () => window.removeEventListener("allel:load-session", handleLoadSession);
+    }
+    window.addEventListener("allel:load-session", handleLoadSession)
+    return () => window.removeEventListener("allel:load-session", handleLoadSession)
   }, [savedSessions, loadChatSession, stop, clearError])
 
   const deleteChatSession = React.useCallback(async (id: string) => {
-    // 1. Remove from local history list
+    // 1. Immediately remove from local history state & storage so any immediate reload/history poll never sees it
     setSavedSessions((prev) => {
       const updated = prev.filter((s) => s.id !== id)
       try {
@@ -610,22 +641,58 @@ export function ChatProvider({
       return updated
     })
 
-    // 2. Delete database record in Supabase
+    // 2. Clean sessionStorage and per-session thread caches using AGENT_CHAT_STORAGE_VERSION
+    if (typeof window !== "undefined") {
+      try {
+        if (storageUserId && storageWorkspaceId) {
+          window.sessionStorage.removeItem(`allel.persona-threads.${AGENT_CHAT_STORAGE_VERSION}:${storageUserId}:${storageWorkspaceId}:${id}`)
+          window.sessionStorage.removeItem(`allel.persona-threads.v1:${storageUserId}:${storageWorkspaceId}:${id}`)
+        }
+      } catch {
+        // Ignore
+      }
+    }
+
+    // 3. If currently open session was deleted, immediately reset active chat state
+    if (id === currentSessionIdRef.current) {
+      stop()
+      clearError()
+      isSwitchingSessionRef.current = true
+      const newSessionId = `session-${Date.now()}`
+      if (typeof window !== "undefined") {
+        try {
+          const url = new URL(window.location.href)
+          url.pathname = "/dashboard"
+          url.searchParams.delete("sessionId")
+          window.history.pushState({}, "", url.toString())
+        } catch {
+          // Ignore
+        }
+        window.sessionStorage.setItem("allel.current-session-id", newSessionId)
+        window.localStorage.setItem("allel.current-session-id", newSessionId)
+      }
+      if (chatRef.current) {
+        chatRef.current.chat.messages = []
+      }
+      restoredSessionIdRef.current = newSessionId
+      currentSessionIdRef.current = newSessionId
+      setCurrentSessionId(newSessionId)
+      setMessages([])
+      isSwitchingSessionRef.current = false
+    }
+
+    // 4. Delete database record in Supabase via unified endpoint
     try {
-      await fetch(`/api/agent?agentId=${AGENT_ID}`, {
+      await fetch(`/api/agent/sessions?sessionId=${encodeURIComponent(id)}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: id }),
       })
     } catch (dbErr) {
       console.error("[chat-provider] Failed to delete conversation from DB", dbErr)
     }
 
-    // 3. If currently open session was deleted, start clean fresh chat
-    if (id === currentSessionId) {
-      startNewChat()
-    }
-  }, [currentSessionId, startNewChat])
+    // 5. Notify sidebar to refresh history from updated local + remote state
+    window.dispatchEvent(new CustomEvent("allel:refresh-history"))
+  }, [clearError, setMessages, stop, storageUserId, storageWorkspaceId])
 
   const activeSessionTitle = React.useMemo(() => {
     if (!messages || messages.length === 0) return null

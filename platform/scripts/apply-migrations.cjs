@@ -63,6 +63,7 @@ const MIGRATION_ORDER = [
   '20260831_identity_atomic_rpcs.sql',
   '20260901_identity_security_and_integrity.sql',
   '20260902_identity_integrity_hardening.sql',
+  '20260906_fix_draft_outcomes_draft_id_nullable.sql',
 ]
 
 function discoverMigrations() {

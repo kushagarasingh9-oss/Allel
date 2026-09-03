@@ -60,26 +60,48 @@ export async function syncIntercomWorkspace(
   const supabase = options?.supabaseClient ?? createServiceClient()
   const creds = options?.credentialsOverride ?? (await getIntercomCredentials(workspaceId))
   const { accessToken, apiBaseUrl } = creds
+  const syncRunStart = new Date().toISOString()
 
-  const [contacts, conversations, existingContactsRes] = await Promise.all([
+  const [contacts, conversations, existingContactsRes, existingAccountsRes] = await Promise.all([
     fetchIntercomContacts(accessToken, apiBaseUrl),
     fetchIntercomOpenConversations(accessToken, apiBaseUrl),
     supabase
       .from('account_contacts')
       .select('email, customer_account_id, is_primary, external_ids')
       .eq('workspace_id', workspaceId),
+    supabase
+      .from('customer_accounts')
+      .select('id, contact_email')
+      .eq('workspace_id', workspaceId),
   ])
 
   if (existingContactsRes.error) throw existingContactsRes.error
+  if (existingAccountsRes.error) throw existingAccountsRes.error
 
   const existingContacts = (existingContactsRes.data as ExistingContact[] | null) ?? []
+  const existingAccounts = (existingAccountsRes.data as Array<{ id: string; contact_email: string | null }> | null) ?? []
 
-  // Only non-provisional contacts can be used for verified identity resolution
-  const contactsByEmail = new Map(
-    existingContacts
-      .filter((c) => !c.is_provisional)
-      .map((contact) => [contact.email.toLowerCase(), contact])
-  )
+  // Map contact emails to customer account IDs (both from account_contacts and customer_accounts)
+  const contactsByEmail = new Map<string, ExistingContact>()
+  
+  for (const acc of existingAccounts) {
+    if (acc.contact_email) {
+      contactsByEmail.set(acc.contact_email.toLowerCase().trim(), {
+        email: acc.contact_email.toLowerCase().trim(),
+        customer_account_id: acc.id,
+        is_primary: true,
+        external_ids: null,
+        is_provisional: false,
+      })
+    }
+  }
+
+  for (const contact of existingContacts) {
+    if (contact.email) {
+      contactsByEmail.set(contact.email.toLowerCase().trim(), contact)
+    }
+  }
+
   const intercomContactIdToAccountId = new Map<string, string>()
 
   let syncedContacts = 0
@@ -205,14 +227,15 @@ export async function syncIntercomWorkspace(
   const aggregates = new Map<string, AccountSupportAggregate>()
 
   for (const conversation of conversations) {
-    const contactIds =
-      conversation.contacts?.contacts
-        ?.map((contact) => contact.id)
-        .filter((value): value is string => typeof value === 'string' && value.length > 0) ?? []
-    const participantEmails =
-      conversation.contacts?.contacts
-        ?.map((contact) => contact.email?.toLowerCase().trim())
-        .filter((value): value is string => Boolean(value)) ?? []
+    const contactIds = [
+      ...(conversation.contacts?.contacts?.map((contact) => contact.id) ?? []),
+      ...(conversation.source?.author?.id ? [conversation.source.author.id] : []),
+    ].filter((value): value is string => typeof value === 'string' && value.length > 0)
+
+    const participantEmails = [
+      ...(conversation.contacts?.contacts?.map((contact) => contact.email?.toLowerCase().trim()) ?? []),
+      ...(conversation.source?.author?.email ? [conversation.source.author.email.toLowerCase().trim()] : []),
+    ].filter((value): value is string => Boolean(value))
 
     const accountId =
       contactIds
@@ -314,6 +337,56 @@ export async function syncIntercomWorkspace(
       })
 
       if (timelineError) throw timelineError
+    }
+
+    // Project support features into canonical account_features pipeline
+    const hasFrustration =
+      /frustrat|angry|broken|terrible|bad|bug|fail|horrible|urgent|cancel|refund|lawsuit|unacceptable|crash/i.test(
+        `${issue} ${conversationDetail(aggregate.latestConversation)}`
+      )
+
+    const lastTicketTime = aggregate.latestConversation.updated_at
+      ? new Date(aggregate.latestConversation.updated_at * 1000).toISOString()
+      : syncRunStart
+
+    const featurePatch: Record<string, unknown> = {
+      supportAvailable: true,
+      openSupportConversationCount: aggregate.openConversationCount,
+      unresolvedTicketCount: aggregate.openConversationCount,
+      hasFrustrationSignals: hasFrustration,
+      lastSupportTicketAt: lastTicketTime,
+      supportFreshAt: syncRunStart,
+    }
+
+    const jobIdempotencyKey = `ws:${workspaceId}:account:${aggregate.accountId}:intercom_sync:${syncRunStart}`
+
+    const { error: jobError } = await supabase.from('workflow_jobs').upsert(
+      {
+        workspace_id: workspaceId,
+        job_type: 'project_account_features',
+        idempotency_key: jobIdempotencyKey,
+        status: 'pending',
+        priority: hasFrustration ? 20 : 100,
+        payload: {
+          workspaceId,
+          customerAccountId: aggregate.accountId,
+          patch: featurePatch,
+          triggerProvider: 'intercom',
+          triggerEventType: 'intercom_sync',
+          evidence: [
+            `Open support conversations: ${aggregate.openConversationCount}`,
+            `Latest thread topic: ${issue}`,
+            ...(hasFrustration ? ['Frustration sentiment detected in support thread'] : []),
+          ],
+          occurredAt: syncRunStart,
+        },
+        next_attempt_at: new Date().toISOString(),
+      },
+      { onConflict: 'idempotency_key', ignoreDuplicates: true }
+    )
+
+    if (jobError) {
+      console.warn('[intercom-sync] job upsert warning:', jobError.message)
     }
 
     syncedAccounts += 1

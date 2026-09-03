@@ -30,7 +30,7 @@ describe('migration runner', () => {
     const migrations = discoverMigrations()
     const versions = migrations.map(migrationVersion)
 
-    assert.equal(migrations.length, 11)
+    assert.equal(migrations.length, 12)
     assert.equal(new Set(versions).size, versions.length)
     assert.ok(
       versions.indexOf('20260831_identity_hardening') <

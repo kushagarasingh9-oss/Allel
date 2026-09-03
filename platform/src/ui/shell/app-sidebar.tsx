@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/foundation/database/client";
 import {
   SquarePen,
@@ -35,6 +35,7 @@ import { useOptionalChatContext } from "@/ui/chat/chat-provider";
 
 export function AppSidebarContainer({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const chatContext = useOptionalChatContext();
   const [mounted, setMounted] = useState(false);
@@ -55,18 +56,26 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
 
   const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      setHistorySessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
-      setOpenMenuSessionId(null);
-      await fetch(`/api/agent/sessions?sessionId=${encodeURIComponent(sessionId)}`, {
-        method: "DELETE",
-      });
-      const activeSessionId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sessionId") : null;
-      if (activeSessionId === sessionId) {
-        window.location.href = "/dashboard";
+    setOpenMenuSessionId(null);
+    setHistorySessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
+
+    if (chatContext?.deleteChatSession) {
+      chatContext.deleteChatSession(sessionId);
+    } else {
+      try {
+        await fetch(`/api/agent/sessions?sessionId=${encodeURIComponent(sessionId)}`, {
+          method: "DELETE",
+        });
+        const activeSessionId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sessionId") : null;
+        if (activeSessionId === sessionId) {
+          const url = new URL(window.location.href);
+          url.pathname = "/dashboard";
+          url.searchParams.delete("sessionId");
+          window.history.pushState({}, "", url.toString());
+        }
+      } catch (err) {
+        console.error("Failed to delete session:", err);
       }
-    } catch (err) {
-      console.error("Failed to delete session:", err);
     }
   };
 
@@ -76,32 +85,12 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
 
   const currentTheme = mounted ? (theme ?? resolvedTheme ?? "dark") : "dark";
 
-  // Load history sessions from backend API + localStorage fallback
+  // Load history sessions from backend API as the authoritative source
   const loadHistory = async () => {
     try {
       setIsFetchingHistory(true);
-      
-      // 1. Read local saved sessions from localStorage for instant hydration
-      let localSessions: Array<{ sessionId: string; title: string; updatedAt: string }> = [];
-      if (typeof window !== "undefined") {
-        try {
-          const raw = window.localStorage.getItem("allel.chat-history.v1");
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              localSessions = parsed.map((s: any) => ({
-                sessionId: s.id,
-                title: s.title,
-                updatedAt: s.createdAt || new Date().toISOString(),
-              }));
-            }
-          }
-        } catch {
-          // Ignore storage read error
-        }
-      }
 
-      // 2. Fetch remote DB sessions from backend API
+      // 1. Fetch authoritative remote DB sessions from backend API
       let remoteSessions: Array<{ sessionId: string; title: string; updatedAt: string }> = [];
       const res = await fetch("/api/agent/sessions");
       if (res.ok) {
@@ -111,29 +100,32 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
         }
       }
 
-      // 3. Merge local + remote sessions (local title precedence for active runs)
+      // 2. Authoritative map of sessions from the database
       const map = new Map<string, { sessionId: string; title: string; updatedAt: string }>();
       remoteSessions.forEach((s) => map.set(s.sessionId, s));
-      localSessions.forEach((s) => {
-        const existing = map.get(s.sessionId);
-        if (existing) {
-          map.set(s.sessionId, { ...existing, title: s.title });
-        } else {
-          map.set(s.sessionId, s);
-        }
-      });
 
-      // Strict title deduplication: keep only 1 entry per distinct title
-      const titleSeen = new Set<string>();
-      const finalUniqueSessions: Array<{ sessionId: string; title: string; updatedAt: string }> = [];
-      for (const s of map.values()) {
-        if (s.title && !titleSeen.has(s.title)) {
-          titleSeen.add(s.title);
-          finalUniqueSessions.push(s);
+      // 3. Purge stale/deleted sessions from browser localStorage
+      if (typeof window !== "undefined") {
+        try {
+          const raw = window.localStorage.getItem("allel.chat-history.v1");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              const validLocal = parsed.filter((s: any) => s && s.id && map.has(s.id));
+              window.localStorage.setItem("allel.chat-history.v1", JSON.stringify(validLocal));
+            }
+          }
+        } catch {
+          // Ignore
         }
       }
 
-      setHistorySessions(finalUniqueSessions);
+      // Keep all distinct sessions (deduplicated strictly by sessionId, never title!)
+      const finalSessions = Array.from(map.values()).sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+
+      setHistorySessions(finalSessions);
     } catch (err) {
       console.error("Failed to load history sessions:", err);
     } finally {
@@ -144,8 +136,10 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   useEffect(() => {
     loadHistory();
     const handleRefresh = () => {
-      loadHistory();
-      setPendingSessionId(null);
+      setTimeout(() => {
+        loadHistory();
+        setPendingSessionId(null);
+      }, 0);
     };
     const handleSessionStarting = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -161,6 +155,13 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
       window.removeEventListener("allel:session-starting", handleSessionStarting);
     };
   }, []);
+
+  // Automatically clear pending state as soon as title has resolved and text begins
+  useEffect(() => {
+    if (pendingSessionId && chatContext?.activeSessionTitle && !chatContext?.isResolvingTitle) {
+      setPendingSessionId(null);
+    }
+  }, [pendingSessionId, chatContext?.activeSessionTitle, chatContext?.isResolvingTitle]);
 
   useEffect(() => {
     async function loadUser() {
@@ -234,49 +235,87 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
     },
   ];
 
-  const [urlSessionId, setUrlSessionId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const updateUrlSession = () => {
-        const id = new URLSearchParams(window.location.search).get("sessionId");
-        setUrlSessionId(id);
-      };
-      updateUrlSession();
-      window.addEventListener("popstate", updateUrlSession);
-      const handleLoad = (e: Event) => {
-        const detail = (e as CustomEvent).detail;
-        if (detail?.sessionId) setUrlSessionId(detail.sessionId);
-      };
-      const handleNew = () => setUrlSessionId(null);
-      window.addEventListener("allel:load-session", handleLoad);
-      window.addEventListener("allel:new-session", handleNew);
-      return () => {
-        window.removeEventListener("popstate", updateUrlSession);
-        window.removeEventListener("allel:load-session", handleLoad);
-        window.removeEventListener("allel:new-session", handleNew);
-      };
+  const handleNewTask = () => {
+    chatContext?.startNewChat();
+    if (pathname !== "/dashboard") {
+      router.push("/dashboard");
     }
-  }, [pathname]);
+  };
+
+  const handleSelectSession = (sessionId: string) => {
+    const session = chatContext?.savedSessions.find(
+      (item) => item.id === sessionId
+    );
+
+    if (session && chatContext?.loadChatSession) {
+      chatContext.loadChatSession(session);
+    } else {
+      window.dispatchEvent(
+        new CustomEvent("allel:load-session", {
+          detail: { sessionId },
+        })
+      );
+    }
+
+    if (pathname !== "/dashboard") {
+      router.push(`/dashboard?sessionId=${encodeURIComponent(sessionId)}`);
+    } else {
+      const url = new URL(window.location.href);
+      url.pathname = "/dashboard";
+      url.searchParams.set("sessionId", sessionId);
+      window.history.pushState({}, "", url.toString());
+    }
+  };
+
+  const activeSessionId = chatContext?.currentSessionId ?? null;
+  const activeSessionTitle = chatContext?.activeSessionTitle ?? null;
 
   const isResolving = Boolean(
-    pendingSessionId ||
+    chatContext?.isResolvingTitle ||
+    (pendingSessionId && (!activeSessionTitle || chatContext?.isResolvingTitle)) ||
     (chatContext?.isLoading &&
      chatContext?.messages &&
      chatContext.messages.length > 0 &&
      !chatContext.messages.some((m) => m.role === "assistant" && (m.parts?.some((p) => p.type === "text" && typeof (p as { text?: string }).text === "string" && (p as { text?: string }).text!.trim().length > 0))))
   );
 
-  const activeSessionId = pathname === "/dashboard" ? urlSessionId : null;
+  const effectiveHistorySessions = React.useMemo(() => {
+    const list = [...historySessions];
+    if (
+      activeSessionId &&
+      activeSessionTitle &&
+      chatContext?.messages &&
+      chatContext.messages.length > 0
+    ) {
+      const existingIdx = list.findIndex((s) => s.sessionId === activeSessionId);
+      if (existingIdx >= 0) {
+        if (list[existingIdx].title !== activeSessionTitle) {
+          list[existingIdx] = { ...list[existingIdx], title: activeSessionTitle };
+        }
+      } else if (!isResolving) {
+        list.unshift({
+          sessionId: activeSessionId,
+          title: activeSessionTitle,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
+    return list;
+  }, [historySessions, activeSessionId, activeSessionTitle, chatContext?.messages, isResolving]);
+
+  const hasPersistedActiveSession = effectiveHistorySessions.some(
+    (s) => s.sessionId === activeSessionId
+  );
 
   const isNewTaskSelected = Boolean(
     pathname === "/dashboard" &&
-    !urlSessionId &&
+    !hasPersistedActiveSession &&
+    (chatContext?.messages?.length ?? 0) === 0 &&
     !isResolving
   );
 
-  const visibleHistorySessions = historySessions.filter((s) => {
-    if (isResolving && (s.sessionId === chatContext?.currentSessionId || s.sessionId === pendingSessionId)) {
+  const visibleHistorySessions = effectiveHistorySessions.filter((s) => {
+    if (isResolving && (s.sessionId === activeSessionId || s.sessionId === pendingSessionId)) {
       return false;
     }
     return true;
@@ -348,23 +387,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
           {/* + New task Action Button (with clean distance mb-3) */}
           <button
             type="button"
-            onClick={() => {
-              if (typeof window !== "undefined") {
-                try {
-                  const url = new URL(window.location.href);
-                  url.pathname = "/dashboard";
-                  url.searchParams.delete("sessionId");
-                  window.history.pushState({}, "", url.toString());
-                } catch {
-                  // Ignore
-                }
-              }
-              if (window.location.pathname !== "/dashboard") {
-                window.location.href = "/dashboard";
-              } else {
-                window.dispatchEvent(new CustomEvent("allel:new-session"));
-              }
-            }}
+            onClick={handleNewTask}
             className={cn(
               "group flex items-center gap-3 px-2.5 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer border border-transparent mt-6 mb-1.5",
               isNewTaskSelected
@@ -452,19 +475,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                         <div key={session.sessionId} className="relative group w-full">
                           <button
                             type="button"
-                            onClick={() => {
-                              if (typeof window !== "undefined") {
-                                if (window.location.pathname !== "/dashboard") {
-                                  window.location.href = `/dashboard?sessionId=${encodeURIComponent(session.sessionId)}`;
-                                } else {
-                                  const url = new URL(window.location.href);
-                                  url.pathname = "/dashboard";
-                                  url.searchParams.set("sessionId", session.sessionId);
-                                  window.history.pushState({}, "", url.toString());
-                                  window.dispatchEvent(new CustomEvent("allel:load-session", { detail: { sessionId: session.sessionId } }));
-                                }
-                              }
-                            }}
+                            onClick={() => handleSelectSession(session.sessionId)}
                             className={cn(
                               "w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 truncate cursor-pointer flex items-center justify-between gap-1 border border-transparent",
                               isSelected

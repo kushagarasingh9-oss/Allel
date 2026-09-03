@@ -63,18 +63,21 @@ export function sanitizeExternalText(
   )
   const maxLength = options?.maxLength ?? DEFAULT_MAX_TEXT_LENGTH
 
-  if (normalized.length <= maxLength) {
+  // Strip internal test scenario artifacts like "Scenario 007 — "
+  const cleaned = normalized.replace(/^Scenario\s+[a-zA-Z0-9_-]+\s*[-—:]\s*/i, '')
+
+  if (cleaned.length <= maxLength) {
     return {
-      text: normalized,
+      text: cleaned,
       truncated: false,
-      originalLength: normalized.length,
+      originalLength: cleaned.length,
     }
   }
 
   return {
-    text: `${normalized.slice(0, maxLength).trimEnd()}...`,
+    text: `${cleaned.slice(0, maxLength).trimEnd()}...`,
     truncated: true,
-    originalLength: normalized.length,
+    originalLength: cleaned.length,
   }
 }
 

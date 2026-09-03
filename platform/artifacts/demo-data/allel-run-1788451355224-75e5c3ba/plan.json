@@ -1,0 +1,146 @@
+{
+  "version": "1.0.0",
+  "profile": "canonical",
+  "seed": "allel-buildathon-v1",
+  "referenceTime": "2026-09-03T16:02:35.224Z",
+  "workspaceId": "6d0fdc4d-6f0a-4328-8c5e-d34255617c21",
+  "scenarioRunId": "allel-run-1788451355224-75e5c3ba",
+  "accountCount": 15,
+  "scenarios": [
+    {
+      "scenarioId": "ALLEL-001",
+      "name": "Vanguard Infra",
+      "contact": "kushagra@vanguardinfra.io",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "ALLEL-002",
+      "name": "Nexus Flow",
+      "contact": "rishi@nexusflow.ai",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "ALLEL-003",
+      "name": "Zenith Books",
+      "contact": "harsh@zenithbooks.co",
+      "expectedSeverity": "low",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "ALLEL-004",
+      "name": "Aura Analytics",
+      "contact": "sharanya@auraanalytics.com",
+      "expectedSeverity": "high",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 120000,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "ALLEL-005",
+      "name": "FintechScale",
+      "contact": "sameer@fintechscale.io",
+      "expectedSeverity": "critical",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "ALLEL-006",
+      "name": "GridPulse AI",
+      "contact": "samyak@gridpulse.io",
+      "expectedSeverity": "high",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "ALLEL-007",
+      "name": "DataVibe",
+      "contact": "shaurya@datavibe.io",
+      "expectedSeverity": "critical",
+      "expectedAction": "cancellation_rescue_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 150000
+    },
+    {
+      "scenarioId": "ALLEL-008",
+      "name": "Hyperion Dispatch",
+      "contact": "mayank@hyperiondispatch.com",
+      "expectedSeverity": "critical",
+      "expectedAction": "cancellation_rescue_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "ALLEL-009",
+      "name": "Cobalt Core",
+      "contact": "ananya@cobaltcore.io",
+      "expectedSeverity": "medium",
+      "expectedAction": "monitor_only",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "ALLEL-010",
+      "name": "KryptonDB",
+      "contact": "kabir@kryptondb.org",
+      "expectedSeverity": "high",
+      "expectedAction": "usage_checkin_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "ALLEL-011",
+      "name": "Vortex Data",
+      "contact": "tanvi@vortexdata.ai",
+      "expectedSeverity": "high",
+      "expectedAction": "usage_checkin_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "ALLEL-012",
+      "name": "Apex MultiRail",
+      "contact": "rohan@apexmultirail.co",
+      "expectedSeverity": "critical",
+      "expectedAction": "compound_recovery_email",
+      "expectedStrictRecoveredCents": 400000,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "ALLEL-013",
+      "name": "Beacon Shield",
+      "contact": "divya@beaconshield.com",
+      "expectedSeverity": "high",
+      "expectedAction": "no_action",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "ALLEL-014",
+      "name": "Lattice Systems",
+      "contact": "aditya@latticesys.io",
+      "expectedSeverity": "high",
+      "expectedAction": "founder_review",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    },
+    {
+      "scenarioId": "ALLEL-015",
+      "name": "Prism Storefronts",
+      "contact": "neha@prismstorefronts.com",
+      "expectedSeverity": "high",
+      "expectedAction": "billing_recovery_email",
+      "expectedStrictRecoveredCents": 0,
+      "expectedProtectedCents": 0
+    }
+  ]
+}

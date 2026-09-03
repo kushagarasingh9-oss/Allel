@@ -21,6 +21,9 @@ export type EvaluationReport = {
     expectedSeverity: string;
     actionType: string;
     expectedAction: string;
+    expectedResolution?: string | null;
+    expectedStrictRecoveredCents?: number;
+    expectedProtectedCents?: number;
     passed: boolean;
     reason: string;
   }>;
@@ -133,6 +136,9 @@ export function evaluateScenarioManifest(): EvaluationReport {
       expectedSeverity: def.expectedSeverity,
       actionType: actionDecision.actionType,
       expectedAction: def.expectedAction,
+      expectedResolution: def.expectedResolution ?? null,
+      expectedStrictRecoveredCents: def.expectedStrictRecoveredCents ?? 0,
+      expectedProtectedCents: def.expectedProtectedCents ?? 0,
       passed,
       reason: actionDecision.actionReason,
     });

@@ -92,6 +92,10 @@ function buildFallbackSynthesisForTools(calledToolNames: string[]): string {
     return `Here is your operational update for today:\n\n${bullets.join('\n')}\n\nAll live integration checks are complete.`
   }
 
+  if (tools.has('getUnifiedCustomerScan') || tools.has('getUnifiedFleetScan')) {
+    return 'Unified account health and fleet revenue risk scan completed across all connected integrations.'
+  }
+
   if (tools.has('webSearchTool') || tools.has('webExtractTool')) {
     return 'Web intelligence search completed. The extracted information has been verified from live sources.'
   }

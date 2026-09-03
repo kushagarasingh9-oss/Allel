@@ -76,12 +76,30 @@ export async function seedScenarios(
       .limit(1)
       .maybeSingle();
 
+    const founderNameMap: Record<string, string> = {
+      'ALLEL-001': 'Kushagra Singh',
+      'ALLEL-002': 'Rishi Sharma',
+      'ALLEL-003': 'Harsh Patel',
+      'ALLEL-004': 'Sharanya Rao',
+      'ALLEL-005': 'Sameer Verma',
+      'ALLEL-006': 'Samyak Jain',
+      'ALLEL-007': 'Shaurya Gupta',
+      'ALLEL-008': 'Mayank Agarwal',
+      'ALLEL-009': 'Ananya Iyer',
+      'ALLEL-010': 'Kabir Mehta',
+      'ALLEL-011': 'Tanvi Saxena',
+      'ALLEL-012': 'Rohan Trivedi',
+      'ALLEL-013': 'Divya Nair',
+      'ALLEL-014': 'Aditya Joshi',
+      'ALLEL-015': 'Neha Kulkarni',
+    };
+
     const contactPayload = {
       workspace_id: workspaceId,
       customer_account_id: accountId,
-      name: `${def.accountName} Primary`,
+      name: founderNameMap[def.scenarioId] || `${def.accountName} Founder`,
       email: def.contactEmail.toLowerCase(),
-      role: 'Owner',
+      role: 'Founder & CEO',
       is_primary: true,
       external_ids: {
         stripe_customer_id: def.stripeCustomerId,

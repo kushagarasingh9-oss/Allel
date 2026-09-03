@@ -93,15 +93,12 @@ export function AllelCommandCenter() {
     }
   }, [inputText]);
 
-  // Listen for global new-session trigger from sidebar
+  // Reset inputText when starting a fresh session
   useEffect(() => {
-    const handleNewSession = () => {
-      startNewChat();
+    if (messages.length === 0) {
       setInputText("");
-    };
-    window.addEventListener("allel:new-session", handleNewSession);
-    return () => window.removeEventListener("allel:new-session", handleNewSession);
-  }, [startNewChat]);
+    }
+  }, [messages.length]);
 
   const hasMessages = messages.length > 0;
   const [showScrollBottom, setShowScrollBottom] = useState(false);

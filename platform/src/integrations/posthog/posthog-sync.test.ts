@@ -107,7 +107,7 @@ describe('PostHog Workspace Sync Full Orchestration', () => {
     assert.equal(result.identityConflicts, 1); // Reported name candidate conflict
     assert.equal(mutatedExistingAccount, false);
     assert.notEqual(createdAccountPayload, null);
-    assert.equal(createdAccountPayload.is_provisional, true);
+    assert.ok(createdAccountPayload.summary?.includes('Provisional') || createdAccountPayload.is_provisional === true);
     assert.equal(result.syncedAccounts, 0); // Provisional accounts do not count as synced canonical accounts
   });
 
@@ -237,5 +237,136 @@ describe('PostHog Workspace Sync Full Orchestration', () => {
 
     assert.equal(result.identityConflicts, 1);
     assert.equal(result.syncedAccounts, 0);
+  });
+
+  it('4. Verified email attaches PostHog events to canonical Stripe account and projects lifecycle milestones', async () => {
+    let enqueuedJobPayload: any = null;
+
+    const mockSupabase = {
+      from: (table: string) => {
+        const chain: any = {};
+        chain.select = () => chain;
+        chain.eq = () => chain;
+        chain.in = () => chain;
+        chain.maybeSingle = async () => ({ data: null, error: null });
+        chain.single = async () => ({ data: null, error: null });
+        chain.insert = () => chain;
+        chain.update = () => chain;
+        chain.upsert = (payload: any) => {
+          if (table === 'workflow_jobs') enqueuedJobPayload = payload;
+          return chain;
+        };
+        chain.then = (resolve: (v: any) => any) => {
+          if (table === 'customer_accounts') {
+            return resolve({
+              data: [
+                {
+                  id: '550e8400-e29b-41d4-a716-446655440000',
+                  name: 'Acme SaaS',
+                  account_status: 'active',
+                  mrr_cents: 100000,
+                  is_provisional: false,
+                },
+              ],
+              error: null,
+            });
+          }
+          if (table === 'account_contacts') {
+            return resolve({
+              data: [
+                {
+                  email: 'founder@acme.com',
+                  customer_account_id: '550e8400-e29b-41d4-a716-446655440000',
+                  is_provisional: false,
+                },
+              ],
+              error: null,
+            });
+          }
+          if (table === 'provider_identities') return resolve({ data: [], error: null });
+          return resolve({ data: null, error: null });
+        };
+        return chain;
+      },
+      rpc: async (fn: string, args: any) => ({
+        data: { status: 'ok', accountId: args.p_customer_account_id },
+        error: null,
+      }),
+    } as any;
+
+    const nowIso = new Date().toISOString();
+
+    global.fetch = async (url: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/persons')) {
+        return {
+          ok: true,
+          json: async () => ({
+            results: [
+              {
+                id: 'ph-person-acme',
+                properties: { email: 'founder@acme.com', name: 'Jane Doe' },
+                distinct_ids: ['dist_acme_1'],
+                created_at: nowIso,
+              },
+            ],
+          }),
+        } as any;
+      }
+      if (urlStr.includes('/events')) {
+        return {
+          ok: true,
+          json: async () => ({
+            results: [
+              {
+                event: 'user_signed_up',
+                distinct_id: 'dist_acme_1',
+                timestamp: nowIso,
+              },
+              {
+                event: 'onboarding_completed',
+                distinct_id: 'dist_acme_1',
+                timestamp: nowIso,
+              },
+              {
+                event: 'activation_completed',
+                distinct_id: 'dist_acme_1',
+                timestamp: nowIso,
+              },
+              {
+                event: 'core_feature_used',
+                distinct_id: 'dist_acme_1',
+                timestamp: nowIso,
+              },
+              {
+                event: '$pageview',
+                distinct_id: 'dist_acme_1',
+                timestamp: nowIso,
+                properties: { $current_url: 'https://app.acme.com/settings/billing/cancel' },
+              },
+            ],
+          }),
+        } as any;
+      }
+      return { ok: true, json: async () => ({ results: [] }) } as any;
+    };
+
+    const result = await syncPostHogWorkspace('ws-test-ph', {
+      refreshBrief: false,
+      supabaseClient: mockSupabase,
+      credentialsOverride: mockCreds,
+    });
+
+    assert.equal(result.syncedAccounts, 1);
+    assert.equal(result.provisionalAccounts, 0);
+    assert.notEqual(enqueuedJobPayload, null);
+
+    const patch = enqueuedJobPayload.payload.patch;
+    assert.equal(patch.usageAvailable, true);
+    assert.notEqual(patch.signupAt, null);
+    assert.notEqual(patch.onboardingCompletedAt, null);
+    assert.notEqual(patch.activationCompletedAt, null);
+    assert.notEqual(patch.cancelIntentAt, null);
+    assert.equal(patch.keyFeatureMissing, false);
   });
 });

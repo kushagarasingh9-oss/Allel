@@ -97,7 +97,7 @@ export async function handleReconcileProviderState(
   // 2. Classify monitoring cases that have passed their outcome deadline
   const { data: deadlinePassed, error: deadlineErr } = await supabase
     .from('recovery_cases')
-    .select('id, workspace_id, mrr_baseline_cents')
+    .select('id, workspace_id, customer_account_id, mrr_baseline_cents')
     .eq('workspace_id', workspaceId)
     .eq('status', 'monitoring')
     .lt('outcome_deadline_at', now);
@@ -119,6 +119,7 @@ export async function handleReconcileProviderState(
         payload: {
           workspaceId,
           recoveryCaseId: expiredCase.id,
+          customerAccountId: expiredCase.customer_account_id,
           trigger: 'deadline_expired',
           occurredAt: now,
         },

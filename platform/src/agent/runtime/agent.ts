@@ -191,6 +191,9 @@ import {
   suppressRecoveryCase,
   updateRecoveryCaseNote,
   // Composite + Behavioral Intent tools
+  runRevenueRiskScan,
+  getUnifiedCustomerScan,
+  getUnifiedFleetScan,
   getPostHogBehavioralIntentSignals,
   getAccountFullProfile,
   getFleetHealthSummary,
@@ -232,6 +235,9 @@ const MODEL_PRICING_CENTS_PER_MILLION = [
 
 export const ALL_TOOLS = {
   // Read tools
+  runRevenueRiskScan,
+  getUnifiedCustomerScan,
+  getUnifiedFleetScan,
   inspectIntegrationConnectionsTool,
   getAccountDetails,
   getAccountMemory,
@@ -1020,6 +1026,15 @@ const INTENT_CORE_TOOLS: Array<{
   verbs: RegExp
   tools: AgentToolName[]
 }> = [
+    {
+      verbs: /\b(check|health|metric|metrics|status|scan|churn|risk|at.?risk|diagnose|how is|profile|customer|account|cancel|cancelling|cancellation|canceling|leaving|churning|thinking about)\b/i,
+      tools: [
+        'getUnifiedCustomerScan',
+        'getAccountRecoveryStatus',
+        'runRevenueRiskScan',
+        'getUnifiedFleetScan',
+      ],
+    },
     {
       verbs: /\b(brief|daily|morning|today|overview|standup|summary|updated?|uodated?|update|what'?s (up|new|happening))\b/i,
       tools: [

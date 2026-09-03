@@ -27,4 +27,22 @@ describe('generateChatSessionTitle', () => {
     assert.equal(generateChatSessionTitle([{ role: 'user', content: 'how to build authentication' }]), 'Build Authentication');
     assert.equal(generateChatSessionTitle([{ role: 'user', content: 'write a python script for scraping' }]), 'Write A Python Script');
   });
+
+  it('uses only the first user prompt and ignores later prompts', () => {
+    const title = generateChatSessionTitle([
+      { role: 'user', content: 'Check my Gmail inbox' },
+      { role: 'assistant', content: 'Here are your emails.' },
+      { role: 'user', content: 'Now check Slack' },
+    ]);
+
+    assert.equal(title, 'Email & Inbox Management');
+  });
+
+  it('handles Slack prompt properly', () => {
+    const title = generateChatSessionTitle([
+      { role: 'user', content: 'check my slack' },
+    ]);
+
+    assert.equal(title, 'Slack & Team Channels');
+  });
 });

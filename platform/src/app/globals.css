@@ -72,6 +72,29 @@
   animation: silver-flow 3.5s linear infinite;
 }
 
+@keyframes thinking-shimmer {
+  0% {
+    background-position: 150% 0;
+  }
+  100% {
+    background-position: -150% 0;
+  }
+}
+
+.thinking-shimmer-text {
+  background: linear-gradient(
+    90deg,
+    rgba(163, 163, 163, 0.45) 0%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(163, 163, 163, 0.45) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: thinking-shimmer 2.2s ease-in-out infinite;
+  display: inline-block;
+}
+
 /* Global Theme Color Tokens */
 html.dark {
   color-scheme: dark;

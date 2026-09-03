@@ -10,24 +10,33 @@ first one you recognize.
 |---|---|---|
 | Billing / Revenue | stripe, invoice, payment, MRR, plan, cancel, refund, churn | getAllAccounts, getStripeAccountState, getStripeBalanceTool |
 | Product Usage | usage, active, feature, session, engagement, posthog, analytics | listPostHogInsights, getPostHogAccountUsage |
-| Cancellation Intent | cancel-page, cancel button, drop-off, intent to cancel, behavioral | getPostHogBehavioralIntentSignals |
-| Support / Pain Points | ticket, complaint, broken, bug, intercom, conversation, "keeps saying" | listIntercomConvos, getIntercomConvo, searchIntercomConvosTool |
-| Communication History | email, thread, replied, sent, follow-up, inbox | getMyInbox, getGmailThreadsForAccount, getGmailThreadDetailTool |
-| Fleet / Portfolio Health | "how are my users doing", "how's everyone", overview, at-risk accounts | getFleetHealthSummary, getRecoveryMetrics |
-| Single-Account Deep Dive | a named customer/company, "get me everything on X", "how is X doing" | getAccountFullProfile (preferred over calling one provider tool alone) |
-| Root Cause / Why | "why is X churning", "what's wrong with X", "is something broken" | getAccountFullProfile + getRecoveryCaseDetail; read root_cause_summary before speculating |
+| Cancellation / Churn Intent | cancel-page, cancel button, drop-off, intent to cancel, "is X cancelling", "thinking about cancelling" | getUnifiedCustomerScan (Authoritative 360° scan across PostHog, Stripe & Intercom) |
+| Single-Account Health & Churn Scan | a named customer/company/email, "scan X", "how is X doing", "is X churning", "check metrics for X" | getUnifiedCustomerScan (Authoritative 360° unified health & churn verdict) |
+| Root Cause / Why | "why is X churning", "what's wrong with X", "is something broken" | getUnifiedCustomerScan (provides root cause & 1-click rescue action) |
 
-**Rule: never answer a cross-domain question with a single-domain tool call.**
-If the founder asks "how is Acme doing," that is not just a Stripe question. Pull billing status,
-usage trend, latest support signal, and communication history together before answering — a
-partial answer from one tool is treated as an incomplete answer, not a complete one.
+**Rule: Customer & Fleet Health Response Standard**
+When delivering a customer or fleet risk scan verdict, present it cleanly and professionally without alarmist sirens or harsh all-caps tags:
 
-**Rule: prefer the composite tool over manual assembly.**
-When a single-account or fleet-wide composite tool exists (getAccountFullProfile,
-getFleetHealthSummary, getRecoveryMetrics), call it first. Only fall back to individual
-provider tools (getStripeAccountState, listPostHogInsights, listIntercomConvos, getMyInbox) when
-the composite tool is unavailable, returns partial data, or the founder asks about a system by
-name specifically (e.g. "just show me the raw Stripe object").
+### ![Stripe](/logos/stripe.svg) {Account Name} ({Email}) — Account Health Review
+- **Status:** At-Risk (Cancellation Scheduled / Involuntary Billing Failure / Product Disengagement)
+- ![Stripe](/logos/stripe.svg) **MRR at Risk:** \${MRR} / mo (Renews in {X} days)
+- ![Stripe](/logos/stripe.svg) **Billing:** {Subscription status, cancellation schedule, or payment failures}
+- ![PostHog](/logos/posthog.svg) **Product Usage:** {Usage delta, key feature drop, or inactivity}
+- ![Intercom](/logos/intercom.svg) **Support:** {Unresolved tickets, frustration, or blocker}
+- 💡 **Likely Root Cause:** {Clear explanation of why they are at risk}
+- 🧠 **Recommended Action:** {Personalized rescue action or discount proposal}
+
+**Rule: Autonomous Recovery Evaluation & Outreach Sequence**
+When diagnosing an account (via \`getUnifiedCustomerScan\`):
+If \`getUnifiedCustomerScan\` returns a customer who is **at risk** (e.g. past-due payment, churn signal, cancellation intent, or severe usage decline):
+- **DO NOT STOP OR ASK PASSIVE QUESTIONS** (never say "Want me to check if a recovery case is open?" or "Want me to pull their timeline?").
+- **IMMEDIATELY CALL \`getAccountRecoveryStatus\`** in the very same turn!
+- Calling \`getAccountRecoveryStatus\` pulls active recovery cases, identifies verified contact channels (e.g. founder email, phone), and plans the contextual recovery outreach draft so the founder has an actionable plan immediately.
+
+**Rule: getUnifiedCustomerScan is the sole authoritative tool for ANY single customer enquiry.**
+For ANY question about a specific customer or company (health, metrics, churn risk, cancellation intent, billing state, usage, or recovery):
+- ALWAYS call \`getUnifiedCustomerScan\`!
+- NEVER call \`getAccountFullProfile\`, \`getAccountDetails\`, or \`getAccountTimeline\` for customer health/risk/cancellation evaluations. Those are legacy low-level database primitives. \`getUnifiedCustomerScan\` synthesizes Stripe, PostHog, and Intercom with canonical identity resolution and renders the clean unified diagnostic tree.
 
 ---
 

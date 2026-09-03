@@ -15,48 +15,48 @@ export interface GenericChatMessage {
 
 const GREETING_ONLY_REGEX = /^(hey|hi|hello|yo|heyyy|bruv|bro|heybro|hey\s+bro|sup|hey\s+there|hi\s+there|good\s+morning|good\s+afternoon|good\s+evening|howdy|hey\s+allel|hey\s+alex|hi\s+alex|hey\s+bot|hi\s+bot|gm|gn|alle|allel)\b[.,!?\s]*$/i;
 
+function extractMessageText(msg: GenericChatMessage | undefined): string {
+  if (!msg) return "";
+  let txt = "";
+  if (Array.isArray(msg.parts)) {
+    const textPart = msg.parts.find((p) => p.type === "text" && typeof p.text === "string");
+    if (textPart?.text) txt = textPart.text;
+  }
+  if (!txt && typeof msg.content === "string") {
+    txt = msg.content;
+  }
+  if (!txt && typeof msg.text === "string") {
+    txt = msg.text;
+  }
+  return txt.trim();
+}
+
 export function generateChatSessionTitle(messages: GenericChatMessage[] | null | undefined): string {
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return "New Conversation";
   }
 
-  // Filter for user messages
-  const userMsgs = messages.filter(
-    (m) => m.role === "user" || m.source === "USER_EXPLICIT"
-  );
-  if (userMsgs.length === 0) return "New Conversation";
-
-  // Collect raw text content from user messages
-  const userTexts: string[] = [];
-  for (const m of userMsgs) {
-    let txt = "";
-    if (Array.isArray(m.parts)) {
-      const textPart = m.parts.find((p) => p.type === "text" && typeof p.text === "string");
-      if (textPart?.text) txt = textPart.text;
-    }
-    if (!txt && typeof m.content === "string") {
-      txt = m.content;
-    }
-    if (!txt && typeof m.text === "string") {
-      txt = m.text;
-    }
-
-    if (txt.trim().length > 0) {
-      userTexts.push(txt.trim());
+  // Find ONLY the first non-empty user prompt (never combine subsequent prompts)
+  let firstPrompt = "";
+  for (const m of messages) {
+    if (m && (m.role === "user" || m.source === "USER_EXPLICIT")) {
+      const text = extractMessageText(m);
+      if (text) {
+        firstPrompt = text;
+        break;
+      }
     }
   }
 
-  if (userTexts.length === 0) return "New Conversation";
-
-  const combinedRaw = userTexts.join(" ").trim();
+  if (!firstPrompt) return "New Conversation";
 
   // Check for pure greeting-only or bot-name messages
-  if (GREETING_ONLY_REGEX.test(combinedRaw.replace(/[^a-zA-Z0-9\s]/g, "").trim())) {
+  if (GREETING_ONLY_REGEX.test(firstPrompt.replace(/[^a-zA-Z0-9\s]/g, "").trim())) {
     return "Casual Greeting";
   }
 
   // Strip leading punctuation, greetings, agent mentions, question words, filler prefixes
-  let cleaned = combinedRaw
+  let cleaned = firstPrompt
     .replace(/^[^a-zA-Z0-9]+/, "")
     .replace(/^(hey|hi|hello|yo|heyyy|bruv|bro|heybro|sup|please|can\s+you|could\s+you|would\s+you|will\s+you)\b[.,!?\s]*/i, "")
     .replace(/^[^a-zA-Z0-9]+/, "")
@@ -79,9 +79,12 @@ export function generateChatSessionTitle(messages: GenericChatMessage[] | null |
     return "Casual Greeting";
   }
 
-  const lower = (cleaned + " " + combinedRaw).toLowerCase();
+  const lower = (cleaned + " " + firstPrompt).toLowerCase();
 
   // ── High-Level Domain Matching Rules ──
+  if (/\b(slack|slacks|channels?)\b/i.test(lower)) {
+    return "Slack & Team Channels";
+  }
   if (/\b(customers?|clients?|accounts?|subscribers?|users?)\b/i.test(lower) && /\b(health|status|doing|overview|risk|mrr|churn|active|recovering|support)\b/i.test(lower)) {
     return "Customer Accounts & Health";
   }
