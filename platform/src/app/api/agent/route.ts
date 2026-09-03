@@ -313,6 +313,31 @@ CORE OPERATIONAL DOCTRINE:
   })
   const memoryPrompt = buildConversationMemorySystemPrompt(persistedMemory)
 
+  const previousAssistantMessage = [...recentMessages].reverse().find((m) => m.role === 'assistant') ?? null
+  const previousAssistantText = previousAssistantMessage ? getMessageTextContent(previousAssistantMessage).slice(0, 300) : ''
+  const previousUserMessages = [...recentMessages].reverse().filter((m) => m.role === 'user')
+  const previousUserMessage = previousUserMessages[1] ?? null
+  const previousUserText = previousUserMessage ? getMessageTextContent(previousUserMessage).slice(0, 150) : ''
+
+  const latestText = latestUserMessage ? getMessageTextContent(latestUserMessage).trim() : ''
+  const isFollowUp = /\b(check\s*(?:now|nw|again|it|cal|mail)|try\s*(?:now|again)|recheck|done|did it|connected|now check|can you check)\b/i.test(latestText)
+  const isShortReferent = latestText.split(/\s+/).length <= 3
+
+  let activeTurnInstruction = `CRITICAL INSTRUCTION FOR ACTIVE TURN:\nThe user's current request is: "${latestUserText}".`
+  if ((isFollowUp || isShortReferent) && (previousAssistantText || previousUserText)) {
+    activeTurnInstruction += `\n\nCONTEXT OF IMMEDIATE PREVIOUS CONVERSATION TURN:
+The user previously said: "${previousUserText}"
+The assistant previously responded: "${previousAssistantText}"
+The user's message "${latestUserText}" is a direct follow-up / retry to the topic above.
+MAINTAIN TOPIC CONTINUITY:
+- If the previous turn was about checking or connecting Google Calendar, the user is telling you they connected it — call listCalendarEventsTool now!
+- If the previous turn was about Gmail, check Gmail!
+- If the previous turn was about a specific customer or recovery case, continue on that customer.
+- DO NOT divert to an unrelated company-wide fleet scan, inbox check, or random tools unless explicitly requested.`
+  } else {
+    activeTurnInstruction += `\nFocus strictly on fulfilling this specific request. When tool calls are executed (e.g. getMyInbox, listCalendarEventsTool, getAllAccounts), synthesize the tool results into a structured executive response with official SVG brand logos and next steps. Do NOT output a greeting or repeat previous turns.`
+  }
+
   const enrichedMessages = [
     {
       id: `system-workspace-${workspaceId}`,
@@ -336,9 +361,7 @@ CORE OPERATIONAL DOCTRINE:
         role: 'system' as const,
         parts: [{
           type: 'text' as const,
-          text: `CRITICAL INSTRUCTION FOR ACTIVE TURN:
-The user's current request is: "${latestUserText}".
-Focus strictly on fulfilling this specific request. When tool calls are executed (e.g. getMyInbox, listCalendarEventsTool, getAllAccounts), synthesize the tool results into a structured executive response with official SVG brand logos and next steps. Do NOT output a greeting or repeat previous turns.`,
+          text: activeTurnInstruction,
         }],
       }]
       : []),
@@ -369,17 +392,14 @@ Focus strictly on fulfilling this specific request. When tool calls are executed
     ).filter((m) => Array.isArray(m.parts) && (m.parts?.length ?? 0) > 0) as unknown as AgentChatMessage[]),
   ]
 
-
   const conversationText = recentMessages
     .filter((m) => m.role === 'user')
     .flatMap((m) => (m.parts ?? []).filter((p) => p.type === 'text').map((p) => (p as { text: string }).text))
     .join('\n')
 
-  // Prioritize active turn focus: use the latest user message for tool routing.
-  // Only expand to preceding turns if the latest message is a brief referent ("yes", "do it", "send").
-  const latestText = latestUserMessage ? getMessageTextContent(latestUserMessage).trim() : ''
-  const isShortReferent = latestText.split(/\s+/).length <= 3
-  const activePromptText = isShortReferent && conversationText ? `${latestText}\n${conversationText}` : (latestText || conversationText)
+  const activePromptText = (isFollowUp || isShortReferent)
+    ? `${latestText}\n${previousUserText}\n${previousAssistantText}\n${conversationText}`
+    : (latestText || conversationText)
 
   const modelId = resolveAgentModelId({
     personaId: persona.id,

@@ -965,7 +965,10 @@ export function scoreDomainMatch(
 
   // Regex matches — fast, high confidence
   if (latestText && group.regex.test(latestText)) score += 10
-  if (historyText && group.regex.test(historyText)) score += 2
+  if (historyText && group.regex.test(historyText)) {
+    const isFollowUp = /\b(check\s*(?:now|nw|again|it|cal|mail)|try\s*(?:now|again)|recheck|done|did it|connected|now check|can you check)\b/i.test(latestText) || latestText.split(/\s+/).length <= 2
+    score += isFollowUp ? 10 : 2
+  }
 
   // Fuzzy token matches — slower, additive
   if (latestText) {
@@ -1038,7 +1041,7 @@ const INTENT_CORE_TOOLS: Array<{
       ],
     },
     {
-      verbs: /\b(check|health|metric|metrics|status|scan|churn|risk|at.?risk|diagnose|profile|customer|customers|account|cancel|cancelling|cancellation|canceling|leaving|churning|thinking about|recovery queue)\b|\bhow (?:is|are|was)\s+(?!you\b)/i,
+      verbs: /\b(fleet\s*health|risk\s*scan|churn|churn\s*risk|at.?risk|diagnose\s*account|customer\s*health|customers?\s*at\s*risk|cancellation\s*risk|leaving|churning|thinking about cancelling|recovery queue)\b|\bhow (?:is|are|was)\s+(?!you\b)(?:[a-z0-9_-]+\s+){0,3}(?:doing|holding up|performing|trending)/i,
       tools: [
         'getUnifiedCustomerScan',
         'getAccountRecoveryStatus',
@@ -1063,7 +1066,7 @@ const INTENT_CORE_TOOLS: Array<{
       tools: ['webSearchTool', 'webExtractTool'],
     },
     {
-      verbs: /\b(show|list|get|fetch|find|look|display|what|who|which)\b/i,
+      verbs: /\b(show|list|get|fetch|find|look|display)\b.*\b(customers?|accounts?|fleet|clients?|mrr|churn)\b/i,
       tools: ['getUnifiedCustomerScan', 'getUnifiedFleetScan', 'getRecentSignals'],
     },
     {
@@ -1210,7 +1213,6 @@ export function selectRelevantToolsForPrompt(
     'webSearchTool',
     'getAccountDetails',
     'getUnifiedCustomerScan',
-    'getUnifiedFleetScan',
     'addToRecoveryQueue',
     'getAccountRecoveryStatus',
     'resolveAccountByContact',
