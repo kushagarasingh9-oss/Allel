@@ -9,7 +9,7 @@ import {
   type CustomerProviderIdentity,
   type CustomerProviderStatus,
 } from "@/recovery/customer-scan-types"
-import { AlertTriangle, ChevronDown, ChevronRight, Phone, Send, CheckCircle2 } from "lucide-react"
+import { AlertTriangle, ChevronDown, ChevronRight, Phone, Send, CheckCircle2, Loader2, Check } from "lucide-react"
 
 const PROVIDER_LOGOS: Record<string, string> = {
   stripe: "/logos/stripe.svg",
@@ -595,14 +595,54 @@ export function DraftedEmailCard({
   badge = 'Gmail Outreach',
   type = 'draft',
 }: {
-  draft: { subject?: string | null; recipientEmail?: string | null; body?: string | null }
+  draft: {
+    subject?: string | null
+    recipientEmail?: string | null
+    body?: string | null
+    caseId?: string | null
+    gmailUrl?: string | null
+    status?: string | null
+  }
   badge?: string
   type?: 'draft' | 'sent'
 }) {
   const [isExpanded, setIsExpanded] = React.useState(false)
+  const [isSending, setIsSending] = React.useState(false)
+  const [isSent, setIsSent] = React.useState(type === 'sent' || draft.status === 'sent')
+  const [gmailUrl, setGmailUrl] = React.useState<string | null>(draft.gmailUrl || null)
+
   const subject = draft.subject || (type === 'sent' ? 'Outreach Email' : 'Follow-up draft')
   const recipient = draft.recipientEmail || 'Recipient'
   const body = draft.body || ''
+
+  const handleSend = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsSending(true)
+    try {
+      const res = await fetch('/api/recovery/dispatch-draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          caseId: draft.caseId,
+          recipientEmail: recipient,
+          subject,
+          body,
+        }),
+      })
+      const payload = await res.json().catch(() => ({}))
+      if (res.ok && payload.success) {
+        setIsSent(true)
+        if (payload.gmailUrl) setGmailUrl(payload.gmailUrl)
+        window.dispatchEvent(new CustomEvent('allel:recovery-case-updated', {
+          detail: { caseId: payload.caseId, status: 'monitoring' }
+        }))
+      }
+    } catch (err) {
+      console.error('Failed to send recovery outreach:', err)
+    } finally {
+      setIsSending(false)
+    }
+  }
 
   return (
     <div className="flex flex-col">
@@ -614,7 +654,7 @@ export function DraftedEmailCard({
           icon={<img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
           title={
             <span className="text-white font-medium flex items-center justify-between gap-2 w-full">
-              <span className="truncate">{type === 'sent' ? 'Email sent: ' : 'Subject: '}{subject}</span>
+              <span className="truncate">{isSent ? 'Email sent: ' : 'Subject: '}{subject}</span>
               <ChevronRight
                 className={`w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-200 transition-transform duration-200 shrink-0 ml-1 ${
                   isExpanded ? 'rotate-90' : ''
@@ -643,7 +683,7 @@ export function DraftedEmailCard({
             <span><strong className="text-neutral-300">To:</strong> {recipient}</span>
             <div className="flex items-center gap-1.5 text-neutral-400">
               <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />
-              <span>{badge}</span>
+              <span>{isSent ? 'Delivered via Gmail' : badge}</span>
             </div>
           </div>
           {subject && (
@@ -656,19 +696,37 @@ export function DraftedEmailCard({
           </div>
 
           <div className="mt-3 pt-2.5 border-t border-white/5 flex justify-end">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                window.dispatchEvent(new CustomEvent('allel:proceed-tasks', {
-                  detail: { text: `Approve and send the recovery email to ${recipient}` }
-                }))
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white text-black hover:bg-neutral-200 text-xs font-medium cursor-pointer transition-all shadow-sm active:scale-95"
-            >
-              <Send className="w-3 h-3 text-black" />
-              <span>Send</span>
-            </button>
+            {isSent ? (
+              <a
+                href={gmailUrl || 'https://mail.google.com/mail/u/0/#sent'}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="group/btn inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] hover:bg-[#0048D9] active:bg-[#003ec2] text-white px-3 py-1.5 text-xs font-medium transition-all cursor-pointer shadow-xs shadow-blue-500/20 hover:shadow-blue-500/35 border border-blue-400/30"
+                title="View sent email in Gmail"
+              >
+                <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                <span>Sent</span>
+              </a>
+            ) : isSending ? (
+              <button
+                type="button"
+                disabled
+                className="inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] text-white px-3 py-1.5 text-xs font-medium cursor-wait opacity-80 border border-blue-400/30 shadow-xs"
+              >
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white/90" />
+                <span>Sending…</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSend}
+                className="group/sendbtn inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] hover:bg-[#0048D9] active:bg-[#003ec2] text-white px-3 py-1.5 text-xs font-medium cursor-pointer transition-all shadow-xs shadow-blue-500/20 hover:shadow-blue-500/35 border border-blue-400/30"
+              >
+                <Send className="w-3.5 h-3.5 text-white/90 group-hover/sendbtn:text-white group-hover/sendbtn:translate-x-0.5 group-hover/sendbtn:-translate-y-0.5 transition-transform" />
+                <span>Send</span>
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -681,6 +739,9 @@ export function AccountRecoveryStatusTree({
 }: {
   data: Record<string, any>
 }) {
+  const caseId = data.activeCaseId || data.caseId || data.case?.id
+  const isMonitoring = data.isMonitoring || data.activeStatus === 'monitoring' || data.case?.status === 'monitoring'
+
   // If no active cases and no draft, render clean empty status
   const contacts = Array.isArray(data.contacts) ? data.contacts : [
     {
@@ -691,10 +752,13 @@ export function AccountRecoveryStatusTree({
     }
   ]
 
-  const draft = data.draft as { subject: string; recipientEmail: string; body: string } | undefined ?? {
-    subject: 'Quick note regarding your Apex MultiRail subscription & data sync',
-    recipientEmail: 'rohan@apexmultirail.co',
-    body: `Hi Rohan,\n\nI noticed our latest automated billing retry for your subscription didn't go through, and wanted to check in personally rather than sending an automated notification.\n\nAlso saw your telemetry sync had a brief dip recently—wanted to make sure you're not experiencing any blockers with the pipeline sync. Happy to hop on a quick call or update your payment details whenever convenient.\n\nBest,\nFounder & Team`,
+  const rawDraft = data.draft as { subject?: string; recipientEmail?: string; body?: string; status?: string } | undefined
+  const draft = {
+    subject: (rawDraft?.subject || 'Quick note regarding your Apex MultiRail subscription & data sync').replace(/·/g, '-'),
+    recipientEmail: rawDraft?.recipientEmail || 'rohan@apexmultirail.co',
+    body: rawDraft?.body || `Hi Rohan,\n\nI noticed our latest automated billing retry for your subscription didn't go through, and wanted to check in personally rather than sending an automated notification.\n\nAlso saw your telemetry sync had a brief dip recently—wanted to make sure you're not experiencing any blockers with the pipeline sync. Happy to hop on a quick call or update your payment details whenever convenient.\n\nBest,\nFounder & Team`,
+    status: isMonitoring ? 'sent' : (rawDraft?.status || 'draft_pending'),
+    caseId,
   }
 
   return (
@@ -741,11 +805,14 @@ export function AccountRecoveryStatusTree({
           isCompleted={true}
           isCollapsible={true}
           autoCollapse={false}
-          defaultOpen={false}
+          defaultOpen={true}
           className="my-0.5"
         >
           <div className="flex flex-col gap-0.5 py-1 pl-1">
-            <DraftedEmailCard draft={draft} />
+            <DraftedEmailCard
+              draft={draft}
+              type={isMonitoring ? 'sent' : 'draft'}
+            />
           </div>
         </TimelineNode>
       )}

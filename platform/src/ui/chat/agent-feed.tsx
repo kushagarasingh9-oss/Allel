@@ -690,6 +690,8 @@ function ToolResultSummary({
     const subject = String(data.subject ?? inputObj.subject ?? 'Recovery follow-up draft')
     const body = String(data.body ?? data.preview ?? inputObj.context ?? '')
 
+    const caseId = String(data.recoveryCaseId ?? data.caseId ?? inputObj.caseId ?? '')
+
     return (
       <div className="flex flex-col gap-1 mb-2">
         <DraftedEmailCard
@@ -697,6 +699,7 @@ function ToolResultSummary({
             subject,
             recipientEmail: recipient,
             body,
+            caseId: caseId || undefined,
           }}
           badge="Draft · Pending Review"
           type="draft"
@@ -727,9 +730,11 @@ function ToolResultSummary({
               subject: String(d.subject || 'Follow-up draft'),
               recipientEmail: String(d.recipient ?? d.account ?? 'Account'),
               body: String(d.body || d.preview || d.due || `Status: ${d.status}`),
+              caseId: d.recovery_case_id ? String(d.recovery_case_id) : undefined,
+              status: String(d.status ?? 'pending'),
             }}
             badge={`Status: ${String(d.status ?? 'pending')}`}
-            type="draft"
+            type={d.status === 'sent' ? 'sent' : 'draft'}
           />
         )}
       />

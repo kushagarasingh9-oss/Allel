@@ -378,6 +378,9 @@ export default function WorkflowsPage() {
 
   useEffect(() => {
     void refresh()
+    const handleCaseUpdated = () => void refresh()
+    window.addEventListener('allel:recovery-case-updated', handleCaseUpdated)
+    return () => window.removeEventListener('allel:recovery-case-updated', handleCaseUpdated)
   }, [refresh])
 
   const filteredCases = useMemo(() => cases.filter(item => {
