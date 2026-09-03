@@ -1031,8 +1031,6 @@ const INTENT_CORE_TOOLS: Array<{
       tools: [
         'getUnifiedCustomerScan',
         'getAccountRecoveryStatus',
-        'getFleetHealthSummary',
-        'runRevenueRiskScan',
         'getUnifiedFleetScan',
       ],
     },

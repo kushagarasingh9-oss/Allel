@@ -6583,17 +6583,17 @@ export const getAccountRecoveryStatus = tool({
     const contacts = (contactsData && contactsData.length > 0)
       ? contactsData.map(c => ({
           name: c.name || accountData?.name || 'Customer Contact',
-          email: c.email || accountData?.contact_email || 'rohan@apexmultirail.co',
+          email: c.email || accountData?.contact_email || 'contact@customer.com',
           phone: c.phone || null,
-          role: c.role || (c.is_primary ? 'Founder & CEO' : 'Contact'),
+          role: c.role || (c.is_primary ? 'Account Owner' : 'Contact'),
           isPrimary: c.is_primary ?? true,
         }))
       : [
           {
-            name: accountData?.name ? `${accountData.name} Lead` : 'Rohan Trivedi',
-            email: accountData?.contact_email || 'rohan@apexmultirail.co',
+            name: accountData?.name ? `${accountData.name} Lead` : 'Account Lead',
+            email: accountData?.contact_email || 'contact@customer.com',
             phone: null,
-            role: 'Founder & CEO',
+            role: 'Account Owner',
             isPrimary: true,
           }
         ]
@@ -6609,8 +6609,8 @@ export const getAccountRecoveryStatus = tool({
       .maybeSingle()
 
     const primaryContact = contacts.find(c => c.isPrimary) || contacts[0]
-    const recipientEmail = primaryContact?.email || 'rohan@apexmultirail.co'
-    const recipientName = primaryContact?.name?.split(' ')[0] || 'Rohan'
+    const recipientEmail = primaryContact?.email || accountData?.contact_email || 'contact@customer.com'
+    const recipientName = primaryContact?.name?.split(' ')[0] || accountData?.name || 'there'
 
     let draft: { id?: string; subject: string; recipientEmail: string; recipientName?: string; body: string; status: string } | null = null
     if (existingDraft) {
@@ -6623,7 +6623,8 @@ export const getAccountRecoveryStatus = tool({
         status: existingDraft.status,
       }
     } else {
-      const subject = `Quick note regarding your ${accountData?.name || 'Apex MultiRail'} subscription & data sync`
+      const companyName = accountData?.name || 'account'
+      const subject = `Quick note regarding your ${companyName} subscription & data sync`
       const body = `Hi ${recipientName},\n\nI noticed our latest automated billing retry for your subscription didn't go through, and wanted to check in personally rather than sending an automated dunning email.\n\nI also saw your telemetry sync had a brief dip recently—wanted to make sure you're not experiencing any blockers with the pipeline. Happy to hop on a quick call or update your payment details whenever convenient.\n\nBest,\nFounder & Team`
 
       draft = {
@@ -6646,7 +6647,7 @@ export const getAccountRecoveryStatus = tool({
       activeSeverity: active?.severity ?? 'high',
       riskScore: active?.risk_score ?? 85,
       confidence: active ? Math.round(active.score_confidence * 100) + '%' : '90%',
-      mrrAtRisk: active ? '$' + ((active.mrr_baseline_cents ?? 0) / 100).toFixed(0) : '$3,500',
+      mrrAtRisk: active ? '$' + ((active.mrr_baseline_cents ?? 0) / 100).toFixed(0) : '$0',
       trigger: active?.trigger_event_type ?? 'compound_risk_detected',
       actionPlan: active?.action_type ?? 'founder_concierge_outreach',
       contacts,
