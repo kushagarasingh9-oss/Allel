@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, Check, CheckCircle2, Loader2, RefreshCw, Search, Send } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, Check, CheckCircle2, Loader2, RefreshCw, Search, SendHorizontal } from 'lucide-react'
 
 type Metrics = {
   revenueSavedFormatted: string
@@ -725,21 +725,21 @@ export default function WorkflowsPage() {
                         <button
                           disabled={sendingCaseId === item.id || sentSuccessCaseId === item.id}
                           onClick={() => void handleQuickSend(item.id, accountName(item))}
-                          className="group/btn inline-flex items-center gap-1.5 rounded-xs border border-white/15 bg-white/[0.08] hover:bg-white/[0.14] hover:border-white/30 active:bg-white/[0.18] px-3 py-1 text-xs font-medium text-white transition-all cursor-pointer disabled:opacity-50 shadow-xs backdrop-blur-sm"
+                          className="group/btn inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] hover:bg-[#0048D9] active:bg-[#003ec2] text-white px-3 py-1 text-xs font-medium transition-all cursor-pointer disabled:opacity-50 shadow-xs shadow-blue-500/20 hover:shadow-blue-500/35 border border-blue-400/30"
                         >
                           {sendingCaseId === item.id ? (
                             <>
-                              <Loader2 className="w-3 h-3 animate-spin text-zinc-300" />
+                              <Loader2 className="w-3 h-3 animate-spin text-white/90" />
                               <span>Sending…</span>
                             </>
                           ) : sentSuccessCaseId === item.id ? (
                             <>
-                              <Check className="w-3 h-3 text-emerald-400 stroke-[2.5]" />
-                              <span className="text-emerald-300">Sent</span>
+                              <Check className="w-3 h-3 text-emerald-300 stroke-[2.5]" />
+                              <span className="text-emerald-200">Sent ✓</span>
                             </>
                           ) : (
                             <>
-                              <Send className="w-3 h-3 text-zinc-400 group-hover/btn:text-white transition-colors" />
+                              <SendHorizontal className="w-3 h-3 text-white/90 group-hover/btn:text-white group-hover/btn:translate-x-0.5 transition-transform" />
                               <span>Send</span>
                             </>
                           )}
@@ -749,10 +749,14 @@ export default function WorkflowsPage() {
                     {(item.status === 'sent' || item.status === 'monitoring') && (
                       <button
                         onClick={() => void loadCaseDetail(item.id)}
-                        className="inline-flex items-center gap-1.5 rounded-sm border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-300 hover:bg-sky-500/20 transition-colors cursor-pointer"
+                        className="group/mon inline-flex items-center gap-2 rounded-xs border border-sky-500/30 bg-sky-500/[0.08] hover:bg-sky-500/[0.16] hover:border-sky-500/50 px-2.5 py-1 text-xs font-medium text-sky-300 transition-all cursor-pointer shadow-xs"
                       >
-                        <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-                        Outreach Sent · Monitoring
+                        <span className="relative flex h-2 w-2 shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500" />
+                        </span>
+                        <span>Sent · Monitoring</span>
+                        <ArrowUpRight className="w-3 h-3 text-sky-400/60 group-hover/mon:text-sky-200 group-hover/mon:translate-x-0.5 group-hover/mon:-translate-y-0.5 transition-all" />
                       </button>
                     )}
                     {item.status === 'resolved' && (
@@ -922,21 +926,21 @@ export default function WorkflowsPage() {
                             <button
                               disabled={sendingCaseId === selected.case.id || approving === draft.id || sentSuccessCaseId === selected.case.id}
                               onClick={() => void handleQuickSend(selected.case.id, accountName(selected.case))}
-                              className="group/modalbtn inline-flex items-center gap-1.5 rounded-xs border border-white/15 bg-white/[0.08] hover:bg-white/[0.14] hover:border-white/30 active:bg-white/[0.18] px-3.5 py-1.5 text-xs font-medium text-white transition-all cursor-pointer disabled:opacity-50 shadow-xs backdrop-blur-sm"
+                              className="group/modalbtn inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] hover:bg-[#0048D9] active:bg-[#003ec2] text-white px-3.5 py-1.5 text-xs font-medium transition-all cursor-pointer disabled:opacity-50 shadow-xs shadow-blue-500/20 hover:shadow-blue-500/35 border border-blue-400/30"
                             >
                               {sendingCaseId === selected.case.id ? (
                                 <>
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-300" />
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white/90" />
                                   <span>Sending…</span>
                                 </>
                               ) : sentSuccessCaseId === selected.case.id ? (
                                 <>
-                                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
-                                  <span className="text-emerald-300">Sent</span>
+                                  <Check className="w-3.5 h-3.5 text-emerald-300 stroke-[2.5]" />
+                                  <span className="text-emerald-200">Sent ✓</span>
                                 </>
                               ) : (
                                 <>
-                                  <Send className="w-3.5 h-3.5 text-zinc-400 group-hover/modalbtn:text-white transition-colors" />
+                                  <SendHorizontal className="w-3.5 h-3.5 text-white/90 group-hover/modalbtn:text-white group-hover/modalbtn:translate-x-0.5 transition-transform" />
                                   <span>Send Outreach</span>
                                 </>
                               )}
