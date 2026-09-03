@@ -609,10 +609,20 @@ function formatTextWithIntegrationLogos(raw: string): string {
     .replace(/(?:📝|📄|📚)\s*(\*{0,2}Notion\b\*{0,2}|\*{0,2}Knowledge Base\b\*{0,2})/gi, '![Notion](/logos/notion.svg) $1')
     .replace(/(?:🏢|🤝)\s*(\*{0,2}HubSpot\b\*{0,2}|\*{0,2}CRM\b\*{0,2})/gi, '![HubSpot](/logos/hubspot.svg) $1')
     .replace(/(?:🎧|🎫)\s*(\*{0,2}Intercom\b\*{0,2}|\*{0,2}Support\b\*{0,2})/gi, '![Intercom](/logos/intercom.svg) $1')
-    .replace(/(?:🧠)\s*(\*{0,2}Recommended Action\b\*{0,2})/gi, '![Recommended Action](/logos/brain.svg) $1')
-    .replace(/(?:💡)\s*(\*{0,2}Likely Root Cause\b\*{0,2})/gi, '![Likely Root Cause](/logos/lightbulb.svg) $1')
+    .replace(/(?:!\[Likely Root Cause\]\(\/logos\/lightbulb\.svg\)|💡)?\s*\*{0,2}Likely Root Cause:?\*{0,2}/gi, '![Likely Root Cause](/logos/lightbulb.svg) **Likely Root Cause:**')
+    .replace(/(?:!\[Recommended Action\]\(\/logos\/brain\.svg\)|🧠)?\s*\*{0,2}Recommended Action:?\*{0,2}/gi, '![Recommended Action](/logos/brain.svg) **Recommended Action:**')
     .replace(/🧠\s*(\*{2}[^*]+\*{2})/g, '![Action](/logos/brain.svg) $1')
     .replace(/💡\s*(\*{2}[^*]+\*{2})/g, '![Insight](/logos/lightbulb.svg) $1')
+    .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Status:)\*{0,2}/gi, '\n- **Status:**')
+    .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(MRR at Risk:)\*{0,2}/gi, '\n- **MRR at Risk:**')
+    .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Billing:)\*{0,2}/gi, '\n- **Billing:**')
+    .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Product Usage:)\*{0,2}/gi, '\n- **Product Usage:**')
+    .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Support:)\*{0,2}/gi, '\n- **Support:**')
+    .replace(/(?:^|\n)\s*\*{0,2}(Recovery Case Status)\*{0,2}\s*(?:\n|$)/gi, '\n\n#### Recovery Case Status\n')
+    .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Case ID:)\*{0,2}/gi, '\n- **Case ID:**')
+    .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Outreach:)\*{0,2}/gi, '\n- **Outreach:**')
+    .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Monitoring:)\*{0,2}/gi, '\n- **Monitoring:**')
+    .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Next move:)\*{0,2}/gi, '\n\n**Next move:**')
 }
 
 export function AgentSpeechBlock({
@@ -707,7 +717,7 @@ export function AgentSpeechBlock({
       transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
       className="w-full text-[13.5px] text-neutral-300 font-normal leading-relaxed mt-1 mb-4 pr-4 max-w-prose"
     >
-      <div className="prose prose-invert prose-sm prose-p:text-neutral-300 prose-p:leading-relaxed prose-p:mb-3.5 prose-hr:border-none prose-hr:my-2.5 prose-pre:bg-[#14141A] prose-pre:border prose-pre:border-white/10 prose-ul:mb-3.5 prose-ul:space-y-2 prose-ul:list-disc prose-ul:pl-5 prose-ol:mb-3.5 prose-ol:space-y-2.5 prose-ol:list-decimal prose-ol:pl-5 prose-li:text-neutral-200 prose-li:leading-relaxed prose-h3:text-[14px] prose-h3:font-medium prose-h3:text-neutral-200 prose-h3:mt-4 prose-h3:mb-2 prose-strong:font-semibold prose-strong:text-white">
+      <div className="prose prose-invert prose-sm prose-p:text-neutral-300 prose-p:leading-relaxed prose-p:mb-3.5 prose-hr:border-none prose-hr:my-2.5 prose-pre:bg-[#14141A] prose-pre:border prose-pre:border-white/10 prose-ul:mb-3.5 prose-ul:space-y-2 prose-ul:list-disc prose-ul:pl-5 prose-ol:mb-3.5 prose-ol:space-y-2.5 prose-ol:list-decimal prose-ol:pl-5 prose-li:text-neutral-200 prose-li:leading-relaxed prose-h3:text-[14px] prose-h3:font-semibold prose-h3:text-white prose-h3:mt-4 prose-h3:mb-2 prose-h4:text-[12px] prose-h4:font-semibold prose-h4:uppercase prose-h4:tracking-wider prose-h4:text-neutral-400 prose-strong:font-semibold prose-strong:text-white">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
@@ -719,6 +729,21 @@ export function AgentSpeechBlock({
               />
             ),
             hr: () => <div className="h-3.5 w-full" />,
+            strong: ({ children }) => (
+              <strong className="font-semibold text-white tracking-tight">
+                {children}
+              </strong>
+            ),
+            h3: ({ children }) => (
+              <h3 className="text-[13.5px] font-semibold text-white mt-3.5 mb-2 tracking-tight border-b border-white/5 pb-1">
+                {children}
+              </h3>
+            ),
+            h4: ({ children }) => (
+              <h4 className="text-[11.5px] font-semibold uppercase tracking-wider text-neutral-400 mt-3.5 mb-1.5">
+                {children}
+              </h4>
+            ),
           }}
         >
           {formattedText}
