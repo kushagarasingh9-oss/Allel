@@ -658,18 +658,10 @@ export default function WorkflowsPage() {
                     </td>
                   <td className="px-5 py-3.5 text-right">
                     {item.status === 'awaiting_approval' && sentSuccessCaseId !== item.id && (
-                      <div className="inline-flex items-center justify-end gap-2.5">
-                        <div className="relative group/draft inline-block">
-                          <button
-                            onClick={() => void loadCaseDetail(item.id)}
-                            className="text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer py-1 px-1.5"
-                          >
-                            Review
-                          </button>
-
-                          {/* Floating Email Draft Preview Card on Hover */}
-                          <div className={`absolute right-0 ${isLower ? 'bottom-full pb-1' : 'top-full pt-1'} z-50 ${editingCaseId === item.id ? 'block' : 'hidden group-hover/draft:block'}`}>
-                            <div className="w-[460px] rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl text-left pointer-events-auto">
+                      <div className="relative group/draft inline-block">
+                        {/* Floating Email Draft Preview Card on Hover */}
+                        <div className={`absolute right-0 ${isLower ? 'bottom-full pb-1' : 'top-full pt-1'} z-50 ${editingCaseId === item.id ? 'block' : 'hidden group-hover/draft:block'}`}>
+                          <div className="w-[460px] rounded-sm border border-white/[0.14] bg-[#101012]/98 backdrop-blur-xl p-4 shadow-2xl text-left pointer-events-auto">
                               {editingCaseId === item.id ? (
                                 <div>
                                   <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-white/[0.08]">
