@@ -264,11 +264,10 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
       );
     }
 
-    if (pathname !== "/dashboard") {
-      router.push(`/dashboard?sessionId=${encodeURIComponent(sessionId)}`);
+    if (pathname !== "/dashboard/brief" && pathname !== "/dashboard") {
+      router.push(`/dashboard/brief?sessionId=${encodeURIComponent(sessionId)}`);
     } else {
       const url = new URL(window.location.href);
-      url.pathname = "/dashboard";
       url.searchParams.set("sessionId", sessionId);
       window.history.pushState({}, "", url.toString());
     }
@@ -474,7 +473,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                   ) : (
                     visibleHistorySessions.map((session) => {
                       const isSelected = Boolean(
-                        pathname === "/dashboard" &&
+                        (pathname === "/dashboard" || pathname === "/dashboard/brief") &&
                         !isResolving &&
                         activeSessionId === session.sessionId
                       );
