@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, CheckCircle2, Info, Loader2, RefreshCw, Search } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Search } from 'lucide-react'
 
 type Metrics = {
   revenueSavedFormatted: string
@@ -177,40 +177,28 @@ export default function WorkflowsPage() {
           <Metric
             label="Strict Recovered"
             value={metrics?.revenueSavedFormatted ?? '$0'}
-            period="Verified provider evidence"
-            trend="↑ 8%"
-            trendLabel="last 30days"
           />
           <Metric
             label="Protected Revenue"
             value={metrics ? formatMoney(metrics.protectedCents) : '$0'}
-            period="Reversed cancellations"
-            trend="↑ 12%"
-            trendLabel="last 30days"
           />
           <Metric
             label="MRR at Risk"
             value={metrics ? formatMoney(metrics.atRiskCents) : '$0'}
-            period={`${cases.filter(item => !['resolved', 'suppressed'].includes(item.status)).length} active cases`}
-            trend="↓ 3%"
-            trendLabel="last 30days"
           />
           <Metric
             label="Engaged Cases"
             value={metrics ? String(metrics.engagedCases + metrics.productRecoveredCases) : '0'}
-            period="Replies & usage check-ins"
-            trend="↑ 15%"
-            trendLabel="last 30days"
           />
         </div>
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-[#141416] p-1 shadow-xs">
+          <div className="flex items-center gap-1.5 rounded-sm border border-white/10 bg-[#111114] p-1 shadow-xs">
             {['all', 'awaiting_approval', 'monitoring', 'resolved'].map(status => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
+                className={`rounded-sm px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
                   statusFilter === status
                     ? 'bg-white text-black font-semibold shadow-xs'
                     : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
@@ -226,12 +214,12 @@ export default function WorkflowsPage() {
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
               placeholder="Filter live cases..."
-              className="rounded-xl border border-white/[0.08] bg-[#141416] py-2 pl-9 pr-4 text-xs text-white outline-none focus:border-white/20 transition-colors placeholder:text-zinc-500 shadow-xs"
+              className="rounded-sm border border-white/10 bg-[#111114] py-2 pl-9 pr-4 text-xs text-white outline-none focus:border-white/20 transition-colors placeholder:text-zinc-500 shadow-xs"
             />
           </label>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#141416] shadow-xs">
+        <div className="overflow-hidden rounded-sm border border-white/10 bg-[#111114] shadow-xs">
           <table className="w-full text-left text-xs">
             <thead className="bg-white/[0.02] border-b border-white/[0.06] text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">
               <tr><th className="p-3.5">Account</th><th className="p-3.5">Trigger</th><th className="p-3.5">Risk</th><th className="p-3.5">MRR</th><th className="p-3.5">Status</th><th className="p-3.5 text-right">Inspect</th></tr>
@@ -247,7 +235,7 @@ export default function WorkflowsPage() {
                   <td className="p-3.5 text-right">
                     <button
                       onClick={() => void loadCaseDetail(item.id)}
-                      className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-white hover:bg-white/[0.08] hover:border-white/20 transition-colors"
+                      className="rounded-sm border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-white hover:bg-white/[0.08] hover:border-white/20 transition-colors"
                     >
                       Inspect
                     </button>
@@ -263,7 +251,7 @@ export default function WorkflowsPage() {
 
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs" onClick={() => setSelected(null)}>
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/[0.1] bg-[#141416] p-6 shadow-2xl" onClick={event => event.stopPropagation()}>
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-sm border border-white/10 bg-[#111114] p-6 shadow-2xl" onClick={event => event.stopPropagation()}>
             <div className="mb-6 flex items-start justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-white">{selected.account?.name || accountName(selected.case)}</h2>
@@ -271,7 +259,7 @@ export default function WorkflowsPage() {
               </div>
               <button
                 onClick={() => setSelected(null)}
-                className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+                className="rounded-sm border border-white/10 px-2.5 py-1 text-xs text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
               >
                 Close
               </button>
@@ -280,7 +268,7 @@ export default function WorkflowsPage() {
             <DetailSection title="Evidence"><pre className="whitespace-pre-wrap text-xs text-zinc-400 font-mono">{JSON.stringify(selected.case.evidence_snapshot || [], null, 2)}</pre></DetailSection>
             <DetailSection title="Canonical features"><div className="grid grid-cols-2 gap-2 text-xs"><Fact label="Payment failures (30d)" value={selected.features?.failed_payment_count_30d ?? '—'} /><Fact label="Usage change" value={selected.features?.usage_delta_percent == null ? '—' : `${selected.features.usage_delta_percent}%`} /><Fact label="Unreplied outbound" value={selected.features?.unreplied_outbound_count ?? '—'} /><Fact label="Last successful payment" value={selected.features?.last_payment_succeeded_at ? new Date(selected.features.last_payment_succeeded_at).toLocaleString() : '—'} /></div></DetailSection>
             <DetailSection title="Contacts">{selected.contacts.length ? selected.contacts.map(contact => <div key={contact.email} className="mb-1 text-xs text-zinc-300">{contact.email} {contact.is_primary ? '· primary' : ''} {contact.is_provisional ? '· provisional' : '· verified contact'}</div>) : <p className="text-xs text-zinc-500">No linked contacts.</p>}</DetailSection>
-            <DetailSection title="Drafts">{selected.drafts.length ? selected.drafts.map(draft => <div key={draft.id} className="mb-3 rounded-xl border border-white/[0.08] bg-black/30 p-3.5"><div className="font-medium text-white">{draft.subject}</div><div className="mt-1 text-xs text-zinc-400">{draft.body_preview}</div><div className="mt-3 flex items-center justify-between text-xs"><span className="capitalize text-zinc-500">{formatStatus(draft.status)}</span>{draft.status === 'needs_review' && <button disabled={approving === draft.id} onClick={() => void approveDraft(draft.id, selected.case.id)} className="rounded-lg bg-white px-3 py-1.5 font-medium text-black disabled:opacity-50 hover:bg-zinc-200 transition-colors">{approving === draft.id ? 'Approving…' : 'Approve only'}</button>}</div></div>) : <p className="text-xs text-zinc-500">No draft linked to this case.</p>}</DetailSection>
+            <DetailSection title="Drafts">{selected.drafts.length ? selected.drafts.map(draft => <div key={draft.id} className="mb-3 rounded-sm border border-white/10 bg-black/30 p-3.5"><div className="font-medium text-white">{draft.subject}</div><div className="mt-1 text-xs text-zinc-400">{draft.body_preview}</div><div className="mt-3 flex items-center justify-between text-xs"><span className="capitalize text-zinc-500">{formatStatus(draft.status)}</span>{draft.status === 'needs_review' && <button disabled={approving === draft.id} onClick={() => void approveDraft(draft.id, selected.case.id)} className="rounded-sm bg-white px-3 py-1.5 font-medium text-black disabled:opacity-50 hover:bg-zinc-200 transition-colors">{approving === draft.id ? 'Approving…' : 'Approve only'}</button>}</div></div>) : <p className="text-xs text-zinc-500">No draft linked to this case.</p>}</DetailSection>
             <DetailSection title="Workflow jobs">{selected.jobs.length ? selected.jobs.map(job => <div key={job.id} className="mb-1.5 flex justify-between text-xs"><span>{formatStatus(job.job_type)}</span><span className={job.status === 'dead_letter' ? 'text-red-300 font-medium' : 'text-zinc-500'}>{formatStatus(job.status)}</span></div>) : <p className="text-xs text-zinc-500">No jobs linked to this case.</p>}</DetailSection>
           </div>
         </div>
@@ -292,35 +280,17 @@ export default function WorkflowsPage() {
 function Metric({
   label,
   value,
-  period,
-  trend,
-  trendLabel = 'last 30days',
 }: {
   label: string
   value: string
-  period: string
-  trend?: string
-  trendLabel?: string
 }) {
   return (
-    <div className="rounded-[24px] border border-white/[0.08] bg-[#17171a] p-2 shadow-lg transition-all hover:border-white/[0.16] flex flex-col justify-between">
-      {/* Inner card with smooth rounded corners */}
-      <div className="rounded-[18px] bg-[#222225] p-5">
-        <div className="flex items-center gap-1.5 text-[16px] font-normal text-white">
-          <span>{label}</span>
-          <Info className="h-4 w-4 text-zinc-400 shrink-0 stroke-[1.5]" />
-        </div>
-        <div className="mt-3.5 text-[32px] sm:text-[36px] font-normal tracking-tight text-white leading-none">
-          {value}
-        </div>
-        <div className="mt-2.5 text-[13px] text-zinc-400 font-normal">
-          {period}
-        </div>
+    <div className="rounded-sm border border-white/10 bg-[#111114] p-5 shadow-xs transition-colors hover:border-white/20">
+      <div className="text-[12px] font-medium uppercase tracking-[0.14em] text-zinc-400">
+        {label}
       </div>
-      {/* Bottom trend status strip */}
-      <div className="px-3.5 pt-2.5 pb-1 flex items-center gap-1.5 text-[12px]">
-        {trend && <span className="text-emerald-400 font-medium">{trend}</span>}
-        <span className="text-zinc-500 font-normal">{trendLabel}</span>
+      <div className="mt-3 text-[30px] sm:text-[34px] font-medium tracking-tight text-white leading-none">
+        {value}
       </div>
     </div>
   )
