@@ -98,32 +98,10 @@ const INTEGRATIONS: IntegrationDef[] = INTEGRATION_DEFINITIONS.map((definition) 
   unlockDescription: definition.unlockDescription,
 }))
 
-const CATEGORIES: Record<string, string> = {
-  stripe: 'Billing & Telemetry',
-  posthog: 'Billing & Telemetry',
-  intercom: 'CRM & Support',
-  hubspot: 'CRM & Support',
-  zendesk: 'CRM & Support',
-  salesforce: 'CRM & Support',
-  linear: 'Engineering',
-  sentry: 'Engineering',
-  jira: 'Engineering',
-  github: 'Engineering',
-  supabase: 'Engineering',
-  gmail: 'Team & Workspace',
-  slack: 'Team & Workspace',
-  google_calendar: 'Team & Workspace',
-  notion: 'Team & Workspace',
-  airtable: 'Team & Workspace',
-  google_docs: 'Team & Workspace',
-  google_drive: 'Team & Workspace',
-}
-
 export default function SettingsPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [connectedProviders, setConnectedProviders] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null)
   const [connectingModalApp, setConnectingModalApp] = useState<IntegrationDef | null>(null)
@@ -193,50 +171,29 @@ export default function SettingsPage() {
     setToastMessage({ type: 'success', text: message })
   }, [])
 
-  const filtered = INTEGRATIONS.filter((app) => {
-    const matchesSearch =
-      !searchQuery.trim() ||
-      app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.description.toLowerCase().includes(searchQuery.toLowerCase())
-    if (!matchesSearch) return false
-
-    if (selectedCategory === 'connected') {
-      return connectedProviders.has(app.provider)
-    }
-    if (selectedCategory !== 'all') {
-      return CATEGORIES[app.provider] === selectedCategory
-    }
-    return true
-  }).sort((a, b) => {
-    // 1. Connected tools always come first
-    const aConn = connectedProviders.has(a.provider) ? 1 : 0
-    const bConn = connectedProviders.has(b.provider) ? 1 : 0
-    if (bConn !== aConn) return bConn - aConn
-
-    // 2. Direct connect tools before coming soon
-    const aDirect = a.connectMethod === 'direct' ? 1 : 0
-    const bDirect = b.connectMethod === 'direct' ? 1 : 0
-    if (bDirect !== aDirect) return bDirect - aDirect
-
-    return 0
-  })
+  const filtered = searchQuery.trim()
+    ? INTEGRATIONS.filter(
+      (app) =>
+        app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.description.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    : INTEGRATIONS
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#0d0d0f] overflow-y-auto w-full p-8 font-sans transition-colors text-white">
-      <div className="max-w-7xl mx-auto w-full">
+    <div className="flex-1 flex flex-col h-full bg-[#0f0f10] overflow-y-auto w-full p-10 font-sans transition-colors text-white">
+      <div className="max-w-[1080px] mx-auto w-full pt-8 pb-20">
         {/* Toast */}
         {toastMessage && (
           <div
-            className={`fixed top-6 right-6 z-50 px-4 py-2.5 rounded-sm text-xs font-medium shadow-lg border transition-all duration-300 ${
-              toastMessage.type === 'success'
+            className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-lg text-[13px] font-medium shadow-lg border transition-all duration-300 ${toastMessage.type === 'success'
                 ? 'bg-[#101b13] border-[#10b981]/30 text-[#8dd6a7]'
                 : 'bg-[#190d10] border-[#f87171]/30 text-[#ffb0b9]'
-            }`}
+              }`}
           >
             {toastMessage.text}
             <button
               onClick={() => setToastMessage(null)}
-              className="ml-3 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              className="ml-3 text-zinc-400 hover:text-white transition-colors"
             >
               ✕
             </button>
@@ -244,56 +201,30 @@ export default function SettingsPage() {
         )}
 
         {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2.5 mb-1.5">
-            <h1 className="text-[17px] font-medium tracking-tight text-white">
-              Connections
-            </h1>
-            <IconPlugConnected className="w-4 h-4 text-zinc-400" stroke={1.75} />
-          </div>
-          <p className="text-xs text-zinc-400">
-            Connect your stack via Direct API keys. Scoped read-only access with KMS encryption.
+        <div className="mb-10">
+          <h1 className="flex items-center text-3xl font-medium text-white mb-2 tracking-tight">
+            Connections
+            <IconPlugConnected className="w-7 h-7 text-zinc-400 ml-3" stroke={2} />
+          </h1>
+          <p className="text-[14px] text-zinc-400">
+            Connect your stack via Direct API keys. Zero monthly subscriptions required.
           </p>
         </div>
 
-        {/* Category Filter Tabs + Search Row */}
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1 p-0.5 rounded-sm border border-white/10 bg-[#0c0c0e]">
-            {[
-              { id: 'all', label: 'All' },
-              { id: 'connected', label: `Connected (${connectedProviders.size})` },
-              { id: 'Billing & Telemetry', label: 'Billing & Telemetry' },
-              { id: 'CRM & Support', label: 'CRM & Support' },
-              { id: 'Engineering', label: 'Engineering' },
-              { id: 'Team & Workspace', label: 'Team & Workspace' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setSelectedCategory(tab.id)}
-                className={`rounded-xs px-2.5 py-1 text-xs font-medium transition-all cursor-pointer select-none ${
-                  selectedCategory === tab.id
-                    ? 'bg-white/[0.08] text-white shadow-xs'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.02]'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <label className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search connections..."
-              className="rounded-sm border border-white/10 bg-[#0c0c0e] py-1.5 pl-8 pr-3 text-xs text-white outline-none focus:border-white/20 transition-colors placeholder:text-zinc-500"
-            />
-          </label>
+        {/* Search */}
+        <div className="relative mb-6">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+          <input
+            type="text"
+            placeholder="Search connections..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-[#0c0c0e] border border-white/10 rounded-sm py-2 pl-9 pr-4 text-xs text-white outline-none focus:border-white/25 transition-colors placeholder:text-zinc-500 shadow-xs"
+          />
         </div>
 
-        {/* Vertically Compact, Edgy Integration Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {/* Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((app) => {
             const isConnected = connectedProviders.has(app.provider)
             const isDisconnecting = disconnectingProvider === app.provider
@@ -301,49 +232,45 @@ export default function SettingsPage() {
             return (
               <div
                 key={app.provider}
-                className="bg-[#101012] border border-white/[0.08] rounded-sm p-3 hover:border-white/20 transition-all group flex flex-col justify-between"
+                className="bg-[#101012] border border-white/[0.08] rounded-sm p-4 flex flex-col justify-between min-h-[140px] shadow-xs hover:border-white/[0.2] transition-all group"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-1.5 gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-6 h-6 flex items-center justify-center shrink-0">
                         {app.icon}
                       </div>
-                      <h3 className="text-xs font-medium text-white tracking-tight truncate">
+                      <h3 className="text-sm font-medium text-white tracking-tight">
                         {app.name}
                       </h3>
                     </div>
 
                     {isConnected ? (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-emerald-500/10 border border-emerald-500/20">
-                          <div className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
-                          <span className="text-emerald-400 text-[9px] font-medium tracking-wide">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-xs bg-emerald-500/10 border border-emerald-500/20">
+                          <div className="w-[5px] h-[5px] rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="text-emerald-400 text-[10px] font-medium tracking-wide">
                             Connected
                           </span>
                         </div>
                         <button
                           onClick={() => handleDisconnect(app.provider)}
                           disabled={isDisconnecting || isPending}
-                          className="text-[10px] font-medium text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-50 cursor-pointer"
+                          className="text-[11px] font-medium text-zinc-400 hover:text-red-400 transition-colors disabled:opacity-50 cursor-pointer"
                         >
-                          {isDisconnecting ? '…' : 'Disconnect'}
+                          {isDisconnecting ? 'Disconnecting…' : 'Disconnect'}
                         </button>
                       </div>
-                    ) : app.connectMethod === 'coming_soon' ? (
-                      <span className="px-2 py-0.5 rounded-xs text-[9px] font-medium text-zinc-500 bg-white/[0.03] border border-white/[0.06] shrink-0">
-                        Soon
-                      </span>
                     ) : (
                       <button
                         onClick={() => setConnectingModalApp(app)}
-                        className="px-2.5 py-0.5 rounded-sm text-[11px] font-medium bg-white text-black hover:bg-zinc-200 transition-colors shadow-xs flex items-center gap-1 cursor-pointer shrink-0"
+                        className="px-2.5 py-1 rounded-sm text-xs font-medium bg-white text-black hover:bg-zinc-200 transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
                       >
                         Connect
                       </button>
                     )}
                   </div>
-                  <p className="text-[11px] text-zinc-400 leading-snug group-hover:text-zinc-300 transition-colors line-clamp-1">
+                  <p className="text-xs text-zinc-400 mt-2 leading-relaxed group-hover:text-zinc-300 transition-colors line-clamp-2">
                     {app.description}
                   </p>
                 </div>
@@ -351,12 +278,6 @@ export default function SettingsPage() {
             )
           })}
         </div>
-
-        {filtered.length === 0 && (
-          <div className="py-16 text-center text-xs text-zinc-500">
-            No connections match this category or search query.
-          </div>
-        )}
       </div>
 
       {/* Direct API Connection Modal */}
