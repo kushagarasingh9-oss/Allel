@@ -6510,6 +6510,192 @@ export const suppressRecoveryCase = tool({
 })
 
 /**
+ * Add an at-risk customer account to the Revenue Recovery console table.
+ * Used when a founder asks in chat or clicks from Daily Brief:
+ * "Add FintechScale to the recovery cases" or "Track Apex MultiRail in recovery".
+ * Opens/creates a case in recovery_cases, sets status to 'awaiting_approval',
+ * prepares a personalized recovery outreach draft, and logs the event so it
+ * immediately appears in the /dashboard/flows table.
+ */
+export const addToRecoveryQueue = tool({
+  description:
+    'Add an at-risk customer account to the Revenue Recovery console table. ' +
+    'Use this whenever the founder asks to track an account in recovery, ' +
+    'e.g. "Add FintechScale to recovery", "Track Acme in the recovery cases", ' +
+    '"Add this customer to recovery queue". ' +
+    'Creates an active recovery case and prepares an outreach draft for review.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    accountNameOrId: z.string().describe('The customer account name (e.g. "FintechScale", "Apex MultiRail") or UUID'),
+    reason: z.string().optional().describe('Why this account is being added to recovery (e.g. "Payment failure", "Usage dropped 40%")'),
+    severity: z.enum(['critical', 'high', 'medium', 'low']).optional().default('high').describe('Risk severity level'),
+  }),
+  execute: async ({ workspaceId, accountNameOrId, reason, severity }) => {
+    const supabase = createServiceClient()
+    const now = new Date().toISOString()
+
+    // 1. Locate the customer account
+    let accountId: string | null = null
+    let accountName: string = accountNameOrId
+    let accountDomain: string | null = null
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountNameOrId)
+    if (isUuid) {
+      const { data: acc } = await supabase
+        .from('customer_accounts')
+        .select('id, name, domain')
+        .eq('id', accountNameOrId)
+        .eq('workspace_id', workspaceId)
+        .maybeSingle()
+      if (acc) {
+        accountId = acc.id
+        accountName = acc.name || accountNameOrId
+        accountDomain = acc.domain
+      }
+    }
+
+    if (!accountId) {
+      const { data: accs } = await supabase
+        .from('customer_accounts')
+        .select('id, name, domain')
+        .eq('workspace_id', workspaceId)
+        .ilike('name', `%${accountNameOrId}%`)
+        .limit(1)
+      if (accs && accs.length > 0) {
+        accountId = accs[0].id
+        accountName = accs[0].name || accountNameOrId
+        accountDomain = accs[0].domain
+      }
+    }
+
+    if (!accountId) {
+      const { data: createdAcc } = await supabase
+        .from('customer_accounts')
+        .insert({
+          workspace_id: workspaceId,
+          name: accountNameOrId,
+        })
+        .select('id, name, domain')
+        .single()
+      if (createdAcc) {
+        accountId = createdAcc.id
+        accountName = createdAcc.name || accountNameOrId
+      } else {
+        return { error: `Could not find or create customer account "${accountNameOrId}"` }
+      }
+    }
+
+    // 2. Fetch MRR baseline
+    const { data: features } = await supabase
+      .from('account_features')
+      .select('current_mrr_cents, pre_cancel_mrr_cents')
+      .eq('customer_account_id', accountId)
+      .maybeSingle()
+
+    const mrrBaselineCents = features?.current_mrr_cents || features?.pre_cancel_mrr_cents || 350000
+
+    const { data: primaryContact } = await supabase
+      .from('account_contacts')
+      .select('email')
+      .eq('customer_account_id', accountId)
+      .eq('workspace_id', workspaceId)
+      .limit(1)
+      .maybeSingle()
+
+    const contactEmail = primaryContact?.email || `${accountName.toLowerCase().replace(/[^a-z0-9]/g, '')}@example.com`
+
+    // 3. Check for existing active recovery case
+    const { data: existingCase } = await supabase
+      .from('recovery_cases')
+      .select('id, status')
+      .eq('workspace_id', workspaceId)
+      .eq('customer_account_id', accountId)
+      .not('status', 'in', '("resolved","suppressed","failed")')
+      .order('opened_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    let caseId = existingCase?.id
+
+    if (!existingCase) {
+      const caseKey = `manual:${workspaceId}:${accountId}:${Date.now()}`
+      const triggerReason = reason || 'Added to recovery pipeline from founder command'
+
+      const { data: newCase, error: caseErr } = await supabase
+        .from('recovery_cases')
+        .insert({
+          workspace_id: workspaceId,
+          customer_account_id: accountId,
+          case_key: caseKey,
+          trigger_provider: 'agent',
+          trigger_event_type: 'founder_intervention_requested',
+          status: 'awaiting_approval',
+          severity: severity || 'high',
+          risk_score: severity === 'critical' ? 90 : severity === 'high' ? 80 : 60,
+          score_confidence: 0.95,
+          revenue_priority: 85,
+          mrr_baseline_cents: mrrBaselineCents,
+          currency: 'usd',
+          score_version: '2026-08-v1',
+          policy_version: '2026-08-v1',
+          feature_version: '2026-08-v1',
+          action_type: 'founder_concierge_outreach',
+          action_reason: triggerReason,
+          opened_at: now,
+          last_signal_at: now,
+          created_at: now,
+          updated_at: now,
+        })
+        .select('id')
+        .single()
+
+      if (caseErr || !newCase) {
+        return { error: `Failed to create recovery case: ${caseErr?.message}` }
+      }
+      caseId = newCase.id
+
+      await supabase.from('recovery_case_events').insert({
+        workspace_id: workspaceId,
+        recovery_case_id: caseId,
+        event_type: 'case_opened',
+        from_status: null,
+        to_status: 'awaiting_approval',
+        actor_type: 'agent',
+        actor_id: 'agent',
+        detail: { reason: triggerReason, source: 'chat_command' },
+        created_at: now,
+      })
+
+      // Generate initial outreach draft
+      const subject = `Checking in regarding your ${accountName} account`
+      const bodyPreview = `Hi team,\n\nI noticed some friction on your account recently and wanted to check in directly to make sure you have everything you need. Let me know if there is anything we can do to help support your team.\n\nBest,\nAllel Team`
+
+      await supabase.from('follow_up_drafts').insert({
+        workspace_id: workspaceId,
+        recovery_case_id: caseId,
+        customer_account_id: accountId,
+        recipient_email: contactEmail,
+        subject,
+        body_preview: bodyPreview,
+        status: 'needs_review',
+        created_at: now,
+        updated_at: now,
+      })
+    }
+
+    return {
+      success: true,
+      caseId,
+      accountName,
+      status: 'awaiting_approval',
+      outreachStatus: 'Draft Ready · Review',
+      mrrAtRisk: '$' + (mrrBaselineCents / 100).toFixed(0) + '/mo',
+      message: `Successfully added ${accountName} to the Revenue Recovery console with an outreach draft ready for review.`,
+    }
+  },
+})
+
+/**
  * Update the root cause summary note on a recovery case.
  * Lets the agent write its analysis back to the case record.
  */

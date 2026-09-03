@@ -168,6 +168,7 @@ export const PERSONAS: AgentPersona[] = [
       'listRecoveryCaseDrafts',
       'getRecoveryCaseOutcomes',
       'listRecoveryCasesBySeverity',
+      'addToRecoveryQueue',
       'suppressRecoveryCase',
       'updateRecoveryCaseNote',
       // Account management — risk, signals, timeline

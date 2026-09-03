@@ -246,44 +246,29 @@ export default function WorkflowsPage() {
           <table className="w-full text-left text-xs">
             <thead className="border-b border-white/[0.06] bg-white/[0.01] text-[12px] font-normal text-zinc-400">
               <tr>
-                <th className="px-4 py-3 font-normal">Account</th>
-                <th className="px-4 py-3 font-normal">MRR at Risk</th>
-                <th className="px-4 py-3 font-normal">Risk Level</th>
-                <th className="px-4 py-3 font-normal">Trigger Reason</th>
-                <th className="px-4 py-3 text-right font-normal">Outreach Status</th>
+                <th className="px-5 py-3 font-normal w-[30%]">Account</th>
+                <th className="px-5 py-3 font-normal w-[18%]">MRR at Risk</th>
+                <th className="px-5 py-3 font-normal w-[30%]">Trigger Reason</th>
+                <th className="px-5 py-3 text-right font-normal w-[22%]">Outreach Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.04]">
               {filteredCases.map(item => (
                 <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="px-4 py-3.5">
+                  <td className="px-5 py-3.5">
                     <div className="font-medium text-white text-[13px]">{accountName(item)}</div>
                     {accountDomain(item) && (
                       <div className="text-zinc-500 text-[11px] mt-0.5">{accountDomain(item)}</div>
                     )}
                   </td>
-                  <td className="px-4 py-3.5">
+                  <td className="px-5 py-3.5">
                     <span className="font-medium text-white text-[13px]">{formatMoney(item.mrr_baseline_cents)}</span>
                     <span className="text-zinc-500 text-[11px]"> /mo</span>
                   </td>
-                  <td className="px-4 py-3.5">
-                    <div className="inline-flex items-center gap-1.5">
-                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded-xs text-[10px] font-medium uppercase tracking-wider ${
-                        item.severity === 'critical'
-                          ? 'text-red-400 bg-red-500/10 border border-red-500/20'
-                          : item.severity === 'high'
-                            ? 'text-amber-400 bg-amber-500/10 border border-amber-500/20'
-                            : 'text-zinc-400 bg-white/[0.04] border border-white/[0.08]'
-                      }`}>
-                        {item.severity}
-                      </span>
-                      <span className="text-zinc-500 text-[11px]">{item.risk_score}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5 text-zinc-300 text-xs max-w-[240px] truncate" title={item.action_reason || item.trigger_event_type}>
+                  <td className="px-5 py-3.5 text-zinc-300 text-xs max-w-[280px] truncate" title={item.action_reason || item.trigger_event_type}>
                     {humanizeReason(item)}
                   </td>
-                  <td className="px-4 py-3.5 text-right">
+                  <td className="px-5 py-3.5 text-right">
                     {item.status === 'awaiting_approval' && (
                       <button
                         onClick={() => void loadCaseDetail(item.id)}

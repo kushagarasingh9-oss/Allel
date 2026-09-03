@@ -189,6 +189,7 @@ import {
   getRecoveryCaseOutcomes,
   listRecoveryCasesBySeverity,
   suppressRecoveryCase,
+  addToRecoveryQueue,
   updateRecoveryCaseNote,
   // Composite + Behavioral Intent tools
   runRevenueRiskScan,
@@ -401,6 +402,7 @@ export const ALL_TOOLS = {
   getRecoveryCaseOutcomes,
   listRecoveryCasesBySeverity,
   suppressRecoveryCase,
+  addToRecoveryQueue,
   updateRecoveryCaseNote,
   // Composite + Behavioral Intent tools
   getPostHogBehavioralIntentSignals,
@@ -1026,6 +1028,15 @@ const INTENT_CORE_TOOLS: Array<{
   verbs: RegExp
   tools: AgentToolName[]
 }> = [
+    {
+      verbs: /\b(add|put|track|queue|push|send|remove|delete|suppress)\b.*\b(recovery|cases?|pipeline|queue)\b|\b(track (?:account|customer|in recovery))\b/i,
+      tools: [
+        'addToRecoveryQueue',
+        'suppressRecoveryCase',
+        'getRecoveryCases',
+        'getAccountRecoveryStatus',
+      ],
+    },
     {
       verbs: /\b(check|health|metric|metrics|status|scan|churn|risk|at.?risk|diagnose|profile|customer|customers|account|cancel|cancelling|cancellation|canceling|leaving|churning|thinking about|recovery queue)\b|how (?:is|are)\s+(?:my\s+)?(?:the\s+)?(?:customer|account|fleet|people|everyone)/i,
       tools: [
