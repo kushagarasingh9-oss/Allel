@@ -175,7 +175,7 @@ export default function WorkflowsPage() {
 
         <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Metric
-            label="Strict Recovered"
+            label="Recovered Revenue"
             value={metrics?.revenueSavedFormatted ?? '$0'}
           />
           <Metric
@@ -285,11 +285,11 @@ function Metric({
   value: string
 }) {
   return (
-    <div className="rounded-sm border border-white/10 bg-[#111114] p-5 shadow-xs transition-colors hover:border-white/20">
-      <div className="text-[12px] font-medium uppercase tracking-[0.14em] text-zinc-400">
+    <div className="rounded-lg border border-white/[0.08] bg-[#111114] p-5 transition-colors hover:border-white/[0.16]">
+      <div className="text-[13px] font-normal text-zinc-400">
         {label}
       </div>
-      <div className="mt-3 text-[30px] sm:text-[34px] font-medium tracking-tight text-white leading-none">
+      <div className="mt-2.5 text-[28px] sm:text-[32px] font-medium tracking-tight text-white leading-none">
         {value}
       </div>
     </div>
