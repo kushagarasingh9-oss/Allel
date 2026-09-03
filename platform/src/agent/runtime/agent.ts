@@ -1064,11 +1064,11 @@ const INTENT_CORE_TOOLS: Array<{
     },
     {
       verbs: /\b(show|list|get|fetch|find|look|display|what|who|which)\b/i,
-      tools: ['getAccountDetails', 'getAllAccounts', 'getRecentSignals'],
+      tools: ['getUnifiedCustomerScan', 'getUnifiedFleetScan', 'getRecentSignals'],
     },
     {
       verbs: /\b(send|email|message|notify|draft|compose|reply)\b/i,
-      tools: ['getExistingDrafts', 'getMyInbox'],
+      tools: ['generateFollowUpDraft', 'getMyInbox'],
     },
     {
       verbs: /\b(recover|recovery|case|cases|risk|churn|at.risk|pipeline)\b/i,
@@ -1209,12 +1209,10 @@ export function selectRelevantToolsForPrompt(
     'inspectIntegrationConnectionsTool',
     'webSearchTool',
     'getAccountDetails',
-    'getAccountMemory',
-    'getAllAccounts',
-    'getAccountFullProfile',
-    'getFleetHealthSummary',
-    'getAccountTimeline',
-    'getExistingDrafts',
+    'getUnifiedCustomerScan',
+    'getUnifiedFleetScan',
+    'addToRecoveryQueue',
+    'getAccountRecoveryStatus',
     'resolveAccountByContact',
   ]
   const availableCoreTools = coreTools.filter((t) => availableToolNames.includes(t))

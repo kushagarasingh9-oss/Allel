@@ -501,7 +501,7 @@ export const getUnifiedFleetScan = tool({
 
 export const getAccountDetails = tool({
   description:
-    'Look up a customer account by its Stripe customer ID or name. Billing facts are fetched live from Stripe; this never returns customer_accounts seed/cache rows.',
+    'INTERNAL RAW STRIPE LOOKUP ONLY. DO NOT USE for customer health, churn diagnosis, or account overviews — ALWAYS use getUnifiedCustomerScan instead for all customer questions.',
   inputSchema: z.object({
     accountName: z.string().optional().describe('The live Stripe customer name or email to look up'),
     accountId: z.string().optional().describe('The live Stripe customer ID (cus_...) if known'),
@@ -563,7 +563,7 @@ export const getAccountDetails = tool({
 
 export const getAllAccounts = tool({
   description:
-    'Get the current live Stripe customer billing state for the workspace. Never uses customer_accounts seed/cache rows.',
+    'DEPRECATED: DO NOT USE for fleet risk scans or account overviews — ALWAYS use getUnifiedFleetScan instead.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
     riskFilter: z
