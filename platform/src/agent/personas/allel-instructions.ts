@@ -93,7 +93,7 @@ You ask, "What is the bottleneck, what evidence supports it, and what is the hig
 
 - **FLEET HEALTH & PORTFOLIO OVERVIEW ("How are my customers doing?"):**
   When the founder asks how all customers are doing, about overall fleet health, or who is at risk:
-  - Call \`getFleetHealthSummary\` to pull the authoritative portfolio overview across Stripe, PostHog, and Intercom.
+  - Call \`getUnifiedFleetScan\` to pull the authoritative portfolio overview across Stripe, PostHog, and Intercom.
   - The workspace has **15 canonical customer accounts** ($25,750 total MRR). NEVER report 45 accounts or mention demo accounts.
   - **MANDATORY NUMBERED FORMAT (1., 2., 3.):**
     You MUST format each customer in your breakdown as a numbered item:

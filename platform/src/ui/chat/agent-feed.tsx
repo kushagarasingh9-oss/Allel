@@ -28,7 +28,7 @@ import {
   AgentReasoningBatch,
   AgentApprovalBlock,
 } from "./timeline-nodes"
-import { UnifiedCustomerScanTree, AccountRecoveryStatusTree, DraftedEmailCard } from "./unified-customer-scan-tree"
+import { UnifiedCustomerScanTree, AccountRecoveryStatusTree, DraftedEmailCard, UnifiedFleetScanTree } from "./unified-customer-scan-tree"
 import type { CustomerRiskScan } from "@/recovery/customer-scan-types"
 import { USER_EMOJI_PALETTE } from "@/foundation/utils/emoji-palette"
 import { Search, Loader2, Zap, Database, Mail, CreditCard, MessageSquare, Calendar, User, Globe, AlertCircle, ChevronRight, Check, BarChart2, ShieldAlert } from "lucide-react"
@@ -225,11 +225,11 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   runRevenueRiskScan: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   getUnifiedCustomerScan: <Search className="w-4 h-4 text-neutral-400" />,
   getAccountRecoveryStatus: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
-  getUnifiedFleetScan: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  getUnifiedFleetScan: <Search className="w-4 h-4 text-neutral-400" />,
   getRecoveryCases: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   getRecoveryCaseDetail: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   getRecoveryMetrics: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
-  getFleetHealthSummary: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
+  getFleetHealthSummary: <Search className="w-4 h-4 text-neutral-400" />,
 
   addTimelineEvent: <Database className="w-4 h-4 text-neutral-500" />,
   createSignal: <Zap className="w-4 h-4 text-neutral-500" />,
@@ -248,8 +248,8 @@ const TOOL_LABELS: Record<string, string> = {
   getUnifiedCustomerScan: "Searching customer across connected integrations",
   getAccountRecoveryStatus: "Planning recovery outreach",
   getRecoveryMetrics: "Analyzing recovery performance metrics",
-  getUnifiedFleetScan: "Scanning workspace revenue & fleet health",
-  getFleetHealthSummary: "Scanning portfolio health & revenue risk",
+  getUnifiedFleetScan: "Searching fleet health across Stripe, PostHog & Intercom",
+  getFleetHealthSummary: "Searching fleet health across Stripe, PostHog & Intercom",
   requestMoreTools: "Expanding tool capabilities",
   webSearchTool: "Searching web intelligence",
   webExtractTool: "Extracting webpage content",
@@ -960,17 +960,9 @@ function ToolResultSummary({
     return <AccountRecoveryStatusTree data={data as Record<string, any>} />
   }
 
-  // Unified Fleet Scan
-  if (toolName === 'getUnifiedFleetScan' && data.totalMrrAtRiskCents !== undefined) {
-    return (
-      <div className="flex flex-col gap-1 mb-2">
-        <MiniResultCard
-          icon={<img src="/logos/stripe.svg" alt="Stripe" className="w-3.5 h-3.5 object-contain shrink-0" />}
-          title={<span className="text-white font-medium">Portfolio Revenue Risk Scan</span>}
-          subtitle={`Total MRR at Risk: $${((Number(data.totalMrrAtRiskCents) || 0) / 100).toLocaleString()} across ${String(data.totalAccountsScanned || 0)} accounts`}
-        />
-      </div>
-    )
+  // Unified Fleet Scan — Renders Stripe, PostHog, and Intercom subnodes of what was scanned
+  if ((toolName === 'getUnifiedFleetScan' || toolName === 'getFleetHealthSummary') && data) {
+    return <UnifiedFleetScanTree data={data as Record<string, any>} animateProgressive={isStreaming} />
   }
 
   // Recovery Cases List
@@ -1813,6 +1805,8 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
           } else {
             dynamicLabel = "Searching customer across connected integrations"
           }
+        } else if (toolName === 'getUnifiedFleetScan' || toolName === 'getFleetHealthSummary') {
+          dynamicLabel = "Searching fleet health across Stripe, PostHog & Intercom"
         }
 
         if (state === "input-streaming" || state === "input-available") {
@@ -1829,7 +1823,11 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
           )
           toolBatchCount++
         } else if (state === "output-available") {
-          const isCustomTreeTool = toolName === 'getUnifiedCustomerScan' || toolName === 'getAccountRecoveryStatus'
+          const isCustomTreeTool =
+            toolName === 'getUnifiedCustomerScan' ||
+            toolName === 'getAccountRecoveryStatus' ||
+            toolName === 'getUnifiedFleetScan' ||
+            toolName === 'getFleetHealthSummary'
           toolBatch.push(
             <TimelineNode
               key={`tool-${single.index}`}
