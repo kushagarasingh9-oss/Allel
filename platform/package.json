@@ -17,7 +17,8 @@
     "demo:data:seed": "tsx src/recovery/scenarios/cli.ts seed",
     "demo:data:inspect": "tsx src/recovery/scenarios/cli.ts inspect",
     "demo:data:reset": "tsx src/recovery/scenarios/cli.ts reset",
-    "demo:data:evaluate": "tsx src/recovery/scenarios/cli.ts evaluate"
+    "demo:data:evaluate": "tsx src/recovery/scenarios/cli.ts evaluate",
+    "demo:reset-apex": "tsx scripts/reset-apex.ts"
   },
   "dependencies": {
     "@ai-sdk/azure": "^4.0.37",
