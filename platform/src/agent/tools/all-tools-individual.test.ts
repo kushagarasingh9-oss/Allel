@@ -182,4 +182,14 @@ describe('Targeted Execution Verification for Fixed Stripe & Identity Tools', ()
     assert.equal(parsed.success, true)
     assert.equal(parsed.data.accountName, 'Apex MultiRail')
   })
+
+  test('6. getRecoveryCases schema parses correctly and enforces workspaceId', () => {
+    const { getRecoveryCases } = require('@/agent/tools/tools')
+    const schema = (getRecoveryCases as any).inputSchema
+    const parsedEmpty = schema.safeParse({})
+    assert.equal(parsedEmpty.success, false, 'Requires workspaceId')
+
+    const parsedValid = schema.safeParse({ workspaceId: '00000000-0000-0000-0000-000000000001' })
+    assert.equal(parsedValid.success, true)
+  })
 })

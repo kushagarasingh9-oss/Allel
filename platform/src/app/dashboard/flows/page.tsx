@@ -38,6 +38,7 @@ type ApiCase = {
       provider_thread_id?: string
       provider_message_id?: string
       gmail_sent?: boolean
+      sent_at?: string
     } | null
   }> | null
 }
@@ -66,6 +67,7 @@ type CaseDetail = {
       provider_thread_id?: string
       provider_message_id?: string
       gmail_sent?: boolean
+      sent_at?: string
     } | null
   }>
   events: Array<{
@@ -319,6 +321,15 @@ function getSentGmailUrl(item: ApiCase): string {
   return 'https://mail.google.com/mail/u/0/#sent'
 }
 
+function isCaseOutreachSent(item: ApiCase): boolean {
+  if (item.status === 'sent' || item.status === 'monitoring') return true
+  const drafts = item.follow_up_drafts
+  if (Array.isArray(drafts) && drafts.some(d => d.status === 'sent' || d.approval_metadata?.sent_at || d.approval_metadata?.gmail_sent)) {
+    return true
+  }
+  return false
+}
+
 export default function WorkflowsPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [cases, setCases] = useState<ApiCase[]>([])
@@ -384,8 +395,11 @@ export default function WorkflowsPage() {
   }, [refresh])
 
   const filteredCases = useMemo(() => cases.filter(item => {
+    const isSent = isCaseOutreachSent(item)
+    const effectiveStatus = (isSent && item.status === 'awaiting_approval') ? 'monitoring' : item.status
+
     const statusMatches = statusFilter === 'all'
-      || item.status === statusFilter
+      || effectiveStatus === statusFilter
       || item.resolution === statusFilter
     const needle = searchQuery.trim().toLowerCase()
     const searchMatches = !needle
@@ -404,12 +418,13 @@ export default function WorkflowsPage() {
       const mrr = c.mrr_baseline_cents || 0
       const status = c.status
       const resolution = c.resolution
+      const isSent = isCaseOutreachSent(c)
 
-      if (status === 'awaiting_approval' || status === 'open' || status === 'action_proposed' || status === 'analyzing') {
-        atRiskCents += mrr
-      } else if (status === 'sent' || status === 'monitoring' || status === 'approved') {
+      if (isSent || status === 'sent' || status === 'monitoring' || status === 'approved') {
         protectedCents += mrr
         engagedCount += 1
+      } else if (status === 'awaiting_approval' || status === 'open' || status === 'action_proposed' || status === 'analyzing') {
+        atRiskCents += mrr
       } else if (status === 'resolved') {
         if (resolution === 'strictly_recovered') {
           recoveredCents += mrr
@@ -660,7 +675,19 @@ export default function WorkflowsPage() {
                       </div>
                     </td>
                   <td className="px-5 py-3.5 text-right">
-                    {item.status === 'awaiting_approval' && sentSuccessCaseId !== item.id && (
+                    {(item.status === 'sent' || item.status === 'monitoring' || sentSuccessCaseId === item.id || isCaseOutreachSent(item)) && (
+                      <a
+                        href={getSentGmailUrl(item)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group/btn inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] hover:bg-[#0048D9] active:bg-[#003ec2] text-white px-3 py-1 text-xs font-medium transition-all cursor-pointer shadow-xs shadow-blue-500/20 hover:shadow-blue-500/35 border border-blue-400/30"
+                        title="Click to view sent email in Gmail"
+                      >
+                        <Check className="w-3 h-3 text-white stroke-[2.5]" />
+                        <span>Sent</span>
+                      </a>
+                    )}
+                    {!isCaseOutreachSent(item) && item.status === 'awaiting_approval' && sentSuccessCaseId !== item.id && (
                       <div className="relative group/draft inline-block">
                         {/* Floating Email Draft Preview Card on Hover */}
                         <div className={`absolute right-0 ${isLower ? 'bottom-full pb-1' : 'top-full pt-1'} z-50 ${editingCaseId === item.id ? 'block' : 'hidden group-hover/draft:block'}`}>
@@ -828,19 +855,7 @@ export default function WorkflowsPage() {
                         </button>
                       </div>
                     )}
-                    {(item.status === 'sent' || item.status === 'monitoring' || sentSuccessCaseId === item.id) && (
-                      <a
-                        href={getSentGmailUrl(item)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group/btn inline-flex items-center gap-1.5 rounded-xs bg-[#0055FF] hover:bg-[#0048D9] active:bg-[#003ec2] text-white px-3 py-1 text-xs font-medium transition-all cursor-pointer shadow-xs shadow-blue-500/20 hover:shadow-blue-500/35 border border-blue-400/30"
-                        title="Click to view sent email in Gmail"
-                      >
-                        <Check className="w-3 h-3 text-white stroke-[2.5]" />
-                        <span>Sent</span>
-                      </a>
-                    )}
-                    {item.status === 'resolved' && (
+                    {!isCaseOutreachSent(item) && item.status === 'resolved' && (
                       <button
                         onClick={() => void loadCaseDetail(item.id)}
                         className="inline-flex items-center gap-1.5 rounded-sm border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20 transition-colors cursor-pointer"
@@ -849,7 +864,7 @@ export default function WorkflowsPage() {
                         {item.resolution === 'strictly_recovered' ? 'Payment Recovered' : 'Saved'}
                       </button>
                     )}
-                    {item.status === 'suppressed' && (
+                    {!isCaseOutreachSent(item) && item.status === 'suppressed' && (
                       <button
                         onClick={() => void loadCaseDetail(item.id)}
                         className="inline-flex items-center gap-1.5 rounded-sm border border-white/[0.06] bg-transparent px-2.5 py-1 text-xs font-normal text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
@@ -857,7 +872,7 @@ export default function WorkflowsPage() {
                         Cooling Down
                       </button>
                     )}
-                    {!['awaiting_approval', 'sent', 'monitoring', 'resolved', 'suppressed'].includes(item.status) && sentSuccessCaseId !== item.id && (
+                    {!isCaseOutreachSent(item) && !['awaiting_approval', 'sent', 'monitoring', 'resolved', 'suppressed'].includes(item.status) && sentSuccessCaseId !== item.id && (
                       <button
                         onClick={() => void loadCaseDetail(item.id)}
                         className="inline-flex items-center gap-1.5 rounded-sm border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"

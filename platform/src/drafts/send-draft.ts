@@ -14,6 +14,7 @@ type DraftRecord = {
   id: string
   workspace_id: string
   customer_account_id: string | null
+  recovery_case_id?: string | null
   subject: string
   body_preview?: string | null
   body_full?: string | null
@@ -37,7 +38,7 @@ export async function sendDraftWithGmail(
   const { data: draft, error: fetchError } = await supabase
     .from('follow_up_drafts')
     .select(
-      'id, workspace_id, customer_account_id, subject, body_preview, status, approved_at, approved_by_actor, approval_metadata'
+      'id, workspace_id, customer_account_id, recovery_case_id, subject, body_preview, status, approved_at, approved_by_actor, approval_metadata'
     )
     .eq('id', draftId)
     .maybeSingle()
@@ -181,6 +182,50 @@ export async function sendDraftWithGmail(
       })
     } catch (error) {
       console.error('[send-draft] Failed to record draft outcome', error)
+    }
+
+    // Advance linked recovery case to 'monitoring'
+    try {
+      let caseId = typedDraft.recovery_case_id
+      if (!caseId && typedDraft.customer_account_id) {
+        const { data: matchedCase } = await supabase
+          .from('recovery_cases')
+          .select('id')
+          .eq('workspace_id', typedDraft.workspace_id)
+          .eq('customer_account_id', typedDraft.customer_account_id)
+          .in('status', ['awaiting_approval', 'approved', 'draft_ready', 'open', 'action_proposed'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        caseId = matchedCase?.id
+      }
+
+      if (caseId) {
+        const now = new Date().toISOString()
+        await supabase
+          .from('recovery_cases')
+          .update({
+            status: 'monitoring',
+            sent_at: now,
+            monitoring_started_at: now,
+            updated_at: now,
+          })
+          .eq('id', caseId)
+
+        await supabase.from('recovery_case_events').insert({
+          workspace_id: typedDraft.workspace_id,
+          recovery_case_id: caseId,
+          event_type: 'outreach_dispatched',
+          from_status: 'awaiting_approval',
+          to_status: 'monitoring',
+          actor_type: 'user',
+          actor_id: context?.actor || 'founder',
+          detail: { action: 'draft_sent_via_gmail', draftId: typedDraft.id, messageId: result.messageId },
+          created_at: now,
+        })
+      }
+    } catch (caseSyncErr) {
+      console.error('[send-draft] Failed to advance recovery case to monitoring', caseSyncErr)
     }
   }
 

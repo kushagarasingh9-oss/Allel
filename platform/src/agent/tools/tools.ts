@@ -2971,6 +2971,59 @@ export const sendGmailReply = tool({
         replyToThreadId: threadId,
       })
 
+      // Advance linked recovery case to 'monitoring' if account is known
+      if (contactRow?.customer_account_id) {
+        const now = new Date().toISOString()
+        const { data: matchedCase } = await supabase
+          .from('recovery_cases')
+          .select('id, status')
+          .eq('workspace_id', workspaceId)
+          .eq('customer_account_id', contactRow.customer_account_id)
+          .in('status', ['awaiting_approval', 'approved', 'draft_ready', 'open', 'action_proposed'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (matchedCase?.id) {
+          await supabase
+            .from('recovery_cases')
+            .update({
+              status: 'monitoring',
+              sent_at: now,
+              monitoring_started_at: now,
+              updated_at: now,
+            })
+            .eq('id', matchedCase.id)
+
+          await supabase.from('recovery_case_events').insert({
+            workspace_id: workspaceId,
+            recovery_case_id: matchedCase.id,
+            event_type: 'outreach_dispatched',
+            from_status: matchedCase.status,
+            to_status: 'monitoring',
+            actor_type: 'agent',
+            actor_id: 'agent',
+            detail: { action: 'send_gmail_reply', recipient: recipientEmail, subject },
+            created_at: now,
+          })
+
+          await supabase
+            .from('follow_up_drafts')
+            .update({
+              status: 'sent',
+              updated_at: now,
+              approval_metadata: {
+                recipient_email: recipientEmail,
+                sent_at: now,
+                provider_message_id: result.messageId,
+                provider_thread_id: result.threadId,
+              },
+            })
+            .eq('customer_account_id', contactRow.customer_account_id)
+            .in('status', ['needs_review', 'ready_to_send'])
+        }
+      }
+
       await logAgentRun({
         workspaceId,
         runType: 'customer_outreach_dispatched',
@@ -3041,6 +3094,59 @@ export const composeNewEmail = tool({
 
       const { sendEmail } = await import('@/integrations/gmail/gmail')
       const result = await sendEmail(workspaceId, { to: recipientEmail, subject, body })
+
+      // Advance linked recovery case to 'monitoring' if account is known
+      if (contactRow?.customer_account_id) {
+        const now = new Date().toISOString()
+        const { data: matchedCase } = await supabase
+          .from('recovery_cases')
+          .select('id, status')
+          .eq('workspace_id', workspaceId)
+          .eq('customer_account_id', contactRow.customer_account_id)
+          .in('status', ['awaiting_approval', 'approved', 'draft_ready', 'open', 'action_proposed'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (matchedCase?.id) {
+          await supabase
+            .from('recovery_cases')
+            .update({
+              status: 'monitoring',
+              sent_at: now,
+              monitoring_started_at: now,
+              updated_at: now,
+            })
+            .eq('id', matchedCase.id)
+
+          await supabase.from('recovery_case_events').insert({
+            workspace_id: workspaceId,
+            recovery_case_id: matchedCase.id,
+            event_type: 'outreach_dispatched',
+            from_status: matchedCase.status,
+            to_status: 'monitoring',
+            actor_type: 'agent',
+            actor_id: 'agent',
+            detail: { action: 'compose_new_email', recipient: recipientEmail, subject },
+            created_at: now,
+          })
+
+          await supabase
+            .from('follow_up_drafts')
+            .update({
+              status: 'sent',
+              updated_at: now,
+              approval_metadata: {
+                recipient_email: recipientEmail,
+                sent_at: now,
+                provider_message_id: result.messageId,
+                provider_thread_id: result.threadId,
+              },
+            })
+            .eq('customer_account_id', contactRow.customer_account_id)
+            .in('status', ['needs_review', 'ready_to_send'])
+        }
+      }
 
       await logAgentRun({
         workspaceId,
@@ -3154,7 +3260,7 @@ export const sendApprovedDraft = tool({
       // Check current draft state before sending — if in needs_review or unapproved, auto-approve for founder
       const { data: currentDraft } = await supabase
         .from('follow_up_drafts')
-        .select('id, status, approved_at, approved_by_actor, recovery_case_id')
+        .select('id, status, approved_at, approved_by_actor, recovery_case_id, customer_account_id')
         .eq('id', targetDraftId)
         .maybeSingle()
 
@@ -3184,13 +3290,42 @@ export const sendApprovedDraft = tool({
         source: 'agent_chat_directive',
       })
 
-      // If linked to a recovery case in draft_ready, advance case to monitoring
-      if (currentDraft.recovery_case_id) {
+      // If linked to a recovery case, advance case to monitoring
+      const caseIdToUpdate = currentDraft.recovery_case_id || (currentDraft.customer_account_id ? (
         await supabase
           .from('recovery_cases')
-          .update({ status: 'monitoring', updated_at: new Date().toISOString() })
-          .eq('id', currentDraft.recovery_case_id)
-          .eq('status', 'draft_ready')
+          .select('id, status')
+          .eq('workspace_id', workspaceId)
+          .eq('customer_account_id', currentDraft.customer_account_id)
+          .in('status', ['awaiting_approval', 'approved', 'draft_ready', 'open', 'action_proposed'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      ).data?.id : null)
+
+      if (caseIdToUpdate) {
+        const now = new Date().toISOString()
+        await supabase
+          .from('recovery_cases')
+          .update({
+            status: 'monitoring',
+            sent_at: now,
+            monitoring_started_at: now,
+            updated_at: now,
+          })
+          .eq('id', caseIdToUpdate)
+
+        await supabase.from('recovery_case_events').insert({
+          workspace_id: workspaceId,
+          recovery_case_id: caseIdToUpdate,
+          event_type: 'outreach_dispatched',
+          from_status: currentDraft.status || 'awaiting_approval',
+          to_status: 'monitoring',
+          actor_type: 'agent',
+          actor_id: 'agent',
+          detail: { action: 'send_approved_draft_tool', draftId: targetDraftId },
+          created_at: now,
+        })
       }
 
       return {
@@ -7622,7 +7757,7 @@ export const getRecoveryCases = tool({
     const supabase = createServiceClient()
     let query = supabase
       .from('recovery_cases')
-      .select('id, case_key, status, severity, resolution, risk_score, score_confidence, mrr_baseline_cents, trigger_provider, trigger_event_type, action_type, action_reason, suppression_reason, opened_at, resolved_at, updated_at, customer_accounts(name, domain)')
+      .select('id, case_key, status, severity, resolution, risk_score, score_confidence, mrr_baseline_cents, trigger_provider, trigger_event_type, action_type, action_reason, suppression_reason, opened_at, resolved_at, sent_at, updated_at, customer_accounts(name, domain), follow_up_drafts(id, subject, status, approval_metadata)')
       .eq('workspace_id', workspaceId)
       .order('opened_at', { ascending: false })
       .limit(limit ?? 20)
@@ -7633,24 +7768,38 @@ export const getRecoveryCases = tool({
     const { data: cases, error } = await query
     if (error) return { error: `Failed to fetch recovery cases: ${error.message}` }
 
-    const summary = (cases ?? []).map(c => ({
-      id: c.id,
-      account: (c.customer_accounts as { name?: string } | null)?.name ?? 'Unknown',
-      status: c.status,
-      severity: c.severity,
-      riskScore: c.risk_score,
-      confidence: Math.round(c.score_confidence * 100) + '%',
-      mrrAtRisk: '$' + ((c.mrr_baseline_cents ?? 0) / 100).toFixed(0),
-      trigger: `${c.trigger_provider} / ${c.trigger_event_type}`,
-      action: c.action_type,
-      resolution: c.resolution ?? null,
-      openedAt: c.opened_at,
-      updatedAt: c.updated_at,
-    }))
+    const summary = (cases ?? []).map(c => {
+      const drafts = (c as any).follow_up_drafts
+      const hasSentDraft = Array.isArray(drafts) && drafts.some((d: any) => d.status === 'sent' || d.approval_metadata?.sent_at)
+      const effectiveStatus = (hasSentDraft && c.status === 'awaiting_approval') ? 'monitoring' : c.status
+      return {
+        id: c.id,
+        account: (c.customer_accounts as { name?: string } | null)?.name ?? 'Unknown',
+        status: effectiveStatus,
+        outreachStatus: (hasSentDraft || effectiveStatus === 'monitoring' || effectiveStatus === 'sent')
+          ? 'Sent (In Monitoring)'
+          : effectiveStatus === 'awaiting_approval'
+            ? 'Draft Ready (Awaiting Approval)'
+            : effectiveStatus,
+        severity: c.severity,
+        riskScore: c.risk_score,
+        confidence: Math.round(c.score_confidence * 100) + '%',
+        mrrAtRisk: '$' + ((c.mrr_baseline_cents ?? 0) / 100).toFixed(0),
+        trigger: `${c.trigger_provider} / ${c.trigger_event_type}`,
+        action: c.action_type,
+        resolution: c.resolution ?? null,
+        openedAt: c.opened_at,
+        updatedAt: c.updated_at,
+      }
+    })
 
-    const critical = summary.filter(c => c.severity === 'critical' && !['resolved', 'suppressed'].includes(c.status))
-    const totalAtRiskCents = (cases ?? []).reduce((s, c) =>
-      !['resolved', 'suppressed'].includes(c.status) ? s + (c.mrr_baseline_cents ?? 0) : s, 0)
+    const critical = summary.filter(c => c.severity === 'critical' && !['resolved', 'suppressed', 'monitoring', 'sent'].includes(c.status))
+    const totalAtRiskCents = (cases ?? []).reduce((s, c) => {
+      const drafts = (c as any).follow_up_drafts
+      const hasSentDraft = Array.isArray(drafts) && drafts.some((d: any) => d.status === 'sent' || d.approval_metadata?.sent_at)
+      const isProtected = ['resolved', 'suppressed', 'monitoring', 'sent'].includes(c.status) || hasSentDraft
+      return !isProtected ? s + (c.mrr_baseline_cents ?? 0) : s
+    }, 0)
 
     return {
       totalCases: summary.length,
