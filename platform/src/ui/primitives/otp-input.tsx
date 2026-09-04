@@ -391,7 +391,7 @@ export function OtpInput({
                 aria-label={`${label}, character ${i + 1} of ${length}`}
                 aria-invalid={error || undefined}
                 aria-describedby={hasStatus ? statusId : undefined}
-                className={`h-12 w-10 rounded-[10px] border text-center text-[16px] text-transparent caret-transparent outline-none transition-all duration-150 selection:bg-transparent focus-visible:outline-none disabled:opacity-50 ${
+                className={`h-12 w-full rounded-[10px] border text-center text-[16px] text-transparent caret-transparent outline-none transition-all duration-150 selection:bg-transparent focus-visible:outline-none disabled:opacity-50 ${
                   error
                     ? "border-red-500/80 bg-red-950/20 text-red-200"
                     : success

@@ -8,7 +8,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
-  const [otpLength, setOtpLength] = useState(8)
+  const [otpLength, setOtpLength] = useState(6)
 
   const [otpStatus, setOtpStatus] = useState<OtpStatus>('idle')
   const [otpError, setOtpError] = useState('')
@@ -37,9 +37,7 @@ export default function LoginPage() {
         return
       }
 
-      if (payload?.otpLength) {
-        setOtpLength(payload.otpLength)
-      }
+      setOtpLength(payload?.otpLength || 6)
 
       setEmail(normalizedEmail)
       setSent(true)

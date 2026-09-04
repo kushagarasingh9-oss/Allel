@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const resendApiKey = process.env.RESEND_API_KEY
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    // High-reliability path: Generate OTP via Supabase Admin and dispatch via verified Resend domain
+    // High-reliability path: Custom 6-digit OTP + verified Resend delivery + Admin Magiclink token exchange
     if (resendApiKey && serviceRoleKey) {
       try {
         const adminClient = createServiceClient()
@@ -35,15 +35,17 @@ export async function POST(request: NextRequest) {
 
         if (linkError) {
           console.error('[api/auth/login] Admin generateLink error:', linkError)
-        } else if (linkData?.properties?.email_otp) {
-          const otp = linkData.properties.email_otp
+        } else if (linkData?.properties?.action_link) {
+          // Cryptographically secure 6-digit OTP
+          const crypto = await import('crypto')
+          const sixDigitOtp = crypto.randomInt(100000, 1000000).toString()
           const actionLink = linkData.properties.action_link
 
           const resend = new Resend(resendApiKey)
           const sendResult = await resend.emails.send({
             from: 'Allel <kushagra@allel.co>',
             to: email,
-            subject: `Your Allel verification code is ${otp}`,
+            subject: `Your Allel verification code is ${sixDigitOtp}`,
             html: `
               <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #0e0e0e; color: #ededed; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
                 <div style="margin-bottom: 24px; text-align: center;">
@@ -53,12 +55,12 @@ export async function POST(request: NextRequest) {
                 
                 <h3 style="font-size: 16px; font-weight: 500; color: #ffffff; margin-bottom: 8px;">Your verification code</h3>
                 <p style="font-size: 13.5px; color: #888888; line-height: 1.5; margin-bottom: 20px;">
-                  Enter this verification code on the login screen to sign in:
+                  Enter this 6-digit verification code on the login screen to sign in:
                 </p>
 
                 <div style="background: #141414; border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 18px; text-align: center; margin-bottom: 24px;">
-                  <span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #ffffff; display: inline-block;">
-                    ${otp}
+                  <span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 36px; font-weight: 700; letter-spacing: 10px; color: #ffffff; display: inline-block;">
+                    ${sixDigitOtp.slice(0, 3)} ${sixDigitOtp.slice(3)}
                   </span>
                 </div>
 
@@ -73,7 +75,25 @@ export async function POST(request: NextRequest) {
           })
 
           if (!sendResult.error) {
-            return NextResponse.json({ ok: true, otpLength: otp.length })
+            const { encrypt } = await import('@/integrations/_core/encryption')
+            const payload = JSON.stringify({
+              email,
+              code: sixDigitOtp,
+              actionLink,
+              expiresAt: Date.now() + 15 * 60 * 1000,
+            })
+            const enc = encrypt(payload)
+            const cookieValue = `${enc.encrypted}::${enc.iv}::${enc.authTag}`
+
+            const response = NextResponse.json({ ok: true, otpLength: 6 })
+            response.cookies.set('allel_pending_auth', cookieValue, {
+              path: '/',
+              httpOnly: true,
+              sameSite: 'lax',
+              secure: process.env.NODE_ENV === 'production',
+              maxAge: 15 * 60,
+            })
+            return response
           }
           console.warn('[api/auth/login] Resend send warning, falling back to Supabase client', sendResult.error)
         }
@@ -98,7 +118,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ ok: true, otpLength: 8 })
+    return NextResponse.json({ ok: true, otpLength: 6 })
   } catch (error) {
     console.error('[api/auth/login] Failed to send verification code', error)
     return NextResponse.json(
@@ -107,3 +127,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
