@@ -158,64 +158,85 @@ function formatUnifiedCustomerScanReport(
   scanRes: any,
   recRes: any
 ): string {
-  if (!scanRes || scanRes.found === false) {
+  if (!scanRes || scanRes.found === false || scanRes.error) {
     return `### ![Account](/logos/person.svg) ${customerName} — Account Health Review\n\nI reached out across connected integrations for **${customerName}**, but no active record was found in the workspace.\n\n**Next move:** Verify the account domain or email in Settings → Integrations.`
   }
 
-  const account = scanRes.account || {}
-  const assessment = scanRes.assessment || {}
-  const providers = scanRes.providers || {}
-  const stripe = providers.stripe || {}
-  const posthog = providers.posthog || {}
-  const intercom = providers.intercom || {}
+  const accountName = scanRes.accountName || scanRes.account?.name || customerName
+  const primaryEmail = scanRes.primaryEmail || scanRes.account?.contactEmail || (Array.isArray(scanRes.contacts) && scanRes.contacts[0]?.email) || ''
+  const classification = scanRes.classification || scanRes.assessment?.classification || 'needs_intervention'
+  const mrrAtRiskCents = scanRes.mrrAtRiskCents ?? scanRes.assessment?.mrrAtRiskCents ?? 0
+  const daysUntilRenewal = scanRes.daysUntilRenewal ?? scanRes.providers?.stripe?.daysUntilRenewal ?? null
+  const likelyRootCause = scanRes.likelyRootCause || scanRes.assessment?.rootCause || null
 
-  const mrrDisplay = assessment.mrrAtRiskCents
-    ? `$${(assessment.mrrAtRiskCents / 100).toLocaleString()}/mo`
-    : stripe.mrrCents
-    ? `$${(stripe.mrrCents / 100).toLocaleString()}/mo`
+  const mrrDisplay = mrrAtRiskCents > 0
+    ? `$${(mrrAtRiskCents / 100).toLocaleString()}/mo`
     : '$0'
 
   const severityBadge =
-    assessment.classification === 'imminent_churn' || assessment.classification === 'confirmed_churn'
+    classification === 'imminent_churn' || classification === 'confirmed_churn'
       ? '🔴 **Imminent Churn**'
-      : assessment.classification === 'high_risk'
+      : classification === 'high_risk'
       ? '🟠 **High Risk**'
-      : assessment.classification === 'healthy'
+      : classification === 'healthy'
       ? '🟢 **Healthy**'
-      : '🟡 **Needs Review**'
+      : '🟡 **Needs Intervention**'
 
   const lines: string[] = [
-    `### ![Account](/logos/person.svg) ${account.name || customerName} (${account.contactEmail || 'No email'}) — Account Health Review`,
-    `- **Status:** ${severityBadge} ${assessment.headline ? `— ${assessment.headline}` : ''}`,
-    `- ![Stripe](/logos/stripe.svg) **MRR at Risk:** ${mrrDisplay}`,
+    `### ![Account](/logos/person.svg) ${accountName}${primaryEmail ? ` (${primaryEmail})` : ''} — Unified Health & Risk Diagnosis`,
+    `- **Risk Status:** ${severityBadge}${likelyRootCause ? ` — Root Cause: \`${likelyRootCause.replace(/_/g, ' ')}\`` : ''}`,
+    `- ![Stripe](/logos/stripe.svg) **MRR at Risk:** ${mrrDisplay}${daysUntilRenewal !== null ? ` (Renews in ${daysUntilRenewal} days)` : ''}`,
   ]
 
-  if (stripe.subscriptionStatus) {
-    lines.push(`- ![Stripe](/logos/stripe.svg) **Billing:** ${stripe.subscriptionStatus}${stripe.daysUntilRenewal !== undefined ? ` (Renews in ${stripe.daysUntilRenewal} days)` : ''}`)
-  }
-
-  if (posthog.summary) {
-    lines.push(`- ![PostHog](/logos/posthog.svg) **Product Usage:** ${posthog.summary}`)
-  }
-
-  if (intercom.summary) {
-    lines.push(`- ![Intercom](/logos/intercom.svg) **Support:** ${intercom.summary}`)
-  }
-
-  if (assessment.recommendedAction) {
-    lines.push(`- **Recommended Action:** ${assessment.recommendedAction}`)
-  }
-
-  if (recRes && recRes.case) {
-    lines.push(`\n### Recovery Case Status`)
-    lines.push(`- **Case ID:** \`${recRes.case.id}\``)
-    lines.push(`- **Status:** ${recRes.case.status || 'Active'}`)
-    if (recRes.drafts && recRes.drafts.length > 0) {
-      lines.push(`- **Draft:** ${recRes.drafts[0].subject || 'Retention outreach draft ready for review'}`)
+  // Add evidence signals across integrations
+  const evidenceList = Array.isArray(scanRes.evidence) ? scanRes.evidence : []
+  if (evidenceList.length > 0) {
+    lines.push(`\n**Cross-Integration Telemetry & Risk Evidence:**`)
+    for (const ev of evidenceList) {
+      const provider = ev.provider || 'system'
+      const logo =
+        provider === 'posthog'
+          ? '![PostHog](/logos/posthog.svg) **Product Usage (PostHog)**'
+          : provider === 'intercom'
+          ? '![Intercom](/logos/intercom.svg) **Support (Intercom)**'
+          : provider === 'stripe'
+          ? '![Stripe](/logos/stripe.svg) **Billing (Stripe)**'
+          : `**${provider.toUpperCase()}**`
+      lines.push(`• ${logo}: ${ev.statement}`)
     }
   }
 
-  lines.push(`\n**Next move:** Want me to queue an automated recovery email for ${account.name || customerName} or review the draft?`)
+  // Recommended Action
+  const recAction = scanRes.recommendedAction
+  if (recAction) {
+    const reason = typeof recAction === 'string' ? recAction : (recAction.reason || recAction.type)
+    const discount = recAction.suggestedDiscountPercent ? ` (${recAction.suggestedDiscountPercent}% discount recommended)` : ''
+    lines.push(`\n- **Recommended Strategy:** ${reason}${discount}`)
+  }
+
+  // Recovery Case & Outreach Draft
+  const activeCaseId = recRes?.activeCaseId || recRes?.case?.id
+  const caseStatus = recRes?.activeStatus || recRes?.status || recRes?.case?.status
+  const draft = recRes?.draft || (Array.isArray(recRes?.drafts) && recRes.drafts[0])
+
+  if (activeCaseId || draft) {
+    lines.push(`\n### Retention Outreach & Recovery Queue`)
+    if (activeCaseId) {
+      lines.push(`- **Case ID:** \`${activeCaseId}\` (${caseStatus || 'Active'})`)
+    }
+    if (draft) {
+      lines.push(`- **Draft Staged:** "${draft.subject || 'Retention outreach'}"`)
+      if (draft.recipientEmail) {
+        lines.push(`- **Recipient:** ${draft.recipientName ? `${draft.recipientName} <${draft.recipientEmail}>` : draft.recipientEmail}`)
+      }
+      if (draft.body) {
+        const preview = draft.body.slice(0, 180).replace(/\n+/g, ' ')
+        lines.push(`- **Email Preview:** *"${preview}..."*`)
+      }
+    }
+  }
+
+  lines.push(`\n**Next move:** Would you like me to approve and send the recovery draft for ${accountName}, or review the email body first?`)
 
   return lines.join('\n')
 }
