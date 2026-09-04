@@ -454,12 +454,117 @@ export async function searchPersons(
   apiKey: string,
   projectId: string,
   search: string,
-  limit: number = 20
+  limit: number = 20,
+  host: string = POSTHOG_DEFAULT_HOST
 ): Promise<PostHogPerson[]> {
   const data = await posthogGet<{ results: PostHogPerson[] }>(
-    apiKey, projectId, 'persons/', { search, limit: String(limit) }
+    apiKey, projectId, 'persons/', { search, limit: String(limit) }, host
   )
   return data.results ?? []
+}
+
+/** Get a single person by ID or distinct_id */
+export async function getPerson(
+  apiKey: string,
+  projectId: string,
+  personIdOrDistinctId: string,
+  host: string = POSTHOG_DEFAULT_HOST
+): Promise<PostHogPerson | null> {
+  try {
+    const direct = await posthogGet<PostHogPerson>(
+      apiKey,
+      projectId,
+      `persons/${personIdOrDistinctId}/`,
+      undefined,
+      host,
+      5000
+    )
+    if (direct && direct.id) return direct
+  } catch {
+    // If direct lookup fails, fall back to searching
+  }
+
+  const results = await searchPersons(apiKey, projectId, personIdOrDistinctId, 5, host)
+  const match = results.find(
+    (p) =>
+      p.id === personIdOrDistinctId ||
+      p.distinct_ids?.includes(personIdOrDistinctId)
+  )
+  return match ?? results[0] ?? null
+}
+
+/** Ingest an event or identity payload to PostHog */
+async function posthogCapture(
+  apiKey: string,
+  body: Record<string, unknown>,
+  host: string = POSTHOG_DEFAULT_HOST
+): Promise<void> {
+  const response = await fetch(`${host}/capture/`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      api_key: apiKey,
+      ...body,
+    }),
+    redirect: 'follow',
+    signal: AbortSignal.timeout(10_000),
+  })
+
+  if (!response.ok) {
+    throw new Error(`PostHog capture error: ${response.status} ${response.statusText}`)
+  }
+}
+
+/** Identify a user in PostHog and set/update person properties */
+export async function identifyUser(
+  apiKey: string,
+  projectId: string,
+  input: {
+    distinctId: string
+    properties?: Record<string, unknown>
+    anonDistinctId?: string
+  },
+  host: string = POSTHOG_DEFAULT_HOST
+): Promise<{ success: boolean; distinctId: string }> {
+  await posthogCapture(
+    apiKey,
+    {
+      distinct_id: input.distinctId,
+      event: '$identify',
+      properties: {
+        $set: input.properties ?? {},
+        ...(input.anonDistinctId ? { $anon_distinct_id: input.anonDistinctId } : {}),
+      },
+    },
+    host
+  )
+  return { success: true, distinctId: input.distinctId }
+}
+
+/** Ingest a custom event into PostHog for a distinct ID */
+export async function captureEvent(
+  apiKey: string,
+  projectId: string,
+  input: {
+    distinctId: string
+    event: string
+    properties?: Record<string, unknown>
+  },
+  host: string = POSTHOG_DEFAULT_HOST
+): Promise<{ success: boolean; event: string; distinctId: string }> {
+  await posthogCapture(
+    apiKey,
+    {
+      distinct_id: input.distinctId,
+      event: input.event,
+      properties: input.properties ?? {},
+    },
+    host
+  )
+  return { success: true, event: input.event, distinctId: input.distinctId }
 }
 
 /** Delete a person by ID (GDPR compliance) */

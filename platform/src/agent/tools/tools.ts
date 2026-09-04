@@ -56,10 +56,14 @@ import {
 import {
   searchStripeCustomers,
   getStripeCustomer,
+  updateStripeCustomer,
   getStripeSubscription,
   cancelStripeSubscription,
+  pauseStripeSubscription,
+  resumeStripeSubscription,
   listStripeInvoices,
   getUpcomingInvoice,
+  voidStripeInvoice,
   createStripeRefund,
   listStripeCharges,
   applySubscriptionCoupon,
@@ -73,6 +77,9 @@ import {
   listFeatureFlags,
   toggleFeatureFlag,
   searchPersons as searchPostHogPersonsApi,
+  getPerson as getPostHogPersonApi,
+  identifyUser as identifyPostHogUserApi,
+  captureEvent as capturePostHogEventApi,
   getRecentEvents as getPostHogRecentEvents,
   listInsights,
   listCohorts,
@@ -102,10 +109,14 @@ import {
   getIntercomConversation as getIntercomConversationFn,
   replyToConversation as replyToConversationFn,
   closeConversation as closeConversationFn,
+  reopenConversation as reopenConversationFn,
   snoozeConversation as snoozeConversationFn,
   assignConversation as assignConversationFn,
   searchIntercomConversations as searchIntercomConversationsFn,
   searchIntercomContacts as searchIntercomContactsFn,
+  createIntercomContact as createIntercomContactFn,
+  updateIntercomContact as updateIntercomContactFn,
+  tagContact as tagIntercomContactFn,
   createContactNote as createContactNoteFn,
   tagConversation as tagConversationFn,
 } from '@/integrations/intercom/intercom'
@@ -347,6 +358,71 @@ export async function resolveCustomerEntity(
     stripeCustomerId,
     posthogDistinctIds,
     intercomContactId,
+  }
+}
+
+/**
+ * Bidirectionally synchronizes provider identities (PostHog distinct ID, Stripe customer ID,
+ * or Intercom contact ID) into account_contacts.external_ids in the local database.
+ */
+export async function syncProviderIdentityToContact(
+  supabase: ReturnType<typeof createServiceClient>,
+  workspaceId: string,
+  params: {
+    contactEmail?: string | null
+    contactName?: string | null
+    customerAccountId?: string | null
+    provider: 'posthog' | 'stripe' | 'intercom'
+    providerId: string
+  }
+): Promise<{ synced: boolean; message: string }> {
+  try {
+    if (!params.providerId) return { synced: false, message: 'Missing providerId' }
+
+    let contactQuery = supabase
+      .from('account_contacts')
+      .select('id, email, external_ids, customer_account_id')
+      .eq('workspace_id', workspaceId)
+
+    if (params.contactEmail) {
+      contactQuery = contactQuery.eq('email', params.contactEmail.toLowerCase().trim())
+    } else if (params.customerAccountId) {
+      contactQuery = contactQuery.eq('customer_account_id', params.customerAccountId)
+    } else if (params.contactName) {
+      contactQuery = contactQuery.ilike('name', `%${params.contactName.trim()}%`)
+    } else {
+      return { synced: false, message: 'No contact identifier provided' }
+    }
+
+    const { data: contacts } = await contactQuery.limit(1)
+    const contact = contacts?.[0]
+    if (!contact) return { synced: false, message: 'Contact not found in local workspace' }
+
+    const ext = (contact.external_ids && typeof contact.external_ids === 'object')
+      ? { ...(contact.external_ids as Record<string, unknown>) }
+      : {}
+
+    if (params.provider === 'posthog') {
+      const existingIds = Array.isArray(ext.posthog_distinct_ids)
+        ? (ext.posthog_distinct_ids as string[])
+        : []
+      if (!existingIds.includes(params.providerId)) {
+        ext.posthog_distinct_ids = [...existingIds, params.providerId]
+      }
+    } else if (params.provider === 'stripe') {
+      ext.stripe_customer_id = params.providerId
+    } else if (params.provider === 'intercom') {
+      ext.intercom_contact_id = params.providerId
+    }
+
+    await supabase
+      .from('account_contacts')
+      .update({ external_ids: ext })
+      .eq('id', contact.id)
+
+    return { synced: true, message: `Linked ${params.provider} ID ${params.providerId} to ${contact.email || contact.id}` }
+  } catch (err) {
+    return { synced: false, message: err instanceof Error ? err.message : 'Sync failed' }
   }
 }
 
@@ -3973,6 +4049,245 @@ export const getPostHogEventDefinitions = tool({
   },
 })
 
+// ----- Tool: Get PostHog Person Detail -----
+
+export const getPostHogPersonDetail = tool({
+  description:
+    'Get full profile, properties, and distinct IDs for a user/person in PostHog. Shows all distinct IDs, created date, and all custom properties. Specify distinctId, personId, user (e.g. "Rohan"), email (e.g. "rohan@apexmultirail.co"), or accountName.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    distinctId: z.string().optional().describe('The PostHog distinct ID'),
+    personId: z.string().optional().describe('The PostHog internal person UUID'),
+    user: z.string().optional().describe('Contact or user name (e.g. "Rohan")'),
+    email: z.string().optional().describe('User email address'),
+    accountName: z.string().optional().describe('Customer account name'),
+  }),
+  execute: async ({ workspaceId, distinctId, personId, user, email, accountName }) => {
+    try {
+      const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
+      const host = apiHost || POSTHOG_DEFAULT_HOST
+
+      let targetId = distinctId || personId
+
+      if (!targetId && (user || email || accountName)) {
+        const supabase = createServiceClient()
+        const entity = await resolveCustomerEntity(supabase, workspaceId, {
+          personName: user,
+          email,
+          accountName,
+        })
+        if (entity.posthogDistinctIds.length > 0) {
+          targetId = entity.posthogDistinctIds[0]
+        }
+        if (!targetId) {
+          const searchQ = email || user || accountName || ''
+          const found = await searchPostHogPersonsApi(apiKey, projectId, searchQ, 1, host)
+          targetId = found[0]?.distinct_ids?.[0] || found[0]?.id
+        }
+      }
+
+      if (!targetId) {
+        return { error: 'Please specify distinctId, personId, user, email, or accountName.' }
+      }
+
+      const person = await getPostHogPersonApi(apiKey, projectId, targetId, host)
+      if (!person) {
+        return { error: `PostHog person not found for identifier: ${targetId}` }
+      }
+
+      return {
+        id: person.id,
+        distinctIds: person.distinct_ids,
+        createdAt: person.created_at,
+        properties: person.properties || {},
+        email: (person.properties?.email ?? person.properties?.$email ?? null) as string | null,
+        name: (person.properties?.name ?? person.properties?.$name ?? null) as string | null,
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to get PostHog person details' }
+    }
+  },
+})
+
+// ----- Tool: Identify PostHog User -----
+
+export const identifyPostHogUser = tool({
+  description:
+    'Identify a user in PostHog, set/update person properties (such as plan, role, company, traits), and link their distinct ID. Automatically syncs identity to the local workspace database. CAUTION: Modifies live analytics profiles. Set confirmUpdate=true to execute; defaults to preview mode.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    distinctId: z.string().optional().describe('PostHog distinct ID (optional if user, email, or accountName provided)'),
+    user: z.string().optional().describe('Contact/user name (e.g. "Rohan")'),
+    email: z.string().optional().describe('User email address'),
+    accountName: z.string().optional().describe('Customer account name'),
+    properties: z.record(z.string(), z.unknown()).describe('Properties to set on the person (e.g. { plan: "enterprise", role: "admin", company: "Apex MultiRail" })'),
+    confirmUpdate: z.boolean().describe('Must be true to actually execute the update. Set false to preview.'),
+  }),
+  execute: async ({ workspaceId, distinctId, user, email, accountName, properties, confirmUpdate }) => {
+    try {
+      const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
+      const host = apiHost || POSTHOG_DEFAULT_HOST
+      const supabase = createServiceClient()
+
+      let resolvedDistinctId = distinctId
+      let resolvedContactEmail = email
+      let resolvedPersonName = user
+      let customerAccountId: string | null = null
+
+      if (!resolvedDistinctId && (user || email || accountName)) {
+        const entity = await resolveCustomerEntity(supabase, workspaceId, {
+          personName: user,
+          email,
+          accountName,
+        })
+        if (entity.posthogDistinctIds.length > 0) {
+          resolvedDistinctId = entity.posthogDistinctIds[0]
+        }
+        if (entity.contactEmail && !resolvedContactEmail) resolvedContactEmail = entity.contactEmail
+        if (entity.contactName && !resolvedPersonName) resolvedPersonName = entity.contactName
+        if (entity.accountId) customerAccountId = entity.accountId
+      }
+
+      if (!resolvedDistinctId && (email || user || accountName)) {
+        const searchQ = email || user || accountName || ''
+        const found = await searchPostHogPersonsApi(apiKey, projectId, searchQ, 1, host)
+        if (found[0]?.distinct_ids?.[0]) {
+          resolvedDistinctId = found[0].distinct_ids[0]
+        }
+      }
+
+      // If still no distinct ID, fallback to verified email or sanitized name
+      if (!resolvedDistinctId) {
+        if (resolvedContactEmail) {
+          resolvedDistinctId = resolvedContactEmail
+        } else {
+          return { error: 'Could not resolve distinct ID. Please provide distinctId or a valid email/user.' }
+        }
+      }
+
+      // Safety Preview Guard
+      if (!confirmUpdate) {
+        return {
+          preview: true,
+          distinctId: resolvedDistinctId,
+          targetUser: resolvedPersonName,
+          targetEmail: resolvedContactEmail,
+          propertiesToSet: properties,
+          message: `Preview: Would update PostHog person "${resolvedDistinctId}" with properties: ${JSON.stringify(properties)}. Set confirmUpdate=true to execute.`,
+        }
+      }
+
+      // Execute identification in PostHog
+      await identifyPostHogUserApi(
+        apiKey,
+        projectId,
+        {
+          distinctId: resolvedDistinctId,
+          properties,
+        },
+        host
+      )
+
+      // Sync identity to local database account_contacts
+      const syncResult = await syncProviderIdentityToContact(supabase, workspaceId, {
+        contactEmail: resolvedContactEmail,
+        contactName: resolvedPersonName,
+        customerAccountId,
+        provider: 'posthog',
+        providerId: resolvedDistinctId,
+      })
+
+      await logAgentRun({
+        workspaceId,
+        runType: 'posthog_person_identified',
+        status: 'completed',
+        outputSummary: `PostHog person ${resolvedDistinctId} identified with updated properties`,
+        metadata: {
+          distinctId: resolvedDistinctId,
+          properties,
+          syncedToLocalDb: syncResult.synced,
+        },
+      })
+
+      return {
+        success: true,
+        distinctId: resolvedDistinctId,
+        propertiesSet: properties,
+        localDbSync: syncResult.message,
+        message: `Successfully identified user "${resolvedDistinctId}" in PostHog with updated properties.`,
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to identify PostHog user' }
+    }
+  },
+})
+
+// ----- Tool: Capture PostHog Event -----
+
+export const capturePostHogEventTool = tool({
+  description:
+    'Ingest/record a custom telemetry event into PostHog for a user or account (e.g., manual activation step, VIP onboarding milestone, alert resolution).',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    event: z.string().describe('The event name (e.g. "onboarding_milestone", "agent_intervention_completed")'),
+    distinctId: z.string().optional().describe('The PostHog distinct ID (optional if user or email provided)'),
+    user: z.string().optional().describe('Contact/user name (e.g. "Rohan")'),
+    email: z.string().optional().describe('User email address'),
+    accountName: z.string().optional().describe('Customer account name'),
+    properties: z.record(z.string(), z.unknown()).optional().describe('Optional event properties'),
+  }),
+  execute: async ({ workspaceId, event, distinctId, user, email, accountName, properties }) => {
+    try {
+      const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
+      const host = apiHost || POSTHOG_DEFAULT_HOST
+
+      let resolvedDistinctId = distinctId
+
+      if (!resolvedDistinctId && (user || email || accountName)) {
+        const supabase = createServiceClient()
+        const entity = await resolveCustomerEntity(supabase, workspaceId, {
+          personName: user,
+          email,
+          accountName,
+        })
+        if (entity.posthogDistinctIds.length > 0) {
+          resolvedDistinctId = entity.posthogDistinctIds[0]
+        }
+        if (!resolvedDistinctId && (email || user || accountName)) {
+          const searchQ = email || user || accountName || ''
+          const found = await searchPostHogPersonsApi(apiKey, projectId, searchQ, 1, host)
+          resolvedDistinctId = found[0]?.distinct_ids?.[0]
+        }
+      }
+
+      if (!resolvedDistinctId) {
+        if (email) resolvedDistinctId = email
+        else return { error: 'Please specify distinctId, user, or email.' }
+      }
+
+      await capturePostHogEventApi(
+        apiKey,
+        projectId,
+        {
+          distinctId: resolvedDistinctId,
+          event,
+          properties: properties ?? {},
+        },
+        host
+      )
+
+      return {
+        success: true,
+        event,
+        distinctId: resolvedDistinctId,
+        message: `Captured event "${event}" for distinct ID "${resolvedDistinctId}" in PostHog.`,
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to capture PostHog event' }
+    }
+  },
+})
+
 // ============================================================
 //  Intercom Tools — Full Conversation Management & Support
 // ============================================================
@@ -4439,6 +4754,243 @@ export const tagIntercomConvo = tool({
   },
 })
 
+// ----- Tool: Update Intercom Contact -----
+
+export const updateIntercomContactTool = tool({
+  description:
+    'Update an Intercom contact\'s name, phone, or custom attributes (e.g., plan, MRR, churn risk tier, status). Automatically syncs identity to the local workspace database. CAUTION: Modifies customer profile in Intercom. Set confirmUpdate=true to execute.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    contactId: z.string().optional().describe('The Intercom contact ID (optional if user, email, or accountName provided)'),
+    user: z.string().optional().describe('Contact/user name (e.g. "Rohan")'),
+    email: z.string().optional().describe('User email address'),
+    accountName: z.string().optional().describe('Customer account name (e.g. "Apex MultiRail")'),
+    name: z.string().optional().describe('Updated name for the contact'),
+    phone: z.string().optional().describe('Updated phone number for the contact'),
+    customAttributes: z.record(z.string(), z.unknown()).optional().describe('Key-value custom attributes to update (e.g. { plan: "enterprise", churn_risk: "high" })'),
+    confirmUpdate: z.boolean().describe('Must be true to execute update. Set false to preview.'),
+  }),
+  execute: async ({ workspaceId, contactId, user, email, accountName, name, phone, customAttributes, confirmUpdate }) => {
+    try {
+      const { accessToken, apiBaseUrl } = await getIntercomCredentials(workspaceId)
+      const supabase = createServiceClient()
+
+      let resolvedContactId = contactId
+      let resolvedContactEmail = email
+      let resolvedContactName = user
+      let customerAccountId: string | null = null
+
+      if (!resolvedContactId && (user || email || accountName)) {
+        const entity = await resolveCustomerEntity(supabase, workspaceId, {
+          personName: user,
+          email,
+          accountName,
+        })
+        if (entity.intercomContactId) resolvedContactId = entity.intercomContactId
+        if (entity.contactEmail && !resolvedContactEmail) resolvedContactEmail = entity.contactEmail
+        if (entity.contactName && !resolvedContactName) resolvedContactName = entity.contactName
+        if (entity.accountId) customerAccountId = entity.accountId
+      }
+
+      if (!resolvedContactId && (resolvedContactEmail || user || accountName)) {
+        const query = resolvedContactEmail || user || accountName || ''
+        const found = await searchIntercomContactsFn(accessToken, apiBaseUrl, query)
+        if (found[0]?.id) resolvedContactId = found[0].id
+      }
+
+      if (!resolvedContactId) {
+        return { error: 'Please specify contactId, user, email, or accountName.' }
+      }
+
+      if (!confirmUpdate) {
+        return {
+          preview: true,
+          contactId: resolvedContactId,
+          targetUser: resolvedContactName,
+          targetEmail: resolvedContactEmail,
+          updates: { name, phone, customAttributes },
+          message: `Preview: Would update Intercom contact "${resolvedContactId}" with: ${JSON.stringify({ name, phone, customAttributes })}. Set confirmUpdate=true to execute.`,
+        }
+      }
+
+      const updated = await updateIntercomContactFn(accessToken, apiBaseUrl, resolvedContactId, {
+        name,
+        phone,
+        customAttributes,
+      })
+
+      const syncResult = await syncProviderIdentityToContact(supabase, workspaceId, {
+        contactEmail: resolvedContactEmail || updated.email,
+        contactName: resolvedContactName || updated.name,
+        customerAccountId,
+        provider: 'intercom',
+        providerId: resolvedContactId,
+      })
+
+      await logAgentRun({
+        workspaceId,
+        runType: 'intercom_contact_updated',
+        status: 'completed',
+        outputSummary: `Intercom contact ${resolvedContactId} updated`,
+        metadata: {
+          contactId: resolvedContactId,
+          updates: { name, phone, customAttributes },
+          syncedToLocalDb: syncResult.synced,
+        },
+      })
+
+      return {
+        success: true,
+        contactId: updated.id,
+        name: updated.name,
+        email: updated.email,
+        customAttributes: updated.custom_attributes,
+        localDbSync: syncResult.message,
+        message: `Successfully updated Intercom contact ${updated.id}`,
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to update Intercom contact' }
+    }
+  },
+})
+
+// ----- Tool: Create Intercom Contact -----
+
+export const createIntercomContactTool = tool({
+  description:
+    'Create a new user or lead in Intercom. Automatically syncs with local workspace database contacts.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    email: z.string().describe('Email address of the contact'),
+    name: z.string().optional().describe('Full name of the contact'),
+    role: z.enum(['user', 'lead']).optional().describe('Role: "user" (paying/registered) or "lead" (prospect). Default: "user"'),
+    phone: z.string().optional().describe('Phone number of the contact'),
+    customAttributes: z.record(z.string(), z.unknown()).optional().describe('Optional custom attributes'),
+    accountName: z.string().optional().describe('Customer account name to link in local database'),
+  }),
+  execute: async ({ workspaceId, email, name, role, phone, customAttributes, accountName }) => {
+    try {
+      const { accessToken, apiBaseUrl } = await getIntercomCredentials(workspaceId)
+      const supabase = createServiceClient()
+
+      const created = await createIntercomContactFn(accessToken, apiBaseUrl, {
+        email,
+        name,
+        role: role ?? 'user',
+        phone,
+        customAttributes,
+      })
+
+      const contactId = created.id || ''
+
+      // Sync to local database
+      let customerAccountId: string | null = null
+      if (accountName) {
+        const entity = await resolveCustomerEntity(supabase, workspaceId, { accountName })
+        if (entity.accountId) customerAccountId = entity.accountId
+      }
+
+      const syncResult = await syncProviderIdentityToContact(supabase, workspaceId, {
+        contactEmail: email,
+        contactName: name,
+        customerAccountId,
+        provider: 'intercom',
+        providerId: contactId,
+      })
+
+      return {
+        success: true,
+        contactId,
+        email: created.email,
+        name: created.name,
+        role: created.role,
+        localDbSync: syncResult.message,
+        message: `Successfully created Intercom contact ${contactId} (${email})`,
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to create Intercom contact' }
+    }
+  },
+})
+
+// ----- Tool: Tag Intercom Contact -----
+
+export const tagIntercomContactTool = tool({
+  description:
+    'Add a tag to an Intercom contact for segmentation, alert tracking, or churn classification (e.g. "vip", "churn-risk", "enterprise").',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    contactId: z.string().optional().describe('The Intercom contact ID (optional if user or email provided)'),
+    tagId: z.string().describe('The tag ID to apply'),
+    user: z.string().optional().describe('Contact/user name (e.g. "Rohan")'),
+    email: z.string().optional().describe('Contact email address'),
+    accountName: z.string().optional().describe('Customer account name'),
+  }),
+  execute: async ({ workspaceId, contactId, tagId, user, email, accountName }) => {
+    try {
+      const { accessToken, apiBaseUrl } = await getIntercomCredentials(workspaceId)
+
+      let resolvedContactId = contactId
+
+      if (!resolvedContactId && (user || email || accountName)) {
+        const supabase = createServiceClient()
+        const entity = await resolveCustomerEntity(supabase, workspaceId, {
+          personName: user,
+          email,
+          accountName,
+        })
+        if (entity.intercomContactId) resolvedContactId = entity.intercomContactId
+        if (!resolvedContactId && (email || user || accountName)) {
+          const query = email || user || accountName || ''
+          const found = await searchIntercomContactsFn(accessToken, apiBaseUrl, query)
+          if (found[0]?.id) resolvedContactId = found[0].id
+        }
+      }
+
+      if (!resolvedContactId) {
+        return { error: 'Please specify contactId, user, email, or accountName.' }
+      }
+
+      const tagged = await tagIntercomContactFn(accessToken, apiBaseUrl, resolvedContactId, tagId)
+      return {
+        success: true,
+        contactId: resolvedContactId,
+        tagId,
+        tagName: tagged.name,
+        message: `Tagged Intercom contact ${resolvedContactId} with "${tagged.name || tagId}"`,
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to tag Intercom contact' }
+    }
+  },
+})
+
+// ----- Tool: Reopen Intercom Conversation -----
+
+export const reopenIntercomConvo = tool({
+  description:
+    'Reopen a closed Intercom conversation. Use when an issue is ongoing or a customer writes back on a closed thread.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    conversationId: z.string().describe('The Intercom conversation ID to reopen'),
+    adminId: z.string().describe('The admin ID reopening the conversation (from listIntercomAdmins or conversation assignee)'),
+  }),
+  execute: async ({ workspaceId, conversationId, adminId }) => {
+    try {
+      const { accessToken, apiBaseUrl } = await getIntercomCredentials(workspaceId)
+      const reopened = await reopenConversationFn(accessToken, apiBaseUrl, conversationId, adminId)
+      return {
+        success: true,
+        conversationId: reopened.id,
+        state: reopened.state,
+        message: `Reopened Intercom conversation ${reopened.id}`,
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to reopen Intercom conversation' }
+    }
+  },
+})
+
 // ============================================================
 //  Stripe Tools — Full Customer, Subscription, Invoice Management
 // ============================================================
@@ -4530,6 +5082,102 @@ export const getStripeCustomerDetail = tool({
       }
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to get customer' }
+    }
+  },
+})
+
+// ----- Tool: Update Stripe Customer -----
+
+export const updateStripeCustomerTool = tool({
+  description:
+    'Update a Stripe customer\'s name, email, or metadata (e.g. churn flags, account tier, external IDs). Automatically syncs identity to the local workspace database. CAUTION: Modifies live Stripe records. Set confirmUpdate=true to execute.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    customerId: z.string().optional().describe('The Stripe customer ID (cus_xxx). Optional if accountName, email, or user is provided.'),
+    accountName: z.string().optional().describe('Customer account name (e.g. "Apex MultiRail")'),
+    email: z.string().optional().describe('Customer billing email to locate'),
+    user: z.string().optional().describe('Contact name (e.g. "Rohan")'),
+    name: z.string().optional().describe('Updated customer display name'),
+    newEmail: z.string().optional().describe('Updated billing email address'),
+    metadata: z.record(z.string(), z.string()).optional().describe('Key-value metadata dictionary to store in Stripe'),
+    confirmUpdate: z.boolean().describe('Must be true to execute update. Set false to preview.'),
+  }),
+  execute: async ({ workspaceId, customerId, accountName, email, user, name, newEmail, metadata, confirmUpdate }) => {
+    try {
+      const stripe = await getStripeClient(workspaceId)
+      const supabase = createServiceClient()
+
+      let resolvedCustomerId = customerId
+      let resolvedContactEmail = email
+      let resolvedContactName = user
+      let customerAccountId: string | null = null
+
+      if (!resolvedCustomerId && (accountName || email || user)) {
+        const entity = await resolveCustomerEntity(supabase, workspaceId, { accountName, email, personName: user })
+        resolvedCustomerId = entity.stripeCustomerId || undefined
+        if (entity.contactEmail && !resolvedContactEmail) resolvedContactEmail = entity.contactEmail
+        if (entity.contactName && !resolvedContactName) resolvedContactName = entity.contactName
+        if (entity.accountId) customerAccountId = entity.accountId
+
+        if (!resolvedCustomerId) {
+          const query = accountName || email || user || ''
+          const found = await searchStripeCustomers(stripe, query, 1)
+          resolvedCustomerId = found[0]?.id
+        }
+      }
+
+      if (!resolvedCustomerId) {
+        return { error: 'Please specify customerId, accountName, email, or user.' }
+      }
+
+      if (!confirmUpdate) {
+        return {
+          preview: true,
+          customerId: resolvedCustomerId,
+          targetUser: resolvedContactName,
+          targetEmail: resolvedContactEmail,
+          updates: { name, email: newEmail, metadata },
+          message: `Preview: Would update Stripe customer "${resolvedCustomerId}" with: ${JSON.stringify({ name, email: newEmail, metadata })}. Set confirmUpdate=true to execute.`,
+        }
+      }
+
+      const updated = await updateStripeCustomer(stripe, resolvedCustomerId, {
+        name,
+        email: newEmail,
+        metadata,
+      })
+
+      const syncResult = await syncProviderIdentityToContact(supabase, workspaceId, {
+        contactEmail: newEmail || resolvedContactEmail || updated.email,
+        contactName: name || resolvedContactName || updated.name,
+        customerAccountId,
+        provider: 'stripe',
+        providerId: resolvedCustomerId,
+      })
+
+      await logAgentRun({
+        workspaceId,
+        runType: 'stripe_customer_updated',
+        status: 'completed',
+        outputSummary: `Stripe customer ${resolvedCustomerId} updated`,
+        metadata: {
+          customerId: resolvedCustomerId,
+          updates: { name, email: newEmail, metadata },
+          syncedToLocalDb: syncResult.synced,
+        },
+      })
+
+      return {
+        success: true,
+        customerId: updated.id,
+        name: updated.name,
+        email: updated.email,
+        metadata: updated.metadata,
+        localDbSync: syncResult.message,
+        message: `Successfully updated Stripe customer ${updated.id}`,
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to update Stripe customer' }
     }
   },
 })
@@ -4640,6 +5288,40 @@ export const getUpcomingStripeInvoice = tool({
   },
 })
 
+// ----- Tool: Void Stripe Invoice -----
+
+export const voidStripeInvoiceTool = tool({
+  description:
+    'Void an open or uncollectible Stripe invoice. CAUTION: Irreversible billing action. Set confirmVoid=true to execute; defaults to preview mode.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    invoiceId: z.string().describe('The Stripe invoice ID (in_xxx)'),
+    confirmVoid: z.boolean().describe('Must be true to actually void invoice. Set false to preview.'),
+  }),
+  execute: async ({ workspaceId, invoiceId, confirmVoid }) => {
+    try {
+      if (!confirmVoid) {
+        return {
+          preview: true,
+          invoiceId,
+          message: `Preview: Would void invoice "${invoiceId}". Set confirmVoid=true to execute.`,
+        }
+      }
+
+      const stripe = await getStripeClient(workspaceId)
+      const voided = await voidStripeInvoice(stripe, invoiceId)
+      return {
+        success: true,
+        invoiceId: voided.id,
+        status: voided.status,
+        message: `Successfully voided invoice ${voided.id}`,
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to void invoice' }
+    }
+  },
+})
+
 // ----- Tool: Get Stripe Subscription Detail -----
 
 export const getStripeSubscriptionDetail = tool({
@@ -4732,6 +5414,130 @@ export const cancelStripeSubscriptionTool = tool({
       }
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to cancel subscription' }
+    }
+  },
+})
+
+// ----- Tool: Pause Stripe Subscription -----
+
+export const pauseStripeSubscriptionTool = tool({
+  description:
+    'Pause payment collection on an active Stripe subscription (churn mitigation/temporary hold). Does not cancel access. Set confirmPause=true to execute; defaults to preview mode.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    subscriptionId: z.string().optional().describe('The Stripe subscription ID (sub_xxx). Optional if customerId, accountName, or user is provided.'),
+    customerId: z.string().optional().describe('The Stripe customer ID (cus_xxx)'),
+    accountName: z.string().optional().describe('Customer account name (e.g. "Apex MultiRail")'),
+    user: z.string().optional().describe('Contact name (e.g. "Rohan")'),
+    confirmPause: z.boolean().describe('Must be true to actually pause. Set false to preview.'),
+  }),
+  execute: async ({ workspaceId, subscriptionId, customerId, accountName, user, confirmPause }) => {
+    try {
+      const stripe = await getStripeClient(workspaceId)
+      let resolvedSubId = subscriptionId
+
+      if (!resolvedSubId && (customerId || accountName || user)) {
+        let resolvedCustId = customerId
+        if (!resolvedCustId && (accountName || user)) {
+          const supabase = createServiceClient()
+          const entity = await resolveCustomerEntity(supabase, workspaceId, { accountName, personName: user })
+          resolvedCustId = entity.stripeCustomerId || undefined
+        }
+        if (resolvedCustId) {
+          const cust = await getStripeCustomer(stripe, resolvedCustId)
+          resolvedSubId = cust.subscriptions?.data?.[0]?.id
+        }
+      }
+
+      if (!resolvedSubId) {
+        return { error: 'Please specify subscriptionId, customerId, or accountName.' }
+      }
+
+      if (!confirmPause) {
+        const sub = await getStripeSubscription(stripe, resolvedSubId)
+        return {
+          preview: true,
+          subscriptionId: resolvedSubId,
+          status: sub.status,
+          message: `Preview: Would pause payment collection for subscription "${resolvedSubId}". Set confirmPause=true to execute.`,
+        }
+      }
+
+      const paused = await pauseStripeSubscription(stripe, resolvedSubId)
+
+      await logAgentRun({
+        workspaceId,
+        runType: 'stripe_subscription_paused',
+        status: 'completed',
+        outputSummary: `Stripe subscription ${resolvedSubId} paused`,
+        metadata: { subscriptionId: resolvedSubId },
+      })
+
+      return {
+        success: true,
+        subscriptionId: paused.id,
+        status: paused.status,
+        pauseCollection: paused.pause_collection,
+        message: `Successfully paused subscription ${paused.id}`,
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to pause subscription' }
+    }
+  },
+})
+
+// ----- Tool: Resume Stripe Subscription -----
+
+export const resumeStripeSubscriptionTool = tool({
+  description:
+    'Resume payment collection on a paused Stripe subscription. Set confirmResume=true to execute.',
+  inputSchema: z.object({
+    workspaceId: z.string().describe('The workspace ID'),
+    subscriptionId: z.string().optional().describe('The Stripe subscription ID (sub_xxx). Optional if customerId, accountName, or user is provided.'),
+    customerId: z.string().optional().describe('The Stripe customer ID (cus_xxx)'),
+    accountName: z.string().optional().describe('Customer account name'),
+    user: z.string().optional().describe('Contact name'),
+    confirmResume: z.boolean().describe('Must be true to actually resume. Set false to preview.'),
+  }),
+  execute: async ({ workspaceId, subscriptionId, customerId, accountName, user, confirmResume }) => {
+    try {
+      const stripe = await getStripeClient(workspaceId)
+      let resolvedSubId = subscriptionId
+
+      if (!resolvedSubId && (customerId || accountName || user)) {
+        let resolvedCustId = customerId
+        if (!resolvedCustId && (accountName || user)) {
+          const supabase = createServiceClient()
+          const entity = await resolveCustomerEntity(supabase, workspaceId, { accountName, personName: user })
+          resolvedCustId = entity.stripeCustomerId || undefined
+        }
+        if (resolvedCustId) {
+          const cust = await getStripeCustomer(stripe, resolvedCustId)
+          resolvedSubId = cust.subscriptions?.data?.[0]?.id
+        }
+      }
+
+      if (!resolvedSubId) {
+        return { error: 'Please specify subscriptionId, customerId, or accountName.' }
+      }
+
+      if (!confirmResume) {
+        return {
+          preview: true,
+          subscriptionId: resolvedSubId,
+          message: `Preview: Would resume payment collection for subscription "${resolvedSubId}". Set confirmResume=true to execute.`,
+        }
+      }
+
+      const resumed = await resumeStripeSubscription(stripe, resolvedSubId)
+      return {
+        success: true,
+        subscriptionId: resumed.id,
+        status: resumed.status,
+        message: `Successfully resumed subscription ${resumed.id}`,
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to resume subscription' }
     }
   },
 })

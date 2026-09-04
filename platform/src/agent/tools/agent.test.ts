@@ -648,6 +648,88 @@ test('TC-2.9: Sarah and Alex personas have access to all 4 recovery pipeline too
   }
 })
 
+test('Safe Cross-Platform Tools: PostHog, Stripe, and Intercom tools are registered with provider guards', () => {
+  const newToolProviderMap = {
+    // PostHog
+    getPostHogPersonDetail: 'posthog',
+    identifyPostHogUser: 'posthog',
+    capturePostHogEventTool: 'posthog',
+    // Stripe
+    updateStripeCustomerTool: 'stripe',
+    pauseStripeSubscriptionTool: 'stripe',
+    resumeStripeSubscriptionTool: 'stripe',
+    voidStripeInvoiceTool: 'stripe',
+    // Intercom
+    updateIntercomContactTool: 'intercom',
+    createIntercomContactTool: 'intercom',
+    tagIntercomContactTool: 'intercom',
+    reopenIntercomConvo: 'intercom',
+  } as const
+
+  const alexTools = new Set(getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' }))
+
+  for (const [toolName, expectedProvider] of Object.entries(newToolProviderMap)) {
+    assert.ok(alexTools.has(toolName), `Allel must expose ${toolName}`)
+    assert.equal(
+      getIntegrationProviderForTool(toolName),
+      expectedProvider,
+      `${toolName} must map to ${expectedProvider} provider guard`
+    )
+  }
+})
+
+test('Safe Cross-Platform Tools: Sarah has retention & billing mutation capabilities', () => {
+  const sarahTools = new Set(getAvailableToolNamesForPersona('sarah', undefined, { channel: 'chat' }))
+
+  const sarahRequired = [
+    'updateStripeCustomerTool',
+    'pauseStripeSubscriptionTool',
+    'resumeStripeSubscriptionTool',
+    'voidStripeInvoiceTool',
+    'identifyPostHogUser',
+    'getPostHogPersonDetail',
+    'capturePostHogEventTool',
+  ]
+
+  for (const toolName of sarahRequired) {
+    assert.ok(sarahTools.has(toolName), `Sarah must expose ${toolName}`)
+  }
+})
+
+test('Safe Cross-Platform Tools: intent routing selects mutation tools on relevant prompts', () => {
+  const alexEligible = getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' })
+
+  // PostHog intent routing
+  const posthogSelected = selectRelevantToolsForPrompt(
+    'Identify user Rohan in posthog and update person properties to enterprise',
+    alexEligible,
+    undefined,
+    { channel: 'chat' }
+  )
+  assert.ok(posthogSelected.includes('identifyPostHogUser'), 'Must route identifyPostHogUser')
+  assert.ok(posthogSelected.includes('getPostHogPersonDetail'), 'Must route getPostHogPersonDetail')
+
+  // Stripe intent routing
+  const stripeSelected = selectRelevantToolsForPrompt(
+    'Pause subscription for Apex MultiRail and update customer billing info',
+    alexEligible,
+    undefined,
+    { channel: 'chat' }
+  )
+  assert.ok(stripeSelected.includes('pauseStripeSubscriptionTool'), 'Must route pauseStripeSubscriptionTool')
+  assert.ok(stripeSelected.includes('updateStripeCustomerTool'), 'Must route updateStripeCustomerTool')
+
+  // Intercom intent routing
+  const intercomSelected = selectRelevantToolsForPrompt(
+    'Reopen conversation on intercom and tag user as churn-risk',
+    alexEligible,
+    undefined,
+    { channel: 'chat' }
+  )
+  assert.ok(intercomSelected.includes('reopenIntercomConvo'), 'Must route reopenIntercomConvo')
+  assert.ok(intercomSelected.includes('tagIntercomContactTool'), 'Must route tagIntercomContactTool')
+})
+
 
 
 
