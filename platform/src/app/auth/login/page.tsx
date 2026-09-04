@@ -121,12 +121,11 @@ export default function LoginPage() {
 
         {sent ? (
           <div className="border border-[#ffffff12] bg-[#111] p-8 text-center flex flex-col items-center">
-            <div className="mb-3 text-[28px]">🔐</div>
-            <h2 className="mb-1.5 text-[18px] font-medium text-white tracking-tight">
-              Enter verification code
+            <h2 className="mb-1.5 text-[20px] font-medium text-white tracking-tight">
+              Enter OTP
             </h2>
-            <p className="text-[13.5px] leading-relaxed text-[#777] max-w-[320px] mb-6">
-              We sent a 6-digit code to <span className="text-white font-medium">{email}</span>.
+            <p className="text-[13.5px] leading-relaxed text-[#777] max-w-[340px] mb-6">
+              Enter the 6-digit code sent to <span className="text-white font-medium">{email}</span>
             </p>
 
             <OtpInput
@@ -135,7 +134,7 @@ export default function LoginPage() {
               disabled={verifying}
               status={otpStatus}
               errorMessage={otpError}
-              hint="Paste or type the 6-digit code from your email"
+              hint=""
               onChange={() => {
                 if (otpStatus === 'error') {
                   setOtpStatus('idle')
