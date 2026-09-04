@@ -2566,25 +2566,13 @@ export function AgentFeed() {
     }
   }, [displayMessages, status, isLoading])
 
-  // Show loading skeleton during server hydration
+  // Show round loader with plain text during server hydration
   if (hydrationStatus === "loading") {
     return (
-      <div className="w-full h-full flex-1 min-h-0 overflow-hidden px-6 py-6 flex flex-col gap-6 animate-in fade-in duration-150 select-none">
-        {/* User query bubble skeleton */}
-        <div className="flex justify-end w-full">
-          <div className="w-1/3 min-w-[220px] max-w-[360px] h-10 rounded-2xl bg-white/[0.04] animate-pulse border border-white/[0.05]" />
-        </div>
-        {/* Agent response bubble skeleton */}
-        <div className="flex flex-col gap-3 w-full max-w-[580px]">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-full bg-white/[0.06] animate-pulse" />
-            <div className="w-24 h-3 rounded bg-white/[0.06] animate-pulse" />
-          </div>
-          <div className="w-full h-24 rounded-2xl bg-white/[0.03] border border-white/[0.05] p-4 flex flex-col gap-2.5">
-            <div className="w-4/5 h-3 rounded bg-white/[0.05] animate-pulse" />
-            <div className="w-3/5 h-3 rounded bg-white/[0.04] animate-pulse" />
-            <div className="w-2/5 h-3 rounded bg-white/[0.03] animate-pulse" />
-          </div>
+      <div className="flex-1 w-full h-full flex flex-col items-center justify-center animate-in fade-in duration-150 select-none">
+        <div className="flex items-center gap-2.5 text-zinc-400">
+          <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+          <span className="text-xs sm:text-[13px] font-normal text-zinc-400">Loading conversation...</span>
         </div>
       </div>
     )
