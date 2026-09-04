@@ -250,12 +250,8 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   };
 
   const handleSelectSession = (sessionId: string) => {
-    const session = chatContext?.savedSessions.find(
-      (item) => item.id === sessionId
-    );
-
-    if (session && chatContext?.loadChatSession) {
-      chatContext.loadChatSession(session);
+    if (chatContext?.switchSession) {
+      chatContext.switchSession(sessionId);
     } else {
       window.dispatchEvent(
         new CustomEvent("allel:load-session", {
@@ -263,8 +259,6 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
         })
       );
     }
-
-    router.push(`/dashboard?sessionId=${encodeURIComponent(sessionId)}`);
   };
 
   const activeSessionId = chatContext?.currentSessionId ?? null;
@@ -292,7 +286,18 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
     ) {
       const existingIdx = list.findIndex((s) => s.sessionId === activeSessionId);
       if (existingIdx >= 0) {
-        if (list[existingIdx].title !== activeSessionTitle) {
+        const existingTitle = list[existingIdx].title;
+        const isGeneric =
+          !existingTitle ||
+          existingTitle === "New Session" ||
+          existingTitle === "New Conversation" ||
+          existingTitle === "New task";
+        if (
+          isGeneric &&
+          !isResolving &&
+          activeSessionTitle !== "New Session" &&
+          activeSessionTitle !== "New Conversation"
+        ) {
           list[existingIdx] = { ...list[existingIdx], title: activeSessionTitle };
         }
       } else if (!isResolving) {
