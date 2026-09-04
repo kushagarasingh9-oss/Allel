@@ -240,12 +240,15 @@ export function ChatProvider({
 
   const wrappedSendMessage = React.useCallback(
     (options: { text: string }) => {
+      activeMessagesSessionIdRef.current = currentSessionId
       if (!messages || messages.length === 0) {
         if (typeof window !== "undefined" && currentSessionId !== "daily-brief" && !isBriefPage) {
           try {
             const url = new URL(window.location.href)
-            url.searchParams.set("sessionId", currentSessionId)
-            window.history.pushState({}, "", url.toString())
+            if (url.pathname === "/dashboard") {
+              url.searchParams.set("sessionId", currentSessionId)
+              window.history.replaceState({}, "", url.toString())
+            }
           } catch {
             // Ignore
           }
@@ -261,7 +264,7 @@ export function ChatProvider({
 
       sendMessage(options)
     },
-    [messages, sendMessage, currentSessionId]
+    [messages, sendMessage, currentSessionId, isBriefPage]
   )
 
   const persistThread = React.useCallback(() => {
@@ -469,7 +472,25 @@ export function ChatProvider({
             if (raw) {
               const parsed = JSON.parse(raw) as SavedChatSession[]
               if (Array.isArray(parsed)) {
-                const validSessions = parsed.filter((s) => s && s.id && serverSessionIds.has(s.id))
+                const validSessions = parsed
+                  .filter((s) => s && s.id && serverSessionIds.has(s.id))
+                  .map((s) => {
+                    const isContaminated =
+                      s.id !== "daily-brief" &&
+                      s.messages?.some((m) =>
+                        m.parts?.some(
+                          (p: any) =>
+                            typeof p.text === "string" &&
+                            (p.text.includes("Reading your inbox") ||
+                              p.text.includes("threads total,") ||
+                              p.text.includes("auto-cleared digests"))
+                        )
+                      )
+                    if (isContaminated) {
+                      return { ...s, messages: [], messageCount: 0 }
+                    }
+                    return s
+                  })
                 setSavedSessions(validSessions)
                 window.localStorage.setItem("allel.chat-history.v1", JSON.stringify(validSessions))
                 return
@@ -529,7 +550,22 @@ export function ChatProvider({
         (s) => s.id === targetSessionId && Array.isArray(s.messages) && s.messages.length > 0
       )
 
-      if (cached) {
+      // Guard: If cached messages for a normal session appear contaminated with brief messages, skip cache and re-hydrate from authoritative server history
+      const isContaminated =
+        cached &&
+        targetSessionId !== "daily-brief" &&
+        cached.messages.some((m) =>
+          m.parts?.some(
+            (p: any) =>
+              typeof p.text === "string" &&
+              (p.text.includes("Reading your inbox") ||
+                p.text.includes("threads total,") ||
+                p.text.includes("auto-cleared digests") ||
+                p.text.includes("reply-worthy"))
+          )
+        )
+
+      if (cached && !isContaminated) {
         activeMessagesSessionIdRef.current = targetSessionId
         if (chatRef.current) {
           chatRef.current.chat.messages = cached.messages
@@ -624,6 +660,7 @@ export function ChatProvider({
         chatRef.current = null
         restoredSessionIdRef.current = "daily-brief"
         currentSessionIdRef.current = "daily-brief"
+        activeMessagesSessionIdRef.current = "daily-brief"
         setCurrentSessionId("daily-brief")
 
         if (typeof window !== "undefined") {
@@ -646,15 +683,15 @@ export function ChatProvider({
     } else if (pathname === "/dashboard") {
       const urlSession = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sessionId") : null
       if (urlSession && urlSession !== "daily-brief") {
-        if (urlSession !== currentSessionIdRef.current || messages.length === 0) {
+        if (urlSession !== currentSessionIdRef.current || messages.length === 0 || activeMessagesSessionIdRef.current === "daily-brief") {
           switchSession(urlSession, true)
           return
         }
       } else if (!urlSession) {
-        if (currentSessionId === "daily-brief") {
+        if (currentSessionId === "daily-brief" || activeMessagesSessionIdRef.current === "daily-brief") {
           const lastTask = typeof window !== "undefined" ? window.sessionStorage.getItem("allel.last-task-session-id") : null
-          const targetId = lastTask || `session-${Date.now()}`
-          switchSession(targetId)
+          const targetId = (lastTask && lastTask !== "daily-brief") ? lastTask : `session-${Date.now()}`
+          switchSession(targetId, true)
         } else if (currentSessionId && messages.length === 0) {
           switchSession(currentSessionId, true)
         }
@@ -671,7 +708,7 @@ export function ChatProvider({
     const hasUserMsg = messages.some((m) => m.role === "user")
     if (!hasUserMsg) return
 
-    if (currentSessionId === "daily-brief" || isBriefPage) {
+    if (currentSessionId === "daily-brief" || isBriefPage || activeMessagesSessionIdRef.current === "daily-brief") {
       try {
         window.sessionStorage.setItem("allel.daily-brief-messages", JSON.stringify(messages))
       } catch {
