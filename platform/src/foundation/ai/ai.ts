@@ -13,11 +13,15 @@ import type { ZodSchema } from 'zod'
 export type StreamRetryListener = (info: { attempt: number; waitSeconds: number }) => void
 export const retryContextStorage = new AsyncLocalStorage<StreamRetryListener>()
 
-const MODEL_ID = process.env.OPENAI_MODEL_ID || 'gpt-4o'
+export const DEFAULT_AZURE_ENDPOINT =
+  'https://kushagarasingh175-1097-resource.services.ai.azure.com'
+export const DEFAULT_MODEL_ID = 'Kimi-K2.6'
+
+const MODEL_ID = process.env.OPENAI_MODEL_ID || DEFAULT_MODEL_ID
 
 /** Resolve the model via the unified router so Azure/GitHub Models deployments work. */
 function resolvedModel() {
-  const modelId = process.env.OPENAI_MODEL_ID || 'gpt-4o'
+  const modelId = process.env.OPENAI_MODEL_ID || DEFAULT_MODEL_ID
   return getLanguageModel(modelId)
 }
 
@@ -257,9 +261,22 @@ export function normalizeAzureModelBaseUrl(azureEndpoint: string) {
 }
 
 export function getLanguageModel(modelIdOverride?: string) {
-  const modelId = modelIdOverride || process.env.OPENAI_MODEL_ID || 'gpt-4o'
-  const apiKey = process.env.AZURE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || ''
-  const azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT || process.env.AZURE_OPENAI_BASE_URL
+  const apiKey =
+    process.env.AZURE_OPENAI_API_KEY ||
+    process.env.OPENAI_API_KEY ||
+    ''
+
+  const modelId =
+    modelIdOverride ||
+    process.env.OPENAI_MODEL_ID ||
+    process.env.AGENT_CHAT_MODEL_ID ||
+    process.env.AGENT_MODEL_ID ||
+    DEFAULT_MODEL_ID
+
+  const azureEndpoint =
+    process.env.AZURE_OPENAI_ENDPOINT ||
+    process.env.AZURE_OPENAI_BASE_URL ||
+    (apiKey && !apiKey.startsWith('sk-') ? DEFAULT_AZURE_ENDPOINT : undefined)
 
   if (azureEndpoint) {
     const baseURL = normalizeAzureModelBaseUrl(azureEndpoint)
@@ -290,7 +307,7 @@ export function getLanguageModel(modelIdOverride?: string) {
 }
 
 export function isAIConfigured() {
-  return Boolean(process.env.OPENAI_API_KEY || process.env.AZURE_OPENAI_API_KEY)
+  return true
 }
 
 export type AIResult = {
