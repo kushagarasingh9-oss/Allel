@@ -12,34 +12,223 @@ const RAW_PRICING_HTML = `
 
 	<div id="main" data-framer-hydrate-v2="{&quot;routeId&quot;:&quot;drKg44XRL&quot;,&quot;localeId&quot;:&quot;default&quot;,&quot;breakpoints&quot;:[{&quot;hash&quot;:&quot;1i5tnes&quot;},{&quot;hash&quot;:&quot;1y8ilu8&quot;}]}" data-framer-ssr-released-at="2026-08-06T12:57:44.116Z" data-framer-page-optimized-at="2026-08-08T20:23:51.801Z" data-framer-generated-page><style data-framer-html-style>:root body { background: rgb(11, 11, 10); } :root { font-size: 100%; }</style><div class="framer-EWCJ0 framer-xxVvw framer-5RUiA framer-peJNi framer-1y8ilu8" data-layout-template="true" style="min-height:100vh;width:auto"><nav class="framer-18q8gw8" data-border="true" data-framer-name="Navigation"><div class="framer-8nv6z" data-framer-name="Logo, Links"><a class="framer-1copcxj framer-10gzi24" data-framer-name="Logo" href="/" data-framer-page-link-current="true"><div class="framer-j9tvgv" data-border="true" data-framer-name="Mark"><div class="framer-1a81oly" data-framer-component-type="RichTextContainer" style="transform:none"><p dir="auto" class="framer-text"><br class="framer-text trailing-break"></p></div></div><div class="framer-gdhgkz" data-framer-component-type="RichTextContainer" style="transform:none"><p dir="auto" style="--font-selector:RlM7Q2FiaW5ldCBHcm90ZXNrLW1lZGl1bQ==;--framer-font-family:&quot;Cabinet Grotesk&quot;, &quot;Cabinet Grotesk Placeholder&quot;, sans-serif;--framer-font-size:18px;--framer-font-weight:700;--framer-letter-spacing:-0.02em;--framer-line-height:1em;--framer-text-color:var(--token-4b5c2631-4675-4701-82c8-51d44ba443f5)" class="framer-text">Allel</p></div></a><div class="framer-mz184g" data-framer-name="Links"><div class="framer-5e0b9c" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-color:var(--token-a858697d-e879-4ab9-8f8f-ff96d21fdb35)"><a class="framer-text framer-styles-preset-1iu12xx" data-styles-preset="xlbHrByZf" href="/">Home</a></p></div><div class="framer-164r8t5" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto"><a class="framer-text framer-styles-preset-1iu12xx" data-styles-preset="xlbHrByZf" href="/pricing" data-framer-page-link-current="true">Pricing</a></p></div><div class="framer-vv10o6" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto"><a class="framer-text framer-styles-preset-1iu12xx" data-styles-preset="xlbHrByZf" href="/docs">Docs</a></p></div><div class="framer-z28np0" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto"><a class="framer-text framer-styles-preset-1iu12xx" data-styles-preset="xlbHrByZf" href="/about">About</a></p></div></div></div><div class="framer-exl63j" data-framer-name="Actions"><div class="framer-1k966j4-container"><a class="framer-cze3Z framer-tomrni framer-v-tomrni framer-1ajje4b" data-framer-name="Primary" data-reset="button" href="/dashboard" style="--border-bottom-width:0px;--border-color:rgba(0, 0, 0, 0);--border-left-width:0px;--border-right-width:0px;--border-style:solid;--border-top-width:0px;background-color:var(--token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0);border-bottom-left-radius:2px;border-bottom-right-radius:2px;border-top-left-radius:2px;border-top-right-radius:2px;opacity:1"><div class="framer-i80ji1" data-framer-component-type="RichTextContainer" style="--extracted-r6o4lv:var(--token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7);transform:none"><p dir="auto" class="framer-text" style="--font-selector:RlM7Q2FiaW5ldCBHcm90ZXNrLW1lZGl1bQ==;--framer-font-family:&quot;Cabinet Grotesk&quot;, &quot;Cabinet Grotesk Placeholder&quot;, sans-serif;--framer-font-size:14px;--framer-font-weight:500;--framer-line-height:1em;--framer-text-color:var(--extracted-r6o4lv, var(--token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7))">Get started</p></div></a></div></div></nav><style data-framer-html-style>html body { background: none; }</style><div data-framer-root class="framer-173g0 framer-peJNi framer-wVy1P framer-xxVvw framer-4x0Yj framer-1i5tnes" style="min-height:100vh;width:auto;display:contents"><div class="framer-f1ggfl" data-border="true" data-framer-name="Pricing Frame"><div class="framer-1qh1v57" data-border="true" data-framer-name="Intro"><div class="framer-1t82zkt" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-qeu7lu" data-styles-preset="m8tRaA30T" dir="auto" style="--framer-text-color:var(--token-a858697d-e879-4ab9-8f8f-ff96d21fdb35)">Pricing</p></div><div class="framer-lc5osr" data-framer-component-type="RichTextContainer" style="transform:none"><h1 class="framer-text framer-styles-preset-14u5l3n" data-styles-preset="Zy1DBr_3g" dir="auto" style="--framer-text-alignment:center">Priced per seat, not per agent.</h1></div><div class="framer-9e2g0d" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:center">Connect unlimited tools on every plan. Deploy AI agents across your stack.</p></div></div><div class="framer-1amzxry" data-border="true" data-framer-name="Plans" style="opacity:1"><div class="framer-1y8dytg" data-border="true" data-framer-name="Plan"><div class="framer-d5bcqj" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-qeu7lu" data-styles-preset="m8tRaA30T" dir="auto" style="--framer-text-alignment:start">Starter</p></div><div class="framer-16320vx"><div class="framer-1d6qtl8" data-framer-component-type="RichTextContainer" style="transform:none"><h2 class="framer-text framer-styles-preset-3bj6q0" data-styles-preset="Z8E18yekC" dir="auto" style="--framer-text-alignment:start">$25</h2></div><div class="framer-jpxuo7" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">/month</p></div></div><div class="framer-1n9jkyq" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">For solo founders &amp; indie builders wiring up core tool automations.</p></div><div class="framer-e3fk3h"></div><div class="framer-10dyr7x" data-framer-name="Features"><div class="framer-ercjxt"><div class="framer-7x8i6b" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Unlimited app integrations</p></div></div><div class="framer-uz337h"><div class="framer-1k8a6i5" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">1,000 credits / month</p></div></div><div class="framer-1bwj68k"><div class="framer-rdv0y3" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Human-in-the-loop approval queue</p></div></div><div class="framer-10hidh8"><div class="framer-x9qtdr" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Daily founder briefs &amp; audit logs</p></div></div></div><div class="framer-1cuyyvl-container"><a class="framer-cze3Z framer-tomrni framer-v-o6lalm framer-1ajje4b" data-framer-name="Secondary" data-reset="button" data-border="true" href="/dashboard" style="--border-bottom-width:1px;--border-color:var(--token-fc3e2144-81ca-48e6-9365-4417af9831c9);--border-left-width:1px;--border-right-width:1px;--border-style:solid;--border-top-width:1px;background-color:var(--token-10e74244-94d1-431e-87d0-281bc16f26b9);border-bottom-left-radius:2px;border-bottom-right-radius:2px;border-top-left-radius:2px;border-top-right-radius:2px;opacity:1"><div class="framer-i80ji1" data-framer-component-type="RichTextContainer" style="--extracted-r6o4lv:var(--token-4b5c2631-4675-4701-82c8-51d44ba443f5);transform:none"><p dir="auto" class="framer-text" style="--font-selector:RlM7Q2FiaW5ldCBHcm90ZXNrLW1lZGl1bQ==;--framer-font-family:&quot;Cabinet Grotesk&quot;, &quot;Cabinet Grotesk Placeholder&quot;, sans-serif;--framer-font-size:14px;--framer-font-weight:500;--framer-line-height:1em;--framer-text-color:var(--extracted-r6o4lv, var(--token-4b5c2631-4675-4701-82c8-51d44ba443f5))">Start with Starter</p></div></a></div></div><div class="framer-pdkmxf" data-border="true" data-framer-name="Plan"><div class="framer-110977t" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-qeu7lu" data-styles-preset="m8tRaA30T" dir="auto" style="--framer-text-alignment:start">Growth</p></div><div class="framer-o8bpnk"><div class="framer-1eh0kox" data-framer-component-type="RichTextContainer" style="transform:none"><h2 class="framer-text framer-styles-preset-3bj6q0" data-styles-preset="Z8E18yekC" dir="auto" style="--framer-text-alignment:start">$49</h2></div><div class="framer-gw5egu" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">/month</p></div></div><div class="framer-epq2mi" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">For growing teams running continuous background agents across their stack.</p></div><div class="framer-1yv9ae4"></div><div class="framer-ivjm4i" data-framer-name="Features"><div class="framer-8rgdzy"><div class="framer-4qzs3z" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Unlimited app integrations</p></div></div><div class="framer-1p6kapg"><div class="framer-16cdtey" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">2,500 credits / month</p></div></div><div class="framer-t7i4il"><div class="framer-150d2oa" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Real-time webhook &amp; event triggers</p></div></div><div class="framer-geosqk"><div class="framer-m4evpu" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Custom agent policies &amp; safety controls</p></div></div></div><div class="framer-1vkksv7-container"><a class="framer-cze3Z framer-tomrni framer-v-tomrni framer-1ajje4b" data-framer-name="Primary" data-reset="button" href="/dashboard" style="--border-bottom-width:0px;--border-color:rgba(0, 0, 0, 0);--border-left-width:0px;--border-right-width:0px;--border-style:solid;--border-top-width:0px;background-color:var(--token-3ecbcdcb-d687-4568-8ed1-ce89eb81fae0);border-bottom-left-radius:2px;border-bottom-right-radius:2px;border-top-left-radius:2px;border-top-right-radius:2px;opacity:1"><div class="framer-i80ji1" data-framer-component-type="RichTextContainer" style="--extracted-r6o4lv:var(--token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7);transform:none"><p dir="auto" class="framer-text" style="--font-selector:RlM7Q2FiaW5ldCBHcm90ZXNrLW1lZGl1bQ==;--framer-font-family:&quot;Cabinet Grotesk&quot;, &quot;Cabinet Grotesk Placeholder&quot;, sans-serif;--framer-font-size:14px;--framer-font-weight:500;--framer-line-height:1em;--framer-text-color:var(--extracted-r6o4lv, var(--token-bcd71c5d-2d0e-4873-99a0-673d2c1b67b7))">Get started</p></div></a></div></div><div class="framer-1xnzrcc" data-border="true" data-framer-name="Plan"><div class="framer-1f3kjqk" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-qeu7lu" data-styles-preset="m8tRaA30T" dir="auto" style="--framer-text-alignment:start">Pro</p></div><div class="framer-u4c3pn"><div class="framer-1e2wqcb" data-framer-component-type="RichTextContainer" style="transform:none"><h2 class="framer-text framer-styles-preset-3bj6q0" data-styles-preset="Z8E18yekC" dir="auto" style="--framer-text-alignment:start">$99</h2></div></div><div class="framer-1hkn59h" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">For fast-scaling startups requiring high-volume multi-agent orchestration.</p></div><div class="framer-1u19uc5"></div><div class="framer-tkefd5" data-framer-name="Features"><div class="framer-7ydoks"><div class="framer-hmdz82" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Unlimited app integrations</p></div></div><div class="framer-lpnkx0"><div class="framer-n582q3" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Unlimited agent credits</p></div></div><div class="framer-1gdbrn8"><div class="framer-mz7euj" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Multi-agent collaboration &amp; delegation</p></div></div><div class="framer-84sqzk"><div class="framer-j3umrg" data-framer-component-type="RichTextContainer" style="transform:none"><p class="framer-text framer-styles-preset-1kqzx7y" data-styles-preset="T2GmYkvPK" dir="auto" style="--framer-text-alignment:start">Dedicated 1-on-1 support &amp; priority SLA</p></div></div></div><div class="framer-18om1li-container"><a class="framer-cze3Z framer-tomrni framer-v-bg647z framer-1ajje4b" data-framer-name="Ghost" data-reset="button" data-border="true" href="/dashboard" style="--border-bottom-width:1px;--border-color:var(--token-ead5ee04-8072-43a8-8b63-6c52f5667fd6);--border-left-width:1px;--border-right-width:1px;--border-style:solid;--border-top-width:1px;background-color:rgba(0, 0, 0, 0);border-bottom-left-radius:2px;border-bottom-right-radius:2px;border-top-left-radius:2px;border-top-right-radius:2px;opacity:1"><div class="framer-i80ji1" data-framer-component-type="RichTextContainer" style="--extracted-r6o4lv:var(--token-a858697d-e879-4ab9-8f8f-ff96d21fdb35);transform:none"><p dir="auto" class="framer-text" style="--font-selector:RlM7Q2FiaW5ldCBHcm90ZXNrLW1lZGl1bQ==;--framer-font-family:&quot;Cabinet Grotesk&quot;, &quot;Cabinet Grotesk Placeholder&quot;, sans-serif;--framer-font-size:14px;--framer-font-weight:500;--framer-line-height:1em;--framer-text-color:var(--extracted-r6o4lv, var(--token-a858697d-e879-4ab9-8f8f-ff96d21fdb35))">Talk to us</p></div></a></div></div></div></div>`;
 
-const APPEAR_CSS = `
+import Link from 'next/link';
+import { createClient } from '@/foundation/database/client';
+
+const PRICING_STYLES = `
   [data-framer-appear-id] {
     opacity: 1 !important;
     transform: none !important;
+  }
+  body, html {
+    background-color: #0b0b0a !important;
+  }
+  a, button, [data-framer-name="Logo"], [data-framer-name="Links"] a {
+    cursor: pointer !important;
+  }
+  .landing-page-container [data-framer-name="Logo"] {
+    display: inline-flex !important;
+    align-items: center !important;
+    text-decoration: none !important;
+  }
+  .landing-page-container [data-framer-name="Logo"] .framer-j9tvgv {
+    display: none !important;
+  }
+  .allel-nav-brand-logo {
+    display: inline-block !important;
+    width: 17px !important;
+    height: 17px !important;
+    object-fit: contain !important;
+    margin-right: 8px !important;
+    flex-shrink: 0 !important;
+    background: transparent !important;
   }
 `;
 
 export default function PricingPage() {
   const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
 
   useEffect(() => {
     setMounted(true);
+    const supabase = createClient();
+
+    supabase.auth.getUser().then((res: { data: { user: { id: string; email?: string | null } | null } }) => {
+      if (res.data?.user) {
+        setUser({ id: res.data.user.id, email: res.data.user.email ?? undefined });
+      }
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event: unknown, session: { user?: { id: string; email?: string | null } } | null) => {
+      if (session?.user) {
+        setUser({ id: session.user.id, email: session.user.email ?? undefined });
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    const setupInteractions = () => {
+      const isAuthenticated = !!user;
+      const targetDestination = isAuthenticated ? '/dashboard' : '/auth/login';
+
+      // 1. Ensure Logo in Navbar
+      const navLogo = document.querySelector('[data-framer-name="Logo"]');
+      if (navLogo) {
+        let img = navLogo.querySelector('.allel-nav-brand-logo') as HTMLImageElement | null;
+        if (!img) {
+          img = document.createElement('img');
+          img.src = '/dot.png';
+          img.alt = 'Allel';
+          img.className = 'allel-nav-brand-logo';
+          img.style.cssText = 'width: 17px; height: 17px; margin-right: 8px; object-fit: contain; display: inline-block; vertical-align: middle; flex-shrink: 0; background: transparent;';
+          const textContainer = navLogo.querySelector('.framer-gdhgkz');
+          if (textContainer) {
+            navLogo.insertBefore(img, textContainer);
+          } else {
+            navLogo.prepend(img);
+          }
+        } else if (img.getAttribute('src') !== '/dot.png') {
+          img.setAttribute('src', '/dot.png');
+        }
+      }
+
+      // 2. Wire CTAs
+      const ctaButtons = document.querySelectorAll('a[href="/dashboard"]');
+      ctaButtons.forEach((btn) => {
+        const text = btn.textContent?.trim().toLowerCase();
+        if (text === 'talk to us') {
+          btn.setAttribute('href', 'mailto:kushagra@allel.co');
+        } else {
+          btn.setAttribute('href', targetDestination);
+        }
+      });
+
+      // 3. Document-wide capture click interception to bypass Framer router blockage
+      if (!document.body.getAttribute('data-pricing-nav-hooked')) {
+        document.body.setAttribute('data-pricing-nav-hooked', 'true');
+
+        document.addEventListener('click', (e) => {
+          const anchor = (e.target as HTMLElement)?.closest('a');
+          if (!anchor) return;
+
+          const rawHref = anchor.getAttribute('href');
+          if (!rawHref) return;
+
+          const href = rawHref.trim();
+
+          if (href === '/' || href === './') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.location.href = '/';
+            return;
+          }
+
+          if (href === '/pricing' || href === './pricing') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+          }
+
+          if (href === '/docs' || href === './docs') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.location.href = '/docs';
+            return;
+          }
+
+          if (href === '/about' || href === './about') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.location.href = '/about';
+            return;
+          }
+
+          if (href === '/privacy' || href === './privacy') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.location.href = '/privacy';
+            return;
+          }
+
+          if (href === '/terms' || href === './terms') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.location.href = '/terms';
+            return;
+          }
+
+          if (href === '/dashboard' || href === './dashboard') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.location.href = targetDestination;
+            return;
+          }
+
+          if (href.startsWith('mailto:')) {
+            return;
+          }
+
+          if (href.startsWith('http://') || href.startsWith('https://')) {
+            return;
+          }
+        }, true);
+      }
+    };
+
+    setupInteractions();
+    const interval = setInterval(setupInteractions, 500);
+    return () => clearInterval(interval);
+  }, [mounted, user]);
 
   if (!mounted) {
     return (
-      <div style={{ background: '#070708', minHeight: '100vh' }} />
+      <div style={{ background: '#0b0b0a', minHeight: '100vh' }} />
     );
   }
 
   return (
-    <>
-      <style dangerouslySetInnerHTML={{ __html: APPEAR_CSS }} />
+    <div className="min-h-screen flex flex-col bg-[#0b0b0a] text-zinc-300">
+      <style dangerouslySetInnerHTML={{ __html: PRICING_STYLES }} />
       <div
-        className="landing-page-container"
+        className="landing-page-container flex-1"
         suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: RAW_PRICING_HTML }}
       />
-    </>
+
+      {/* Clean matching dark footer */}
+      <footer className="border-t border-white/[0.08] bg-[#0b0b0a] py-8 px-6 text-zinc-400 text-xs">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <img src="/dot.png" alt="Allel" className="w-[16px] h-[16px] object-contain" />
+            <span className="text-white font-medium">Allel</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-zinc-500">© 2026 Allel (allel.co). All rights reserved.</span>
+          </div>
+          <div className="flex items-center gap-5">
+            <Link href="/" className="hover:text-white transition-colors">Home</Link>
+            <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
+            <Link href="/about" className="hover:text-white transition-colors">About</Link>
+            <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }

@@ -123,6 +123,9 @@ const OVERRIDE_CSS = `
     -webkit-text-fill-color: #a1a1aa !important;
   }
 
+  a, button, [data-framer-name="Logo"], [data-framer-name="Links"] a {
+    cursor: pointer !important;
+  }
   
   /* Brand Logo & Header/Footer Alignment */
   .landing-page-container [data-framer-name="Logo"] {
@@ -307,6 +310,118 @@ export default function LandingPage() {
     const setupInteractions = () => {
       const isAuthenticated = !!user;
       const targetDestination = isAuthenticated ? "/dashboard" : "/auth/login";
+
+      // Universal capture-phase navigation interceptor — runs before Framer's router
+      if (!document.body.getAttribute("data-landing-nav-hooked")) {
+        document.body.setAttribute("data-landing-nav-hooked", "true");
+
+        document.addEventListener("click", (e) => {
+          const anchor = (e.target as HTMLElement)?.closest("a");
+          if (!anchor) return;
+
+          const rawHref = anchor.getAttribute("href");
+          if (!rawHref) return;
+
+          const href = rawHref.trim();
+
+          // Brand Logo or Home link
+          if (href === "./" || href === "/") {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            if (window.location.pathname === "/") {
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            } else {
+              window.location.href = "/";
+            }
+            return;
+          }
+
+          // Pricing
+          if (href === "./pricing" || href === "/pricing") {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.location.href = "/pricing";
+            return;
+          }
+
+          // Docs
+          if (href === "./docs" || href === "/docs") {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.location.href = "/docs";
+            return;
+          }
+
+          // About
+          if (href === "./about" || href === "/about") {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.location.href = "/about";
+            return;
+          }
+
+          // Privacy Policy
+          if (href === "./privacy" || href === "/privacy") {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.location.href = "/privacy";
+            return;
+          }
+
+          // Terms of Service
+          if (href === "./terms" || href === "/terms") {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.location.href = "/terms";
+            return;
+          }
+
+          // Waitlist anchor
+          if (href === "./#waitlist" || href === "#waitlist") {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            const waitlistSection = document.getElementById("waitlist") || 
+              document.querySelector(".framer-1cz2qle") || 
+              document.querySelector(".framer-m5ihpz") || 
+              document.querySelector("input[type='email']")?.closest("section") ||
+              document.querySelector("footer");
+            if (waitlistSection) {
+              waitlistSection.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+            return;
+          }
+
+          // Integrations anchor
+          if (href === "./#integrations" || href === "#integrations") {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            const integrationsSection = document.getElementById("integrations") || 
+              document.querySelector('[data-framer-name="Integration Ticker"]') || 
+              document.querySelector('.framer-1l7rc76');
+            if (integrationsSection) {
+              integrationsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+            return;
+          }
+
+          // Auth / Dashboard CTAs
+          if (href === "/dashboard" || href === "./dashboard") {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.location.href = targetDestination;
+            return;
+          }
+        }, true);
+      }
 
       // 1. Wire Top Right "Get started" button to backend auth destination
       const navButtons = document.querySelectorAll(".framer-1k966j4-container a");
