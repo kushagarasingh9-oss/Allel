@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/foundation/database/server'
 import { runProviderSyncWithHealth } from '@/integrations/_core/connection-state'
 import { encrypt } from '@/integrations/_core/encryption'
-import { validatePostHogKey } from '@/integrations/posthog/posthog'
+import { validateAndResolvePostHog } from '@/integrations/posthog/posthog'
 import { ensureWorkspaceForUser } from '@/data/workspaces/ensure-workspace'
 import { z } from 'zod'
 
@@ -52,10 +52,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Validate
-  const isValid = await validatePostHogKey(parsed.data.apiKey, parsed.data.projectId)
-  if (!isValid) {
+  const result = await validateAndResolvePostHog(parsed.data.apiKey, parsed.data.projectId)
+  if (!result.valid) {
     return NextResponse.json({ error: 'Invalid PostHog credentials' }, { status: 400 })
   }
+
+  const effectiveProjectId = result.resolvedProjectId || parsed.data.projectId
+  const effectiveHost = result.resolvedHost || 'https://us.posthog.com'
 
   // Encrypt and store
   const encrypted = encrypt(parsed.data.apiKey)
@@ -85,7 +88,12 @@ export async function POST(request: NextRequest) {
         provider: 'posthog',
         status: 'connected',
         last_synced_at: null,
-        metadata: { project_id: parsed.data.projectId, coverage: 'Ready for first PostHog sync' },
+        metadata: {
+          project_id: effectiveProjectId,
+          api_host: effectiveHost,
+          project_token: result.resolvedProjectToken,
+          coverage: 'Ready for first PostHog sync',
+        },
       },
       { onConflict: 'workspace_id,provider' }
     )

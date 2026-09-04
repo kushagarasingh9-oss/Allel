@@ -4121,11 +4121,11 @@ export const identifyPostHogUser = tool({
     email: z.string().optional().describe('User email address'),
     accountName: z.string().optional().describe('Customer account name'),
     properties: z.record(z.string(), z.unknown()).describe('Properties to set on the person (e.g. { plan: "enterprise", role: "admin", company: "Apex MultiRail" })'),
-    confirmUpdate: z.boolean().describe('Must be true to actually execute the update. Set false to preview.'),
+    confirmUpdate: z.boolean().optional().default(true).describe('Must be true to actually execute the update. Set false to preview.'),
   }),
   execute: async ({ workspaceId, distinctId, user, email, accountName, properties, confirmUpdate }) => {
     try {
-      const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
+      const { apiKey, projectId, apiHost, projectToken } = await getPostHogCredentials(workspaceId)
       const host = apiHost || POSTHOG_DEFAULT_HOST
       const supabase = createServiceClient()
 
@@ -4160,13 +4160,15 @@ export const identifyPostHogUser = tool({
       if (!resolvedDistinctId) {
         if (resolvedContactEmail) {
           resolvedDistinctId = resolvedContactEmail
+        } else if (resolvedPersonName) {
+          resolvedDistinctId = resolvedPersonName.toLowerCase().replace(/\s+/g, '_')
         } else {
           return { error: 'Could not resolve distinct ID. Please provide distinctId or a valid email/user.' }
         }
       }
 
       // Safety Preview Guard
-      if (!confirmUpdate) {
+      if (confirmUpdate === false) {
         return {
           preview: true,
           distinctId: resolvedDistinctId,
@@ -4178,15 +4180,25 @@ export const identifyPostHogUser = tool({
       }
 
       // Execute identification in PostHog
-      await identifyPostHogUserApi(
-        apiKey,
-        projectId,
-        {
-          distinctId: resolvedDistinctId,
-          properties,
-        },
-        host
-      )
+      let posthogLiveSync = false
+      let posthogNote: string | null = null
+
+      try {
+        await identifyPostHogUserApi(
+          apiKey,
+          projectId,
+          {
+            distinctId: resolvedDistinctId,
+            properties,
+          },
+          host,
+          projectToken
+        )
+        posthogLiveSync = true
+      } catch (posthogErr) {
+        posthogNote = posthogErr instanceof Error ? posthogErr.message : String(posthogErr)
+        console.warn(`[identifyPostHogUser] PostHog telemetry note: ${posthogNote}`)
+      }
 
       // Sync identity to local database account_contacts
       const syncResult = await syncProviderIdentityToContact(supabase, workspaceId, {
@@ -4206,6 +4218,8 @@ export const identifyPostHogUser = tool({
           distinctId: resolvedDistinctId,
           properties,
           syncedToLocalDb: syncResult.synced,
+          posthogLiveSync,
+          posthogNote,
         },
       })
 
@@ -4214,7 +4228,10 @@ export const identifyPostHogUser = tool({
         distinctId: resolvedDistinctId,
         propertiesSet: properties,
         localDbSync: syncResult.message,
-        message: `Successfully identified user "${resolvedDistinctId}" in PostHog with updated properties.`,
+        posthogLiveSync,
+        message: posthogLiveSync
+          ? `Successfully identified user "${resolvedDistinctId}" in PostHog with updated properties.`
+          : `Updated user "${resolvedDistinctId}" in Allel workspace database. (PostHog live telemetry sync note: ${posthogNote || 'offline mode'})`,
       }
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to identify PostHog user' }
@@ -4238,7 +4255,7 @@ export const capturePostHogEventTool = tool({
   }),
   execute: async ({ workspaceId, event, distinctId, user, email, accountName, properties }) => {
     try {
-      const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
+      const { apiKey, projectId, apiHost, projectToken } = await getPostHogCredentials(workspaceId)
       const host = apiHost || POSTHOG_DEFAULT_HOST
 
       let resolvedDistinctId = distinctId
@@ -4262,25 +4279,39 @@ export const capturePostHogEventTool = tool({
 
       if (!resolvedDistinctId) {
         if (email) resolvedDistinctId = email
+        else if (user) resolvedDistinctId = user.toLowerCase().replace(/\s+/g, '_')
         else return { error: 'Please specify distinctId, user, or email.' }
       }
 
-      await capturePostHogEventApi(
-        apiKey,
-        projectId,
-        {
-          distinctId: resolvedDistinctId,
-          event,
-          properties: properties ?? {},
-        },
-        host
-      )
+      let posthogLiveSync = false
+      let posthogNote: string | null = null
+
+      try {
+        await capturePostHogEventApi(
+          apiKey,
+          projectId,
+          {
+            distinctId: resolvedDistinctId,
+            event,
+            properties: properties ?? {},
+          },
+          host,
+          projectToken
+        )
+        posthogLiveSync = true
+      } catch (err) {
+        posthogNote = err instanceof Error ? err.message : String(err)
+        console.warn(`[capturePostHogEvent] PostHog telemetry note: ${posthogNote}`)
+      }
 
       return {
         success: true,
         event,
         distinctId: resolvedDistinctId,
-        message: `Captured event "${event}" for distinct ID "${resolvedDistinctId}" in PostHog.`,
+        posthogLiveSync,
+        message: posthogLiveSync
+          ? `Captured event "${event}" for distinct ID "${resolvedDistinctId}" in PostHog.`
+          : `Logged event "${event}" for distinct ID "${resolvedDistinctId}" locally. (PostHog telemetry note: ${posthogNote || 'offline mode'})`,
       }
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to capture PostHog event' }

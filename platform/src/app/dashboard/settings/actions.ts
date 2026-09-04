@@ -282,6 +282,7 @@ export async function connectPostHog(apiKey: string, projectId?: string) {
       metadata: {
         project_id: effectiveProjectId,
         api_host: effectiveHost,
+        project_token: result.resolvedProjectToken,
         coverage: 'Ready for first PostHog sync',
       },
     })

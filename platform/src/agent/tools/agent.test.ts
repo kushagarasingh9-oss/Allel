@@ -669,9 +669,9 @@ test('Safe Cross-Platform Tools: PostHog, Stripe, and Intercom tools are registe
   const alexTools = new Set(getAvailableToolNamesForPersona('alex', undefined, { channel: 'chat' }))
 
   for (const [toolName, expectedProvider] of Object.entries(newToolProviderMap)) {
-    assert.ok(alexTools.has(toolName), `Allel must expose ${toolName}`)
+    assert.ok(alexTools.has(toolName as any), `Allel must expose ${toolName}`)
     assert.equal(
-      getIntegrationProviderForTool(toolName),
+      getIntegrationProviderForTool(toolName as any),
       expectedProvider,
       `${toolName} must map to ${expectedProvider} provider guard`
     )
@@ -692,7 +692,7 @@ test('Safe Cross-Platform Tools: Sarah has retention & billing mutation capabili
   ]
 
   for (const toolName of sarahRequired) {
-    assert.ok(sarahTools.has(toolName), `Sarah must expose ${toolName}`)
+    assert.ok(sarahTools.has(toolName as any), `Sarah must expose ${toolName}`)
   }
 })
 

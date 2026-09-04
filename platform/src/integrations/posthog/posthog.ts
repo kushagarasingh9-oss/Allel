@@ -10,10 +10,11 @@ import { getIntegrationMetadata, getIntegrationToken } from '@/integrations/_cor
 
 export const POSTHOG_DEFAULT_HOST = 'https://us.posthog.com'
 
-type PostHogCredentials = {
+export type PostHogCredentials = {
   apiKey: string
   projectId: string
   apiHost?: string
+  projectToken?: string
 }
 
 type PostHogApiResponse<T = Record<string, unknown>> = T & {
@@ -29,12 +30,13 @@ type PostHogApiResponse<T = Record<string, unknown>> = T & {
 export async function getPostHogCredentials(workspaceId: string): Promise<PostHogCredentials> {
   const [apiKey, metadata] = await Promise.all([
     getIntegrationToken(workspaceId, 'posthog'),
-    getIntegrationMetadata<{ project_id?: unknown; api_host?: unknown }>(workspaceId, 'posthog'),
+    getIntegrationMetadata<{ project_id?: unknown; api_host?: unknown; project_token?: unknown }>(workspaceId, 'posthog'),
   ])
   const projectId = typeof metadata.project_id === 'string' ? metadata.project_id : ''
   const apiHost = typeof metadata.api_host === 'string' ? metadata.api_host : POSTHOG_DEFAULT_HOST
+  const projectToken = typeof metadata.project_token === 'string' ? metadata.project_token : undefined
 
-  return { apiKey, projectId, apiHost }
+  return { apiKey, projectId, apiHost, projectToken }
 }
 
 // ============================================================
@@ -218,11 +220,83 @@ export type PostHogValidationResult = {
   valid: boolean
   resolvedProjectId?: string
   resolvedHost?: string
+  resolvedProjectToken?: string
 }
 
 export async function validatePostHogKey(apiKey: string, projectId?: string): Promise<boolean> {
   const result = await validateAndResolvePostHog(apiKey, projectId)
   return result.valid
+}
+
+// In-memory cache for resolved PostHog project write tokens (phc_...)
+const projectTokenCache = new Map<string, string>()
+
+/**
+ * Resolves the Project API Key (write token `phc_...`) required by PostHog's `/capture/` ingestion endpoint.
+ * PostHog Personal API Keys (`phx_...`) are strictly for REST endpoints and fail with 401 at `/capture/`.
+ */
+export async function resolveProjectToken(
+  apiKey: string,
+  projectId: string,
+  host: string = POSTHOG_DEFAULT_HOST
+): Promise<string | null> {
+  const trimmedKey = apiKey.trim()
+  if (trimmedKey.startsWith('phc_')) {
+    return trimmedKey
+  }
+
+  const cacheKey = `${host}:${trimmedKey}:${projectId}`
+  const cached = projectTokenCache.get(cacheKey)
+  if (cached) return cached
+
+  // 1. Try project-specific endpoint if numeric or explicit projectId is provided
+  if (projectId && projectId !== 'default') {
+    try {
+      const res = await fetch(`${host}/api/projects/${projectId}/`, {
+        headers: { Authorization: `Bearer ${trimmedKey}` },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(6000),
+      })
+      if (res.ok) {
+        const data = (await res.json().catch(() => null)) as { api_token?: string } | null
+        if (data?.api_token) {
+          const token = String(data.api_token)
+          projectTokenCache.set(cacheKey, token)
+          return token
+        }
+      }
+    } catch {
+      // Continue to project list
+    }
+  }
+
+  // 2. Try projects list via /api/projects/
+  try {
+    const res = await fetch(`${host}/api/projects/`, {
+      headers: { Authorization: `Bearer ${trimmedKey}` },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(6000),
+    })
+    if (res.ok) {
+      const data = (await res.json().catch(() => null)) as {
+        results?: Array<{ id: number | string; api_token?: string }>
+      } | null
+      const list = Array.isArray(data?.results) ? data.results : []
+      const matched =
+        (projectId && projectId !== 'default'
+          ? list.find((p) => String(p.id) === String(projectId))
+          : null) || list[0]
+      if (matched?.api_token) {
+        const token = String(matched.api_token)
+        projectTokenCache.set(cacheKey, token)
+        return token
+      }
+    }
+  } catch {
+    // Continue
+  }
+
+  return null
 }
 
 export async function validateAndResolvePostHog(
@@ -242,7 +316,7 @@ export async function validateAndResolvePostHog(
 
   let isExplicitlyUnauthorized = false
 
-  // Phase 1: Try /api/projects/ to discover real project ID and validate key
+  // Phase 1: Try /api/projects/ to discover real project ID, project token, and validate key
   for (const host of apiHosts) {
     try {
       const endpoint = `${host}/api/projects/`
@@ -254,19 +328,28 @@ export async function validateAndResolvePostHog(
 
       if (res.ok) {
         const data = await res.json().catch(() => null)
-        const firstProject =
-          Array.isArray(data?.results) && data.results.length > 0
-            ? String(data.results[0].id)
-            : undefined
+        const projects = Array.isArray(data?.results) ? data.results : []
+        const matched =
+          (trimmedProject && trimmedProject !== 'default'
+            ? projects.find((p: any) => String(p.id) === trimmedProject)
+            : null) || projects[0]
+
+        const firstProject = matched?.id != null ? String(matched.id) : undefined
+        const projectToken = matched?.api_token ? String(matched.api_token) : undefined
         const effectiveProjectId =
           trimmedProject && trimmedProject !== 'default'
             ? trimmedProject
             : firstProject || 'default'
 
+        if (projectToken) {
+          projectTokenCache.set(`${host}:${trimmedKey}:${effectiveProjectId}`, projectToken)
+        }
+
         return {
           valid: true,
           resolvedProjectId: effectiveProjectId,
           resolvedHost: host,
+          resolvedProjectToken: projectToken,
         }
       }
 
@@ -319,10 +402,16 @@ export async function validateAndResolvePostHog(
         })
 
         if (res.ok) {
+          const projectData = await res.json().catch(() => null)
+          const projectToken = projectData?.api_token ? String(projectData.api_token) : undefined
+          if (projectToken) {
+            projectTokenCache.set(`${host}:${trimmedKey}:${trimmedProject}`, projectToken)
+          }
           return {
             valid: true,
             resolvedProjectId: trimmedProject,
             resolvedHost: host,
+            resolvedProjectToken: projectToken,
           }
         }
       } catch {
@@ -346,6 +435,7 @@ export async function validateAndResolvePostHog(
           ? trimmedProject
           : 'default',
       resolvedHost: POSTHOG_DEFAULT_HOST,
+      resolvedProjectToken: trimmedKey.startsWith('phc_') ? trimmedKey : undefined,
     }
   }
 
@@ -496,17 +586,37 @@ export async function getPerson(
 /** Ingest an event or identity payload to PostHog */
 async function posthogCapture(
   apiKey: string,
+  projectId: string,
   body: Record<string, unknown>,
-  host: string = POSTHOG_DEFAULT_HOST
+  host: string = POSTHOG_DEFAULT_HOST,
+  projectToken?: string
 ): Promise<void> {
+  let token = projectToken || (apiKey.startsWith('phc_') ? apiKey : '')
+
+  if (!token) {
+    const resolved = await resolveProjectToken(apiKey, projectId, host)
+    if (resolved) {
+      token = resolved
+    }
+  }
+
+  if (!token) {
+    if (apiKey.startsWith('phx_')) {
+      throw new Error(
+        `Unable to resolve PostHog project write token for Personal API Key. Please verify project settings in PostHog.`
+      )
+    }
+    token = apiKey
+  }
+
   const response = await fetch(`${host}/capture/`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      api_key: apiKey,
+      api_key: token,
+      token,
       ...body,
     }),
     redirect: 'follow',
@@ -514,7 +624,8 @@ async function posthogCapture(
   })
 
   if (!response.ok) {
-    throw new Error(`PostHog capture error: ${response.status} ${response.statusText}`)
+    const errText = await response.text().catch(() => '')
+    throw new Error(`PostHog capture error: ${response.status} ${response.statusText}${errText ? ` - ${errText}` : ''}`)
   }
 }
 
@@ -527,10 +638,12 @@ export async function identifyUser(
     properties?: Record<string, unknown>
     anonDistinctId?: string
   },
-  host: string = POSTHOG_DEFAULT_HOST
+  host: string = POSTHOG_DEFAULT_HOST,
+  projectToken?: string
 ): Promise<{ success: boolean; distinctId: string }> {
   await posthogCapture(
     apiKey,
+    projectId,
     {
       distinct_id: input.distinctId,
       event: '$identify',
@@ -538,8 +651,10 @@ export async function identifyUser(
         $set: input.properties ?? {},
         ...(input.anonDistinctId ? { $anon_distinct_id: input.anonDistinctId } : {}),
       },
+      $set: input.properties ?? {},
     },
-    host
+    host,
+    projectToken
   )
   return { success: true, distinctId: input.distinctId }
 }
@@ -553,16 +668,19 @@ export async function captureEvent(
     event: string
     properties?: Record<string, unknown>
   },
-  host: string = POSTHOG_DEFAULT_HOST
+  host: string = POSTHOG_DEFAULT_HOST,
+  projectToken?: string
 ): Promise<{ success: boolean; event: string; distinctId: string }> {
   await posthogCapture(
     apiKey,
+    projectId,
     {
       distinct_id: input.distinctId,
       event: input.event,
       properties: input.properties ?? {},
     },
-    host
+    host,
+    projectToken
   )
   return { success: true, event: input.event, distinctId: input.distinctId }
 }
