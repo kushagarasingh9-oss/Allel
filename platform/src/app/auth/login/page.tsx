@@ -8,6 +8,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
+  const [otpLength, setOtpLength] = useState(8)
 
   const [otpStatus, setOtpStatus] = useState<OtpStatus>('idle')
   const [otpError, setOtpError] = useState('')
@@ -28,11 +29,16 @@ export default function LoginPage() {
       })
       const payload = (await response.json().catch(() => null)) as {
         error?: string
+        otpLength?: number
       } | null
 
       if (!response.ok) {
         setError(payload?.error ?? 'Unable to send verification code.')
         return
+      }
+
+      if (payload?.otpLength) {
+        setOtpLength(payload.otpLength)
       }
 
       setEmail(normalizedEmail)
@@ -125,13 +131,14 @@ export default function LoginPage() {
               Enter OTP
             </h2>
             <p className="mt-2 text-[13.5px] leading-relaxed text-[#777] max-w-[340px]">
-              Enter the 6-digit code sent to <span className="text-white font-medium">{email}</span>
+              Enter the {otpLength}-digit code sent to <span className="text-white font-medium">{email}</span>
             </p>
 
             {/* Prominent distance between email text and OTP input bar */}
             <div className="pt-8 pb-3 w-full flex justify-center">
               <OtpInput
-                length={6}
+                length={otpLength}
+                groupEvery={otpLength === 8 ? 4 : 3}
                 autoFocus
                 disabled={verifying}
                 status={otpStatus}

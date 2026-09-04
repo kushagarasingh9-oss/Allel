@@ -384,7 +384,7 @@ export function OtpInput({
           return (
             <div
               key={i}
-              className={`relative h-12 w-10 ${gap ? "ml-2" : ""}`}
+              className={`relative h-12 ${length > 6 ? "w-[34px] sm:w-[39px]" : "w-10"} ${gap ? "ml-2.5 sm:ml-3.5" : ""}`}
             >
               <input
                 {...getCellProps(i)}
