@@ -651,7 +651,7 @@ export function DraftedEmailCard({
         className="cursor-pointer select-none group"
       >
         <MiniResultCard
-          icon={<img src="/logos/gmail-white.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          icon={<img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
           title={
             <span className="text-white font-medium flex items-center justify-between gap-2 w-full">
               <span className="truncate">{isSent ? 'Email sent: ' : 'Subject: '}{subject}</span>
@@ -682,7 +682,7 @@ export function DraftedEmailCard({
           <div className="text-[11px] text-neutral-400 border-b border-white/5 pb-1.5 mb-2 flex items-center justify-between">
             <span><strong className="text-neutral-300">To:</strong> {recipient}</span>
             <div className="flex items-center gap-1.5 text-neutral-400">
-              <img src="/logos/gmail-white.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />
+              <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />
               <span>{isSent ? 'Delivered via Gmail' : badge}</span>
             </div>
           </div>
@@ -785,7 +785,7 @@ export function AccountRecoveryStatusTree({
       {contacts.length > 0 && (
         <TimelineNode
           title={`Contact channels found (${contacts.length} channel${contacts.length === 1 ? '' : 's'})`}
-          icon={<img src="/logos/gmail-white.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          icon={<img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
           isCompleted={true}
           isCollapsible={true}
           autoCollapse={false}
@@ -797,7 +797,7 @@ export function AccountRecoveryStatusTree({
               <React.Fragment key={i}>
                 <MiniResultCard
                   index={i}
-                  icon={<img src="/logos/gmail-white.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
+                  icon={<img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
                   title={<span className="text-white font-medium">{c.email}</span>}
                   subtitle={`${c.name}${c.role ? ` · ${c.role}` : ''}${c.isPrimary ? ' (Primary Contact)' : ''}`}
                 />
@@ -819,7 +819,7 @@ export function AccountRecoveryStatusTree({
       {draft && (
         <TimelineNode
           title={`Drafted Recovery Email`}
-          icon={<img src="/logos/gmail-white.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          icon={<img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
           isCompleted={true}
           isCollapsible={true}
           autoCollapse={false}
