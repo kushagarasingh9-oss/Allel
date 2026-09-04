@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useChatContext } from "@/ui/chat/chat-provider";
 import { AgentFeed } from "@/ui/chat/agent-feed";
 import { DevinChatBox } from "@/ui/primitives/devin-chat-box";
@@ -140,7 +140,7 @@ export function AllelCommandCenter() {
     setShowScrollBottom(false);
   };
 
-  const handleSubmit = (textToSend?: string) => {
+  const handleSubmit = useCallback((textToSend?: string) => {
     const query = (textToSend || inputText).trim();
     if (!query) return;
 
@@ -159,7 +159,33 @@ export function AllelCommandCenter() {
 
     sendMessage({ text: query });
     setInputText("");
-  };
+  }, [inputText, isLoading, stop, hasMessages, currentSessionId, sendMessage]);
+
+  // Auto-execute pending prompt if navigated from Daily Brief or external quick action
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const pending = window.sessionStorage.getItem("allel.pending-prompt");
+    if (pending) {
+      window.sessionStorage.removeItem("allel.pending-prompt");
+      const timer = setTimeout(() => {
+        handleSubmit(pending);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialPrompt = urlParams.get("initialPrompt");
+    if (initialPrompt) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("initialPrompt");
+      window.history.replaceState({}, "", url.toString());
+      const timer = setTimeout(() => {
+        handleSubmit(initialPrompt);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [handleSubmit]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !isLoading) {

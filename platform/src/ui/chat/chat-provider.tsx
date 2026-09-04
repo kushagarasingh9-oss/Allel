@@ -150,9 +150,6 @@ export function ChatProvider({
   })
   const [currentSessionId, setCurrentSessionId] = React.useState<string>(() => {
     if (typeof window !== "undefined") {
-      if (window.location.pathname === "/dashboard/brief") {
-        return "daily-brief"
-      }
       const urlSession = new URLSearchParams(window.location.search).get("sessionId")
       if (urlSession && urlSession !== "daily-brief") return urlSession
       const stored = window.localStorage.getItem("allel.current-session-id") || window.sessionStorage.getItem("allel.current-session-id")
@@ -696,39 +693,9 @@ export function ChatProvider({
 
   // Auto-save active chat session ONLY when streaming completes (status === 'ready')
   // Isolate Daily Brief session from main task sessions on route navigation
+  // Sync active chat session on dashboard route navigation
   React.useEffect(() => {
-    if (isBriefPage) {
-      if (currentSessionId !== "daily-brief") {
-        if (typeof window !== "undefined" && currentSessionId && currentSessionId !== "daily-brief") {
-          window.sessionStorage.setItem("allel.last-task-session-id", currentSessionId)
-        }
-        stop()
-        clearError()
-        isSwitchingSessionRef.current = true
-        chatRef.current = null
-        restoredSessionIdRef.current = "daily-brief"
-        currentSessionIdRef.current = "daily-brief"
-        activeMessagesSessionIdRef.current = "daily-brief"
-        setCurrentSessionId("daily-brief")
-
-        if (typeof window !== "undefined") {
-          const raw = window.sessionStorage.getItem("allel.daily-brief-messages")
-          if (raw) {
-            try {
-              const parsed = JSON.parse(raw)
-              setMessages(Array.isArray(parsed) ? parsed : [])
-            } catch {
-              setMessages([])
-            }
-          } else {
-            setMessages([])
-          }
-        } else {
-          setMessages([])
-        }
-        isSwitchingSessionRef.current = false
-      }
-    } else if (pathname === "/dashboard") {
+    if (pathname === "/dashboard") {
       const urlSession = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sessionId") : null
       if (urlSession && urlSession !== "daily-brief") {
         if (urlSession !== currentSessionIdRef.current || messages.length === 0 || activeMessagesSessionIdRef.current === "daily-brief") {
@@ -748,7 +715,7 @@ export function ChatProvider({
         }
       }
     }
-  }, [pathname, isBriefPage, currentSessionId, switchSession, messages.length])
+  }, [pathname, currentSessionId, switchSession, messages.length])
 
   React.useEffect(() => {
     if (typeof window === "undefined" || messages.length === 0) return
@@ -760,11 +727,6 @@ export function ChatProvider({
     if (!hasUserMsg) return
 
     if (currentSessionId === "daily-brief" || isBriefPage || activeMessagesSessionIdRef.current === "daily-brief") {
-      try {
-        window.sessionStorage.setItem("allel.daily-brief-messages", JSON.stringify(messages))
-      } catch {
-        // Ignore
-      }
       return
     }
 
