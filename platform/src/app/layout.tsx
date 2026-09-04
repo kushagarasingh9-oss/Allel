@@ -15,6 +15,14 @@ export const metadata: Metadata = {
   title: "Allel — Connect your tools. AI agents automate the work.",
   description:
     "Connects to your stack, stays on top of every account, and automates the follow-ups and customer work founders usually end up doing by hand.",
+  icons: {
+    icon: [
+      { url: "/icon.png", type: "image/png" },
+      { url: "/favicon.ico" },
+    ],
+    shortcut: "/icon.png",
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({
