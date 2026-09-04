@@ -2566,14 +2566,11 @@ export function AgentFeed() {
     }
   }, [displayMessages, status, isLoading])
 
-  // Show round loader with plain text during server hydration
+  // Show round loader centered in the middle of the page during server hydration
   if (hydrationStatus === "loading") {
     return (
-      <div className="flex-1 w-full h-full flex flex-col items-center justify-center animate-in fade-in duration-150 select-none">
-        <div className="flex items-center gap-2.5 text-zinc-400">
-          <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
-          <span className="text-xs sm:text-[13px] font-normal text-zinc-400">Loading conversation...</span>
-        </div>
+      <div className="flex-1 w-full h-full min-h-0 flex items-center justify-center select-none animate-in fade-in duration-150">
+        <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
       </div>
     )
   }

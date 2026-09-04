@@ -264,48 +264,62 @@ export function AllelCommandCenter() {
             </div>
 
             {/* Fixed Bottom Omnibar + Attached Top Task Runner Tray (100% Fixed at one place, masks scrolling text beneath) */}
-            <div className="absolute bottom-0 left-0 right-0 w-full z-30 px-4 pb-3 pt-8 flex flex-col items-center bg-gradient-to-t from-[#121214] from-70% via-[#121214]/90 to-transparent pointer-events-none [&>*]:pointer-events-auto">
-              {/* Minimal Scroll Down Indicator Button (Appears ONLY when scrolled above bottom of the chat, without circle cover) */}
-              {showScrollBottom && (
-                <button
-                  type="button"
-                  onClick={handleScrollToBottom}
-                  className="p-1 rounded-full text-zinc-400 hover:text-white hover:bg-white/[0.08] transition-all flex items-center justify-center mb-1.5 cursor-pointer shrink-0 animate-in fade-in zoom-in-90 duration-150"
-                  title="Scroll to bottom"
-                >
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-              )}
+            {hasMessages && (
+              <div className="absolute bottom-0 left-0 right-0 w-full z-30 px-4 pb-3 pt-8 flex flex-col items-center bg-gradient-to-t from-[#121214] from-70% via-[#121214]/90 to-transparent pointer-events-none [&>*]:pointer-events-auto">
+                {/* Minimal Scroll Down Indicator Button (Appears ONLY when scrolled above bottom of the chat, without circle cover) */}
+                {showScrollBottom && (
+                  <button
+                    type="button"
+                    onClick={handleScrollToBottom}
+                    className="p-1 rounded-full text-zinc-400 hover:text-white hover:bg-white/[0.08] transition-all flex items-center justify-center mb-1.5 cursor-pointer shrink-0 animate-in fade-in zoom-in-90 duration-150"
+                    title="Scroll to bottom"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                )}
 
-              {/* Conditional Attached Processing Header (Pops up attached when query is submitted & running) */}
-              {isLoading ? (
-                <div className="w-full max-w-[700px] mx-auto bg-[#121214] border border-white/[0.08] rounded-[24px] p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.6)] flex flex-col gap-1.5 transition-all select-none animate-in fade-in slide-in-from-bottom-2 duration-200">
-                  <div className="w-full flex flex-col items-start transition-all px-1 pt-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setIsTaskTrayOpen(!isTaskTrayOpen)}
-                      className="w-full flex items-center justify-between px-2 py-1 bg-transparent border-0 hover:opacity-80 transition-opacity cursor-pointer text-xs select-none"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white shrink-0" />
-                        <span className="font-semibold text-zinc-200 text-xs">Processing AI query...</span>
-                      </div>
-                      <ChevronUp
-                        className={cn(
-                          "w-3.5 h-3.5 text-zinc-400 transition-transform duration-200",
-                          !isTaskTrayOpen && "rotate-180"
-                        )}
-                      />
-                    </button>
+                {/* Conditional Attached Processing Header (Pops up attached when query is submitted & running) */}
+                {isLoading ? (
+                  <div className="w-full max-w-[700px] mx-auto bg-[#121214] border border-white/[0.08] rounded-[24px] p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.6)] flex flex-col gap-1.5 transition-all select-none animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    <div className="w-full flex flex-col items-start transition-all px-1 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsTaskTrayOpen(!isTaskTrayOpen)}
+                        className="w-full flex items-center justify-between px-2 py-1 bg-transparent border-0 hover:opacity-80 transition-opacity cursor-pointer text-xs select-none"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-white shrink-0" />
+                          <span className="font-semibold text-zinc-200 text-xs">Processing AI query...</span>
+                        </div>
+                        <ChevronUp
+                          className={cn(
+                            "w-3.5 h-3.5 text-zinc-400 transition-transform duration-200",
+                            !isTaskTrayOpen && "rotate-180"
+                          )}
+                        />
+                      </button>
 
-                    {isTaskTrayOpen && (
-                      <div className="w-full px-2 py-1.5 animate-in fade-in duration-150 flex items-center gap-2 text-xs text-zinc-400 select-none">
-                        <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
-                        <span className="text-xs text-zinc-400 font-normal">Executing tool calls across connected integrations...</span>
-                      </div>
-                    )}
+                      {isTaskTrayOpen && (
+                        <div className="w-full px-2 py-1.5 animate-in fade-in duration-150 flex items-center gap-2 text-xs text-zinc-400 select-none">
+                          <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
+                          <span className="text-xs text-zinc-400 font-normal">Executing tool calls across connected integrations...</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <DevinChatBox
+                      value={inputText}
+                      onChange={setInputText}
+                      onSubmit={handleSubmit}
+                      isLoading={isLoading}
+                      onStop={stop}
+                      placeholder="Ask a follow-up..."
+                      modeLabel="Auto"
+                      hideStatusBanner={true}
+                      className="max-w-none w-full bg-transparent border-0 p-0 shadow-none"
+                    />
                   </div>
-
+                ) : (
                   <DevinChatBox
                     value={inputText}
                     onChange={setInputText}
@@ -315,23 +329,11 @@ export function AllelCommandCenter() {
                     placeholder="Ask a follow-up..."
                     modeLabel="Auto"
                     hideStatusBanner={true}
-                    className="max-w-none w-full bg-transparent border-0 p-0 shadow-none"
+                    className="max-w-[700px] w-full mx-auto"
                   />
-                </div>
-              ) : (
-                <DevinChatBox
-                  value={inputText}
-                  onChange={setInputText}
-                  onSubmit={handleSubmit}
-                  isLoading={isLoading}
-                  onStop={stop}
-                  placeholder="Ask a follow-up..."
-                  modeLabel="Auto"
-                  hideStatusBanner={true}
-                  className="max-w-[700px] w-full mx-auto"
-                />
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
