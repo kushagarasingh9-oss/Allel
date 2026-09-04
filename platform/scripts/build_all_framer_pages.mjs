@@ -1097,9 +1097,7 @@ export default function DocDetailPage() {
     return () => clearInterval(interval);
   }, [mounted, user, slug]);
 
-  if (!mounted || !pageData) {
-    return <div style={{ background: '#0b0b0a', minHeight: '100vh' }} />;
-  }
+  
 
   const rawHtml = [pageData.main, pageData.svg].join(String.fromCharCode(10));
 
@@ -1285,9 +1283,7 @@ export default function PrivacyPolicyPage() {
     return () => clearInterval(interval);
   }, [mounted, user]);
 
-  if (!mounted) {
-    return <div style={{ background: '#0b0b0a', minHeight: '100vh' }} />;
-  }
+  
 
   return (
     <div className="framer-EWCJ0 framer-xxVvw framer-5RUiA framer-peJNi framer-1y8ilu8" data-layout-template="true" style={{ minHeight: '100vh', width: 'auto' }}>
@@ -1588,9 +1584,7 @@ export default function TermsOfServicePage() {
     return () => clearInterval(interval);
   }, [mounted, user]);
 
-  if (!mounted) {
-    return <div style={{ background: '#0b0b0a', minHeight: '100vh' }} />;
-  }
+  
 
   return (
     <div className="framer-EWCJ0 framer-xxVvw framer-5RUiA framer-peJNi framer-1y8ilu8" data-layout-template="true" style={{ minHeight: '100vh', width: 'auto' }}>

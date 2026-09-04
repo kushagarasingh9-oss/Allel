@@ -142,9 +142,7 @@ export default function TermsOfServicePage() {
     return () => clearInterval(interval);
   }, [mounted, user]);
 
-  if (!mounted) {
-    return <div style={{ background: '#0b0b0a', minHeight: '100vh' }} />;
-  }
+  
 
   return (
     <div className="framer-EWCJ0 framer-xxVvw framer-5RUiA framer-peJNi framer-1y8ilu8" data-layout-template="true" style={{ minHeight: '100vh', width: 'auto' }}>

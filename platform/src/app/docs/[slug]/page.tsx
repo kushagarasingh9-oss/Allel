@@ -167,9 +167,7 @@ export default function DocDetailPage() {
     return () => clearInterval(interval);
   }, [mounted, user, slug]);
 
-  if (!mounted || !pageData) {
-    return <div style={{ background: '#0b0b0a', minHeight: '100vh' }} />;
-  }
+  
 
   const rawHtml = [pageData.main, pageData.svg].join(String.fromCharCode(10));
 
