@@ -112,7 +112,12 @@ export default function LoginPage() {
       <div className="w-full max-w-[420px]">
 
         {/* Logo */}
-        <div className="mb-10 text-center">
+        <div className="mb-10 text-center flex flex-col items-center">
+          <img
+            src="/dot.png"
+            alt="Allel"
+            className="w-12 h-12 rounded-full object-contain mb-3 shadow-lg"
+          />
           <span
             className="text-[28px] font-semibold text-white tracking-tight"
           >

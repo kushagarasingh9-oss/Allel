@@ -356,9 +356,9 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 title="Expand sidebar"
               >
                 <img
-                  src="/logo-icon.png"
+                  src="/dot.png"
                   alt="Allel"
-                  className="w-[22px] h-[22px] object-contain shrink-0 mix-blend-screen bg-transparent transition-all duration-150 group-hover:opacity-0 group-hover:scale-95"
+                  className="w-[22px] h-[22px] rounded-full object-contain shrink-0 transition-all duration-150 group-hover:opacity-0 group-hover:scale-95"
                 />
                 <PanelLeftOpen className="w-4 h-4 text-white absolute opacity-0 group-hover:opacity-100 transition-all duration-150 group-hover:scale-100 scale-90" />
               </button>
@@ -371,9 +371,9 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 className="flex items-center gap-2 transition-opacity hover:opacity-80 group p-0.5"
               >
                 <img
-                  src="/logo-icon.png"
+                  src="/dot.png"
                   alt="Allel"
-                  className="w-[24px] h-[24px] object-contain shrink-0 mix-blend-screen bg-transparent"
+                  className="w-[24px] h-[24px] rounded-full object-contain shrink-0"
                 />
               </Link>
 

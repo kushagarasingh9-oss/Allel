@@ -17,11 +17,15 @@ export const metadata: Metadata = {
     "Connects to your stack, stays on top of every account, and automates the follow-ups and customer work founders usually end up doing by hand.",
   icons: {
     icon: [
+      { url: "/dot.png", type: "image/png" },
       { url: "/icon.png", type: "image/png" },
       { url: "/favicon.ico" },
     ],
-    shortcut: "/icon.png",
+    shortcut: "/dot.png",
     apple: "/apple-icon.png",
+  },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
   },
 };
 

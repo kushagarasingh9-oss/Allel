@@ -120,9 +120,9 @@ export default function BriefPage() {
       <header className="h-12 px-8 flex items-center justify-between shrink-0 bg-[#0d0d0f] z-30">
         <div className="flex items-center gap-2.5">
           <img
-            src="/logo-icon.png"
+            src="/dot.png"
             alt="Allel"
-            className="w-5 h-5 object-contain shrink-0 mix-blend-screen bg-transparent"
+            className="w-5 h-5 rounded-full object-contain shrink-0"
             style={{ width: 20, height: 20 }}
           />
           <h1 className="text-[17px] font-medium tracking-tight text-white">Brief</h1>
