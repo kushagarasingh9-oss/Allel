@@ -330,12 +330,6 @@ export default function PricingPage() {
     return () => clearInterval(interval);
   }, [mounted, user]);
 
-  if (!mounted) {
-    return (
-      <div style={{ background: '#0b0b0a', minHeight: '100vh' }} />
-    );
-  }
-
   return (
     <>
       <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: FRAMER_STYLES }} />
@@ -609,12 +603,6 @@ export default function DocsPage() {
     return () => clearInterval(interval);
   }, [mounted, user]);
 
-  if (!mounted) {
-    return (
-      <div style={{ background: '#0b0b0a', minHeight: '100vh' }} />
-    );
-  }
-
   return (
     <>
       <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: FRAMER_STYLES }} />
@@ -880,12 +868,6 @@ export default function AboutPage() {
     return () => clearInterval(interval);
   }, [mounted, user]);
 
-  if (!mounted) {
-    return (
-      <div style={{ background: '#0b0b0a', minHeight: '100vh' }} />
-    );
-  }
-
   return (
     <>
       <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: FRAMER_STYLES }} />
@@ -1144,6 +1126,7 @@ function buildPrivacy() {
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/foundation/database/client';
+import { LegalHeader, LegalFooter } from '@/ui/shell/legal-shell';
 
 const FRAMER_STYLES = ` + JSON.stringify(styles) + `;
 
@@ -1226,72 +1209,13 @@ export default function PrivacyPolicyPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!mounted) return;
-
-    const setupInteractions = () => {
-      const isAuthenticated = !!user;
-      const targetDestination = isAuthenticated ? '/dashboard' : '/auth/login';
-
-      const navLogo = document.querySelector('[data-framer-name="Logo"]');
-      if (navLogo) {
-        let img = navLogo.querySelector('.allel-nav-brand-logo') as HTMLImageElement | null;
-        if (!img) {
-          img = document.createElement('img');
-          img.src = '/dot.png';
-          img.alt = 'Allel';
-          img.className = 'allel-nav-brand-logo';
-          img.style.cssText = 'width: 17px; height: 17px; margin-right: 8px; object-fit: contain; display: inline-block; vertical-align: middle; flex-shrink: 0; background: transparent;';
-          const textContainer = navLogo.querySelector('.framer-gdhgkz');
-          if (textContainer) {
-            navLogo.insertBefore(img, textContainer);
-          } else {
-            navLogo.prepend(img);
-          }
-        }
-      }
-
-      const footerBrand = document.querySelector('[data-framer-name="Brand"]');
-      if (footerBrand) {
-        let img = footerBrand.querySelector('.allel-footer-brand-logo') as HTMLImageElement | null;
-        if (!img) {
-          img = document.createElement('img');
-          img.src = '/dot.png';
-          img.alt = 'Allel';
-          img.className = 'allel-footer-brand-logo';
-          img.style.cssText = 'width: 20px; height: 20px; margin-right: 8px; object-fit: contain; flex-shrink: 0; background: transparent;';
-          const brandText = footerBrand.querySelector('.framer-1vurpbe');
-          if (brandText && !brandText.closest('.allel-footer-brand-header')) {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'allel-footer-brand-header';
-            wrapper.style.cssText = 'display: flex; align-items: center; gap: 10px; margin-bottom: 8px;';
-            brandText.parentNode?.insertBefore(wrapper, brandText);
-            wrapper.appendChild(img);
-            wrapper.appendChild(brandText);
-          }
-        }
-      }
-
-      const ctaButtons = document.querySelectorAll('a[href="/dashboard"], a[href="./dashboard"], a[data-framer-name="Primary"]');
-      ctaButtons.forEach((btn) => {
-        btn.setAttribute('href', targetDestination);
-      });
-    };
-
-    setupInteractions();
-    const interval = setInterval(setupInteractions, 500);
-    return () => clearInterval(interval);
-  }, [mounted, user]);
-
-  
-
   return (
-    <div className="framer-EWCJ0 framer-xxVvw framer-5RUiA framer-peJNi framer-1y8ilu8" data-layout-template="true" style={{ minHeight: '100vh', width: 'auto' }}>
+    <div style={{ minHeight: '100vh', width: '100%', backgroundColor: '#0b0b0a', display: 'flex', flexDirection: 'column' }}>
       <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: FRAMER_STYLES }} />
       <style dangerouslySetInnerHTML={{ __html: OVERRIDE_CSS }} />
 
-      {/* Framer Native Navigation */}
-      <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: ` + JSON.stringify(navHtml) + ` }} />
+      {/* Top Header with Single Brand Logo linking to Landing Page */}
+      <LegalHeader />
 
       {/* Center Framer Content Area */}
       <main style={{ maxWidth: '960px', width: '100%', margin: '60px auto 100px auto', padding: '0 24px', boxSizing: 'border-box' }}>
@@ -1407,10 +1331,8 @@ export default function PrivacyPolicyPage() {
         </div>
       </main>
 
-      <div className="framer-1vmkvli"></div>
-
-      {/* Framer Native Footer */}
-      <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: ` + JSON.stringify(footerHtml) + ` }} />
+      {/* Native Website Footer */}
+      <LegalFooter />
     </div>
   );
 }
@@ -1445,6 +1367,7 @@ function buildTerms() {
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/foundation/database/client';
+import { LegalHeader, LegalFooter } from '@/ui/shell/legal-shell';
 
 const FRAMER_STYLES = ` + JSON.stringify(styles) + `;
 
@@ -1527,72 +1450,13 @@ export default function TermsOfServicePage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!mounted) return;
-
-    const setupInteractions = () => {
-      const isAuthenticated = !!user;
-      const targetDestination = isAuthenticated ? '/dashboard' : '/auth/login';
-
-      const navLogo = document.querySelector('[data-framer-name="Logo"]');
-      if (navLogo) {
-        let img = navLogo.querySelector('.allel-nav-brand-logo') as HTMLImageElement | null;
-        if (!img) {
-          img = document.createElement('img');
-          img.src = '/dot.png';
-          img.alt = 'Allel';
-          img.className = 'allel-nav-brand-logo';
-          img.style.cssText = 'width: 17px; height: 17px; margin-right: 8px; object-fit: contain; display: inline-block; vertical-align: middle; flex-shrink: 0; background: transparent;';
-          const textContainer = navLogo.querySelector('.framer-gdhgkz');
-          if (textContainer) {
-            navLogo.insertBefore(img, textContainer);
-          } else {
-            navLogo.prepend(img);
-          }
-        }
-      }
-
-      const footerBrand = document.querySelector('[data-framer-name="Brand"]');
-      if (footerBrand) {
-        let img = footerBrand.querySelector('.allel-footer-brand-logo') as HTMLImageElement | null;
-        if (!img) {
-          img = document.createElement('img');
-          img.src = '/dot.png';
-          img.alt = 'Allel';
-          img.className = 'allel-footer-brand-logo';
-          img.style.cssText = 'width: 20px; height: 20px; margin-right: 8px; object-fit: contain; flex-shrink: 0; background: transparent;';
-          const brandText = footerBrand.querySelector('.framer-1vurpbe');
-          if (brandText && !brandText.closest('.allel-footer-brand-header')) {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'allel-footer-brand-header';
-            wrapper.style.cssText = 'display: flex; align-items: center; gap: 10px; margin-bottom: 8px;';
-            brandText.parentNode?.insertBefore(wrapper, brandText);
-            wrapper.appendChild(img);
-            wrapper.appendChild(brandText);
-          }
-        }
-      }
-
-      const ctaButtons = document.querySelectorAll('a[href="/dashboard"], a[href="./dashboard"], a[data-framer-name="Primary"]');
-      ctaButtons.forEach((btn) => {
-        btn.setAttribute('href', targetDestination);
-      });
-    };
-
-    setupInteractions();
-    const interval = setInterval(setupInteractions, 500);
-    return () => clearInterval(interval);
-  }, [mounted, user]);
-
-  
-
   return (
-    <div className="framer-EWCJ0 framer-xxVvw framer-5RUiA framer-peJNi framer-1y8ilu8" data-layout-template="true" style={{ minHeight: '100vh', width: 'auto' }}>
+    <div style={{ minHeight: '100vh', width: '100%', backgroundColor: '#0b0b0a', display: 'flex', flexDirection: 'column' }}>
       <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: FRAMER_STYLES }} />
       <style dangerouslySetInnerHTML={{ __html: OVERRIDE_CSS }} />
 
-      {/* Framer Native Navigation */}
-      <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: ` + JSON.stringify(navHtml) + ` }} />
+      {/* Top Header with Single Brand Logo linking to Landing Page */}
+      <LegalHeader />
 
       {/* Center Framer Content Area */}
       <main style={{ maxWidth: '960px', width: '100%', margin: '60px auto 100px auto', padding: '0 24px', boxSizing: 'border-box' }}>
@@ -1711,10 +1575,8 @@ export default function TermsOfServicePage() {
         </div>
       </main>
 
-      <div className="framer-1vmkvli"></div>
-
-      {/* Framer Native Footer */}
-      <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: ` + JSON.stringify(footerHtml) + ` }} />
+      {/* Native Website Footer */}
+      <LegalFooter />
     </div>
   );
 }

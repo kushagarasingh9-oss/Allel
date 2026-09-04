@@ -236,12 +236,6 @@ export default function DocsPage() {
     return () => clearInterval(interval);
   }, [mounted, user]);
 
-  if (!mounted) {
-    return (
-      <div style={{ background: '#0b0b0a', minHeight: '100vh' }} />
-    );
-  }
-
   return (
     <>
       <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: FRAMER_STYLES }} />

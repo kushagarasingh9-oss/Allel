@@ -37,7 +37,6 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("font-sans", plusJakartaSans.variable)} suppressHydrationWarning>
       <head>
-        <meta name="google-site-verification" content="iYzd3tf8U3WeSuFcWpJAUeMigE2WLYkXPn_LHAjhtdI" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&amp;display=swap" rel="stylesheet" />
