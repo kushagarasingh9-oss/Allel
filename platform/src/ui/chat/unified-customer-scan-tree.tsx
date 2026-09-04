@@ -768,7 +768,7 @@ export function AccountRecoveryStatusTree({
     : 'Quick note regarding your Apex MultiRail subscription & data sync'
   const defaultRecipient = isDataVibe ? 'shaurya@datavibe.io' : 'rohan@apexmultirail.co'
   const defaultBody = isDataVibe
-    ? `Hi Marcus,\n\nI saw that you were looking into subscription cancellation ahead of DataVibe's renewal cycle.\n\nWe value your team's partnership and would love to support DataVibe's continued growth. I have prepared an exclusive 20% retention discount for your next 6 months to give you breathing room as your data volume expands.\n\nLet me know if you'd like me to apply this credit directly to your billing file today.\n\nBest regards,\nAllel Team`
+    ? `Hi Shaurya,\n\nI saw that you were looking into subscription cancellation ahead of DataVibe's renewal cycle.\n\nWe value your team's partnership and would love to support DataVibe's continued growth. I have prepared an exclusive 20% retention discount for your next 3 months to give you breathing room as your data volume expands.\n\nYou can use discount code TcYolT99 at checkout or renewal, or let me know and I will apply this credit directly to your billing file today.\n\nBest regards,\nAllel Team`
     : `Hi Rohan,\n\nI noticed our latest automated billing retry for your subscription didn't go through, and wanted to check in personally rather than sending an automated notification.\n\nAlso saw your telemetry sync had a brief dip recently—wanted to make sure you're not experiencing any blockers with the pipeline sync. Happy to hop on a quick call or update your payment details whenever convenient.\n\nBest,\nFounder & Team`
 
   const draft = {

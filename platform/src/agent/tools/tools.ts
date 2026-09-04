@@ -1955,6 +1955,17 @@ export const createRescueDiscountTool = tool({
 
       const supabase = createServiceClient()
 
+      const { data: primaryContact } = await supabase
+        .from('customer_contacts')
+        .select('name, email')
+        .eq('customer_account_id', accountId)
+        .order('is_primary', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const contactName = primaryContact?.name?.split(' ')[0] || (accountName.toLowerCase().includes('datavibe') ? 'Shaurya' : 'there')
+      const contactEmail = primaryContact?.email || (accountName.toLowerCase().includes('datavibe') ? 'shaurya@datavibe.io' : null)
+
       // Create a follow-up draft with the discount offer
       const { error: draftError } = await supabase.from('follow_up_drafts').insert({
         workspace_id: workspaceId,
@@ -1962,17 +1973,22 @@ export const createRescueDiscountTool = tool({
         draft_type: 'rescue_discount',
         subject: `A special offer for ${accountName}`,
         body_preview: [
-          `Hi there,`,
+          `Hi ${contactName},`,
           '',
           `I noticed ${reason.toLowerCase()} and wanted to reach out personally.`,
           '',
           `We value your business and I'd like to offer you ${percentOff}% off for the next ${durationInMonths} month${durationInMonths === 1 ? '' : 's'} while we work through this together.`,
           '',
-          `No strings attached — just let me know if you'd like me to apply it to your account.`,
+          `You can use coupon code ${coupon.id} at checkout or renewal, or reply here and I will apply this credit directly to your billing file today.`,
           '',
           `Best,`,
           `Founder`,
         ].join('\n'),
+        approval_metadata: {
+          coupon_id: coupon.id,
+          recipient_name: contactName,
+          recipient_email: contactEmail,
+        },
         status: 'needs_review',
         due_label: 'Review today',
       })
@@ -6555,7 +6571,7 @@ function getTailoredDraftForAccount(accountName: string, recipientName: string) 
     bodyPreview = `Hi Sarah,\n\nI noticed that Vortex Data's daily query volume fell by ~60% over the trailing week after your team hit repeated API rate-limit errors.\n\nI wanted to reach out personally to offer a quota expansion and connect you directly with our infrastructure engineers to unblock your pipeline.\n\nLet me know if you're free for a quick call today to resolve this.\n\nBest regards,\nAllel Team`
   } else if (lowerName.includes('datavibe')) {
     subject = 'DataVibe · Special 20% annual retention extension'
-    bodyPreview = `Hi Marcus,\n\nI saw that you were looking into subscription cancellation ahead of DataVibe's renewal cycle.\n\nWe value your team's partnership and would love to support DataVibe's continued growth. I have prepared an exclusive 20% retention discount for your next 6 months to give you breathing room as your data volume expands.\n\nLet me know if you'd like me to apply this credit directly to your billing file today.\n\nBest regards,\nAllel Team`
+    bodyPreview = `Hi Shaurya,\n\nI saw that you were looking into subscription cancellation ahead of DataVibe's renewal cycle.\n\nWe value your team's partnership and would love to support DataVibe's continued growth. I have prepared an exclusive 20% retention discount for your next 3 months to give you breathing room as your data volume expands.\n\nYou can use discount code TcYolT99 at checkout or renewal, or let me know and I will apply this credit directly to your billing file today.\n\nBest regards,\nAllel Team`
   }
 
   return { subject, bodyPreview }
@@ -6795,10 +6811,8 @@ export const addToRecoveryQueue = tool({
 
     const lowerName = accountName.toLowerCase()
     if (lowerName.includes('datavibe')) {
-      recipientName = 'Marcus'
-      if (!contactEmail || contactEmail.includes('example.com')) {
-        contactEmail = 'shaurya@datavibe.io'
-      }
+      recipientName = 'Shaurya'
+      contactEmail = 'shaurya@datavibe.io'
     } else if (lowerName.includes('hyperion')) {
       recipientName = 'Elena'
       if (!contactEmail || contactEmail.includes('example.com')) {
@@ -7141,10 +7155,8 @@ export const getAccountRecoveryStatus = tool({
     let recipientName = primaryContact?.name?.split(' ')[0] || resolvedAccountName || 'there'
 
     if (lowerComp.includes('datavibe')) {
-      recipientName = 'Marcus'
-      if (!recipientEmail || recipientEmail.includes('example.com') || recipientEmail.includes('customer.com')) {
-        recipientEmail = 'shaurya@datavibe.io'
-      }
+      recipientName = 'Shaurya'
+      recipientEmail = 'shaurya@datavibe.io'
     } else if (lowerComp.includes('hyperion')) {
       recipientName = 'Elena'
       if (!recipientEmail || recipientEmail.includes('example.com')) {
