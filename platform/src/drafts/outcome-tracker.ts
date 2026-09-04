@@ -84,10 +84,10 @@ export async function recordDraftSent(input: {
     .eq('id', input.customerAccountId)
     .single()
 
-  // Update draft's sent_at timestamp
+  // Update draft timestamp
   await supabase
     .from('follow_up_drafts')
-    .update({ sent_at: new Date().toISOString() })
+    .update({ updated_at: new Date().toISOString() })
     .eq('id', input.draftId)
 
   // Check if outcome already exists (idempotency)

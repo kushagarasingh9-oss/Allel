@@ -15,11 +15,13 @@ type DraftRecord = {
   workspace_id: string
   customer_account_id: string | null
   subject: string
-  body_full: string | null
-  recipient_email: string | null
+  body_preview?: string | null
+  body_full?: string | null
+  recipient_email?: string | null
   status: string
   approved_at?: string | null
   approved_by_actor?: string | null
+  approval_metadata?: Record<string, unknown> | null
 }
 
 export type SentDraftContext = {
@@ -35,7 +37,7 @@ export async function sendDraftWithGmail(
   const { data: draft, error: fetchError } = await supabase
     .from('follow_up_drafts')
     .select(
-      'id, workspace_id, customer_account_id, subject, body_full, recipient_email, status, approved_at, approved_by_actor'
+      'id, workspace_id, customer_account_id, subject, body_preview, status, approved_at, approved_by_actor, approval_metadata'
     )
     .eq('id', draftId)
     .maybeSingle()
@@ -58,16 +60,32 @@ export async function sendDraftWithGmail(
     throw new Error('Draft is not linked to a customer account')
   }
 
-  // Send exactly what was approved: the stored full body and the approved
-  // recipient. There is deliberately no preview or primary-contact fallback.
-  const recipientEmail = typedDraft.recipient_email?.trim()
+  const meta = (typedDraft.approval_metadata && typeof typedDraft.approval_metadata === 'object')
+    ? (typedDraft.approval_metadata as Record<string, unknown>)
+    : {}
+
+  let recipientEmail = typeof meta.recipient_email === 'string' ? meta.recipient_email.trim() : null
+
+  if (!recipientEmail && typedDraft.customer_account_id) {
+    const { data: contact } = await supabase
+      .from('account_contacts')
+      .select('email')
+      .eq('workspace_id', typedDraft.workspace_id)
+      .eq('customer_account_id', typedDraft.customer_account_id)
+      .order('is_primary', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    recipientEmail = contact?.email?.trim() ?? null
+  }
+
   if (!recipientEmail) {
     throw new Error('Draft has no approved recipient email')
   }
 
-  const bodyFull = typedDraft.body_full
+  const bodyFull = typedDraft.body_preview || (typeof meta.body === 'string' ? meta.body : '')
   if (!bodyFull) {
-    throw new Error('Draft has no full body — refusing to send preview content')
+    throw new Error('Draft has no content to send')
   }
 
   // Pre-send recipient validation (TOCTOU prevention)
@@ -116,9 +134,13 @@ export async function sendDraftWithGmail(
     .from('follow_up_drafts')
     .update({
       status: 'sent',
-      sent_at: new Date().toISOString(),
-      provider_message_id: result.messageId,
-      provider_thread_id: result.threadId,
+      updated_at: new Date().toISOString(),
+      approval_metadata: {
+        ...meta,
+        sent_at: new Date().toISOString(),
+        provider_message_id: result.messageId,
+        provider_thread_id: result.threadId,
+      },
     })
     .eq('id', draftId)
 
