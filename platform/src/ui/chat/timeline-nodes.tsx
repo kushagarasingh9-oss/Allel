@@ -3,7 +3,7 @@
 import * as React from "react"
 import { cn } from "@/foundation/utils"
 import { motion, AnimatePresence } from "motion/react"
-import { ChevronRight, Loader2, Check, Clock } from "lucide-react"
+import { ChevronRight, Loader2, Check, Clock, User, RefreshCw, Lightbulb, Brain, Shield, DollarSign } from "lucide-react"
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -613,6 +613,9 @@ function formatTextWithIntegrationLogos(raw: string): string {
     .replace(/(?:!\[Recommended Action\]\(\/logos\/brain\.svg\)|🧠)?\s*\*{0,2}Recommended Action:?\*{0,2}/gi, '![Recommended Action](/logos/brain.svg) **Recommended Action:**')
     .replace(/🧠\s*(\*{2}[^*]+\*{2})/g, '![Action](/logos/brain.svg) $1')
     .replace(/(?:!\[Stripe\]\(\/logos\/stripe\.svg\)|👤)?\s*([A-Za-z0-9\s._-]+(?:\([^\)]+\))?\s*—\s*Account Health Review)/gi, '![Account](/logos/person.svg) $1')
+    .replace(/(?:!\[Recovery\]\([^)]+\)|🔄|🛡️)?\s*([A-Za-z0-9\s._-]+(?:\([^\)]+\))?\s*—\s*Draft Ready for Review)/gi, '![Recovery](/logos/recovery.svg) $1')
+    .replace(/\/logos\/person\.png/g, '/logos/person.svg')
+    .replace(/\/logos\/revenue-recovery\.svg/g, '/logos/recovery.svg')
     .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Status:)\*{0,2}/gi, '\n- **Status:**')
     .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(MRR at Risk:)\*{0,2}/gi, '\n- **MRR at Risk:**')
     .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Billing:)\*{0,2}/gi, '\n- **Billing:**')
@@ -623,6 +626,43 @@ function formatTextWithIntegrationLogos(raw: string): string {
     .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Outreach:)\*{0,2}/gi, '\n- **Outreach:**')
     .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Monitoring:)\*{0,2}/gi, '\n- **Monitoring:**')
     .replace(/(?:^|\n)\s*(?:[-*]\s*)?\*{0,2}(Next move:)\*{0,2}/gi, '\n\n**Next move:**')
+}
+
+function SafeMarkdownImage({ src, alt }: { src?: string | Blob | undefined; alt?: string | undefined }) {
+  const [error, setError] = React.useState(false)
+  const srcString = typeof src === 'string' ? src : ''
+
+  if (!srcString || error) {
+    const s = `${srcString} ${alt || ''}`.toLowerCase()
+    if (s.includes('person') || s.includes('account') || s.includes('user')) {
+      return <User className="inline-block w-4 h-4 text-neutral-300 align-text-bottom mx-1 shrink-0" />
+    }
+    if (s.includes('recover') || s.includes('renewal')) {
+      return <RefreshCw className="inline-block w-4 h-4 text-emerald-400 align-text-bottom mx-1 shrink-0" />
+    }
+    if (s.includes('lightbulb') || s.includes('cause')) {
+      return <Lightbulb className="inline-block w-4 h-4 text-amber-400 align-text-bottom mx-1 shrink-0" />
+    }
+    if (s.includes('brain') || s.includes('action')) {
+      return <Brain className="inline-block w-4 h-4 text-purple-400 align-text-bottom mx-1 shrink-0" />
+    }
+    if (s.includes('stripe') || s.includes('billing') || s.includes('mrr')) {
+      return <DollarSign className="inline-block w-4 h-4 text-violet-400 align-text-bottom mx-1 shrink-0" />
+    }
+    if (s.includes('shield')) {
+      return <Shield className="inline-block w-4 h-4 text-cyan-400 align-text-bottom mx-1 shrink-0" />
+    }
+    return null
+  }
+
+  return (
+    <img
+      src={srcString}
+      alt={alt ?? ''}
+      onError={() => setError(true)}
+      className="inline-block w-4 h-4 object-contain align-text-bottom mx-1 shrink-0"
+    />
+  )
 }
 
 export function AgentSpeechBlock({
@@ -722,11 +762,7 @@ export function AgentSpeechBlock({
           remarkPlugins={[remarkGfm]}
           components={{
             img: ({ src, alt }) => (
-              <img
-                src={src}
-                alt={alt ?? ''}
-                className="inline-block w-4 h-4 object-contain align-text-bottom mx-1 shrink-0"
-              />
+              <SafeMarkdownImage src={src} alt={alt} />
             ),
             hr: () => <div className="h-3.5 w-full" />,
             strong: ({ children }) => (

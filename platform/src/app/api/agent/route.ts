@@ -420,7 +420,12 @@ CORE OPERATIONAL DOCTRINE:
      - ![Intercom](/logos/intercom.svg) **Intercom**
      - ![LinkedIn](/logos/linkedin.svg) **LinkedIn** (e.g. "One ![LinkedIn](/logos/linkedin.svg) **LinkedIn** invite from...")
      - ![Airtable](/logos/airtable.svg) **Airtable**
-   - Never use generic unicode emojis for platform names. Always use the official markdown logo.
+     - ![Account](/logos/person.svg) **Account / Customer**
+     - ![Recovery](/logos/recovery.svg) **Recovery / Draft**
+     - ![Likely Root Cause](/logos/lightbulb.svg) **Likely Root Cause**
+     - ![Recommended Action](/logos/brain.svg) **Recommended Action**
+    - ALLOWED SVG LOGOS: Only use the exact SVG paths listed above (/logos/stripe.svg, /logos/gmail.svg, /logos/posthog.svg, /logos/google-calendar.svg, /logos/slack.svg, /logos/intercom.svg, /logos/linear.svg, /logos/sentry-light.svg, /logos/notion.svg, /logos/hubspot.svg, /logos/linkedin.svg, /logos/airtable.svg, /logos/person.svg, /logos/recovery.svg, /logos/lightbulb.svg, /logos/brain.svg). NEVER invent or guess other logo file names.
+    - Never use generic unicode emojis for platform names. Always use the official markdown logo.
 
 4. AUTONOMOUS STEP 1 EXECUTION & COMPLETE SUMMARY:
    - The workspace ID is ALWAYS provided in the system message (\`workspace_id=...\`). Do not ask the founder for their workspace ID; use it directly in tool calls.
@@ -501,17 +506,70 @@ CORE OPERATIONAL DOCTRINE:
   const previousUserMessage = previousUserMessages[1] ?? null
   const previousUserText = previousUserMessage ? getMessageTextContent(previousUserMessage).slice(0, 150) : ''
 
+  // Detect active customer in context from previous turns
+  let activeCustomerName: string | null = null
+  for (const msg of [...recentMessages].reverse()) {
+    if (msg.role === 'assistant' || msg.role === 'user') {
+      if (Array.isArray(msg.parts)) {
+        for (const part of msg.parts) {
+          if (part && typeof part === 'object') {
+            const input = (part as any).input
+            if (input && typeof input === 'object') {
+              if (typeof input.accountName === 'string' && input.accountName.trim()) {
+                activeCustomerName = input.accountName.trim()
+                break
+              }
+              if (typeof input.account === 'string' && input.account.trim()) {
+                activeCustomerName = input.account.trim()
+                break
+              }
+            }
+          }
+        }
+      }
+      if (activeCustomerName) break
+    }
+  }
+
+  if (!activeCustomerName) {
+    const KNOWN_ACCOUNTS = [
+      'Apex MultiRail', 'Vortex Data', 'DataVibe', 'Vanguard Infra', 'Nexus Flow',
+      'Zenith Books', 'Aura Analytics', 'FintechScale', 'GridPulse AI', 'Hyperion Dispatch',
+      'Cobalt Core', 'KryptonDB', 'Beacon Shield', 'Lattice Systems', 'Prism Storefronts'
+    ]
+    const combinedRecentText = `${previousAssistantText} ${previousUserText}`
+    for (const acc of KNOWN_ACCOUNTS) {
+      if (new RegExp(`\\b${acc.replace(/\s+/g, '\\s+')}\\b`, 'i').test(combinedRecentText)) {
+        activeCustomerName = acc
+        break
+      }
+    }
+  }
+
   const latestText = latestUserMessage ? getMessageTextContent(latestUserMessage).trim() : ''
   const isFollowUp = /\b(check\s*(?:now|nw|again|it|cal|mail)|try\s*(?:now|again)|recheck|done|did it|connected|now check|can you check)\b/i.test(latestText)
-  const isShortReferent = latestText.split(/\s+/).length <= 3
+  const isCustomerFollowUp = Boolean(
+    activeCustomerName &&
+    /\b(draft|coupon|discount|mail|email|send|review|approve|reject|forward|fdraft|here|her|him|them|that|it|show|update|create)\b/i.test(latestText)
+  )
+  const isShortReferent = latestText.split(/\s+/).length <= 5
 
   let activeTurnInstruction = `Active turn request:\n"${latestUserText}".`
-  if ((isFollowUp || isShortReferent) && (previousAssistantText || previousUserText)) {
+  if ((isFollowUp || isShortReferent || isCustomerFollowUp) && (previousAssistantText || previousUserText)) {
     activeTurnInstruction += `\n\nContext from previous turn:
 User previously said: "${previousUserText}"
 Assistant responded: "${previousAssistantText}"
-The user's message "${latestUserText}" is a follow-up to the topic above.
-Continuity guidance:
+The user's message "${latestUserText}" is a continuation of the topic above.`
+
+    if (activeCustomerName) {
+      activeTurnInstruction += `\n\nACTIVE CUSTOMER IN CONTEXT: "${activeCustomerName}"
+CRITICAL TARGET CONTINUITY:
+The founder's message ("${latestUserText}") is an ongoing action for "${activeCustomerName}" unless they explicitly name a different customer company.
+- DO NOT switch customer accounts based on phonetic guesses, typos, or pronouns (e.g., "for here", "for her", "him", "her", "them", "draft for here", "the draft", "send it", "update it").
+- Keep all operations (draft creation, coupon creation, email review, health check) strictly focused on "${activeCustomerName}".`
+    }
+
+    activeTurnInstruction += `\nContinuity guidance:
 - If the previous turn was about checking or connecting Google Calendar, call listCalendarEventsTool now.
 - If the previous turn was about Gmail, check Gmail.
 - If the previous turn was about a specific customer or recovery case, continue on that customer.
@@ -519,6 +577,9 @@ Continuity guidance:
 - Keep focus on the active topic without diverting to unrelated scans unless requested.`
   } else {
     activeTurnInstruction += `\nFocus on fulfilling this request directly. When tool calls are executed (e.g. getMyInbox, listCalendarEventsTool, getAllAccounts, getUnifiedCustomerScan), synthesize the tool results into a structured executive response with official SVG brand logos and next steps.`
+    if (activeCustomerName && !/\b(scan|all|fleet|everyone)\b/i.test(latestText)) {
+      activeTurnInstruction += `\n(Active customer anchor from previous turn was "${activeCustomerName}").`
+    }
   }
 
   const combinedSystemPrompt = [

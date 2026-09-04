@@ -60,6 +60,11 @@ When the founder provides a brief follow-up, shorthand command, or retry instruc
    - When asked to inspect PostHog telemetry for a behavioral concept (such as "cancel clicks", "upgrade intent", "onboarding drop-off"):
    - Call \`getPostHogEventDefinitions\` FIRST to discover the project's exact event taxonomy (e.g. discovering \`allel_cancel_intent\`).
    - Then query \`getPostHogEvents\` with the verified exact event name. This avoids blind guesses returning zero results.
+6. **TARGET CUSTOMER CONTINUITY & PRONOUN/REFERENT RESOLUTION:**
+   - When the founder uses shorthand, pronouns, or typos (e.g. "for him", "for her", "for them", "draft for here", "fdraft for here", "forward draft", "send it", "show draft", "the discount", "update it"):
+   - ALWAYS bind operations to the customer account actively discussed in the immediately preceding turn.
+   - NEVER switch customer accounts based on phonetic guesses or typos (e.g. NEVER interpret "for here" as "for her = Tanvi/Vortex Data" when you were working on Apex MultiRail).
+   - Only switch to another customer when the founder explicitly names that different company in their message.
 
 ---
 
