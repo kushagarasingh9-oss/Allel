@@ -1956,7 +1956,7 @@ export const createRescueDiscountTool = tool({
       const supabase = createServiceClient()
 
       const { data: primaryContact } = await supabase
-        .from('customer_contacts')
+        .from('account_contacts')
         .select('name, email')
         .eq('customer_account_id', accountId)
         .order('is_primary', { ascending: false })
@@ -1966,35 +1966,96 @@ export const createRescueDiscountTool = tool({
       const contactName = primaryContact?.name?.split(' ')[0] || (accountName.toLowerCase().includes('datavibe') ? 'Shaurya' : 'there')
       const contactEmail = primaryContact?.email || (accountName.toLowerCase().includes('datavibe') ? 'shaurya@datavibe.io' : null)
 
-      // Create a follow-up draft with the discount offer
-      const { error: draftError } = await supabase.from('follow_up_drafts').insert({
-        workspace_id: workspaceId,
-        customer_account_id: accountId,
-        draft_type: 'rescue_discount',
-        subject: `A special offer for ${accountName}`,
-        body_preview: [
-          `Hi ${contactName},`,
-          '',
-          `I noticed ${reason.toLowerCase()} and wanted to reach out personally.`,
-          '',
-          `We value your business and I'd like to offer you ${percentOff}% off for the next ${durationInMonths} month${durationInMonths === 1 ? '' : 's'} while we work through this together.`,
-          '',
-          `You can use coupon code ${coupon.id} at checkout or renewal, or reply here and I will apply this credit directly to your billing file today.`,
-          '',
-          `Best,`,
-          `Founder`,
-        ].join('\n'),
-        approval_metadata: {
-          coupon_id: coupon.id,
-          recipient_name: contactName,
-          recipient_email: contactEmail,
-        },
-        status: 'needs_review',
-        due_label: 'Review today',
-      })
+      // Look for an existing pending draft for this account (e.g. staged during customer health scan)
+      const { data: existingDraft } = await supabase
+        .from('follow_up_drafts')
+        .select('id, recovery_case_id, subject, body_preview')
+        .eq('customer_account_id', accountId)
+        .in('status', ['needs_review', 'ready_to_send'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
-      if (draftError) {
-        return { error: `Coupon created but draft failed: ${draftError.message}`, couponId: coupon.id }
+      // Look for an active recovery case to link if not already linked
+      const { data: activeCase } = await supabase
+        .from('recovery_cases')
+        .select('id')
+        .eq('customer_account_id', accountId)
+        .in('status', ['open', 'monitoring', 'awaiting_approval'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const draftSubject = `A special offer for ${accountName} (${percentOff}% off)`
+      const draftBody = [
+        `Hi ${contactName},`,
+        '',
+        `I wanted to reach out personally because we truly value having ${accountName} as a partner.`,
+        '',
+        `To help ensure everything runs smoothly for your team, I'd like to offer you ${percentOff}% off for the next ${durationInMonths} month${durationInMonths === 1 ? '' : 's'} — no strings attached.`,
+        '',
+        `You can use coupon code ${coupon.id} at checkout or renewal, or reply directly here and I will apply this credit to your account today.`,
+        '',
+        `Best,`,
+        `Founder`,
+      ].join('\n')
+
+      let draftId: string
+      let draftAction: 'updated_existing_draft' | 'created_new_draft' = 'created_new_draft'
+
+      if (existingDraft) {
+        draftId = existingDraft.id
+        draftAction = 'updated_existing_draft'
+        const { error: updateErr } = await supabase
+          .from('follow_up_drafts')
+          .update({
+            subject: draftSubject,
+            body_preview: draftBody,
+            draft_type: 'rescue_discount',
+            recovery_case_id: existingDraft.recovery_case_id || activeCase?.id || null,
+            approval_metadata: {
+              coupon_id: coupon.id,
+              recipient_name: contactName,
+              recipient_email: contactEmail,
+              percent_off: percentOff,
+              duration_months: durationInMonths,
+            },
+            status: 'needs_review',
+            due_label: 'Review today',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingDraft.id)
+
+        if (updateErr) {
+          return { error: `Coupon created (${coupon.id}) but updating draft failed: ${updateErr.message}`, couponId: coupon.id }
+        }
+      } else {
+        const { data: newDraft, error: insertErr } = await supabase
+          .from('follow_up_drafts')
+          .insert({
+            workspace_id: workspaceId,
+            customer_account_id: accountId,
+            recovery_case_id: activeCase?.id || null,
+            draft_type: 'rescue_discount',
+            subject: draftSubject,
+            body_preview: draftBody,
+            approval_metadata: {
+              coupon_id: coupon.id,
+              recipient_name: contactName,
+              recipient_email: contactEmail,
+              percent_off: percentOff,
+              duration_months: durationInMonths,
+            },
+            status: 'needs_review',
+            due_label: 'Review today',
+          })
+          .select('id')
+          .single()
+
+        if (insertErr) {
+          return { error: `Coupon created (${coupon.id}) but staging draft failed: ${insertErr.message}`, couponId: coupon.id }
+        }
+        draftId = newDraft.id
       }
 
       // Log to timeline
@@ -2015,8 +2076,13 @@ export const createRescueDiscountTool = tool({
         couponId: coupon.id,
         percentOff,
         durationInMonths,
-        draftCreated: true,
-        message: `Created ${percentOff}% rescue discount for ${accountName} (${durationInMonths}mo). Draft email created for founder review.`,
+        draftId,
+        draftAction,
+        recipientName: contactName,
+        recipientEmail: contactEmail,
+        message: draftAction === 'updated_existing_draft'
+          ? `Created ${percentOff}% rescue discount (${coupon.id}) and updated the existing outreach draft for ${accountName} (${contactEmail || contactName}) with the offer.`
+          : `Created ${percentOff}% rescue discount (${coupon.id}) and staged an outreach draft for ${accountName} (${contactEmail || contactName}).`,
       }
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to create rescue coupon' }
@@ -2102,43 +2168,77 @@ export const rejectDraft = tool({
 
 export const updateDraftContent = tool({
   description:
-    'Edit the subject or body of an existing draft. Use this when the founder wants to modify a draft before approving it. Requires the draft ID from getExistingDrafts.',
+    'Edit the subject or body of an existing draft. Use this when the founder wants to modify a draft before approving it (e.g. lighten the tone, remove technical details, customize offer). Requires draftId, OR accountName/accountId to automatically locate the pending draft.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    draftId: z.string().uuid().describe('The draft UUID from getExistingDrafts'),
+    draftId: z.string().uuid().optional().describe('The draft UUID (optional if accountName or accountId is provided)'),
+    accountName: z.string().optional().describe('The customer account name (e.g. "Apex MultiRail") to find the draft for'),
+    accountId: z.string().uuid().optional().describe('The customer account UUID to find the draft for'),
     newSubject: z.string().optional().describe('New subject line (leave empty to keep current)'),
     newBody: z.string().optional().describe('New email body (leave empty to keep current)'),
   }),
-  execute: async ({ workspaceId, draftId, newSubject, newBody }) => {
+  execute: async ({ workspaceId, draftId, accountName, accountId, newSubject, newBody }) => {
     const supabase = createServiceClient()
 
     if (!newSubject && !newBody) return { error: 'Provide at least newSubject or newBody to update' }
 
+    let targetDraftId = draftId
+
+    if (!targetDraftId) {
+      let resolvedAccountId = accountId
+      if (!resolvedAccountId && accountName) {
+        const { data: acc } = await supabase
+          .from('customer_accounts')
+          .select('id')
+          .eq('workspace_id', workspaceId)
+          .ilike('name', `%${accountName.trim()}%`)
+          .limit(1)
+          .maybeSingle()
+        resolvedAccountId = acc?.id
+      }
+
+      if (resolvedAccountId) {
+        const { data: d } = await supabase
+          .from('follow_up_drafts')
+          .select('id')
+          .eq('customer_account_id', resolvedAccountId)
+          .in('status', ['needs_review', 'ready_to_send'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        targetDraftId = d?.id
+      }
+    }
+
+    if (!targetDraftId) {
+      return { error: 'Could not find a pending draft to update. Please provide draftId or accountName.' }
+    }
+
     const { data: draft, error: fetchError } = await supabase
       .from('follow_up_drafts')
       .select('id, subject, body_preview, status')
-      .eq('id', draftId)
+      .eq('id', targetDraftId)
       .eq('workspace_id', workspaceId)
       .single()
 
     if (fetchError || !draft) return { error: 'Draft not found' }
     if (draft.status === 'sent') return { error: 'Cannot edit a sent draft' }
 
-    const updates: Record<string, string> = {}
+    const updates: Record<string, string> = { updated_at: new Date().toISOString() }
     if (newSubject) updates.subject = newSubject
     if (newBody) updates.body_preview = newBody
 
     const { error } = await supabase
       .from('follow_up_drafts')
       .update(updates)
-      .eq('id', draftId)
+      .eq('id', targetDraftId)
 
     if (error) return { error: error.message }
 
     return {
       success: true,
-      draftId,
-      updatedFields: Object.keys(updates),
+      draftId: targetDraftId,
+      updatedFields: Object.keys(updates).filter(k => k !== 'updated_at'),
       subject: newSubject ?? draft.subject,
     }
   },

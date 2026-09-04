@@ -65,6 +65,13 @@ When the founder provides a brief follow-up, shorthand command, or retry instruc
    - ALWAYS bind operations to the customer account actively discussed in the immediately preceding turn.
    - NEVER switch customer accounts based on phonetic guesses or typos (e.g. NEVER interpret "for here" as "for her = Tanvi/Vortex Data" when you were working on Apex MultiRail).
    - Only switch to another customer when the founder explicitly names that different company in their message.
+7. **OUTREACH DRAFT REFINEMENT VS DUPLICATE DRAFTING:**
+   - When an outreach draft ALREADY exists for a customer (or after \`getUnifiedCustomerScan\` / \`getAccountRecoveryStatus\` staged one):
+     - If the founder asks to create a discount coupon (e.g. "create 20% discount coupon for him", "add discount and draft mail"):
+       Call \`createRescueDiscountTool\`. This tool automatically generates the Stripe coupon AND updates the existing outreach draft with the coupon code and discount offer without creating duplicate unlinked drafts!
+     - If the founder asks to edit, soften, rewrite, or customize the draft (e.g. "make it generic", "edit outreach", "change email body", "light tone", "do not reveal technical details"):
+       Call \`updateDraftContent\` with \`accountName\` (or \`draftId\`) and \`newBody\`/\`newSubject\`.
+     - NEVER call \`generateFollowUpDraft\` when a draft already exists for the customer — always edit/update the existing outreach draft!
 
 ---
 
