@@ -1,201 +1,103 @@
-# Agent Layer
+# Allel Agent Runtime
 
-> The agent loop: personas, tools, workflow stages, self-healing tool routing, chat trust boundaries, and memory.
->
-> For whole-system architecture — layers, database, integrations, frontend surfaces, runtime paths — see [ALLEL.md](file:///Users/kushagrasingh/dev/allel/ALLEL.md). This file details the agent orchestration engine.
->
-> Verified against the working tree on **2026-08-26**. Paths are repo-relative.
+> Current specialized reference. Last source audit: **2026-09-05**.
+> Start with the repository [`README.md`](../README.md). Technical context: [`ALLEL.md`](ALLEL.md). Routing details: [`tool_calling.md`](tool_calling.md).
 
----
+## Runtime
 
-## Shape
+`platform/src/agent/runtime/agent.ts` builds AI SDK `ToolLoopAgent` instances over the tool registry in `platform/src/agent/tools/tools.ts`.
 
-A **hybrid persona-driven operator system**, combining deterministic workflow state with an AI SDK 6 `ToolLoopAgent` runtime (`stopWhen: stepCountIs(25)`), dynamic in-loop schema expansion (`prepareStep`), and resilient model failover (`maxRetries: 3`, `AGENT_FALLBACK_MODEL_ID`).
+Current limits and behavior:
 
-Core runtime files:
+- Up to 25 reasoning/tool steps
+- 4,096 output tokens
+- Temperature `0.3`
+- Up to 10 SDK retries for transient upstream failures
+- Optional `AGENT_FALLBACK_MODEL_ID`
+- Per-channel chat/automation model overrides
+- Run telemetry for model, steps, tools, tokens, cost estimate, duration, workflow metadata, and action-completion checks
 
-| File | Role |
-| :--- | :--- |
-| `web/src/lib/agent/agent.ts` | Tool registry (`ALL_TOOLS`), adaptive Levenshtein fuzzy router, in-loop `prepareStep` expansion, live integration guards, agent cache |
-| `web/src/lib/agent/tools.ts` | Tool implementations (136 registered tools) |
-| `web/src/lib/agent/personas.ts` | Persona definitions and per-persona tool allowlists |
-| `web/src/lib/agent/instructions.ts` | Shared base system prompt |
-| `web/src/lib/agent/runtime-context.ts` | Step-aware runtime contract block injected into the prompt |
-| `web/src/lib/agent/workflows.ts` | Staged automation jobs and per-stage tool allowlists |
-| `web/src/lib/agent/ui-message-utils.ts` | Client message sanitization and HMAC assistant-history signing |
-| `web/src/lib/agent/chat-memory.ts` | Transcript persistence, trimming, and rolling compaction |
-| `web/src/lib/agent/account-memory.ts` | Durable per-account memory and asynchronous refresh queue |
-| `web/src/lib/agent/run-logger.ts` | Writes runs into `agent_runs` with token spend and step traces |
-| `web/src/lib/agent/run-inspection.ts` | Groups runs into workflow inspections for `/api/agent/runs` |
-| `web/src/lib/agent/approval-store.ts` | Backs `tool_approval_requests` |
-| `web/src/lib/agent/external-content.ts` | Labels third-party text as untrusted |
-| `web/src/lib/agent/error-classifier.ts` | Classifies runtime failures for retry, fallback, or founder-safe display |
-
----
+The runtime supports Azure OpenAI/Foundry-style configuration and standard OpenAI-compatible configuration. Model selection is environment-driven with a code fallback.
 
 ## Personas
 
-Three personas, defined in `personas.ts`. Each has a dedicated instruction file appended to the shared base prompt.
+| Internal ID | Display name | Role | Tool policy |
+|---|---|---|---|
+| `alex` | Allel | AI Co-founder | Eligible for every registered tool |
+| `henry` | Henry | Head of Growth | Curated growth, research, context, draft, and collaboration tools |
+| `sarah` | Sarah | Head of Retention | Curated billing, usage, account, recovery, outreach, and calendar tools |
 
-| ID | Display name | Role | Instruction file | Tool scope |
-| :--- | :--- | :--- | :--- | :--- |
-| `alex` | **Alex** (Allel) | AI Co-founder / Generalist | `allel-instructions.ts` (`COFOUNDER_INSTRUCTIONS`) | All 136 registered tools |
-| `henry` | **Henry** | Head of Growth | `henry-instructions.ts` (`HENRY_INSTRUCTIONS`) | Curated: Tavily web research, read-only CRM/Support, Gmail read/draft, Slack, Notion |
-| `sarah` | **Sarah** | Head of Retention | `sarah-instructions.ts` (`SARAH_INSTRUCTIONS`) | Curated: Stripe billing, PostHog usage, rescue drafts, account health |
+The `alex` identifier remains for backward compatibility; UI and prompts call the persona Allel.
 
-The `alex` ID is retained for backwards compatibility while the founder-facing identity is the unified "Allel". Henry's scope isolates web research from direct business writes; his Gmail access is read-and-draft only, with no send tool.
+## Tools and routing
 
----
+There are **164** keys in `ALL_TOOLS` at the audit date. This count is volatile and should be measured from source rather than hard-coded into product claims.
 
-## Live Entry Points
+For chat, persona eligibility and current activation are different concepts:
 
-| Endpoint | Purpose |
-| :--- | :--- |
-| `POST /api/agent?agentId=alex\|henry\|sarah` | Streaming founder chat with in-loop schema expansion |
-| `DELETE /api/agent` | Clear persisted conversation state |
-| `GET /api/agent/history` | Persisted conversation history |
-| `GET` and `POST /api/agent/approvals` | Read and resolve tool approval requests |
-| `GET /api/agent/runs` | Workflow run history (workflow-level cursor pagination) |
-| `GET /api/agent/runs/[workflowId]` | Single workflow inspection |
-| `GET /api/cron/daily-run` | Daily automation, `CRON_SECRET`-gated |
-| `POST /api/webhooks/stripe` | Stripe follow-up automation |
-| `POST /api/webhooks/posthog` | PostHog follow-up automation |
-| `POST /api/brief/refresh` | Deterministic brief rebuild |
-| `PATCH /api/drafts/[id]/approve` | Founder-only draft approval |
-| `POST /api/drafts/[id]/send` | Founder-only draft send |
-| `GET /api/metrics/revenue-saved` | Draft-outcome revenue metric |
-| `POST /api/waitlist` | Landing-page waitlist capture |
+1. Persona configuration defines the maximum eligible set.
+2. Prompt/domain matching selects a smaller initial active set.
+3. `requestMoreTools` can activate another eligible domain on the next step.
+4. `prepareStep` updates active tools and runtime instructions.
+5. Connection guards prevent provider tools from fabricating success when live credentials are missing or unhealthy.
 
----
+Automation runs use their workflow-specific tool scope rather than the chat expansion path.
 
-## Tool Surface & 3-Guarantee Execution Architecture
+## Memory and trust
 
-`ALL_TOOLS` in `agent.ts` registers **136 tools** spanning 12 capability domains: Google Calendar, Gmail, Slack, Stripe, Notion, PostHog, Linear, Intercom, HubSpot, Sentry, Airtable, and Web Research.
+### Conversation memory
+
+`platform/src/agent/memory/chat-memory.ts` persists conversation state scoped by:
+
+- user
+- workspace
+- persona
+- session
+
+It deduplicates turns, bounds retained history, compacts older context, and tracks summaries, goals, commitments, and referenced accounts. Session operations live in `chat-session.ts`.
+
+Assistant metadata is signed by `AGENT_HISTORY_SIGNING_SECRET` and sanitized in `platform/src/agent/tools/ui-message-utils.ts`. Production requires a dedicated signing secret; local development may fall back to `OPENAI_API_KEY`.
+
+### Account memory
+
+`account-memory.ts` builds deterministic account context from persisted account facts, signals, timeline events, and unsent drafts. Refresh requests can be queued durably. This memory is application data, not free-form model recollection.
+
+## Workflows
+
+Legacy agent workflow helpers define `detect → analyze → draft → verify` stages and stage allowlists. The current revenue-recovery pipeline is more deterministic: provider ingestion, identity, feature projection, scoring, policy, case transitions, approval, sending, and attribution are handled by application code and durable job handlers under `platform/src/jobs` and `platform/src/recovery`.
+
+The daily cron intentionally uses deterministic reconciliation and the recovery queue instead of asking a free-form agent to sweep every account.
+
+## Approval boundaries
+
+Two approval mechanisms must not be conflated:
+
+1. **Recovery draft approval is active.** It binds approval to an expected content hash and queues durable sending.
+2. **Generic chat tool approval is scaffolded but not enabled.** `tool_approval_requests` and `/api/agent/approvals` exist, but `MANUAL_APPROVAL_REQUIRED_TOOL_NAMES` is currently empty.
+
+Therefore, do not claim that every external write initiated in chat is automatically intercepted for founder approval. Persona allowlists, prompts, provider APIs, and runtime guards still constrain behavior, but they are not equivalent to a universal approval gate.
+
+## Observability
+
+`run-logger.ts` persists agent runs. `run-inspection.ts` groups stage runs into workflow views exposed through:
+
+- `GET /api/agent/runs`
+- `GET /api/agent/runs/[workflowId]`
+
+Announced-action checks identify turns that promised tool work but completed no tool call. The UI exposes session history, while recovery workflow inspection is surfaced primarily through `/dashboard/flows`.
+
+## Relevant source
 
 ```text
-persona + workflow policy ceiling (Hard Security Boundary)
-        │
-        ▼
-eligible capability tools (e.g., Alex = 136 tools, Henry = 32 tools)
-        │
-        ├── deterministic router ──► initially activeTools (~12 tools)
-        │                              + requestMoreTools meta-tool
-        │
-        ▼
-ToolLoopAgent contains all eligible definitions internally
-but sends only `activeTools` schemas to LLM on step 1
-        │
-        ▼
-model calls requestMoreTools({ domain: 'stripe', reason: '...' })
-        │
-        ▼
-next `prepareStep` derives requested domains from prior step tool calls
-        │
-        ▼
-activeTools = initial tools ∪ eligible tools in requested domains
-        │
-        ▼
-model receives expanded schemas in the SAME loop turn without restarting stream
+platform/src/agent/memory/
+platform/src/agent/personas/
+platform/src/agent/runtime/
+platform/src/agent/tools/
+platform/src/agent/workflows/
+platform/src/app/api/agent/
+platform/src/ui/chat/
 ```
 
-### Guarantee 1 — No False Negatives: Adaptive Levenshtein Router
-- `selectRelevantToolsForPrompt` routes requests using exact keyword regexes + fast bounded Levenshtein distance:
-  - Tokens 4–5 chars: distance $\le 1$
-  - Tokens 6+ chars: distance $\le 2$
-  - Tokens $\le 3$ chars: never fuzzy-matched (avoids false matches on short words)
-- Domain matching is strictly independent (e.g. matching Gmail never drops Calendar).
-- **Pillar 2 — Relevance-Ordered Tool Provisioning**: All eligible tools are available from Step 1 with priority ordering (intent tools → primary domain → secondary companion → history → core). Broad requests (e.g. morning brief across Calendar, Inbox, Billing, Slack) have full concurrent tool access.
+## Validation
 
-### Guarantee 2 — No False Positives: Live Integration Guards
-- Every tool definition is wrapped with `wrapToolWithLiveIntegrationGuard`.
-- If an integration connection is unverified, disconnected, or returns a 401/auth failure, the guard cleanly flags `needs_attention` and rejects execution rather than allowing mock/fabricated data.
-
-### Guarantee 3 — No Dead Ends: In-Loop `prepareStep` & `requestMoreTools`
-- In interactive chat, `ToolLoopAgent` holds all persona-eligible tools internally, exposing only the initial `activeTools` schemas on step 1 alongside `requestMoreTools`.
-- When the model calls `requestMoreTools({ domain, reason })`, `prepareStep` intercepts the call between reasoning steps and expands `activeTools` for subsequent steps.
-- The expansion is purely derived from `steps`, ensuring zero cross-request mutable state leakage across cached agent instances.
-
-### What the Agent Loop Cannot Do
-- `approveDraft` and `sendApprovedDraft` tools are **strictly excluded** from `ALL_TOOLS`.
-- `approveDraftForActor()` and `sendDraftForActor()` in `web/src/lib/drafts/draft-workflows.ts` reject any call where `actor === 'agent'`.
-- Sending an email requires explicit status `ready_to_send` and verified human founder approval provenance (`approved_at` and `approved_by_actor`).
-
----
-
-## 100k TPM Budget — 4-Pillar Optimization
-
-**Deployment:** Azure OpenAI Global Standard · Kimi-K2.6 · **100,000 TPM (hard cap)**
-
-| Pillar | File | What It Does | Token Savings |
-| :--- | :--- | :--- | :--- |
-| **P1 — Output Projection** | `tools.ts` | `getAllAccounts` drops 5 raw fields, sorts at-risk first, caps at 20 rows. `getRecentSignals` drops `stripeCustomerId`. | ~3,000–5,000 / turn |
-| **P2 — Dynamic Tool Scoping** | `agent.ts` | Chat capped at `MAX_ACTIVE_TOOLS=18`. Core 6 always present. `requestMoreTools` unlocks any domain. | ~5,800 schema tokens / step |
-| **P3 — Compact Tool History** | `agent.ts` + `route.ts` | `compactToolHistory()` truncates old tool results over 400 chars to a 160-char preview. Last exchange verbatim. | ~4,500 history tokens / 5-step convo |
-| **P4 — 429 Backoff** | `ai.ts` | `fetchWithBackoff` reads `Retry-After` header; exp backoff 1s to 16s + jitter; 4 retries. Injected into Azure `createOpenAI` fetch. | Eliminates 429 crashes |
-
-**Net result:** ~22,000 tokens/turn → ~4,500 tokens/turn (~80% reduction). Fits comfortably under 100k TPM with 4 concurrent workflows.
-
-See [tool_calling.md](./tool_calling.md) for full implementation details.
-
----
-
-## Workflow Stages
-
-Automated work decomposes into `detect → analyze → draft → verify`. Daily review, Stripe follow-up, and PostHog follow-up all use the same four stages.
-
-`WORKFLOW_STAGE_TOOL_ALLOWLISTS` in `workflows.ts` enforces scope in code:
-
-| Stage | Allowed tools |
-| :--- | :--- |
-| `detect` | `READ_ONLY_WORKFLOW_TOOLS` |
-| `analyze` | read-only + `ANALYZE_WRITE_WORKFLOW_TOOLS` (risk, signals, timeline, account info, notes, contacts) |
-| `draft` | read-only + `DRAFT_WRITE_WORKFLOW_TOOLS` (`generateFollowUpDraft`, `rejectDraft`, `updateDraftContent`) |
-| `verify` | `READ_ONLY_WORKFLOW_TOOLS` |
-
-Webhook follow-up jobs are scheduled with Next.js `after()` **before** the event is marked processed, so a failure to register does not silently drop the follow-up.
-
----
-
-## Chat Trust Boundaries
-
-The browser can send user messages. It cannot define trusted assistant state.
-
-`sanitizeClientUiMessages()` in `ui-message-utils.ts`:
-- Accepts only `user` and `assistant` roles; client `tool` and `system` messages are dropped outright.
-- Accepts an `assistant` message only when its `metadata.trustedHistory` carries `version: 1`, matching `workspaceId`/`personaId`, and a valid HMAC-SHA256 signature.
-- Signs assistant messages on the way out using `AGENT_HISTORY_SIGNING_SECRET` (falling back to `OPENAI_API_KEY`).
-- Server injects workspace identity, persona instructions, memory context, and runtime contract blocks after sanitization.
-
----
-
-## Memory
-
-### Chat Memory — `chat-memory.ts`
-- Bounded trailing transcript: `MAX_PERSISTED_AGENT_MESSAGES = 40`.
-- Compacted rolling summary: `MAX_COMPACTED_SUMMARY_CHARS = 1800`.
-- Account context: up to `MAX_COMPACTED_ACCOUNT_IDS = 4` mentioned account IDs, `MAX_COMPACTED_GOALS = 3` user goals, and commitments in `agent_conversations`.
-- **Pillar 3 — In-Turn Tool History Compaction**: `compactToolHistory()` (exported from `agent.ts`) runs on every incoming `recentMessages` array in `route.ts`. Tool result messages older than the last exchange and longer than 400 chars are replaced with a 160-char preview. Prevents O(N²) context growth in multi-step conversations.
-
-### Account Memory — `account-memory.ts`
-- Stored in `account_memories`: account summaries, key signals, open loops, and recent timeline context.
-- Personas retrieve it through `getAccountMemory`.
-- Refreshes are enqueued in `account_memory_refresh_queue` and processed with bounded concurrency.
-
----
-
-- Dynamic self-correcting tool expansion in-loop via `requestMoreTools` + `prepareStep`.
-- Multi-step reasoning loops up to 25 steps per run with parallel batching.
-- Live real-time web research and market intelligence via Tavily AI (`webSearchTool`, `webExtractTool`, `webCrawlTool`, `webMapTool`).
-- Multi-context execution across chat, cron, and webhook events.
-- Hard persona isolation and staged workflow security allowlists.
-- Durable context carryover through live account state, dual-memory synthesis, and persistent zero-loss chat session history.
-- 92% TPM token budget optimization (`63,700` ➔ `4,750` tokens per turn) under Azure's 100k TPM rate limit.
-
----
-
-## Known Gaps & Next Priorities
-
-1. **Workflow Run Inspection UI**: Build the founder UI on `/dashboard/flows` consuming the live `/api/agent/runs` endpoints.
-2. **Semantic Memory Layer**: Complement heuristic compaction with vector-indexed account memory embeddings.
-3. **Provider Readiness Dashboard**: Surface live provider health and remediation guidance in `/dashboard/settings`.
-4. **Unified `ProviderReadiness` Contract**: Standardize the provider health contract across all integration modules (Phase 5 backlog).
+On **2026-09-05**, the full suite passed 439 tests and the production build passed. Agent-specific coverage includes routing, individual tools, external-content handling, trusted message metadata, memory/session behavior, runtime context, run inspection, workflows, and announced actions.
