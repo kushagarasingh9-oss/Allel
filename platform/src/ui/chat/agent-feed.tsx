@@ -27,6 +27,7 @@ import {
   MiniResultCard,
   AgentReasoningBatch,
   AgentApprovalBlock,
+  getBatchActionTitle,
 } from "./timeline-nodes"
 import { UnifiedCustomerScanTree, AccountRecoveryStatusTree, DraftedEmailCard, UnifiedFleetScanTree } from "./unified-customer-scan-tree"
 import type { CustomerRiskScan } from "@/recovery/customer-scan-types"
@@ -83,17 +84,17 @@ function InterconnectedIntegrationBadge() {
 
 // ─── Tool → Icon mapping (Only official SVG logos for connected integrations) ────────────────────────────────────────────
 const TOOL_ICONS: Record<string, React.ReactNode> = {
-  getExistingDrafts: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
-  getGmailThreadsForAccount: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
-  getMyInbox: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
-  getGmailThreadDetailTool: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
-  sendGmailReply: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
-  composeNewEmail: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
-  generateFollowUpDraft: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
-  approveDraft: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
-  sendApprovedDraft: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  getExistingDrafts: <img src="/logos/gmail-white.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  getGmailThreadsForAccount: <img src="/logos/gmail-white.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  getMyInbox: <img src="/logos/gmail-white.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  getGmailThreadDetailTool: <img src="/logos/gmail-white.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  sendGmailReply: <img src="/logos/gmail-white.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  composeNewEmail: <img src="/logos/gmail-white.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  generateFollowUpDraft: <img src="/logos/gmail-white.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  approveDraft: <img src="/logos/gmail-white.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  sendApprovedDraft: <img src="/logos/gmail-white.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
   deliverSlackBriefTool: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
-  buildDailyBriefFromLiveState: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  buildDailyBriefFromLiveState: <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   // Intercom tools
   listIntercomConvos: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
   getIntercomConvo: <img src="/logos/intercom.svg" alt="Intercom" className="w-4 h-4 object-contain shrink-0" />,
@@ -156,17 +157,17 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   updateAirtableRecordTool: <img src="/logos/airtable.svg" alt="Airtable" className="w-4 h-4 object-contain shrink-0" />,
 
   // Calendar tools
-  listCalendarEventsTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
-  getCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
-  getCalendarEventDetailTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
-  createCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
-  updateCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
-  deleteCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
-  searchCalendarEventsTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
-  quickAddCalendarEventTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
-  checkCalendarFreeBusy: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
-  queryFreeBusyTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
-  listCalendarsTool: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  listCalendarEventsTool: <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  getCalendarEventTool: <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  getCalendarEventDetailTool: <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  createCalendarEventTool: <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  updateCalendarEventTool: <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  deleteCalendarEventTool: <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  searchCalendarEventsTool: <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  quickAddCalendarEventTool: <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  checkCalendarFreeBusy: <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  queryFreeBusyTool: <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  listCalendarsTool: <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
   
   // Slack tools
   getSlackHistory: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
@@ -178,7 +179,7 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   
   syncWorkspaceTool: <Zap className="w-4 h-4 text-neutral-500" />,
   triggerStripeSync: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
-  triggerGmailSync: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  triggerGmailSync: <img src="/logos/gmail-white.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
   triggerSlackSync: <img src="/logos/slack.svg" alt="Slack" className="w-4 h-4 object-contain shrink-0" />,
   triggerPosthogSync: <img src="/logos/posthog.svg" alt="PostHog" className="w-4 h-4 object-contain shrink-0" />,
   triggerHubspotSync: <img src="/logos/hubspot.svg" alt="HubSpot" className="w-4 h-4 object-contain shrink-0" />,
@@ -187,7 +188,7 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   triggerSentrySync: <img src="/logos/sentry-light.svg" alt="Sentry" className="w-4 h-4 object-contain shrink-0" />,
   triggerAirtableSync: <img src="/logos/airtable.svg" alt="Airtable" className="w-4 h-4 object-contain shrink-0" />,
   triggerNotionSync: <img src="/logos/notion.svg" alt="Notion" className="w-4 h-4 object-contain shrink-0" />,
-  triggerCalendarSync: <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
+  triggerCalendarSync: <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-4 h-4 object-contain shrink-0" />,
 
   // Account tools — use the Stripe logo
   getAllAccounts: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
@@ -225,8 +226,8 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   applySubscriptionCouponTool: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   runRevenueRiskScan: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   getUnifiedCustomerScan: <Search className="w-4 h-4 text-neutral-400" />,
-  getAccountRecoveryStatus: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
-  addToRecoveryQueue: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  getAccountRecoveryStatus: <img src="/logos/gmail-white.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  addToRecoveryQueue: <img src="/logos/gmail-white.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
   getUnifiedFleetScan: <Search className="w-4 h-4 text-neutral-400" />,
   getRecoveryCases: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   getRecoveryCaseDetail: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
@@ -370,7 +371,7 @@ const TOOL_LABELS: Record<string, string> = {
 }
 
 const PROVIDER_LOGOS: Record<string, string> = {
-  gmail: '/logos/gmail.svg',
+  gmail: '/logos/gmail-white.svg',
   slack: '/logos/slack.svg',
   stripe: '/logos/stripe.svg',
   posthog: '/logos/posthog.svg',
@@ -378,7 +379,7 @@ const PROVIDER_LOGOS: Record<string, string> = {
   sentry: '/logos/sentry-light.svg',
   hubspot: '/logos/hubspot.svg',
   notion: '/logos/notion.svg',
-  google_calendar: '/logos/google-calendar.svg',
+  google_calendar: '/logos/google-calendar-white.svg',
   airtable: '/logos/airtable.svg',
   intercom: '/logos/intercom.svg',
 }
@@ -651,7 +652,7 @@ function ToolResultSummary({
     if (threads.length === 0) {
       return (
         <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 mb-2">
-          <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain opacity-60" /> No threads found
+          <img src="/logos/gmail-white.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain opacity-60" /> No threads found
         </div>
       )
     }
@@ -661,7 +662,7 @@ function ToolResultSummary({
           <MiniResultCard
             key={i}
             index={i}
-            icon={<img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain" />}
+            icon={<img src="/logos/gmail-white.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain" />}
             title={<span className="text-white">{String(thread.subject ?? 'No subject')}</span>}
             subtitle={`From: ${String(thread.from ?? 'unknown')}${thread.needsReply ? ' · Needs reply' : ''}`}
           />
@@ -718,7 +719,7 @@ function ToolResultSummary({
     if (drafts.length === 0) {
       return (
         <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 mb-2">
-          <img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain opacity-60" /> No pending drafts in queue
+          <img src="/logos/gmail-white.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain opacity-60" /> No pending drafts in queue
         </div>
       )
     }
@@ -834,7 +835,7 @@ function ToolResultSummary({
     return (
       <div className="flex flex-col gap-1 mb-2">
         <MiniResultCard
-          icon={<img src="/logos/gmail.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          icon={<img src="/logos/gmail-white.svg" alt="Gmail" className="w-3.5 h-3.5 object-contain shrink-0" />}
           title={<span className="text-white">{String(thread.subject ?? 'Email thread details')}</span>}
           subtitle={`From: ${String(thread.from ?? thread.lastSenderEmail ?? 'Sender')}`}
         />
@@ -848,7 +849,7 @@ function ToolResultSummary({
     if (events.length === 0) {
       return (
         <div className="text-[12px] text-neutral-500 flex items-center gap-1.5 mb-2">
-          <img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-3.5 h-3.5 object-contain opacity-60" />
+          <img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-3.5 h-3.5 object-contain opacity-60" />
           <span>No calendar events found</span>
         </div>
       )
@@ -871,7 +872,7 @@ function ToolResultSummary({
           return (
             <MiniResultCard
               key={i}
-              icon={<img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-3.5 h-3.5 object-contain shrink-0" />}
+              icon={<img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-3.5 h-3.5 object-contain shrink-0" />}
               title={<span className="text-white truncate">{String(ev.summary || ev.title || 'Calendar Event')}</span>}
               subtitle={formattedTime || 'Upcoming meeting'}
             />
@@ -887,7 +888,7 @@ function ToolResultSummary({
     return (
       <div className="flex flex-col gap-1 mb-2">
         <MiniResultCard
-          icon={<img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          icon={<img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-3.5 h-3.5 object-contain shrink-0" />}
           title={<span className="text-white">{String(ev.summary ?? 'Event created')}</span>}
           subtitle={ev.start ? `Scheduled for ${new Date(String(ev.start)).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}` : 'Added to Google Calendar'}
         />
@@ -899,7 +900,7 @@ function ToolResultSummary({
     return (
       <div className="flex flex-col gap-1 mb-2">
         <MiniResultCard
-          icon={<img src="/logos/google-calendar.svg" alt="Google Calendar" className="w-3.5 h-3.5 object-contain shrink-0" />}
+          icon={<img src="/logos/google-calendar-white.svg" alt="Google Calendar" className="w-3.5 h-3.5 object-contain shrink-0" />}
           title={<span className="text-white">Event removed</span>}
           subtitle="Deleted from Google Calendar"
         />
@@ -1867,10 +1868,11 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
             toolName === 'addToRecoveryQueue' ||
             toolName === 'getUnifiedFleetScan' ||
             toolName === 'getFleetHealthSummary'
+          const completedLabel = dynamicLabel !== baseLabel ? dynamicLabel : getBatchActionTitle([toolName], false)
           toolBatch.push(
             <TimelineNode
               key={`tool-${single.index}`}
-              title={dynamicLabel}
+              title={completedLabel}
               icon={icon}
               isCompleted={true}
               isCollapsible={true}
@@ -1967,17 +1969,25 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
     const isExecuting = toolBatch.some(node =>
       React.isValidElement(node) && (node.props as { isLoading?: boolean }).isLoading
     )
-    rendered.push(
-      <AgentReasoningBatch
-        key={`batch-${message.id}`}
-        stepsCount={toolBatchCount}
-        isExecuting={isExecuting}
-        announcedActionMismatch={!isExecuting && announcedActionMismatch}
-        toolNames={[...batchToolNames]}
-      >
-        {toolBatch}
-      </AgentReasoningBatch>
-    )
+    if (toolBatch.length === 1 && !announcedActionMismatch) {
+      rendered.push(
+        <div key={`batch-${message.id}`} className="mb-4 mt-2 ml-0">
+          {toolBatch[0]}
+        </div>
+      )
+    } else {
+      rendered.push(
+        <AgentReasoningBatch
+          key={`batch-${message.id}`}
+          stepsCount={toolBatchCount}
+          isExecuting={isExecuting}
+          announcedActionMismatch={!isExecuting && announcedActionMismatch}
+          toolNames={[...batchToolNames]}
+        >
+          {toolBatch}
+        </AgentReasoningBatch>
+      )
+    }
   }
 
   // 3. Render Final Speech Block (executive summary answering the founder)

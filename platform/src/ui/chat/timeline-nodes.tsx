@@ -583,7 +583,7 @@ export function InlineQueryBlock({ query: _query }: { query?: string }) {
 }
 
 const PROVIDER_LOGOS: Record<string, string> = {
-  gmail: '/logos/gmail.svg',
+  gmail: '/logos/gmail-white.svg',
   slack: '/logos/slack.svg',
   stripe: '/logos/stripe.svg',
   posthog: '/logos/posthog.svg',
@@ -600,7 +600,7 @@ function formatTextWithIntegrationLogos(raw: string): string {
   if (!raw) return raw
   return raw
     .replace(/(?:📅|🗓️)\s*(\*{0,2}Calendar\b\*{0,2})/gi, '![Google Calendar](/logos/google-calendar.svg) $1')
-    .replace(/(?:📧|📨|📩|✉️)\s*(\*{0,2}Inbox\b\*{0,2}|\*{0,2}Email\b\*{0,2}|\*{0,2}Gmail\b\*{0,2})/gi, '![Gmail](/logos/gmail.svg) $1')
+    .replace(/(?:📧|📨|📩|✉️)\s*(\*{0,2}Inbox\b\*{0,2}|\*{0,2}Email\b\*{0,2}|\*{0,2}Gmail\b\*{0,2})/gi, '![Gmail](/logos/gmail-white.svg) $1')
     .replace(/(?:💰|💳|💵|💸)\s*(\*{0,2}Billing\b\*{0,2}|\*{0,2}Stripe\b\*{0,2}|\*{0,2}Revenue\b\*{0,2})/gi, '![Stripe](/logos/stripe.svg) $1')
     .replace(/(?:💬|🗨️|👥)\s*(\*{0,2}Slack\b\*{0,2})/gi, '![Slack](/logos/slack.svg) $1')
     .replace(/(?:📊|📈|📉)\s*(\*{0,2}PostHog\b\*{0,2}|\*{0,2}Product Analytics\b\*{0,2})/gi, '![PostHog](/logos/posthog.svg) $1')
