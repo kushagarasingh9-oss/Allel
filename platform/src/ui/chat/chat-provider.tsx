@@ -137,7 +137,17 @@ export function ChatProvider({
   const pathname = usePathname()
   const isBriefPage = pathname === "/dashboard/brief"
 
-  const [savedSessions, setSavedSessions] = React.useState<SavedChatSession[]>([])
+  const [savedSessions, setSavedSessions] = React.useState<SavedChatSession[]>(() => {
+    if (typeof window === "undefined") return []
+    try {
+      const raw = window.localStorage.getItem("allel.chat-history.v1")
+      if (raw) {
+        const parsed = JSON.parse(raw) as SavedChatSession[]
+        if (Array.isArray(parsed)) return parsed
+      }
+    } catch {}
+    return []
+  })
   const [currentSessionId, setCurrentSessionId] = React.useState<string>(() => {
     if (typeof window !== "undefined") {
       if (window.location.pathname === "/dashboard/brief") {
@@ -469,34 +479,57 @@ export function ChatProvider({
           if (Array.isArray(data.sessions)) {
             const serverSessionIds = new Set(data.sessions.map((s: any) => s.sessionId))
             const raw = window.localStorage.getItem("allel.chat-history.v1")
+            let validSessions: SavedChatSession[] = []
             if (raw) {
-              const parsed = JSON.parse(raw) as SavedChatSession[]
-              if (Array.isArray(parsed)) {
-                const validSessions = parsed
-                  .filter((s) => s && s.id && serverSessionIds.has(s.id))
-                  .map((s) => {
-                    const isContaminated =
-                      s.id !== "daily-brief" &&
-                      s.messages?.some((m) =>
-                        m.parts?.some(
-                          (p: any) =>
-                            typeof p.text === "string" &&
-                            (p.text.includes("Reading your inbox") ||
-                              p.text.includes("threads total,") ||
-                              p.text.includes("auto-cleared digests"))
+              try {
+                const parsed = JSON.parse(raw) as SavedChatSession[]
+                if (Array.isArray(parsed)) {
+                  validSessions = parsed
+                    .filter((s) => s && s.id && serverSessionIds.has(s.id))
+                    .map((s) => {
+                      const isContaminated =
+                        s.id !== "daily-brief" &&
+                        s.messages?.some((m) =>
+                          m.parts?.some(
+                            (p: any) =>
+                              typeof p.text === "string" &&
+                              (p.text.includes("Reading your inbox") ||
+                                p.text.includes("threads total,") ||
+                                p.text.includes("auto-cleared digests"))
+                          )
                         )
-                      )
-                    if (isContaminated) {
-                      return { ...s, messages: [], messageCount: 0 }
-                    }
-                    return s
-                  })
-                setSavedSessions(validSessions)
-                window.localStorage.setItem("allel.chat-history.v1", JSON.stringify(validSessions))
-                return
+                      if (isContaminated) {
+                        return { ...s, messages: [], messageCount: 0 }
+                      }
+                      return s
+                    })
+                }
+              } catch {
+                validSessions = []
               }
-            } else if (data.sessions.length === 0) {
-              setSavedSessions([])
+            }
+
+            // Merge server sessions not already in validSessions (e.g. fresh browser, new device, or DB sync)
+            const existingIds = new Set(validSessions.map((s) => s.id))
+            for (const s of data.sessions) {
+              if (s.sessionId && !existingIds.has(s.sessionId)) {
+                validSessions.push({
+                  id: s.sessionId,
+                  title: s.title || "Operational Run",
+                  createdAt: s.updatedAt
+                    ? new Date(s.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                    : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                  messageCount: s.messageCount || 0,
+                  messages: [],
+                })
+              }
+            }
+
+            setSavedSessions(validSessions)
+            try {
+              window.localStorage.setItem("allel.chat-history.v1", JSON.stringify(validSessions))
+            } catch {
+              // Ignore storage write error
             }
           }
         }
@@ -546,9 +579,24 @@ export function ChatProvider({
       }
 
       // 3. Check memory/localStorage cache
-      const cached = savedSessions.find(
+      let cached = savedSessions.find(
         (s) => s.id === targetSessionId && Array.isArray(s.messages) && s.messages.length > 0
       )
+      if (!cached && typeof window !== "undefined") {
+        try {
+          const raw = window.localStorage.getItem("allel.chat-history.v1")
+          if (raw) {
+            const parsed = JSON.parse(raw) as SavedChatSession[]
+            if (Array.isArray(parsed)) {
+              cached = parsed.find(
+                (s) => s.id === targetSessionId && Array.isArray(s.messages) && s.messages.length > 0
+              )
+            }
+          }
+        } catch {
+          // Ignore
+        }
+      }
 
       // Guard: If cached messages for a normal session appear contaminated with brief messages, skip cache and re-hydrate from authoritative server history
       const isContaminated =
@@ -693,7 +741,10 @@ export function ChatProvider({
           const targetId = (lastTask && lastTask !== "daily-brief") ? lastTask : `session-${Date.now()}`
           switchSession(targetId, true)
         } else if (currentSessionId && messages.length === 0) {
-          switchSession(currentSessionId, true)
+          const isKnownExisting = savedSessions.some((s) => s.id === currentSessionId)
+          if (isKnownExisting) {
+            switchSession(currentSessionId, true)
+          }
         }
       }
     }
@@ -798,6 +849,7 @@ export function ChatProvider({
     currentSessionIdRef.current = newSessionId
     setCurrentSessionId(newSessionId)
     setMessages([])
+    setHydrationStatus("empty")
     isSwitchingSessionRef.current = false
     window.dispatchEvent(new CustomEvent("allel:refresh-history"))
   }, [clearError, setMessages, stop, storageUserId, storageWorkspaceId])
@@ -887,12 +939,12 @@ export function ChatProvider({
   }, [clearError, setMessages, stop, storageUserId, storageWorkspaceId])
 
   const activeSessionTitle = React.useMemo(() => {
-    if (!messages || messages.length === 0) return null
-    if (activeMessagesSessionIdRef.current !== currentSessionId) return null
     const existing = savedSessions.find((s) => s.id === currentSessionId)
     if (existing && existing.title && existing.title !== "New Session" && existing.title !== "New Conversation") {
       return existing.title
     }
+    if (!messages || messages.length === 0) return null
+    if (activeMessagesSessionIdRef.current !== currentSessionId) return null
     return generateRefinedTitle(messages)
   }, [messages, savedSessions, currentSessionId])
 

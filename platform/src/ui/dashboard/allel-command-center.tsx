@@ -78,6 +78,7 @@ export function AllelCommandCenter() {
     resetActiveThread,
     activeSessionTitle,
     isResolvingTitle,
+    hydrationStatus,
   } = useChatContext();
 
   const [inputText, setInputText] = useState("");
@@ -99,6 +100,17 @@ export function AllelCommandCenter() {
       setInputText("");
     }
   }, [messages.length]);
+
+  // Check if we are viewing an existing session (from savedSessions or URL)
+  const existingSession = savedSessions.find((s) => s.id === currentSessionId);
+  const urlSession = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("sessionId")
+    : null;
+  const isExistingSession = Boolean(existingSession) ||
+    Boolean(urlSession && urlSession !== "daily-brief" && !urlSession.startsWith("new"));
+
+  // Brand new session when there are no messages and it is not an existing session
+  const isNewSession = !isExistingSession && messages.length === 0;
 
   const hasMessages = messages.length > 0;
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -161,7 +173,7 @@ export function AllelCommandCenter() {
       {/* Top Header Bar (Devin Style: No Border Divider + Pure Icon Cluster) */}
       <header className="h-11 px-4 flex items-center justify-between shrink-0 bg-[#121214] z-20">
         <div className="flex items-center gap-3">
-          {!hasMessages ? (
+          {isNewSession ? (
             <span className="text-xs sm:text-sm font-medium text-zinc-300">
               Generate new automation
             </span>
@@ -173,7 +185,7 @@ export function AllelCommandCenter() {
             </div>
           ) : (
             <span className="text-xs sm:text-sm font-medium text-zinc-200 truncate max-w-[400px] animate-in fade-in duration-300">
-              {activeSessionTitle || "Operational Run"}
+              {activeSessionTitle || existingSession?.title || "Operational Run"}
             </span>
           )}
         </div>
@@ -220,7 +232,7 @@ export function AllelCommandCenter() {
 
       {/* Main Space Workspace Body */}
       <div className="flex-1 h-full min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
-        {!hasMessages ? (
+        {isNewSession ? (
           <div className="w-full max-w-[700px] px-4 py-6 flex flex-col items-center my-auto animate-in fade-in zoom-in-95 duration-150">
             {/* Clean Minimal Left-Aligned Title Above Chat Box */}
             <div className="w-full flex items-center justify-start mb-2.5 px-1 select-none">
@@ -324,7 +336,7 @@ export function AllelCommandCenter() {
         )}
 
         {/* Devin Centered Footer Text */}
-        {!hasMessages && (
+        {isNewSession && (
           <footer className="py-4 text-center text-[11px] text-zinc-500 border-t border-transparent">
             <span>Free • </span>
             <button
