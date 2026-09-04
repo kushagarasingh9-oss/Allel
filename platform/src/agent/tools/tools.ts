@@ -3811,6 +3811,19 @@ export const getPostHogEvents = tool({
         if (entity.posthogDistinctIds.length > 0) {
           resolvedDistinctId = entity.posthogDistinctIds[0]
         }
+        if (!resolvedDistinctId) {
+          const searchQ = email || user || accountName || ''
+          if (searchQ) {
+            try {
+              const persons = await searchPostHogPersonsApi(apiKey, projectId, searchQ, 1)
+              if (persons[0]?.distinct_ids?.[0]) {
+                resolvedDistinctId = persons[0].distinct_ids[0]
+              }
+            } catch {
+              // ignore search error and proceed with general event stream
+            }
+          }
+        }
         if (entity.contactName) resolvedPersonName = entity.contactName
         if (entity.accountName) resolvedAccountName = entity.accountName
       }
