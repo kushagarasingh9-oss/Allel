@@ -12,11 +12,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 })
     }
 
+    const forwardedHost = request.headers.get('x-forwarded-host') || request.headers.get('host')
+    const forwardedProto = request.headers.get('x-forwarded-proto') || (process.env.NODE_ENV === 'production' ? 'https' : 'http')
+    const origin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : request.nextUrl.origin
+
     const supabase = await createClient()
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${request.nextUrl.origin}/auth/callback`,
+        emailRedirectTo: `${origin}/auth/callback`,
       },
     })
 
