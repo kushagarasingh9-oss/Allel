@@ -1,12 +1,18 @@
 'use client'
 
 import { useState } from 'react'
+import { OtpInput, type OtpStatus } from '@/ui/primitives/otp-input'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
+
+  const [otpStatus, setOtpStatus] = useState<OtpStatus>('idle')
+  const [otpError, setOtpError] = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const [resending, setResending] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,16 +31,75 @@ export default function LoginPage() {
       } | null
 
       if (!response.ok) {
-        setError(payload?.error ?? 'Unable to send magic link.')
+        setError(payload?.error ?? 'Unable to send verification code.')
         return
       }
 
       setEmail(normalizedEmail)
       setSent(true)
+      setOtpStatus('idle')
+      setOtpError('')
     } catch {
       setError('Unable to reach the auth service. Please try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleVerifyOtp = async (code: string) => {
+    setVerifying(true)
+    setOtpStatus('checking')
+    setOtpError('')
+
+    try {
+      const response = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, token: code }),
+      })
+
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string
+      } | null
+
+      if (!response.ok) {
+        setOtpStatus('error')
+        setOtpError(payload?.error || 'Invalid or expired code. Fix the digit that slipped.')
+        return
+      }
+
+      setOtpStatus('success')
+      // Redirect straight to dashboard
+      window.location.href = '/dashboard'
+    } catch {
+      setOtpStatus('error')
+      setOtpError('Verification failed. Please try again.')
+    } finally {
+      setVerifying(false)
+    }
+  }
+
+  const handleResend = async () => {
+    if (resending || verifying) return
+    setResending(true)
+    setOtpError('')
+    setOtpStatus('idle')
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      if (!response.ok) {
+        setOtpError('Failed to resend code. Please try again.')
+        setOtpStatus('error')
+      }
+    } catch {
+      setOtpError('Failed to resend code. Please check your connection.')
+      setOtpStatus('error')
+    } finally {
+      setResending(false)
     }
   }
 
@@ -55,21 +120,59 @@ export default function LoginPage() {
         </div>
 
         {sent ? (
-          <div className="border border-[#ffffff12] bg-[#111] p-8 text-center">
-            <div className="mb-4 text-[32px]">✉️</div>
-            <h2 className="mb-2 text-[18px] font-medium text-white">
-              Check your inbox
+          <div className="border border-[#ffffff12] bg-[#111] p-8 text-center flex flex-col items-center">
+            <div className="mb-3 text-[28px]">🔐</div>
+            <h2 className="mb-1.5 text-[18px] font-medium text-white tracking-tight">
+              Enter verification code
             </h2>
-            <p className="text-[14px] leading-relaxed text-[#666]">
-              We sent a magic link to <span className="text-white">{email}</span>.
-              Click the link to sign in.
+            <p className="text-[13.5px] leading-relaxed text-[#777] max-w-[320px] mb-6">
+              We sent a 6-digit code to <span className="text-white font-medium">{email}</span>.
             </p>
-            <button
-              onClick={() => setSent(false)}
-              className="mt-6 text-[13px] text-[#555] underline underline-offset-4 hover:text-white transition-colors"
-            >
-              Use a different email
-            </button>
+
+            <OtpInput
+              length={6}
+              autoFocus
+              disabled={verifying}
+              status={otpStatus}
+              errorMessage={otpError}
+              hint="Paste or type the 6-digit code from your email"
+              onChange={() => {
+                if (otpStatus === 'error') {
+                  setOtpStatus('idle')
+                  setOtpError('')
+                }
+              }}
+              onComplete={handleVerifyOtp}
+            />
+
+            {verifying && (
+              <p className="mt-3 text-[12.5px] text-blue-400 animate-pulse">
+                Verifying code...
+              </p>
+            )}
+
+            <div className="mt-7 flex items-center justify-center gap-4 text-[12.5px]">
+              <button
+                type="button"
+                disabled={resending || verifying}
+                onClick={handleResend}
+                className="text-[#666] hover:text-white transition-colors disabled:opacity-50"
+              >
+                {resending ? 'Sending...' : 'Resend code'}
+              </button>
+              <span className="text-[#333]">•</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSent(false)
+                  setOtpStatus('idle')
+                  setOtpError('')
+                }}
+                className="text-[#666] hover:text-white transition-colors"
+              >
+                Use a different email
+              </button>
+            </div>
           </div>
         ) : (
           <form onSubmit={handleLogin} className="border border-[#ffffff12] bg-[#111] p-8">
@@ -77,7 +180,7 @@ export default function LoginPage() {
               Sign in
             </h1>
             <p className="mb-6 text-[14px] text-[#555]">
-              Enter your email to receive a magic link
+              Enter your email to receive a verification code
             </p>
 
             <div className="mb-4">
@@ -105,7 +208,7 @@ export default function LoginPage() {
             >
               <div className="absolute right-[4px] top-[4px] z-0 h-[38px] w-[38px] bg-white transition-all duration-[400ms] ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:right-0 group-hover:top-0 group-hover:h-full group-hover:w-full" />
               <span className="relative z-10 text-[14px] font-medium text-white transition-colors duration-[400ms] group-hover:text-black">
-                {loading ? 'Sending...' : 'Send magic link'}
+                {loading ? 'Sending code...' : 'Continue with email'}
               </span>
               <div className="pointer-events-none absolute right-[4px] top-[4px] z-10 flex h-[38px] w-[38px] items-center justify-center">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="transition-transform duration-[400ms] ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:translate-x-1">
