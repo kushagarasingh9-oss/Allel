@@ -70,9 +70,10 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
         const activeSessionId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sessionId") : null;
         if (activeSessionId === sessionId) {
           const url = new URL(window.location.href);
-          url.pathname = "/dashboard";
-          url.searchParams.delete("sessionId");
-          window.history.pushState({}, "", url.toString());
+          if (url.pathname === "/dashboard") {
+            url.searchParams.delete("sessionId");
+            window.history.replaceState({}, "", url.toString());
+          }
         }
       } catch (err) {
         console.error("Failed to delete session:", err);
@@ -238,18 +239,29 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
     },
     {
       label: "Sessions",
-      href: "/dashboard/history",
+      href: "/dashboard",
       icon: MessagesSquare,
-      exact: false,
+      exact: true,
     },
   ];
 
   const handleNewTask = () => {
     chatContext?.startNewChat();
-    router.push("/dashboard");
+    if (pathname !== "/dashboard") {
+      router.push("/dashboard");
+    }
   };
 
   const handleSelectSession = (sessionId: string) => {
+    if (pathname !== "/dashboard") {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem("allel.current-session-id", sessionId);
+        window.localStorage.setItem("allel.current-session-id", sessionId);
+      }
+      router.push(`/dashboard?sessionId=${encodeURIComponent(sessionId)}`);
+      return;
+    }
+
     if (chatContext?.switchSession) {
       chatContext.switchSession(sessionId);
     } else {
