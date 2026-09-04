@@ -15,7 +15,6 @@ import {
   Newspaper,
   Workflow,
   Cable,
-  MessagesSquare,
   ChevronDown,
   ChevronRight,
   MoreHorizontal,
@@ -236,12 +235,6 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
       href: "/dashboard/connections",
       icon: Cable,
       exact: false,
-    },
-    {
-      label: "Sessions",
-      href: "/dashboard",
-      icon: MessagesSquare,
-      exact: true,
     },
   ];
 
