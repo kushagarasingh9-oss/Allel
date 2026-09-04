@@ -224,6 +224,7 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   runRevenueRiskScan: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   getUnifiedCustomerScan: <Search className="w-4 h-4 text-neutral-400" />,
   getAccountRecoveryStatus: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
+  addToRecoveryQueue: <img src="/logos/gmail.svg" alt="Gmail" className="w-4 h-4 object-contain shrink-0" />,
   getUnifiedFleetScan: <Search className="w-4 h-4 text-neutral-400" />,
   getRecoveryCases: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
   getRecoveryCaseDetail: <img src="/logos/stripe.svg" alt="Stripe" className="w-4 h-4 object-contain shrink-0" />,
@@ -246,6 +247,7 @@ const TOOL_LABELS: Record<string, string> = {
   runRevenueRiskScan: "Running multi-provider revenue risk scan",
   getUnifiedCustomerScan: "Searching customer across connected integrations",
   getAccountRecoveryStatus: "Planning recovery outreach",
+  addToRecoveryQueue: "Planning recovery outreach",
   getRecoveryMetrics: "Analyzing recovery performance metrics",
   getUnifiedFleetScan: "Searching fleet health across Stripe, PostHog & Intercom",
   getFleetHealthSummary: "Searching fleet health across Stripe, PostHog & Intercom",
@@ -969,7 +971,7 @@ function ToolResultSummary({
   }
 
   // Account Recovery Status & Outreach Planning
-  if (toolName === 'getAccountRecoveryStatus' && data) {
+  if ((toolName === 'getAccountRecoveryStatus' || toolName === 'addToRecoveryQueue') && data) {
     return <AccountRecoveryStatusTree data={data as Record<string, any>} />
   }
 
@@ -1774,11 +1776,11 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
           displayTitle = isCompleted ? `Updated ${group.length} account risk assessments` : `Updating ${group.length} account risks`
         } else if (toolName === 'sendGmailReply' || toolName === 'composeNewEmail') {
           displayTitle = isCompleted ? `Sent ${group.length} emails` : `Sending ${group.length} emails`
-        } else if (toolName === 'getAccountRecoveryStatus') {
+        } else if (toolName === 'getAccountRecoveryStatus' || toolName === 'addToRecoveryQueue') {
           const names = group.map(item => {
             const inp = (item.part.input ?? item.part.args ?? item.part.toolInput ?? {}) as Record<string, any>
             const out = (item.part.output ?? {}) as Record<string, any>
-            return out.accountName || out.name || inp.accountName || inp.name || ''
+            return out.accountName || out.name || inp.accountName || inp.name || inp.accountNameOrId || ''
           }).filter(Boolean)
           const unique = Array.from(new Set(names))
           displayTitle = unique.length > 0
@@ -1795,10 +1797,10 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
         const toolInput = single.part.input ?? single.part.args ?? single.part.toolInput ?? null
 
         let dynamicLabel = baseLabel
-        if (toolName === 'getAccountRecoveryStatus') {
+        if (toolName === 'getAccountRecoveryStatus' || toolName === 'addToRecoveryQueue') {
           const inputObj = (toolInput || {}) as Record<string, any>
           const output = (single.part.output || {}) as Record<string, any>
-          let target = output.accountName || output.name || inputObj.accountName || inputObj.name || ''
+          let target = output.accountName || output.name || inputObj.accountName || inputObj.name || inputObj.accountNameOrId || ''
           if (!target && output.draft?.subject) {
             const match = output.draft.subject.match(/regarding (?:your )?([A-Za-z0-9\s]+?)(?: subscription| billing| account| data)/i)
             if (match) target = match[1].trim()
@@ -1860,6 +1862,7 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
           const isCustomTreeTool =
             toolName === 'getUnifiedCustomerScan' ||
             toolName === 'getAccountRecoveryStatus' ||
+            toolName === 'addToRecoveryQueue' ||
             toolName === 'getUnifiedFleetScan' ||
             toolName === 'getFleetHealthSummary'
           toolBatch.push(
