@@ -389,27 +389,65 @@ export async function generateObject<T>(params: {
 
   const start = Date.now()
 
-  const result = await aiGenerateObject({
-    model: resolvedModel(),
-    system: params.system,
-    prompt: params.prompt,
-    schema: params.schema,
-    schemaName: params.schemaName,
-    schemaDescription: params.schemaDescription,
-    maxOutputTokens: params.maxOutputTokens ?? 1024,
-    temperature: params.temperature ?? 0.3,
-  })
+  try {
+    const result = await aiGenerateObject({
+      model: resolvedModel(),
+      system: params.system,
+      prompt: params.prompt,
+      schema: params.schema,
+      schemaName: params.schemaName,
+      schemaDescription: params.schemaDescription,
+      maxOutputTokens: params.maxOutputTokens ?? 1024,
+      temperature: params.temperature ?? 0.3,
+    })
 
-  const durationMs = Date.now() - start
-  const inputTokens = result.usage?.inputTokens ?? 0
-  const outputTokens = result.usage?.outputTokens ?? 0
+    const durationMs = Date.now() - start
+    const inputTokens = result.usage?.inputTokens ?? 0
+    const outputTokens = result.usage?.outputTokens ?? 0
 
-  return {
-    object: result.object,
-    model: MODEL_ID,
-    tokensUsed: inputTokens + outputTokens,
-    costCents: estimateCostCents(inputTokens, outputTokens),
-    durationMs,
+    return {
+      object: result.object,
+      model: MODEL_ID,
+      tokensUsed: inputTokens + outputTokens,
+      costCents: estimateCostCents(inputTokens, outputTokens),
+      durationMs,
+    }
+  } catch (objectError) {
+    // Azure reasoning models (such as Kimi-K2.6) output <think>...</think> reasoning blocks
+    // before the JSON payload, which breaks aiGenerateObject's strict parser.
+    // Fall back to generateText with thinking-tag extraction and Zod schema validation.
+    try {
+      const textResult = await aiGenerateText({
+        model: resolvedModel(),
+        system: params.system,
+        prompt: `${params.prompt}\n\nIMPORTANT: Return ONLY a valid JSON object matching the required schema.`,
+        maxOutputTokens: params.maxOutputTokens ?? 2048,
+        temperature: params.temperature ?? 0.3,
+      })
+
+      const cleaned = textResult.text.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) {
+        throw objectError
+      }
+
+      const parsedJson = JSON.parse(jsonMatch[0])
+      const validatedObject = params.schema.parse(parsedJson)
+
+      const durationMs = Date.now() - start
+      const inputTokens = textResult.usage?.inputTokens ?? 0
+      const outputTokens = textResult.usage?.outputTokens ?? 0
+
+      return {
+        object: validatedObject,
+        model: MODEL_ID,
+        tokensUsed: inputTokens + outputTokens,
+        costCents: estimateCostCents(inputTokens, outputTokens),
+        durationMs,
+      }
+    } catch {
+      throw objectError
+    }
   }
 }
 

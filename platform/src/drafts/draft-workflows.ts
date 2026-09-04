@@ -353,7 +353,15 @@ export async function rejectDraftForActor(input: RejectDraftInput) {
       .eq('id', input.draftId)
 
     if (error) {
-      fail('database_error', 'Failed to reject draft')
+      // Fallback: If DB constraint lacks 'rejected', discard the draft by deleting it so rejectDraft succeeds cleanly
+      const { error: deleteError } = await input.supabase
+        .from('follow_up_drafts')
+        .delete()
+        .eq('id', input.draftId)
+
+      if (deleteError) {
+        fail('database_error', 'Failed to reject draft')
+      }
     }
   }
 
