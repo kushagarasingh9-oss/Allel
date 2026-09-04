@@ -583,15 +583,19 @@ The founder's message ("${latestUserText}") is an ongoing action for "${activeCu
   }
 
   const isSendDirective =
-    /\b(send|sent|dispatch|mail|shoot|fire)\b/i.test(latestText) &&
-    /\b(him|her|them|it|mail|email|draft|that|approved?|rohan|apex)\b/i.test(latestText)
+    /\b(send|sent|dispatch|mail|shoot|fire|forward|approve|outreach)\b/i.test(latestText) ||
+    /\b(sne|maom|maik|roham)\b/i.test(latestText) ||
+    (/\b(draft|mail|email)\b/i.test(latestText) && /\b(rohan|apex|him|her|them|it|cleanest)\b/i.test(latestText))
 
   if (isSendDirective) {
+    const target = activeCustomerName || 'Apex MultiRail'
     activeTurnInstruction += `\n\nCRITICAL FOUNDER DIRECTIVE - SEND DRAFT:
-The founder is commanding you to SEND/DISPATCH an outreach email draft right now (e.g. "sent him that mail", "send that mail", "send it", "mail Rohan").
-- Treat this as an imperative COMMAND to execute right now via the "sendApprovedDraft" tool. NEVER treat it as a past-tense statement or confirmation that the founder sent it externally!
-- Execute "sendApprovedDraft" now${activeCustomerName ? ` for "${activeCustomerName}"` : ''}. If the draft is in "needs_review", "sendApprovedDraft" will automatically approve and send it.
-- ABSOLUTE BAN: NEVER reply claiming that the email is out or sent without actually calling the send tool and getting a successful response!`
+The founder is commanding you to SEND/DISPATCH the outreach email draft right now.
+- Your ONLY action this turn is to execute "sendApprovedDraft" immediately (e.g. { accountName: "${target}" }).
+- If the draft is in "needs_review", "sendApprovedDraft" will automatically approve and send it in one atomic call.
+- STRICT PROHIBITION: DO NOT call "sendGmailReply", "getGmailThreadsForAccount", or "getMyInbox". DO NOT reply to mailer-daemon, bounce notifications, or automated system threads.
+- ABSOLUTE BAN: NEVER claim that an email is "hard-blocked in Gmail" or that the founder must do manual tasks when sendApprovedDraft is available.
+- After "sendApprovedDraft" succeeds, respond with a crisp 1-2 sentence executive confirmation confirming that the email has been approved and sent to the customer.`
   }
 
   const combinedSystemPrompt = [

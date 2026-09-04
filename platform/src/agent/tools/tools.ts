@@ -2666,7 +2666,7 @@ export const getGmailThreadDetailTool = tool({
 
 export const sendGmailReply = tool({
   description:
-    'Reply to a Gmail thread immediately. If recipient email (to) is omitted, addressing is derived automatically from the thread context.',
+    'Reply to a legitimate Gmail human conversation thread. Do NOT use this tool to reply to bounce messages, delivery status notifications, or mailer-daemon. To dispatch customer outreach drafts, ALWAYS use sendApprovedDraft instead.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
     threadId: z.string().describe('Gmail thread ID from getMyInbox or getGmailThreadDetailTool'),
@@ -2682,12 +2682,30 @@ export const sendGmailReply = tool({
       if (!recipientEmail && threadId) {
         const detail = await fetchThreadDetail(workspaceId, threadId)
         if (detail) {
-          recipientEmail = detail.lastSenderEmail ?? detail.participantEmails?.[0]
+          // Never pick a mailer-daemon, postmaster, or bounce handler as recipient
+          const validParticipants = (detail.participantEmails ?? []).filter(
+            (e) => !/^(mailer-daemon|postmaster|no-?reply)@/i.test(e) && !e.includes('googlemail.com')
+          )
+          const lastSender =
+            detail.lastSenderEmail &&
+            !/^(mailer-daemon|postmaster|no-?reply)@/i.test(detail.lastSenderEmail) &&
+            !detail.lastSenderEmail.includes('googlemail.com')
+              ? detail.lastSenderEmail
+              : null
+          recipientEmail = lastSender ?? validParticipants[0]
         }
       }
 
-      if (!recipientEmail) {
-        return { success: false, error: 'Recipient email address could not be resolved for thread. Please specify the recipient email.' }
+      if (
+        !recipientEmail ||
+        /^(mailer-daemon|postmaster|no-?reply)@/i.test(recipientEmail) ||
+        recipientEmail.includes('googlemail.com')
+      ) {
+        return {
+          success: false,
+          error:
+            'Cannot send reply to mailer-daemon / bounce handler. To send a customer outreach email or draft, use sendApprovedDraft.',
+        }
       }
 
       const supabase = createServiceClient()
@@ -6382,7 +6400,7 @@ export const getRecoveryCaseDetail = tool({
         .limit(50),
       supabase
         .from('follow_up_drafts')
-        .select('id, subject, body_preview, status, content_hash, approved_at, sent_at, provider_message_id')
+        .select('id, subject, body_preview, status, approved_at, approval_metadata')
         .eq('recovery_case_id', caseId)
         .eq('workspace_id', workspaceId)
         .order('created_at', { ascending: false })
@@ -6401,6 +6419,10 @@ export const getRecoveryCaseDetail = tool({
     }
 
     const c = caseRes.data
+    const draftMeta = (draftRes.data?.approval_metadata && typeof draftRes.data.approval_metadata === 'object')
+      ? (draftRes.data.approval_metadata as Record<string, unknown>)
+      : null
+
     return {
       case: {
         id: c.id,
@@ -6430,8 +6452,8 @@ export const getRecoveryCaseDetail = tool({
         preview: draftRes.data.body_preview,
         status: draftRes.data.status,
         approvedAt: draftRes.data.approved_at ?? null,
-        sentAt: draftRes.data.sent_at ?? null,
-        gmailMessageId: draftRes.data.provider_message_id ?? null,
+        sentAt: (draftMeta?.sent_at as string) ?? null,
+        gmailMessageId: (draftMeta?.provider_message_id as string) ?? null,
       } : null,
       outcome: outcomeRes.data ? {
         type: outcomeRes.data.outcome_type,
@@ -6619,8 +6641,8 @@ export const listRecoveryCaseDrafts = tool({
   execute: async ({ workspaceId, caseId }) => {
     const supabase = createServiceClient()
     const { data: drafts, error } = await supabase
-      .from('recovery_drafts')
-      .select('id, status, subject, body_preview, approved_by, approved_at, sent_at, created_at, scenario_id')
+      .from('follow_up_drafts')
+      .select('id, status, subject, body_preview, approved_by_actor, approved_at, approval_metadata, created_at, scenario_run_id')
       .eq('workspace_id', workspaceId)
       .eq('recovery_case_id', caseId)
       .order('created_at', { ascending: false })
@@ -6632,17 +6654,22 @@ export const listRecoveryCaseDrafts = tool({
     return {
       caseId,
       draftCount: drafts.length,
-      drafts: drafts.map(d => ({
-        id: d.id,
-        status: d.status,
-        subject: d.subject,
-        bodyPreview: typeof d.body_preview === 'string' ? d.body_preview.slice(0, 300) : null,
-        scenario: d.scenario_id,
-        approvedBy: d.approved_by ?? null,
-        approvedAt: d.approved_at ?? null,
-        sentAt: d.sent_at ?? null,
-        createdAt: d.created_at,
-      })),
+      drafts: drafts.map(d => {
+        const meta = (d.approval_metadata && typeof d.approval_metadata === 'object')
+          ? (d.approval_metadata as Record<string, unknown>)
+          : null
+        return {
+          id: d.id,
+          status: d.status,
+          subject: d.subject,
+          bodyPreview: typeof d.body_preview === 'string' ? d.body_preview.slice(0, 300) : null,
+          scenario: d.scenario_run_id,
+          approvedBy: d.approved_by_actor ?? null,
+          approvedAt: d.approved_at ?? null,
+          sentAt: (meta?.sent_at as string) ?? null,
+          createdAt: d.created_at,
+        }
+      }),
     }
   },
 })

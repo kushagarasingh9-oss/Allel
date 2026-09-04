@@ -123,7 +123,6 @@ export async function POST(request: NextRequest) {
         .from('follow_up_drafts')
         .update({
           status: 'sent',
-          sent_at: now,
           updated_at: now,
           subject: cleanSubject,
           approval_metadata: {
@@ -132,6 +131,7 @@ export async function POST(request: NextRequest) {
             provider_message_id: gmailMessageId,
             provider_thread_id: gmailThreadId,
             gmail_sent: gmailSent,
+            sent_at: now,
           },
         })
         .eq('recovery_case_id', targetCaseId)

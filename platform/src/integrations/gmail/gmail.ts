@@ -1137,9 +1137,26 @@ export async function findMostRecentThreadForEmail(
 
   const threads = await fetchThreads(workspaceId, buildEmailSearchQuery(email), 5)
 
+  // Exclude bounce notifications, mailer-daemon, and delivery failure threads
+  const nonBounceThreads = threads.filter((thread) => {
+    const fromStr = (thread.from ?? '').toLowerCase()
+    const subjStr = (thread.subject ?? '').toLowerCase()
+    const snipStr = (thread.snippet ?? '').toLowerCase()
+    const isBounce =
+      fromStr.includes('mailer-daemon') ||
+      fromStr.includes('postmaster') ||
+      subjStr.includes('delivery status notification') ||
+      subjStr.includes('failure notice') ||
+      subjStr.includes('undelivered mail') ||
+      snipStr.includes('address not found') ||
+      snipStr.includes('delivery incomplete') ||
+      thread.participantEmails.some((p) => /^(mailer-daemon|postmaster)@/i.test(p) || p.includes('googlemail.com'))
+    return !isBounce
+  })
+
   return (
-    threads.find((thread) => thread.participantEmails.includes(email.toLowerCase())) ??
-    threads[0] ??
+    nonBounceThreads.find((thread) => thread.participantEmails.includes(email.toLowerCase())) ??
+    nonBounceThreads[0] ??
     null
   )
 }
