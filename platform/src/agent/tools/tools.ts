@@ -47,6 +47,7 @@ import { runWorkspaceScan } from '@/recovery/run-workspace-scan'
 import { validateCustomerRiskScan, validateFleetRiskScan, type UnifiedAccountFeatures } from '@/recovery/customer-scan-types'
 import { scanCustomer, scanFleet, resolveCanonicalAccount } from '@/recovery/customer-scan-service'
 import { SCENARIO_MANIFEST_V1 } from '@/recovery/scenarios/manifest.v1'
+import type Stripe from 'stripe'
 import {
   getStripeClient,
   createRescueCoupon,
@@ -347,6 +348,25 @@ export async function resolveCustomerEntity(
     }
     if (typeof ext.intercom_contact_id === 'string') {
       intercomContactId = ext.intercom_contact_id
+    }
+  }
+
+  // 4. Fallback to provider_identities table if any provider external IDs are missing
+  if (accountId && (!stripeCustomerId || posthogDistinctIds.length === 0 || !intercomContactId)) {
+    const { data: identities } = await supabase
+      .from('provider_identities')
+      .select('provider, normalized_external_id')
+      .eq('workspace_id', workspaceId)
+      .eq('customer_account_id', accountId)
+
+    for (const id of identities ?? []) {
+      if (id.provider === 'stripe' && !stripeCustomerId && id.normalized_external_id) {
+        stripeCustomerId = id.normalized_external_id
+      } else if (id.provider === 'posthog' && posthogDistinctIds.length === 0 && id.normalized_external_id) {
+        posthogDistinctIds.push(id.normalized_external_id)
+      } else if (id.provider === 'intercom' && !intercomContactId && id.normalized_external_id) {
+        intercomContactId = id.normalized_external_id
+      }
     }
   }
 
@@ -5091,7 +5111,17 @@ export const getStripeCustomerDetail = tool({
       }
 
       const customer = await getStripeCustomer(stripe, resolvedCustomerId)
-      const subs = customer.subscriptions?.data ?? []
+      let subs: Stripe.Subscription[] = []
+      try {
+        const subList = await stripe.subscriptions.list({
+          customer: resolvedCustomerId,
+          status: 'all',
+          limit: 10,
+        })
+        subs = subList.data
+      } catch {
+        subs = (customer.subscriptions?.data as Stripe.Subscription[]) ?? []
+      }
       return {
         id: customer.id,
         name: customer.name,
@@ -5280,8 +5310,9 @@ export const getUpcomingStripeInvoice = tool({
     accountName: z.string().optional().describe('Customer account name (e.g. "Apex MultiRail")'),
     email: z.string().optional().describe('Customer billing email'),
     user: z.string().optional().describe('Contact name (e.g. "Rohan")'),
+    subscriptionId: z.string().optional().describe('Optional Stripe subscription ID (sub_xxx) to preview'),
   }),
-  execute: async ({ workspaceId, customerId, accountName, email, user }) => {
+  execute: async ({ workspaceId, customerId, accountName, email, user, subscriptionId }) => {
     try {
       const stripe = await getStripeClient(workspaceId)
       let resolvedCustomerId = customerId
@@ -5301,17 +5332,63 @@ export const getUpcomingStripeInvoice = tool({
         return { error: 'Please specify customerId, accountName, email, or user.' }
       }
 
-      const invoice = await getUpcomingInvoice(stripe, resolvedCustomerId)
-      return {
-        customerId: resolvedCustomerId,
-        amountDue: invoice.amount_due,
-        currency: invoice.currency,
-        periodStart: invoice.period_start ? new Date(invoice.period_start * 1000).toISOString() : null,
-        periodEnd: invoice.period_end ? new Date(invoice.period_end * 1000).toISOString() : null,
-        lines: (invoice.lines?.data ?? []).slice(0, 5).map((line: { description: string | null; amount: number }) => ({
-          description: line.description,
-          amount: line.amount,
-        })),
+      let resolvedSubId = subscriptionId
+      if (!resolvedSubId) {
+        try {
+          const subs = await stripe.subscriptions.list({
+            customer: resolvedCustomerId,
+            status: 'all',
+            limit: 5,
+          })
+          const activeSub = subs.data.find((s) => s.status === 'active' || s.status === 'trialing') || subs.data[0]
+          resolvedSubId = activeSub?.id
+        } catch {
+          // Continue with customer preview
+        }
+      }
+
+      try {
+        const previewParams: any = {
+          customer: resolvedCustomerId,
+          ...(resolvedSubId ? { subscription: resolvedSubId } : {}),
+        }
+        const invoice = await stripe.invoices.createPreview(previewParams)
+        return {
+          success: true,
+          hasUpcomingInvoice: true,
+          customerId: resolvedCustomerId,
+          amountDue: invoice.amount_due,
+          currency: invoice.currency,
+          periodStart: invoice.period_start ? new Date(invoice.period_start * 1000).toISOString() : null,
+          periodEnd: invoice.period_end ? new Date(invoice.period_end * 1000).toISOString() : null,
+          lines: (invoice.lines?.data ?? []).slice(0, 5).map((line: { description: string | null; amount: number }) => ({
+            description: line.description,
+            amount: line.amount,
+          })),
+          message: `Upcoming invoice for customer ${resolvedCustomerId}: $${((invoice.amount_due ?? 0) / 100).toFixed(2)} ${invoice.currency.toUpperCase()}`,
+        }
+      } catch (stripeErr: any) {
+        const msg = stripeErr instanceof Error ? stripeErr.message : String(stripeErr)
+        if (
+          msg.includes('You must provide at least one of') ||
+          msg.includes('No upcoming invoice') ||
+          msg.includes('no upcoming invoice') ||
+          msg.includes('does not have an active subscription')
+        ) {
+          return {
+            success: true,
+            hasUpcomingInvoice: false,
+            customerId: resolvedCustomerId,
+            accountName: accountName ?? undefined,
+            amountDue: 0,
+            currency: 'usd',
+            periodStart: null,
+            periodEnd: null,
+            lines: [],
+            message: `No upcoming invoice scheduled for customer ${resolvedCustomerId} (no active renewing subscription found).`,
+          }
+        }
+        throw stripeErr
       }
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to get upcoming invoice' }
@@ -5369,27 +5446,52 @@ export const getStripeSubscriptionDetail = tool({
     try {
       const stripe = await getStripeClient(workspaceId)
       let resolvedSubId = subscriptionId
+      let resolvedCustId = customerId
 
       if (!resolvedSubId && (customerId || accountName || user)) {
-        let resolvedCustId = customerId
         if (!resolvedCustId && (accountName || user)) {
           const supabase = createServiceClient()
           const entity = await resolveCustomerEntity(supabase, workspaceId, { accountName, personName: user })
           resolvedCustId = entity.stripeCustomerId || undefined
+          if (!resolvedCustId) {
+            const query = accountName || user || ''
+            const found = await searchStripeCustomers(stripe, query, 1)
+            resolvedCustId = found[0]?.id
+          }
         }
         if (resolvedCustId) {
-          const cust = await getStripeCustomer(stripe, resolvedCustId)
-          resolvedSubId = cust.subscriptions?.data?.[0]?.id
+          try {
+            const subs = await stripe.subscriptions.list({
+              customer: resolvedCustId,
+              status: 'all',
+              limit: 5,
+            })
+            resolvedSubId = subs.data[0]?.id
+          } catch {
+            const cust = await getStripeCustomer(stripe, resolvedCustId)
+            resolvedSubId = cust.subscriptions?.data?.[0]?.id
+          }
         }
       }
 
       if (!resolvedSubId) {
+        if (resolvedCustId) {
+          return {
+            success: true,
+            hasSubscription: false,
+            customerId: resolvedCustId,
+            status: 'none',
+            message: `No subscriptions found in Stripe for customer ${resolvedCustId} (${accountName || user || 'unnamed'}).`,
+          }
+        }
         return { error: 'Please specify subscriptionId, customerId, or accountName.' }
       }
 
       const sub = await getStripeSubscription(stripe, resolvedSubId)
       const customer = typeof sub.customer === 'object' && sub.customer ? sub.customer as { id: string; name: string | null; email: string | null } : null
       return {
+        success: true,
+        hasSubscription: true,
         id: sub.id,
         status: sub.status,
         customer: customer ? { id: customer.id, name: customer.name, email: customer.email } : null,
@@ -5400,6 +5502,7 @@ export const getStripeSubscriptionDetail = tool({
         interval: sub.items.data[0]?.price?.recurring?.interval ?? 'month',
         trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
         discount: sub.discounts?.[0] ? { couponId: String(sub.discounts[0]) } : null,
+        message: `Subscription ${sub.id}: status=${sub.status}, plan=${sub.items.data[0]?.price?.nickname || 'standard'}, amount=$${((sub.items.data[0]?.price?.unit_amount ?? 0) / 100).toFixed(2)}/${sub.items.data[0]?.price?.recurring?.interval || 'mo'}`,
       }
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to get subscription' }
@@ -5475,8 +5578,17 @@ export const pauseStripeSubscriptionTool = tool({
           resolvedCustId = entity.stripeCustomerId || undefined
         }
         if (resolvedCustId) {
-          const cust = await getStripeCustomer(stripe, resolvedCustId)
-          resolvedSubId = cust.subscriptions?.data?.[0]?.id
+          try {
+            const subs = await stripe.subscriptions.list({
+              customer: resolvedCustId,
+              status: 'all',
+              limit: 5,
+            })
+            resolvedSubId = subs.data[0]?.id
+          } catch {
+            const cust = await getStripeCustomer(stripe, resolvedCustId)
+            resolvedSubId = cust.subscriptions?.data?.[0]?.id
+          }
         }
       }
 
@@ -5543,8 +5655,17 @@ export const resumeStripeSubscriptionTool = tool({
           resolvedCustId = entity.stripeCustomerId || undefined
         }
         if (resolvedCustId) {
-          const cust = await getStripeCustomer(stripe, resolvedCustId)
-          resolvedSubId = cust.subscriptions?.data?.[0]?.id
+          try {
+            const subs = await stripe.subscriptions.list({
+              customer: resolvedCustId,
+              status: 'all',
+              limit: 5,
+            })
+            resolvedSubId = subs.data[0]?.id
+          } catch {
+            const cust = await getStripeCustomer(stripe, resolvedCustId)
+            resolvedSubId = cust.subscriptions?.data?.[0]?.id
+          }
         }
       }
 
