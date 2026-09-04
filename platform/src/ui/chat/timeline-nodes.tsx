@@ -609,6 +609,11 @@ function formatTextWithIntegrationLogos(raw: string): string {
     .replace(/(?:📝|📄|📚)\s*(\*{0,2}Notion\b\*{0,2}|\*{0,2}Knowledge Base\b\*{0,2})/gi, '![Notion](/logos/notion.svg) $1')
     .replace(/(?:🏢|🤝)\s*(\*{0,2}HubSpot\b\*{0,2}|\*{0,2}CRM\b\*{0,2})/gi, '![HubSpot](/logos/hubspot.svg) $1')
     .replace(/(?:🎧|🎫)\s*(\*{0,2}Intercom\b\*{0,2}|\*{0,2}Support\b\*{0,2})/gi, '![Intercom](/logos/intercom.svg) $1')
+    // Clean up generic emoji balls (🔴, 🟡, 🟢, etc.) and mailbox emojis into clean bold headings
+    .replace(/(?:^|\n)\s*(?:🔴|🚨)\s*\*{0,2}(Critical[^\n:]*:?)\*{0,2}/gi, '\n\n**$1**')
+    .replace(/(?:^|\n)\s*(?:📬|✉️|📨)\s*\*{0,2}(Needs Reply[^\n:]*:?)\*{0,2}/gi, '\n\n**$1**')
+    .replace(/(?:^|\n)\s*(?:🟡|⚠️)\s*\*{0,2}(Background Noise[^\n:]*:?)\*{0,2}/gi, '\n\n**$1**')
+    .replace(/[🔴🟡🟢🟠🔵🟣⚫⚪📬]/g, '')
     .replace(/(?:!\[Likely Root Cause\]\(\/logos\/lightbulb\.svg\)|💡)?\s*\*{0,2}Likely Root Cause:?\*{0,2}/gi, '![Likely Root Cause](/logos/lightbulb.svg) **Likely Root Cause:**')
     .replace(/(?:!\[Recommended Action\]\(\/logos\/brain\.svg\)|🧠)?\s*\*{0,2}Recommended Action:?\*{0,2}/gi, '![Recommended Action](/logos/brain.svg) **Recommended Action:**')
     .replace(/🧠\s*(\*{2}[^*]+\*{2})/g, '![Action](/logos/brain.svg) $1')

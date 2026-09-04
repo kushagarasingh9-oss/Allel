@@ -175,12 +175,12 @@ function formatUnifiedCustomerScanReport(
 
   const severityBadge =
     classification === 'imminent_churn' || classification === 'confirmed_churn'
-      ? '🔴 **Imminent Churn**'
+      ? '**Imminent Churn**'
       : classification === 'high_risk'
-      ? '🟠 **High Risk**'
+      ? '**High Risk**'
       : classification === 'healthy'
-      ? '🟢 **Healthy**'
-      : '🟡 **Needs Intervention**'
+      ? '**Healthy**'
+      : '**Needs Intervention**'
 
   const lines: string[] = [
     `### ![Account](/logos/person.svg) ${accountName}${primaryEmail ? ` (${primaryEmail})` : ''} — Unified Health & Risk Diagnosis`,
