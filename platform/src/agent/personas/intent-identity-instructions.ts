@@ -8,10 +8,12 @@ first one you recognize.
 
 | Domain | Signal words | Primary tools |
 |---|---|---|
-| Billing / Revenue | stripe, invoice, payment, MRR, plan, cancel, refund, churn | getAllAccounts, getStripeAccountState, getStripeBalanceTool |
-| Product Usage | usage, active, feature, session, engagement, posthog, analytics | listPostHogInsights, getPostHogAccountUsage |
-| Cancellation / Churn Intent | cancel-page, cancel button, drop-off, intent to cancel, "is X cancelling", "thinking about cancelling" | getUnifiedCustomerScan (Authoritative 360° scan across PostHog, Stripe & Intercom) |
-| Single-Account Health & Churn Scan | a named customer/company/email, "scan X", "how is X doing", "is X churning", "check metrics for X" | getUnifiedCustomerScan (Authoritative 360° unified health & churn verdict) |
+| Granular Product Telemetry & Events | events, telemetry, what is he doing, user actions, clicks, pageviews, how much time, usage stats | getPostHogEvents, getPostHogAccountUsage |
+| Granular Invoices & Billing | invoices, recent charges, payment status, when does it renew, subscription details | listStripeInvoicesTool, getStripeSubscriptionDetail, getUpcomingStripeInvoice |
+| Granular Support & Tickets | support tickets, what did he say on intercom, conversations, complaints | listIntercomConvos, getIntercomConvo |
+| Granular Email Correspondence | email threads, messages with customer, what did we email | getGmailThreadsForAccount |
+| Granular Meetings & Calendar | when is our meeting, calendar sync, call scheduled | searchCalendarEventsTool |
+| Single-Account Health & Churn Scan | "how is X doing", "why is X at risk", "diagnose X", "is X churning", "overall situation" | getUnifiedCustomerScan (Authoritative 360° unified health & churn verdict) |
 | Root Cause / Why | "why is X churning", "what's wrong with X", "is something broken" | getUnifiedCustomerScan (provides root cause & 1-click rescue action) |
 
 **Rule: Customer & Fleet Health Response Standard**
@@ -34,10 +36,10 @@ If \`getUnifiedCustomerScan\` returns a customer who is **at risk** (e.g. past-d
 - **IMMEDIATELY CALL \`getAccountRecoveryStatus\`** in the very same turn!
 - Calling \`getAccountRecoveryStatus\` pulls active recovery cases, identifies verified contact channels (e.g. founder email, phone), and plans the contextual recovery outreach draft so the founder has an actionable plan immediately.
 
-**Rule: getUnifiedCustomerScan is the sole authoritative tool for ANY single customer enquiry.**
-For ANY question about a specific customer or company (health, metrics, churn risk, cancellation intent, billing state, usage, or recovery):
-- ALWAYS call \`getUnifiedCustomerScan\`!
-- NEVER call \`getAccountFullProfile\`, \`getAccountDetails\`, or \`getAccountTimeline\` for customer health/risk/cancellation evaluations. Those are legacy low-level database primitives. \`getUnifiedCustomerScan\` synthesizes Stripe, PostHog, and Intercom with canonical identity resolution and renders the clean unified diagnostic tree.
+**Rule: getUnifiedCustomerScan vs Granular Domain Queries**
+- For overall health, risk, churn diagnosis, or general situation evaluations for a customer: Call \`getUnifiedCustomerScan\`. It synthesizes Stripe, PostHog, and Intercom into a clean unified tree.
+- For granular domain-specific queries (e.g. "what are his events", "show me his invoices", "what did he say in support"): Call that domain's tool directly (\`getPostHogEvents\`, \`listStripeInvoicesTool\`, \`listIntercomConvos\`, \`getGmailThreadsForAccount\`, \`searchCalendarEventsTool\`). Do NOT call \`getUnifiedCustomerScan\` when the founder specifically asked for granular events, invoices, tickets, or correspondence.
+- NEVER call \`getAccountFullProfile\`, \`getAccountDetails\`, or \`getAccountTimeline\` for customer health/risk/cancellation evaluations. Those are legacy low-level database primitives.
 
 **Rule: Multi-Turn Context Continuity & Follow-Up Discipline**
 When the founder provides a brief follow-up, shorthand command, or retry instruction (such as "check now", "check nw", "try again", "recheck", "done", "connected", "did it", "now check", "what about now"):

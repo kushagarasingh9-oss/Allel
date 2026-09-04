@@ -1060,6 +1060,41 @@ const INTENT_CORE_TOOLS: Array<{
       ],
     },
     {
+      verbs: /\b(events?|telemetry|clicks?|actions?|pageviews?|features?|usage\s*(?:time|stats|drop)|what (?:is he|are they|actions)|how much time|active in product|using (?:the )?product)\b/i,
+      tools: [
+        'getPostHogEvents',
+        'getPostHogAccountUsage',
+        'getPostHogBehavioralIntentSignals',
+        'listPostHogInsights',
+      ],
+    },
+    {
+      verbs: /\b(invoices?|bills?|billing|charges?|failed\s*payments?|card|declined?|subscription|renew(?:al)?|pricing|paid|unpaid)\b/i,
+      tools: [
+        'listStripeInvoicesTool',
+        'getStripeSubscriptionDetail',
+        'getStripeCustomerDetail',
+        'getUpcomingStripeInvoice',
+      ],
+    },
+    {
+      verbs: /\b(support|tickets?|complaints?|bug\s*reports?|intercom|conversations?|what did (?:he|she|they) say|customer message)\b/i,
+      tools: [
+        'listIntercomConvos',
+        'searchIntercomConvosTool',
+        'getIntercomConvo',
+      ],
+    },
+    {
+      verbs: /\b(meeting|meetings|calendar|schedule|scheduled|free.busy|call|calls|sync with)\b/i,
+      tools: [
+        'searchCalendarEventsTool',
+        'listCalendarEventsTool',
+        'createCalendarEventTool',
+        'checkCalendarFreeBusy',
+      ],
+    },
+    {
       verbs: /\b(data\s*vibe|datavibe|apex|multirail|fintechscale|gridpulse|hyperion|zenith|vortex|krypton|aura|nexus|prism|cobalt|vanguard|lattice|beacon)\b|\b(reach|contact|problem|prbekm|prblm|issue|status)\b.*\b(data\s*vibe|customer|account|client|user|him|them)\b/i,
       tools: [
         'getUnifiedCustomerScan',

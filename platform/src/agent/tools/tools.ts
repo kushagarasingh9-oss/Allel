@@ -226,6 +226,131 @@ function liveStripeRisk(
 }
 
 /**
+ * Resolves customer entity identities across customer_accounts and account_contacts.
+ * Returns linked provider IDs (Stripe customer, PostHog distinct IDs, Intercom contact ID)
+ * from human names (e.g. "Rohan", "Apex MultiRail") or emails.
+ */
+export async function resolveCustomerEntity(
+  supabase: ReturnType<typeof createServiceClient>,
+  workspaceId: string,
+  params: {
+    accountId?: string
+    accountName?: string
+    email?: string
+    personName?: string
+    search?: string
+  }
+): Promise<{
+  accountId: string | null
+  accountName: string | null
+  contactEmail: string | null
+  contactName: string | null
+  stripeCustomerId: string | null
+  posthogDistinctIds: string[]
+  intercomContactId: string | null
+}> {
+  const query = (params.search || params.accountName || params.personName || params.email || '').trim()
+
+  let accountId = params.accountId || null
+  let accountName: string | null = null
+  let contactEmail: string | null = params.email?.trim().toLowerCase() || null
+  let contactName: string | null = params.personName?.trim() || null
+  let stripeCustomerId: string | null = null
+  let posthogDistinctIds: string[] = []
+  let intercomContactId: string | null = null
+
+  // 1. If accountId provided, lookup account name
+  if (accountId) {
+    const { data: acc } = await supabase
+      .from('customer_accounts')
+      .select('id, name')
+      .eq('workspace_id', workspaceId)
+      .eq('id', accountId)
+      .maybeSingle()
+    if (acc) accountName = acc.name
+  }
+
+  // 2. If no accountId, try matching customer_accounts by name or domain
+  if (!accountId && query) {
+    const { data: acc } = await supabase
+      .from('customer_accounts')
+      .select('id, name')
+      .eq('workspace_id', workspaceId)
+      .or(`name.ilike.%${query}%,domain.ilike.%${query}%`)
+      .limit(1)
+      .maybeSingle()
+    if (acc) {
+      accountId = acc.id
+      accountName = acc.name
+    }
+  }
+
+  // 3. Match contacts
+  let contactQuery = supabase
+    .from('account_contacts')
+    .select('customer_account_id, name, email, external_ids, is_primary')
+    .eq('workspace_id', workspaceId)
+
+  if (contactEmail) {
+    contactQuery = contactQuery.eq('email', contactEmail)
+  } else if (accountId) {
+    contactQuery = contactQuery.eq('customer_account_id', accountId).order('is_primary', { ascending: false })
+  } else if (query) {
+    contactQuery = contactQuery.or(`name.ilike.%${query}%,email.ilike.%${query}%`).order('is_primary', { ascending: false })
+  }
+
+  const { data: contacts } = await contactQuery.limit(5)
+  const primaryContact = contacts?.[0]
+
+  if (primaryContact) {
+    if (!accountId && primaryContact.customer_account_id) {
+      accountId = primaryContact.customer_account_id
+      const { data: acc } = await supabase
+        .from('customer_accounts')
+        .select('name')
+        .eq('workspace_id', workspaceId)
+        .eq('id', accountId)
+        .maybeSingle()
+      if (acc?.name) accountName = acc.name
+    }
+
+    if (!contactEmail && primaryContact.email) {
+      contactEmail = primaryContact.email.toLowerCase()
+    }
+    if (!contactName && primaryContact.name) {
+      contactName = primaryContact.name
+    }
+
+    const ext = (primaryContact.external_ids && typeof primaryContact.external_ids === 'object')
+      ? (primaryContact.external_ids as Record<string, unknown>)
+      : {}
+
+    if (typeof ext.stripe_customer_id === 'string') {
+      stripeCustomerId = ext.stripe_customer_id
+    }
+    if (Array.isArray(ext.posthog_distinct_ids)) {
+      posthogDistinctIds = ext.posthog_distinct_ids.filter((id): id is string => typeof id === 'string')
+    }
+    if (typeof ext.posthog_person_id === 'string' && posthogDistinctIds.length === 0) {
+      posthogDistinctIds.push(ext.posthog_person_id)
+    }
+    if (typeof ext.intercom_contact_id === 'string') {
+      intercomContactId = ext.intercom_contact_id
+    }
+  }
+
+  return {
+    accountId,
+    accountName,
+    contactEmail,
+    contactName,
+    stripeCustomerId,
+    posthogDistinctIds,
+    intercomContactId,
+  }
+}
+
+/**
  * This deliberately reads Stripe on every request. customer_accounts is a
  * sync/cache table and can contain old seed rows, so it is never used as the
  * source of billing truth for chat responses.
@@ -1642,9 +1767,10 @@ export const getPostHogAccountUsage = tool({
     'Fetch current live usage data from PostHog for a specific account. This calls the PostHog API directly so data is always fresh. Use this when you need to verify current product engagement.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    accountId: z.string().uuid().describe('The customer account UUID'),
+    accountId: z.string().uuid().optional().describe('The customer account UUID (optional if accountName is provided)'),
+    accountName: z.string().optional().describe('The customer account name (e.g., "Apex MultiRail") or contact name (e.g., "Rohan")'),
   }),
-  execute: async ({ workspaceId, accountId }) => {
+  execute: async ({ workspaceId, accountId, accountName }) => {
     try {
       // Check the live PostHog connection before looking up a local account
       // mapping. This prevents a disconnected workspace from receiving a
@@ -1653,11 +1779,24 @@ export const getPostHogAccountUsage = tool({
       if (!projectId) return { error: 'PostHog project ID is missing' }
 
       const supabase = createServiceClient()
+      let resolvedAccountId = accountId
+
+      if (!resolvedAccountId && accountName) {
+        const entity = await resolveCustomerEntity(supabase, workspaceId, { accountName })
+        if (entity.accountId) {
+          resolvedAccountId = entity.accountId
+        }
+      }
+
+      if (!resolvedAccountId) {
+        return { error: 'Please specify accountId or accountName to fetch usage data.' }
+      }
+
       const { data: contacts, error: contactsError } = await supabase
         .from('account_contacts')
         .select('email, external_ids')
         .eq('workspace_id', workspaceId)
-        .eq('customer_account_id', accountId)
+        .eq('customer_account_id', resolvedAccountId)
 
       if (contactsError) return { error: contactsError.message }
       if (!contacts || contacts.length === 0) {
@@ -3643,23 +3782,53 @@ export const searchPostHogPersons = tool({
 
 export const getPostHogEvents = tool({
   description:
-    'Get recent events from PostHog, optionally filtered by event name or user. Use this to see what actions users are taking in the product.',
+    'Get recent events, user telemetry, and product actions from PostHog. Filter by event name, or by user (specify user name e.g. "Rohan", email e.g. "rohan@apexmultirail.co", accountName e.g. "Apex MultiRail", or distinctId).',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
     event: z.string().optional().describe('Filter by event name (e.g., "$pageview", "signup", "purchase")'),
-    distinctId: z.string().optional().describe('Filter by user distinct_id'),
+    distinctId: z.string().optional().describe('Filter by user distinct_id (optional if user, email, or accountName is provided)'),
+    user: z.string().optional().describe('Filter by user or contact name (e.g., "Rohan")'),
+    email: z.string().optional().describe('Filter by user email address (e.g., "rohan@apexmultirail.co")'),
+    accountName: z.string().optional().describe('Filter by customer account name (e.g., "Apex MultiRail")'),
     limit: z.number().min(1).max(100).optional().describe('Max events. Default: 20'),
   }),
-  execute: async ({ workspaceId, event, distinctId, limit }) => {
+  execute: async ({ workspaceId, event, distinctId, user, email, accountName, limit }) => {
     try {
       const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
       const host = apiHost || POSTHOG_DEFAULT_HOST
-      const events = await getPostHogRecentEvents(apiKey, projectId, {
-        event,
-        distinctId,
-        limit: limit ?? 20,
-      }, host)
+
+      let resolvedDistinctId = distinctId
+      let resolvedPersonName = user || null
+      let resolvedAccountName = accountName || null
+
+      if (!resolvedDistinctId && (user || email || accountName)) {
+        const supabase = createServiceClient()
+        const entity = await resolveCustomerEntity(supabase, workspaceId, {
+          personName: user,
+          email,
+          accountName,
+        })
+        if (entity.posthogDistinctIds.length > 0) {
+          resolvedDistinctId = entity.posthogDistinctIds[0]
+        }
+        if (entity.contactName) resolvedPersonName = entity.contactName
+        if (entity.accountName) resolvedAccountName = entity.accountName
+      }
+
+      const events = await getPostHogRecentEvents(
+        apiKey,
+        projectId,
+        {
+          event,
+          distinctId: resolvedDistinctId,
+          limit: limit ?? 20,
+        },
+        host
+      )
       return {
+        user: resolvedPersonName,
+        account: resolvedAccountName,
+        distinctId: resolvedDistinctId,
         events: events.map((e) => ({
           event: e.event,
           distinctId: e.distinct_id,
@@ -3799,16 +3968,49 @@ export const getPostHogEventDefinitions = tool({
 
 export const listIntercomConvos = tool({
   description:
-    'List open, closed, or snoozed conversations from Intercom. Use when the founder asks about support tickets, open conversations, or wants a support overview.',
+    'List open, closed, or snoozed conversations from Intercom. Can be filtered by customer accountName (e.g. "Apex MultiRail"), contact email, or user name (e.g. "Rohan").',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
     state: z.enum(['open', 'closed', 'snoozed']).optional().describe('Conversation state filter. Default: open'),
+    accountName: z.string().optional().describe('Filter by customer account name (e.g. "Apex MultiRail")'),
+    email: z.string().optional().describe('Filter by contact email (e.g. "rohan@apexmultirail.co")'),
+    user: z.string().optional().describe('Filter by contact name (e.g. "Rohan")'),
     limit: z.number().min(1).max(50).optional().describe('Max results. Default: 15'),
   }),
-  execute: async ({ workspaceId, state, limit }) => {
+  execute: async ({ workspaceId, state, accountName, email, user, limit }) => {
     try {
       const { accessToken, apiBaseUrl } = await getIntercomCredentials(workspaceId)
-      const convos = await listIntercomConversationsFn(accessToken, apiBaseUrl, state ?? 'open', limit ?? 15)
+      let filterEmail = email?.toLowerCase()
+      let filterName = user?.toLowerCase()
+
+      if (!filterEmail && (accountName || user)) {
+        const supabase = createServiceClient()
+        const entity = await resolveCustomerEntity(supabase, workspaceId, { accountName, personName: user })
+        if (entity.contactEmail) filterEmail = entity.contactEmail.toLowerCase()
+        if (entity.contactName) filterName = entity.contactName.toLowerCase()
+      }
+
+      let convos = await listIntercomConversationsFn(accessToken, apiBaseUrl, state ?? 'open', limit ?? 15)
+
+      if (filterEmail || filterName || accountName) {
+        convos = convos.filter((c) => {
+          const author = c.source?.author
+          const contactObj = c.contacts?.contacts?.[0]
+          const cEmail = (author?.email ?? contactObj?.email ?? '').toLowerCase()
+          const cName = (author?.name ?? contactObj?.name ?? '').toLowerCase()
+          const cTitle = (c.title ?? '').toLowerCase()
+          const cBody = (c.source?.body ?? '').toLowerCase()
+
+          if (filterEmail && cEmail.includes(filterEmail)) return true
+          if (filterName && cName.includes(filterName)) return true
+          if (accountName) {
+            const accLower = accountName.toLowerCase()
+            if (cTitle.includes(accLower) || cBody.includes(accLower)) return true
+          }
+          return false
+        })
+      }
+
       return {
         contentSafety: getExternalContentSafetyMeta('intercom'),
         conversations: convos.map((c) => {
@@ -3849,15 +4051,41 @@ export const listIntercomConvos = tool({
 
 export const getIntercomConvo = tool({
   description:
-    'Get full details of a specific Intercom conversation including all messages and replies. Use when the founder wants to see the full thread of a support conversation.',
+    'Get full details of a specific Intercom conversation including all messages and replies. Specify conversationId, or provide accountName e.g. "Apex MultiRail" or user name e.g. "Rohan" to view their latest ticket.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    conversationId: z.string().describe('The Intercom conversation ID'),
+    conversationId: z.string().optional().describe('The Intercom conversation ID (optional if accountName or user provided)'),
+    accountName: z.string().optional().describe('Customer account name (e.g. "Apex MultiRail")'),
+    user: z.string().optional().describe('Contact name (e.g. "Rohan")'),
   }),
-  execute: async ({ workspaceId, conversationId }) => {
+  execute: async ({ workspaceId, conversationId, accountName, user }) => {
     try {
       const { accessToken, apiBaseUrl } = await getIntercomCredentials(workspaceId)
-      const convo = await getIntercomConversationFn(accessToken, apiBaseUrl, conversationId)
+      let targetConvoId = conversationId
+
+      if (!targetConvoId && (accountName || user)) {
+        const supabase = createServiceClient()
+        const entity = await resolveCustomerEntity(supabase, workspaceId, { accountName, personName: user })
+        const list = await listIntercomConversationsFn(accessToken, apiBaseUrl, 'open', 10)
+        const match = list.find((c) => {
+          const author = c.source?.author
+          const contactObj = c.contacts?.contacts?.[0]
+          const cEmail = (author?.email ?? contactObj?.email ?? '').toLowerCase()
+          const cName = (author?.name ?? contactObj?.name ?? '').toLowerCase()
+          const cTitle = (c.title ?? '').toLowerCase()
+          if (entity.contactEmail && cEmail.includes(entity.contactEmail.toLowerCase())) return true
+          if (entity.contactName && cName.includes(entity.contactName.toLowerCase())) return true
+          if (accountName && cTitle.includes(accountName.toLowerCase())) return true
+          return false
+        })
+        targetConvoId = match?.id ?? list[0]?.id
+      }
+
+      if (!targetConvoId) {
+        return { error: 'Please specify conversationId, accountName, or user.' }
+      }
+
+      const convo = await getIntercomConversationFn(accessToken, apiBaseUrl, targetConvoId)
       const parts = convo.conversation_parts?.conversation_parts ?? []
       const author = convo.source?.author
       const contactObj = convo.contacts?.contacts?.[0]
@@ -4238,15 +4466,35 @@ export const searchStripeCustomersTool = tool({
 
 export const getStripeCustomerDetail = tool({
   description:
-    'Get full details of a Stripe customer including subscriptions and payment info. Use when you need deep billing context for a specific customer.',
+    'Get full details of a Stripe customer including subscriptions and payment info. Specify customerId (cus_xxx), or provide accountName e.g. "Apex MultiRail", email, or user name.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    customerId: z.string().describe('The Stripe customer ID (cus_xxx)'),
+    customerId: z.string().optional().describe('The Stripe customer ID (cus_xxx). Optional if accountName, email, or user is provided.'),
+    accountName: z.string().optional().describe('Customer account name (e.g. "Apex MultiRail")'),
+    email: z.string().optional().describe('Customer billing email'),
+    user: z.string().optional().describe('Contact name (e.g. "Rohan")'),
   }),
-  execute: async ({ workspaceId, customerId }) => {
+  execute: async ({ workspaceId, customerId, accountName, email, user }) => {
     try {
       const stripe = await getStripeClient(workspaceId)
-      const customer = await getStripeCustomer(stripe, customerId)
+      let resolvedCustomerId = customerId
+
+      if (!resolvedCustomerId && (accountName || email || user)) {
+        const supabase = createServiceClient()
+        const entity = await resolveCustomerEntity(supabase, workspaceId, { accountName, email, personName: user })
+        resolvedCustomerId = entity.stripeCustomerId || undefined
+        if (!resolvedCustomerId) {
+          const query = accountName || email || user || ''
+          const found = await searchStripeCustomers(stripe, query, 1)
+          resolvedCustomerId = found[0]?.id
+        }
+      }
+
+      if (!resolvedCustomerId) {
+        return { error: 'Please specify customerId, accountName, email, or user.' }
+      }
+
+      const customer = await getStripeCustomer(stripe, resolvedCustomerId)
       const subs = customer.subscriptions?.data ?? []
       return {
         id: customer.id,
@@ -4277,17 +4525,38 @@ export const getStripeCustomerDetail = tool({
 
 export const listStripeInvoicesTool = tool({
   description:
-    'List recent invoices for a Stripe customer. Shows payment status, amounts, and dates. Use when checking billing history or payment issues.',
+    'List recent invoices for a Stripe customer. Shows payment status, amounts, and dates. Specify customerId (cus_xxx), or provide accountName e.g. "Apex MultiRail", email, or user name.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    customerId: z.string().describe('The Stripe customer ID'),
+    customerId: z.string().optional().describe('The Stripe customer ID (cus_xxx). Optional if accountName, email, or user is provided.'),
+    accountName: z.string().optional().describe('Customer account name (e.g. "Apex MultiRail")'),
+    email: z.string().optional().describe('Customer billing email'),
+    user: z.string().optional().describe('Contact name (e.g. "Rohan")'),
     limit: z.number().min(1).max(20).optional().describe('Max invoices. Default: 10'),
   }),
-  execute: async ({ workspaceId, customerId, limit }) => {
+  execute: async ({ workspaceId, customerId, accountName, email, user, limit }) => {
     try {
       const stripe = await getStripeClient(workspaceId)
-      const invoices = await listStripeInvoices(stripe, customerId, limit ?? 10)
+      let resolvedCustomerId = customerId
+
+      if (!resolvedCustomerId && (accountName || email || user)) {
+        const supabase = createServiceClient()
+        const entity = await resolveCustomerEntity(supabase, workspaceId, { accountName, email, personName: user })
+        resolvedCustomerId = entity.stripeCustomerId || undefined
+        if (!resolvedCustomerId) {
+          const query = accountName || email || user || ''
+          const found = await searchStripeCustomers(stripe, query, 1)
+          resolvedCustomerId = found[0]?.id
+        }
+      }
+
+      if (!resolvedCustomerId) {
+        return { error: 'Please specify customerId, accountName, email, or user.' }
+      }
+
+      const invoices = await listStripeInvoices(stripe, resolvedCustomerId, limit ?? 10)
       return {
+        customerId: resolvedCustomerId,
         invoices: invoices.map((inv) => ({
           id: inv.id,
           status: inv.status,
@@ -4312,16 +4581,37 @@ export const listStripeInvoicesTool = tool({
 
 export const getUpcomingStripeInvoice = tool({
   description:
-    'Preview the upcoming invoice for a customer. Shows what they will be charged next and when. Use for renewal context.',
+    'Preview the upcoming invoice for a customer. Shows what they will be charged next and when. Specify customerId (cus_xxx), or provide accountName e.g. "Apex MultiRail", email, or user name.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    customerId: z.string().describe('The Stripe customer ID'),
+    customerId: z.string().optional().describe('The Stripe customer ID (cus_xxx). Optional if accountName, email, or user is provided.'),
+    accountName: z.string().optional().describe('Customer account name (e.g. "Apex MultiRail")'),
+    email: z.string().optional().describe('Customer billing email'),
+    user: z.string().optional().describe('Contact name (e.g. "Rohan")'),
   }),
-  execute: async ({ workspaceId, customerId }) => {
+  execute: async ({ workspaceId, customerId, accountName, email, user }) => {
     try {
       const stripe = await getStripeClient(workspaceId)
-      const invoice = await getUpcomingInvoice(stripe, customerId)
+      let resolvedCustomerId = customerId
+
+      if (!resolvedCustomerId && (accountName || email || user)) {
+        const supabase = createServiceClient()
+        const entity = await resolveCustomerEntity(supabase, workspaceId, { accountName, email, personName: user })
+        resolvedCustomerId = entity.stripeCustomerId || undefined
+        if (!resolvedCustomerId) {
+          const query = accountName || email || user || ''
+          const found = await searchStripeCustomers(stripe, query, 1)
+          resolvedCustomerId = found[0]?.id
+        }
+      }
+
+      if (!resolvedCustomerId) {
+        return { error: 'Please specify customerId, accountName, email, or user.' }
+      }
+
+      const invoice = await getUpcomingInvoice(stripe, resolvedCustomerId)
       return {
+        customerId: resolvedCustomerId,
         amountDue: invoice.amount_due,
         currency: invoice.currency,
         periodStart: invoice.period_start ? new Date(invoice.period_start * 1000).toISOString() : null,
@@ -4341,15 +4631,37 @@ export const getUpcomingStripeInvoice = tool({
 
 export const getStripeSubscriptionDetail = tool({
   description:
-    'Get full details of a specific Stripe subscription including plan, status, billing cycle, and cancel state.',
+    'Get full details of a specific Stripe subscription including plan, status, billing cycle, and cancel state. Specify subscriptionId (sub_xxx), or provide accountName, customerId, or user name.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    subscriptionId: z.string().describe('The Stripe subscription ID (sub_xxx)'),
+    subscriptionId: z.string().optional().describe('The Stripe subscription ID (sub_xxx). Optional if customerId, accountName, or user is provided.'),
+    customerId: z.string().optional().describe('The Stripe customer ID (cus_xxx)'),
+    accountName: z.string().optional().describe('Customer account name (e.g. "Apex MultiRail")'),
+    user: z.string().optional().describe('Contact name (e.g. "Rohan")'),
   }),
-  execute: async ({ workspaceId, subscriptionId }) => {
+  execute: async ({ workspaceId, subscriptionId, customerId, accountName, user }) => {
     try {
       const stripe = await getStripeClient(workspaceId)
-      const sub = await getStripeSubscription(stripe, subscriptionId)
+      let resolvedSubId = subscriptionId
+
+      if (!resolvedSubId && (customerId || accountName || user)) {
+        let resolvedCustId = customerId
+        if (!resolvedCustId && (accountName || user)) {
+          const supabase = createServiceClient()
+          const entity = await resolveCustomerEntity(supabase, workspaceId, { accountName, personName: user })
+          resolvedCustId = entity.stripeCustomerId || undefined
+        }
+        if (resolvedCustId) {
+          const cust = await getStripeCustomer(stripe, resolvedCustId)
+          resolvedSubId = cust.subscriptions?.data?.[0]?.id
+        }
+      }
+
+      if (!resolvedSubId) {
+        return { error: 'Please specify subscriptionId, customerId, or accountName.' }
+      }
+
+      const sub = await getStripeSubscription(stripe, resolvedSubId)
       const customer = typeof sub.customer === 'object' && sub.customer ? sub.customer as { id: string; name: string | null; email: string | null } : null
       return {
         id: sub.id,
@@ -4639,6 +4951,18 @@ export const createCalendarEventTool = tool({
         resolvedEnd = new Date(startMs + 60 * 60 * 1000).toISOString()
       }
 
+      let finalAttendees = attendeeEmails
+      if (finalAttendees && finalAttendees.length > 0) {
+        const supabase = createServiceClient()
+        finalAttendees = await Promise.all(
+          finalAttendees.map(async (raw) => {
+            if (raw.includes('@')) return raw
+            const entity = await resolveCustomerEntity(supabase, workspaceId, { personName: raw, search: raw })
+            return entity.contactEmail || raw
+          })
+        )
+      }
+
       return await executeWithCalendarAccessToken(workspaceId, async (accessToken) => {
         const event = await createCalendarEventFn(accessToken, 'primary', {
           summary,
@@ -4646,7 +4970,7 @@ export const createCalendarEventTool = tool({
           location,
           start: { dateTime: startDateTime, timeZone: tz },
           end: { dateTime: resolvedEnd, timeZone: tz },
-          attendees: attendeeEmails?.map((email) => ({ email })),
+          attendees: finalAttendees?.filter(e => e.includes('@')).map((email) => ({ email })),
         })
 
         return {
