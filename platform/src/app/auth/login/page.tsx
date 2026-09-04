@@ -116,7 +116,7 @@ export default function LoginPage() {
           <img
             src="/dot.png"
             alt="Allel"
-            className="w-12 h-12 rounded-full object-contain mb-3 shadow-lg"
+            className="w-9 h-9 object-contain mb-3"
           />
           <span
             className="text-[28px] font-semibold text-white tracking-tight"

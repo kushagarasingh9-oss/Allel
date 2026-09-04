@@ -525,8 +525,7 @@ export default function WorkflowsPage() {
             <img
               src="/dot.png"
               alt="Allel"
-              className="w-5 h-5 rounded-full object-contain shrink-0"
-              style={{ width: 20, height: 20 }}
+              className="w-4 h-4 object-contain shrink-0"
             />
             <h1 className="text-[17px] font-medium tracking-tight text-white">Revenue Recovery</h1>
           </div>

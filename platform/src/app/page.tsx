@@ -137,8 +137,8 @@ const OVERRIDE_CSS = `
 
   .landing-page-container .allel-nav-brand-logo {
     display: inline-block !important;
-    width: 20px !important;
-    height: 20px !important;
+    width: 17px !important;
+    height: 17px !important;
     object-fit: contain !important;
     margin-right: 8px !important;
     flex-shrink: 0 !important;
@@ -147,9 +147,10 @@ const OVERRIDE_CSS = `
 
   .landing-page-container .allel-footer-brand-logo {
     display: inline-block !important;
-    width: 24px !important;
-    height: 24px !important;
+    width: 20px !important;
+    height: 20px !important;
     object-fit: contain !important;
+    margin-right: 8px !important;
     flex-shrink: 0 !important;
     background: transparent !important;
   }
@@ -431,7 +432,7 @@ export default function LandingPage() {
           img.src = '/dot.png';
           img.alt = 'Allel';
           img.className = 'allel-nav-brand-logo';
-          img.style.cssText = 'width: 20px; height: 20px; margin-right: 8px; object-fit: contain; display: inline-block; vertical-align: middle; flex-shrink: 0; background: transparent;';
+          img.style.cssText = 'width: 17px; height: 17px; margin-right: 8px; object-fit: contain; display: inline-block; vertical-align: middle; flex-shrink: 0; background: transparent;';
           const textContainer = navLogo.querySelector('.framer-gdhgkz');
           if (textContainer) {
             navLogo.insertBefore(img, textContainer);
@@ -452,7 +453,7 @@ export default function LandingPage() {
           img.src = '/dot.png';
           img.alt = 'Allel';
           img.className = 'allel-footer-brand-logo';
-          img.style.cssText = 'width: 24px; height: 24px; margin-right: 8px; object-fit: contain; flex-shrink: 0; background: transparent;';
+          img.style.cssText = 'width: 20px; height: 20px; margin-right: 8px; object-fit: contain; flex-shrink: 0; background: transparent;';
           const brandText = footerBrand.querySelector('.framer-1vurpbe');
           if (brandText && !brandText.closest('.allel-footer-brand-header')) {
             const wrapper = document.createElement('div');

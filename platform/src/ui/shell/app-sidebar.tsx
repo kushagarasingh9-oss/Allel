@@ -358,7 +358,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 <img
                   src="/dot.png"
                   alt="Allel"
-                  className="w-[22px] h-[22px] rounded-full object-contain shrink-0 transition-all duration-150 group-hover:opacity-0 group-hover:scale-95"
+                  className="w-4 h-4 object-contain shrink-0 transition-all duration-150 group-hover:opacity-0 group-hover:scale-95"
                 />
                 <PanelLeftOpen className="w-4 h-4 text-white absolute opacity-0 group-hover:opacity-100 transition-all duration-150 group-hover:scale-100 scale-90" />
               </button>
@@ -373,7 +373,7 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
                 <img
                   src="/dot.png"
                   alt="Allel"
-                  className="w-[24px] h-[24px] rounded-full object-contain shrink-0"
+                  className="w-[18px] h-[18px] object-contain shrink-0"
                 />
               </Link>
 

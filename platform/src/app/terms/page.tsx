@@ -15,7 +15,7 @@ export default function TermsPage() {
           <img
             src="/dot.png"
             alt="Allel"
-            className="w-6 h-6 rounded-full object-contain shrink-0"
+            className="w-[18px] h-[18px] object-contain shrink-0"
           />
           <span className="text-lg font-bold text-white tracking-tight">Allel</span>
         </Link>
