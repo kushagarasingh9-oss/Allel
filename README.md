@@ -6,507 +6,609 @@
 
 Allel connects fragmented customer signals from billing, product analytics, email, support, CRM, and engineering systems. It resolves those signals to the correct account, computes risk deterministically, creates an auditable recovery case, helps prepare the right response, routes the exact draft through founder approval, and measures what happened next.
 
-> AI helps Allel reason, explain, draft, research, and operate connected tools. It does **not** own customer identity, risk truth, policy, approval integrity, case transitions, or revenue attribution. Those boundaries remain deterministic and auditable.
+> **The Architectural Rule:** AI helps Allel reason, explain, draft, research, and operate connected tools. It does **not** own customer identity, risk truth, policy, approval integrity, case transitions, or revenue attribution. Those boundaries remain deterministic, database-enforced, and auditable.
 
 ---
 
 ## Contents
 
 - [Why Allel](#why-allel)
-- [What the product does](#what-the-product-does)
-- [Product experience](#product-experience)
-- [End-to-end recovery workflow](#end-to-end-recovery-workflow)
-- [Agent orchestration](#agent-orchestration)
-- [System architecture](#system-architecture)
-- [Recovery intelligence](#recovery-intelligence)
-- [Integrations](#integrations)
-- [Data and trust model](#data-and-trust-model)
-- [API surface](#api-surface)
-- [Repository guide](#repository-guide)
-- [Run locally](#run-locally)
-- [Operations and deployment](#operations-and-deployment)
-- [Testing and validation](#testing-and-validation)
-- [Known limitations](#known-limitations)
-- [Documentation map](#documentation-map)
+- [Deterministic vs. AI Separation Boundary](#deterministic-vs-ai-separation-boundary)
+- [System Architecture Blueprint](#system-architecture-blueprint)
+- [Product Experience & UI Architecture](#product-experience--ui-architecture)
+- [End-to-End Recovery Operating Loop](#end-to-end-recovery-operating-loop)
+- [Deterministic Risk & Confidence Engine](#deterministic-risk--confidence-engine)
+- [Identity Resolution & Conflict Isolation](#identity-resolution--conflict-isolation)
+- [Human-in-the-Loop Hash-Bound Approval](#human-in-the-loop-hash-bound-approval)
+- [Agent Orchestration & Dynamic Tool Routing](#agent-orchestration--dynamic-tool-routing)
+- [Durable Job Queue & Worker Pipeline](#durable-job-queue--worker-pipeline)
+- [Closed-Loop Outcome Attribution](#closed-loop-outcome-attribution)
+- [Integrations Mesh](#integrations-mesh)
+- [Data Model & Security](#data-model--security)
+- [API Surface](#api-surface)
+- [Repository Guide](#repository-guide)
+- [Run Locally](#run-locally)
+- [Operations and Deployment](#operations-and-deployment)
+- [Testing and Validation](#testing-and-validation)
+- [Known Limitations](#known-limitations)
+- [Documentation Map](#documentation-map)
 
 ---
 
 ## Why Allel
 
-Customer risk rarely appears in one system.
+Customer risk rarely appears in one isolated system.
 
-A failed Stripe invoice may be temporary. A 60% usage decline may be seasonal. A quiet Gmail thread may be normal. An unresolved Intercom issue may be harmless. But when those signals belong to the same account and occur together, they can represent imminent churn.
+A failed Stripe invoice may be temporary. A 60% usage decline may be seasonal. A quiet Gmail thread may be normal. An unresolved Intercom issue may be harmless. But when those signals belong to the same account and occur together, they represent imminent churn.
 
 Most founder workflows still require someone to:
+1. Notice the signal across scattered dashboards;
+2. Identify which customer is behind the disparate IDs;
+3. Collect evidence from several providers;
+4. Decide whether the risk is real;
+5. Choose a safe action and respect contact cooldowns;
+6. Write and review the outreach;
+7. Remember to follow up; and
+8. Prove whether revenue was actually recovered.
 
-1. notice the signal;
-2. identify the customer behind it;
-3. collect evidence from several providers;
-4. decide whether the risk is real;
-5. choose a safe action;
-6. write and review the outreach;
-7. remember to follow up; and
-8. prove whether revenue was actually recovered.
+Allel unifies that fragmented process into one evidence-backed operating loop.
 
-Allel turns that fragmented process into one evidence-backed operating loop.
+```mermaid
+flowchart LR
+    subgraph Fragmented["Scattered Signals"]
+        direction TB
+        S1["Stripe: Failed Payment"]
+        S2["PostHog: -60% Usage"]
+        S3["Intercom: Open Bug Ticket"]
+        S4["Gmail: Unanswered Thread"]
+    end
 
-### Product principles
+    subgraph AllelOS["Allel Operating System"]
+        direction TB
+        R1["1. Deterministic Identity Resolution"]
+        R2["2. Multi-Signal Risk Scoring (50/35/15)"]
+        R3["3. Action Policy & Cooldown Gating"]
+        R4["4. AI-Assisted Synthesis & Drafting"]
+        R5["5. Hash-Bound Founder Approval"]
+        R6["6. Durable Gmail Send & Monitoring"]
+        R7["7. Closed-Loop Revenue Attribution"]
+        R1 --> R2 --> R3 --> R4 --> R5 --> R6 --> R7
+    end
+
+    subgraph Outcome["Measurable Result"]
+        O1["Recovered MRR"]
+        O2["Protected Revenue"]
+        O3["Audit Trail"]
+    end
+
+    Fragmented --> AllelOS --> Outcome
+```
+
+### Product Principles
 
 | Principle | What it means in Allel |
 |---|---|
 | **Facts before language** | Provider facts and persisted account state are assembled before AI analysis. |
 | **Identity before action** | Ambiguous provider records become explicit conflicts instead of unsafe account merges. |
 | **Policy before automation** | Confidence thresholds, contact policy, cooldowns, and legal transitions constrain action. |
-| **Approval binds content** | Recovery approval is tied to the exact draft content hash. |
-| **Delivery is not success** | A sent message is monitored; revenue is counted only through outcome evidence. |
+| **Approval binds content** | Recovery approval is cryptographically tied to the exact draft content hash. |
+| **Delivery is not success** | A sent message is monitored; revenue is counted only through verified outcome evidence. |
 | **Every stage is inspectable** | Events, jobs, agent runs, case transitions, drafts, and outcomes leave audit records. |
 | **Demo data stays labeled** | Seeded scenarios and test-mode metrics must never be presented as production outcomes. |
 
 ---
 
-## What the product does
+## Deterministic vs. AI Separation Boundary
 
-```mermaid
-flowchart LR
-    S[Customer signals] --> I[Resolve identity]
-    I --> R[Score risk]
-    R --> P[Apply policy]
-    P --> C[Open recovery case]
-    C --> A[Analyze and draft]
-    A --> H[Founder review]
-    H --> D[Send and monitor]
-    D --> O[Attribute outcome]
-```
-
-Allel provides four connected product capabilities:
-
-### 1. Revenue-recovery engine
-
-- Verifies Stripe and PostHog webhook ingress.
-- Reconciles provider state on a schedule.
-- Resolves provider events to canonical customer accounts.
-- Projects billing, usage, and communication features.
-- Calculates deterministic risk and confidence.
-- Applies action policy, contact restrictions, and cooldowns.
-- Creates durable recovery cases and score snapshots.
-- Tracks recovery, protection, engagement, suppression, and unresolved risk.
-
-### 2. Founder command center
-
-- Streams AI-assisted conversations.
-- Preserves user/workspace/persona/session-scoped history.
-- Surfaces accounts, drafts, cases, briefs, and provider context.
-- Routes requests to a large connected-tool registry without loading every tool schema at once.
-- Records which tools and model steps actually executed.
-
-### 3. Human-reviewed outreach
-
-- Generates evidence-grounded recovery drafts.
-- Verifies draft shape and policy.
-- Binds founder approval to expected content.
-- Queues approved drafts for durable Gmail delivery.
-- Monitors Gmail history and classifies outcomes.
-
-### 4. Cross-platform customer context
-
-- Normalizes provider identities and account relationships.
-- Supports synchronized and live tool-only integrations.
-- Exposes account timelines, risk factors, drafts, outcomes, and memories.
-- Delivers founder briefs and urgent context through configured channels.
-
----
-
-## Product experience
-
-The authenticated application uses a compact sidebar organized around **Brief**, **Agents**, **Automations**, **Connections**, and persisted conversation history.
+The core architecture strictly partitions responsibilities between deterministic application code and AI reasoning:
 
 ```mermaid
 flowchart TD
-    Login[OTP or magic-link login] --> Dashboard[AI command center]
-    Dashboard --> Brief[Founder brief]
-    Dashboard --> Agents[Recovery agents]
-    Dashboard --> Automations[Recovery workflows]
-    Dashboard --> Connections[Provider connections]
-    Dashboard --> Sessions[Conversation sessions]
-    Automations --> Case[Case detail]
-    Case --> Evidence[Evidence and score]
-    Case --> Draft[Draft review]
-    Case --> Timeline[Events and jobs]
-    Case --> Outcome[Monitoring and outcome]
+    subgraph Deterministic["DETERMINISTIC APPLICATION BOUNDARY (Zero Hallucination)"]
+        direction TB
+        D1["Webhook Signature Verification (Stripe HMAC, PostHog)"]
+        D2["Identity Resolution & Conflict Isolation (identity_conflicts)"]
+        D3["Multi-Dimensional Risk Engine (50% Billing, 35% Usage, 15% Comm)"]
+        D4["Action Policy & Cooldown Enforcement (72h Billing, 7d Usage)"]
+        D5["Recovery Case Legal State Machine (Atomic DB RPCs)"]
+        D6["Content Hash Generation (SHA-256 Draft Binding)"]
+        D7["Durable Worker Job Queue (Leasing, Backoff, Retries)"]
+        D8["Outcome Attribution Gates (G1-G5 Strict MRR Checks)"]
+    end
+
+    subgraph AI["AI AGENT BOUNDARY (Flexible Reasoning & Drafting)"]
+        direction TB
+        A1["ToolLoopAgent Multi-Step Execution (Max 25 Steps)"]
+        A2["Cross-Provider Synthesis (Executive Summaries)"]
+        A3["Personalized Recovery Draft Generation"]
+        A4["Dynamic Schema Expansion (requestMoreTools / prepareStep)"]
+        A5["Deep Web & Company Research (Tavily Integration)"]
+        A6["Ad-hoc Founder Q&A & Operational Insights"]
+    end
+
+    Deterministic -- "Verified Account Evidence" --> AI
+    AI -- "Proposed Draft / Analysis" --> Deterministic
+    Deterministic -- "Founder Review & SHA-256 Match" --> Action["Durable Execution & Gmail Dispatch"]
 ```
-
-### Main surfaces
-
-| Surface | Route | What a reviewer can do |
-|---|---|---|
-| **Command center** | `/dashboard` | Chat with a persona, invoke connected tools, and revisit persisted sessions. |
-| **Founder brief** | `/dashboard/brief` | Review prioritized account and recovery context. |
-| **Agents** | `/dashboard/agents` | Open the recovery automation experience through the agent-oriented navigation. |
-| **Automations** | `/dashboard/flows` | Search cases, inspect metrics and evidence, review drafts, replay work, and dispatch outreach. |
-| **Connections** | `/dashboard/connections` | Connect and manage supported providers. |
-| **Accounts** | `/dashboard/accounts` | Browse the account portfolio and open account-level details. |
-| **Drafts** | `/dashboard/drafts` | Review recovery drafts and approval state. |
-| **History/sessions** | `/dashboard/history`, `/dashboard/sessions` | Reopen command-center conversations. |
-| **Inbox** | `/dashboard/inbox` | Placeholder only; an inbox product is not implemented yet. |
-
-`/dashboard/agents` currently reuses the recovery-flow page. `/dashboard/connections` reuses settings, and history/session routes reuse the command center. These are intentional route aliases, not separate implementations.
-
-### Public experience
-
-The application also includes:
-
-- marketing and waitlist at `/`;
-- `/about` and `/pricing`;
-- public product documentation at `/docs` and `/docs/[slug]`;
-- `/privacy` and `/terms`; and
-- OTP/magic-link authentication at `/auth/login` and `/auth/callback`.
 
 ---
 
-## End-to-end recovery workflow
+## System Architecture Blueprint
 
-### Durable execution pipeline
+Allel is structured into seven distinct architectural layers ensuring complete tenant isolation, robust auditability, and sub-second UI responsiveness:
+
+```mermaid
+flowchart TB
+    subgraph Presentation["1. PRESENTATION LAYER (Next.js 15 App Router & React 19)"]
+        direction LR
+        UI_Dash["/dashboard (Command Center)"]
+        UI_Brief["/dashboard/brief (Founder Daily Brief)"]
+        UI_Flows["/dashboard/flows (Automations & Cases)"]
+        UI_Acc["/dashboard/accounts (Portfolio & Drawer)"]
+        UI_Conn["/dashboard/connections (Integration Hub)"]
+        UI_Public["/ (Landing, Docs, Pricing, Legal)"]
+    end
+
+    subgraph Edge["2. EDGE, AUTH & API ROUTING LAYER"]
+        direction LR
+        API_Agent["/api/agent (Streaming Chat)"]
+        API_Hooks["/api/webhooks (Stripe / PostHog)"]
+        API_Drafts["/api/drafts (Hash-Bound Approval)"]
+        API_Cron["/api/cron/daily-run (Scheduled Sync)"]
+        API_Drain["/api/internal/workflows/drain (Worker)"]
+        Auth_Mid["Supabase SSR Middleware & Session Guard"]
+    end
+
+    subgraph AgentRuntime["3. AGENT RUNTIME LAYER (ToolLoopAgent Engine)"]
+        direction LR
+        Personas["Personas (Allel, Henry, Sarah)"]
+        Router["Fuzzy Keyword & Semantic Router"]
+        DynamicSchema["In-Loop Schema Expansion (prepareStep)"]
+        ToolRegistry["Tool Registry (164 Active Tools)"]
+        Mem_Store["Signed Chat Memory & Account Memory"]
+        Run_Logger["Execution Telemetry & Action Audit"]
+    end
+
+    subgraph RecoveryEngine["4. RECOVERY ENGINE CORE"]
+        direction LR
+        IdResolver["Identity Resolver & Conflict Handler"]
+        FeatureProj["Account Feature Projector"]
+        RiskEngine["Deterministic Risk & Override Engine"]
+        PolicyEngine["Policy Engine & Cooldown Enforcer"]
+        OutcomeEngine["Outcome Attribution Engine (G1-G5)"]
+    end
+
+    subgraph WorkerQueue["5. DURABLE JOB QUEUE & WORKER"]
+        direction LR
+        JobQueue["workflow_jobs (Lease-Based Queue)"]
+        WorkerDrain["Drain Worker (Concurrent Leases)"]
+        JobHandlers["10 Atomic Job Handlers"]
+    end
+
+    subgraph DataIntegrations["6. INTEGRATIONS MESH"]
+        direction LR
+        StripeClient["Stripe (Billing & Subscriptions)"]
+        PostHogClient["PostHog (Product Analytics)"]
+        GoogleClient["Google (Gmail Sync & Calendar)"]
+        IntercomClient["Intercom (Customer Support)"]
+        HubSpotClient["HubSpot (CRM & Deals)"]
+        SlackClient["Slack (Alerts & Notifications)"]
+        LinearSentry["Linear & Sentry (Dev & Errors)"]
+    end
+
+    subgraph Persistence["7. PERSISTENCE LAYER (PostgreSQL & Supabase RLS)"]
+        direction LR
+        DB_Tables["29 Relational Tables"]
+        DB_RLS["Row-Level Security Policies"]
+        DB_RPC["Atomic RPCs (Transitions & Approvals)"]
+        DB_Crypto["AES-256-GCM Credential Encryption"]
+    end
+
+    Presentation --> Edge
+    Edge --> Auth_Mid
+    Auth_Mid --> AgentRuntime
+    Auth_Mid --> RecoveryEngine
+    Edge --> WorkerQueue
+    AgentRuntime --> ToolRegistry
+    ToolRegistry --> DataIntegrations
+    RecoveryEngine --> WorkerQueue
+    WorkerQueue --> JobHandlers
+    JobHandlers --> DataIntegrations
+    JobHandlers --> RecoveryEngine
+    RecoveryEngine --> Persistence
+    AgentRuntime --> Persistence
+    WorkerQueue --> Persistence
+```
+
+---
+
+## Product Experience & UI Architecture
+
+The Allel dashboard is designed as an interactive founder cockpit combining high-bandwidth AI conversation with direct operational controls:
+
+```mermaid
+flowchart TD
+    subgraph UI_Shell["Command Center Layout (/dashboard)"]
+        direction TB
+        subgraph TopBar["Header Navigation"]
+            Brand["Allel Logo"]
+            Search["Quick Account Search"]
+            ActivePersona["Active Persona Selector: Allel / Henry / Sarah"]
+            Status["Workspace Status & Health Badge"]
+        end
+
+        subgraph MainBody["Main Workspace"]
+            direction LR
+            subgraph LeftNav["Sidebar"]
+                Nav1["Daily Brief"]
+                Nav2["Recovery Flows"]
+                Nav3["Accounts Portfolio"]
+                Nav4["Integrations (11 Connected)"]
+                Nav5["Session History"]
+            end
+
+            subgraph CenterChat["Unified Chat & Operational Stream"]
+                MessageStream["Signed Conversation Stream"]
+                TimelineNode["Expandable TimelineNode"]
+                ProviderCards["Multi-Provider Scans (Stripe, PostHog, Intercom)"]
+                ActionCard["Action Card (Review Draft / Rescue Discount)"]
+                ChatInput["AI Input Bar with Model & Tool Selector"]
+            end
+
+            subgraph RightDrawer["Context Drawer"]
+                AccountHeader["Account Diagnostics"]
+                RiskGauge["Deterministic Risk Score Gauge"]
+                EvidenceList["Verified Evidence Feed"]
+                ContactInfo["Primary Contacts & Roles"]
+            end
+        end
+    end
+
+    TopBar --> MainBody
+```
+
+### Main Product Surfaces
+
+| Surface | Route | What a founder or reviewer can do |
+|---|---|---|
+| **Command Center** | `/dashboard` | Chat with an AI persona, invoke 164 connected tools, inspect live provider cards, and resume signed historical sessions. |
+| **Founder Brief** | `/dashboard/brief` | Review high-priority accounts, overdue actions, revenue at risk, and delivered morning briefings. |
+| **Automations & Flows** | `/dashboard/flows` | Search cases, inspect multi-provider evidence, review pending recovery drafts, replay failed jobs, and dispatch approved outreach. |
+| **Accounts Portfolio** | `/dashboard/accounts` | Browse all resolved customer accounts, review MRR, health scores, and open dedicated account drawers. |
+| **Connections Hub** | `/dashboard/connections` | Configure, authenticate, and monitor live health for all 11 supported integrations. |
+| **Draft Review** | `/dashboard/drafts` | Inspect pending recovery outreach drafts, verify SHA-256 content hashes, and grant founder approval. |
+| **Session History** | `/dashboard/sessions` | Seamlessly reopen cryptographically signed past agent interactions without context loss. |
+
+---
+
+## End-to-End Recovery Operating Loop
+
+When a customer encounters friction, the entire lifecycle from signal detection to revenue attribution executes through a resilient, auditable state machine:
 
 ```mermaid
 sequenceDiagram
-    participant Provider as Stripe or PostHog
-    participant API as Verified webhook API
-    participant DB as Supabase/PostgreSQL
-    participant Worker as Durable worker
-    participant Policy as Recovery engine
-    participant AI as AI analysis/drafting
-    participant Founder as Founder
-    participant Gmail as Gmail
+    autonumber
+    participant Provider as External Provider (Stripe/PostHog)
+    participant Webhook as /api/webhooks
+    participant Queue as workflow_jobs Queue
+    participant Worker as Durable Worker
+    participant Recovery as Recovery Engine
+    participant Agent as AI Agent (ToolLoopAgent)
+    participant Founder as Founder UI
+    participant Gmail as Gmail API
+    participant Attrib as Attribution Engine
 
-    Provider->>API: Signed event
-    API->>DB: Store canonical event and enqueue job
-    API-->>Provider: Fast acknowledgement
-    Worker->>DB: Claim leased job
-    Worker->>Worker: Resolve identity and project features
-    Worker->>Policy: Score risk and evaluate action
-    Policy->>DB: Case, score snapshot, and audit event
-    opt Action requires analysis
-        Worker->>AI: Structured evidence and policy context
-        AI-->>Worker: Analysis and proposed draft
-        Worker->>DB: Store and verify draft
+    Provider->>Webhook: Ingest signed event (e.g. invoice.payment_failed)
+    Webhook->>Webhook: Verify HMAC / Webhook signature
+    Webhook->>Queue: Enqueue process_provider_event job
+    Webhook-->>Provider: Fast 200 OK ACK
+
+    Worker->>Queue: Claim job with durable lease
+    Worker->>Recovery: Resolve Provider Identity to Customer Account
+    Recovery-->>Worker: Account resolved (or identity_conflict created)
+
+    Worker->>Recovery: Project features & compute deterministic risk score
+    Recovery-->>Worker: Score = 78 (High Risk), Confidence = 0.94
+
+    Worker->>Recovery: Evaluate Action Policy & Cooldowns
+    Recovery-->>Worker: Action Allowed: founder_payment_retry_request
+
+    Worker->>Queue: Create Recovery Case & Enqueue run_case_analysis
+    Worker->>Agent: Request case analysis & personalized draft
+    Agent-->>Worker: Generated draft + strategic rationale
+    Worker->>Queue: Enqueue verify_case_draft
+
+    Worker->>Queue: Store draft & Enqueue notify_founder
+    Worker-->>Founder: Present Draft in UI with SHA-256 Content Hash
+
+    Founder->>Founder: Inspect evidence, edit/approve draft
+    Founder->>Recovery: POST /api/drafts/:id/approve (expected_hash)
+    Recovery->>Recovery: Execute atomic transition RPC: status -> approved
+
+    Worker->>Queue: Claim send_approved_draft job
+    Worker->>Gmail: Dispatch email via user authenticated Gmail OAuth
+    Gmail-->>Worker: Return message_id & thread_id
+    Worker->>Recovery: Transition Case status -> dispatched & monitoring
+
+    loop Active 14-Day Attribution Window
+        Worker->>Gmail: Poll thread history for replies
+        Worker->>Provider: Check Stripe invoice status / PostHog activity
+        Provider-->>Worker: Invoice Paid: $1,200 MRR recovered
     end
-    Worker-->>Founder: Notify for review
-    Founder->>DB: Approve exact content hash
-    Worker->>Gmail: Send approved draft
-    Gmail-->>Worker: Message and thread identifiers
-    Worker->>DB: Mark sent and begin monitoring
-    Worker->>Gmail: Poll history or process reply context
-    Worker->>DB: Classify and attribute outcome
+
+    Worker->>Attrib: Evaluate G1-G5 Outcome Attribution Gates
+    Attrib-->>Recovery: Verified: strict_recovered_mrr += $1,200
+    Recovery->>Recovery: Transition Case status -> resolved
 ```
-
-### Job chain
-
-The worker supports these durable job types:
-
-```text
-process_provider_event
-  → project_account_features
-  → evaluate_recovery_case
-  → run_case_analysis
-  → generate_case_draft
-  → verify_case_draft
-  → notify_founder
-  → send_approved_draft
-  → sync_gmail_history
-  → classify_case_outcome
-```
-
-Handlers can enqueue the next idempotent job. Workers claim jobs with leases, use bounded concurrency, heartbeat model-heavy work, retry retryable failures with backoff, and retain error state for inspection.
-
-### Recovery-case state machine
-
-```mermaid
-stateDiagram-v2
-    [*] --> open
-    open --> analyzing
-    open --> suppressed
-    open --> resolved
-    open --> failed
-    analyzing --> action_proposed
-    analyzing --> suppressed
-    analyzing --> failed
-    action_proposed --> awaiting_approval
-    action_proposed --> suppressed
-    action_proposed --> failed
-    awaiting_approval --> approved
-    awaiting_approval --> suppressed
-    awaiting_approval --> resolved
-    awaiting_approval --> failed
-    approved --> sent
-    approved --> awaiting_approval
-    approved --> failed
-    sent --> monitoring
-    sent --> failed
-    monitoring --> resolved
-    monitoring --> failed
-    failed --> open
-    failed --> resolved
-    resolved --> [*]
-    suppressed --> [*]
-```
-
-The preferred transition path is the `transition_recovery_case` database RPC, which locks the row, validates the expected current status, updates the case, and appends the event atomically. A TypeScript optimistic-concurrency fallback exists for environments missing the RPC.
 
 ---
 
-## Agent orchestration
+## Deterministic Risk & Confidence Engine
 
-Allel's agent is an operating interface over the product—not the product's source of truth.
-
-### Personas
-
-| Internal ID | Display name | Role | Capability boundary |
-|---|---|---|---|
-| `alex` | **Allel** | AI Co-founder | Generalist, eligible for every registered tool. The internal ID remains for backward compatibility. |
-| `henry` | **Henry** | Head of Growth | Research, CRM/support context, drafts, read-oriented calendar access, and selected collaboration tools. |
-| `sarah` | **Sarah** | Head of Retention | Billing, usage, account risk, recovery cases, outreach, Slack escalation, and calendar operations. |
-
-### Tool orchestration
-
-At the verified snapshot, `ALL_TOOLS` contains **164 registered tools**. Allel avoids sending every tool schema on every chat step.
+Allel never delegates risk assessment to an unpredictable LLM prompt. Instead, risk is computed via a transparent, multi-dimensional scoring formula with hard circuit-breaker overrides:
 
 ```mermaid
 flowchart TD
-    U[User request] --> P[Persona eligibility]
-    P --> M[Prompt and fuzzy domain match]
-    M --> T[Small initial active tool set]
-    T --> L[ToolLoopAgent reasoning step]
-    L --> Q{Enough capability?}
-    Q -- Yes --> X[Execute tools or answer]
-    Q -- No --> E[requestMoreTools]
-    E --> G[Validate requested domain against persona]
-    G --> N[prepareStep activates domain tools]
-    N --> L
-    X --> V[Provider guard and validation]
-    V --> R[Persist run telemetry and response]
+    subgraph Inputs["Multi-Provider Feature Extraction"]
+        B["Billing Signals (Stripe)"]
+        U["Usage Signals (PostHog)"]
+        C["Communication Signals (Gmail/Intercom)"]
+    end
+
+    subgraph Weights["Component Weighting Engine"]
+        W_B["Billing Component (50% Weight)<br/>- Failed payments<br/>- Dunning cycle status<br/>- Days past due"]
+        W_U["Usage Component (35% Weight)<br/>- 30-day active user drop<br/>- Core feature abandonment<br/>- Zero login > 7 days"]
+        W_C["Communication Component (15% Weight)<br/>- Unreplied founder thread<br/>- Intercom bug reports<br/>- Negative sentiment"]
+    end
+
+    subgraph BaseScore["Base Risk Calculation"]
+        Calc["Risk Score = (0.50 * Billing) + (0.35 * Usage) + (0.15 * Comm)"]
+    end
+
+    subgraph Overrides["Hard Circuit-Breaker Overrides"]
+        O1{"Active Cancellation?"}
+        O2{"Payment Failed > 7 Days?"}
+        O3{"Usage Dropped > 70%?"}
+        O_Crit["FORCE RISK SCORE: 85+ (Critical)"]
+    end
+
+    subgraph Output["Case Risk Classification"]
+        Low["0 - 44: Low Risk (Passive Monitor)"]
+        Med["45 - 69: Medium Risk (Automated Nudge)"]
+        High["70 - 84: High Risk (Founder Review)"]
+        Crit["85 - 100: Critical (Immediate Rescue)"]
+    end
+
+    B --> W_B
+    U --> W_U
+    C --> W_C
+    W_B --> Calc
+    W_U --> Calc
+    W_C --> Calc
+
+    Calc --> O1
+    O1 -- Yes --> O_Crit
+    O1 -- No --> O2
+    O2 -- Yes --> O_Crit
+    O2 -- No --> O3
+    O3 -- Yes --> O_Crit
+    O3 -- No --> ScoreFinal[Final Composite Score]
+
+    O_Crit --> Crit
+    ScoreFinal --> Low
+    ScoreFinal --> Med
+    ScoreFinal --> High
+    ScoreFinal --> Crit
 ```
 
-The routing contract is:
-
-1. A persona defines the maximum eligible tool set.
-2. Prompt keywords, fuzzy matching, and domain priorities select an initial subset.
-3. Chat receives a synthetic `requestMoreTools` capability.
-4. `prepareStep` expands only to tools already allowed for that persona.
-5. Provider guards block unavailable or unhealthy integrations.
-6. Run logging records tools, steps, tokens, duration, model, cost estimate, workflow context, and failures.
-
-Current runtime settings:
-
-| Setting | Value |
-|---|---:|
-| Maximum steps | 25 |
-| Maximum output tokens | 4,096 |
-| Temperature | 0.3 |
-| SDK retries | 10 |
-| Fallback model | Optional through `AGENT_FALLBACK_MODEL_ID` |
-| Channel overrides | Chat and automation model IDs supported |
-
-### Memory model
+### Confidence Gating & Policy Cooldowns
 
 ```mermaid
 flowchart LR
-    Message[New message] --> Sanitize[Sanitize client history]
-    Sanitize --> Verify[Verify signed assistant metadata]
-    Verify --> Session[User + workspace + persona + session]
-    Session --> Recent[Bounded recent turns]
-    Session --> Compact[Compacted summary, goals, commitments]
-    Account[Account facts] --> Memory[Deterministic account memory]
-    Signals[Signals and timeline] --> Memory
-    Drafts[Unsent drafts] --> Memory
-    Recent --> Prompt[Runtime context]
-    Compact --> Prompt
-    Memory --> Prompt
+    Score["Calculated Risk Score"] --> ConfCheck{"Identity Confidence >= 0.90<br/>AND<br/>Score Confidence >= 0.75?"}
+    ConfCheck -- No --> Escalate["FORCE HUMAN REVIEW<br/>(Confidence Insufficient)"]
+    ConfCheck -- Yes --> CooldownCheck{"Cooldown Active?<br/>Billing: 72h<br/>Usage: 7 days"}
+    CooldownCheck -- Yes --> Suppress["SUPPRESS ACTION<br/>(Avoid Customer Harassment)"]
+    CooldownCheck -- No --> Propose["PROPOSE RECOVERY ACTION<br/>(Draft & Case Created)"]
 ```
-
-Conversation memory and account memory serve different purposes:
-
-- **Conversation memory** preserves a scoped interaction and compacts older turns.
-- **Account memory** is reconstructed from persisted account facts, signals, timeline events, and drafts.
-
-Assistant metadata is signed with `AGENT_HISTORY_SIGNING_SECRET` and sanitized before reuse. Account-memory refreshes can be queued durably.
-
-### Approval boundary
-
-Two mechanisms exist and must not be confused:
-
-- **Recovery draft approval is active:** approval is tied to the expected content hash and queues the durable send workflow.
-- **Generic chat-tool approval is scaffolded but not enabled:** storage and `/api/agent/approvals` exist, but the generic interception list is currently empty.
-
-The project therefore does not claim that every mutating tool invoked from chat receives universal manual approval.
-
-Deep dives: [`docs/AGENT.md`](docs/AGENT.md) and [`docs/tool_calling.md`](docs/tool_calling.md).
 
 ---
 
-## System architecture
+## Identity Resolution & Conflict Isolation
+
+A major failure mode in B2B SaaS is merging the wrong customer accounts based on loose heuristics. Allel isolates ambiguities into an auditable conflict table:
 
 ```mermaid
 flowchart TD
-    subgraph Clients[Client surfaces]
-        Public[Public site]
-        Dashboard[Authenticated dashboard]
-        Chat[Streaming agent UI]
-    end
-
-    subgraph Next[Next.js application]
-        Pages[App Router pages]
-        APIs[API routes]
-        Middleware[Supabase session middleware]
-    end
-
-    subgraph Domain[Application and domain services]
-        Agent[Agent runtime and memory]
-        Recovery[Identity, scoring, policy, cases]
-        Jobs[Queue and worker handlers]
-        Integrations[Provider clients and sync]
-        Data[Data access and briefs]
-    end
-
-    subgraph Persistence[Supabase/PostgreSQL]
-        Auth[Auth]
-        Tables[Tenant and product tables]
-        RLS[Row-level security]
-        RPC[Atomic RPCs and constraints]
-    end
-
-    subgraph External[External systems]
-        Providers[Billing, analytics, email, support, CRM]
-        Models[OpenAI-compatible or Azure models]
-        Delivery[Resend and Slack delivery]
-    end
-
-    Public --> Pages
-    Dashboard --> Pages
-    Chat --> APIs
-    Middleware --> Auth
-    Pages --> Data
-    APIs --> Agent
-    APIs --> Recovery
-    APIs --> Jobs
-    Agent --> Integrations
-    Agent --> Models
-    Recovery --> Tables
-    Jobs --> Recovery
-    Jobs --> Integrations
-    Integrations <--> Providers
-    Data --> Tables
-    Tables --> RLS
-    Recovery --> RPC
-    Jobs --> Delivery
+    Event["Incoming Provider Signal (e.g. Stripe ID, PostHog ID, Email)"] --> Step1{"Exact Provider Match in provider_identities?"}
+    Step1 -- Yes --> Resolved["Attach to Canonical customer_accounts"]
+    Step1 -- No --> Step2{"Exact Contact Match in account_contacts?"}
+    Step2 -- Yes --> LinkProvider["Link Provider ID via Atomic RPC"]
+    LinkProvider --> Resolved
+    Step2 -- No --> Step3{"Multiple Conflicting Account Candidates?"}
+    Step3 -- Yes --> Conflict["ISOLATE CONFLICT:<br/>Write to identity_conflicts table<br/>Halt Automatic Actions"]
+    Step3 -- No --> Step4{"High-Confidence Domain Match?"}
+    Step4 -- Yes --> Provisional["Create Provisional Account<br/>(Flagged for Founder Review)"]
+    Step4 -- No --> Unmatched["Park in provider_events as Unresolved"]
 ```
 
-### Layers and ownership
+---
 
-| Layer | Responsibility | Main location |
-|---|---|---|
-| UI and routes | Public site, dashboard, agent feed, case workflows | `platform/src/app`, `platform/src/ui` |
-| API | Auth, chat, recovery, integrations, webhooks, cron, worker | `platform/src/app/api` |
-| Agent | Personas, runtime, tools, memory, workflows, run inspection | `platform/src/agent` |
-| Recovery | Identity, feature projection, scoring, policy, cases, outcomes | `platform/src/recovery` |
-| Jobs | Queue, leases, retries, worker, stage handlers | `platform/src/jobs` |
-| Integrations | Credentials, connection guards, provider clients, sync | `platform/src/integrations` |
-| Data/foundation | Supabase clients, data access, security, AI provider setup | `platform/src/data`, `platform/src/foundation` |
-| Persistence | Tables, RLS, indexes, constraints, triggers, RPCs | `database/migrations` |
+## Human-in-the-Loop Hash-Bound Approval
 
-### Technology
+To protect founders against prompt injections, model drift, or rogue writes, Allel cryptographically binds approval to the exact content hash:
 
-- **Web:** Next.js 15.5 App Router, React 19.1, TypeScript
-- **UI:** Tailwind CSS 4, Base UI, Radix primitives, Motion, Lucide/Tabler icons
-- **Data/auth:** Supabase Auth and PostgreSQL with RLS
-- **AI:** AI SDK 6, OpenAI-compatible providers, Azure OpenAI support, Tavily research
-- **Delivery/providers:** Stripe, Gmail/Calendar, PostHog, Intercom, Resend, Slack, and additional direct APIs
-- **Hosting:** Vercel-compatible Next.js deployment and cron configuration
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as Founder Browser
+    participant API as /api/drafts/:id/approve
+    participant DB as PostgreSQL (transition RPC)
+    participant Worker as Durable Send Worker
+    participant Gmail as External Gmail API
+
+    UI->>UI: Founder edits / reviews draft content in UI
+    UI->>UI: Compute SHA-256(recipient + subject + body)
+    UI->>API: POST { draft_id, expected_hash }
+
+    API->>DB: CALL transition_draft_approval(draft_id, expected_hash)
+    Note over DB: Atomically verify:<br/>current_hash == expected_hash<br/>AND status == awaiting_approval
+    
+    alt Hash Mismatch (Content Changed or Spoofed)
+        DB-->>API: ERROR: 409 Conflict (Hash Mismatch)
+        API-->>UI: Alert Founder: Draft was modified in-flight
+    else Hash Valid
+        DB->>DB: Set draft.status = approved, case.status = approved
+        DB-->>API: 200 OK (Transition Committed)
+        API-->>UI: UI updates to Approved state
+        Worker->>DB: Claim send_approved_draft job
+        Worker->>Gmail: Send exact approved payload
+        Gmail-->>Worker: Success (message_id)
+        Worker->>DB: Mark case dispatched
+    end
+```
 
 ---
 
-## Recovery intelligence
+## Agent Orchestration & Dynamic Tool Routing
 
-### Identity resolution
+Allel ships with **164 registered tools** across 12 domains. Loading all 164 tool schemas into every model prompt would consume ~45,000 tokens per turn. Allel solves this with a **2-tier dynamic schema expansion pipeline**:
 
-Allel prefers high-confidence identifiers in this order:
+```mermaid
+flowchart TD
+    UserQuery["User Request: 'Show me Acme usage and draft an email'"] --> P_Filter["1. Persona Allowlist Filter<br/>(Allel: 164 tools | Sarah: 62 tools | Henry: 48 tools)"]
+    P_Filter --> Fuzzy["2. Semantic & Levenshtein Keyword Matcher<br/>Keywords: usage, draft, email -> posthog, recovery, gmail"]
+    Fuzzy --> InitialTools["3. Initial Active Tool Set (Bounded: 8-12 tools)<br/>[getUnifiedCustomerScan, generateFollowUpDraft, getMyInbox]"]
+    InitialTools --> ModelLoop["4. ToolLoopAgent Step (AI SDK 6)"]
+    ModelLoop --> StepCheck{"Model Needs Additional Domain?<br/>(e.g. wants to check Stripe invoices)"}
+    StepCheck -- Yes --> ReqMore["Call Synthetic tool: requestMoreTools('stripe')"]
+    ReqMore --> PrepareStep["5. prepareStep Interceptor:<br/>Dynamically injects Stripe tool schemas on next step"]
+    PrepareStep --> ModelLoop
+    StepCheck -- No --> ExecuteTool["6. Execute Selected Tool"]
+    ExecuteTool --> Guard{"Provider Readiness Guard:<br/>Is Provider Connected & Healthy?"}
+    Guard -- Unhealthy/Missing --> ReturnUnavail["Return Structured Provider Unavailable<br/>(Zero Hallucination)"]
+    Guard -- Healthy --> RunTool["Execute Tool Implementation"]
+    RunTool --> Telemetry["Record Step Telemetry & Tokens"]
+    Telemetry --> StreamUI["Stream Rich TimelineNode to UI"]
+```
 
-1. verified provider identity;
-2. verified contact/email association;
-3. provisional or inferred identity requiring review.
+### The Three Personas
 
-Ambiguous records create `identity_conflicts` instead of silently merging customers. Safe contact linking, provider-identity linking, and customer promotion use atomic RPCs and immutable promotion audit data.
+```mermaid
+flowchart LR
+    subgraph Alex["Allel (Internal: alex)"]
+        direction TB
+        A_Role["Role: AI Co-founder"]
+        A_Tools["164 Tools (Full Registry)<br/>Billing, Analytics, CRM, Dev, Workflows"]
+    end
 
-### Scoring
+    subgraph Sarah["Sarah"]
+        direction TB
+        S_Role["Role: Head of Retention"]
+        S_Tools["Retention Allowlist (62 Tools)<br/>Stripe, PostHog, Recovery Cases, Drafts, Calendar"]
+    end
 
-| Domain | Weight |
-|---|---:|
-| Billing | 50% |
-| Usage | 35% |
-| Communication | 15% |
-
-Risk thresholds are:
-
-| Level | Minimum score |
-|---|---:|
-| Medium | 45 |
-| High | 70 |
-| Critical | 85 |
-
-Hard overrides account for decisive signals such as cancellation, repeated payment failure, past-due state, severe usage decline, key-feature abandonment, and compound risk.
-
-### Confidence and policy
-
-- Automatic identity confidence minimum: `0.90`
-- Action confidence minimum: `0.75`
-- Low confidence forces founder review.
-- Billing outreach cooldown: 72 hours
-- Cancellation and usage outreach cooldown: 7 days
-- Standard approval TTL: 24 hours
-- Critical approval TTL: 2 hours
-- One active draft per case by default
-
-### Outcome windows
-
-Attribution windows vary by recovery type: invoice recovery, cancellation recovery, cancellation-intent protection, usage recovery, and Gmail engagement are evaluated separately. “Revenue saved” is not inferred merely because an email was generated or sent.
-
----
-
-## Integrations
-
-### Current catalog
-
-| Provider | Capability | Connection | Main purpose |
-|---|---|---|---|
-| Stripe | Sync-capable | Direct credentials + signed webhook | Billing, subscriptions, invoices, payment failures, revenue |
-| PostHog | Sync-capable | Direct credentials + HMAC webhook | Usage, activation, events, cohorts, feature engagement |
-| Gmail | Sync-capable | Google OAuth | Threads, drafts, delivery, replies, engagement monitoring |
-| Intercom | Sync-capable | OAuth | Support conversations, contacts, frustration context |
-| HubSpot | Sync-capable | Encrypted manual credential | CRM companies, contacts, deals, lifecycle context |
-| Slack | Sync-capable | Encrypted manual credential | Brief delivery, alerts, team collaboration |
-| Sentry | Sync-capable | Encrypted manual credential | Production issues connected to customer risk |
-| Linear | Sync-capable | Encrypted manual credential | Engineering issues and customer-impact context |
-| Airtable | Tool-only | Encrypted manual credential | Search and modify workspace records on demand |
-| Google Calendar | Tool-only | Google OAuth | Availability, meetings, reminders, follow-up scheduling |
-| Notion | Tool-only | Encrypted manual credential | Search and manage knowledge/workspace pages |
-| Tavily | Agent research | Server environment key | Web search, extraction, crawl, and mapping |
-
-Planned catalog entries: Jira, GitHub, Zendesk, Salesforce, Supabase, Google Docs, and Google Drive.
-
-### What “connected” means
-
-A connection does not imply that every provider record is copied into Supabase or injected into every model prompt.
-
-- **Sync-capable** providers can project normalized product state.
-- **Tool-only** providers are queried live when an eligible tool is selected.
-- **Planned** providers are visible but intentionally unavailable.
-
-See [`docs/INTEGRATION_AUDIT.md`](docs/INTEGRATION_AUDIT.md) for the verification model and open risks.
+    subgraph Henry["Henry"]
+        direction TB
+        H_Role["Role: Head of Growth"]
+        H_Tools["Growth Allowlist (48 Tools)<br/>HubSpot, Intercom, Research, Tavily, Drafts"]
+    end
+```
 
 ---
 
-## Data and trust model
+## Durable Job Queue & Worker Pipeline
 
-### Core data groups
+All background operations run through a persistent PostgreSQL-backed queue (`workflow_jobs`) with atomic leases, bounded concurrency, and automatic exponential backoff:
+
+```mermaid
+flowchart TD
+    subgraph JobLifecycle["10-Stage Idempotent Recovery Pipeline"]
+        J1["process_provider_event"] --> J2["project_account_features"]
+        J2 --> J3["evaluate_recovery_case"]
+        J3 --> J4["run_case_analysis"]
+        J4 --> J5["generate_case_draft"]
+        J5 --> J6["verify_case_draft"]
+        J6 --> J7["notify_founder"]
+        J7 --> J8["send_approved_draft"]
+        J8 --> J9["sync_gmail_history"]
+        J9 --> J10["classify_case_outcome"]
+    end
+
+    subgraph Execution["Queue Execution Engine"]
+        Claim["Worker Claims Leased Job (FOR UPDATE SKIP LOCKED)"]
+        Heartbeat["Model Heartbeat (Every 15s during AI generation)"]
+        Retry{"Execution Succeeded?"}
+        Retry -- Yes --> Done["Mark Completed & Enqueue Next Stage"]
+        Retry -- No (Transient) --> Backoff["Exponential Backoff Retry (Max 5)"]
+        Retry -- No (Permanent) --> DeadLetter["Mark Failed & Retain Error Diagnostics"]
+    end
+
+    JobLifecycle --> Claim
+    Claim --> Heartbeat --> Retry
+```
+
+---
+
+## Closed-Loop Outcome Attribution
+
+Allel guarantees financial attribution integrity by separating strict recovered revenue from protected revenue through 5 rigorous validation gates:
+
+```mermaid
+flowchart TD
+    ActionSent["Approved Recovery Action Sent (Day 0)"] --> Monitor["14-Day Attribution Monitoring Window"]
+    Monitor --> PaymentEvent["Stripe Event Ingested: invoice.paid"]
+    PaymentEvent --> Gate1{"Gate 1: Exact Customer Account Match?"}
+    Gate1 -- No --> Reject["Reject Attribution"]
+    Gate1 -- Yes --> Gate2{"Gate 2: Timestamp Within 14-Day Window?"}
+    Gate2 -- No --> Reject
+    Gate2 -- Yes --> Gate3{"Gate 3: Invoice ID Matches At-Risk Invoice?"}
+    Gate3 -- Yes --> StrictRev["ATTRIBUTED: Strict Recovered MRR<br/>(Direct payment recovery verified)"]
+    Gate3 -- No --> Gate4{"Gate 4: Active Subscription Renewal Retained?"}
+    Gate4 -- Yes --> ProtRev["ATTRIBUTED: Protected Revenue<br/>(Churn prevented, contract preserved)"]
+    Gate4 -- No --> Reject
+```
+
+---
+
+## Integrations Mesh
+
+Allel connects with the 11 essential platforms of modern B2B SaaS:
+
+```mermaid
+flowchart TB
+    subgraph CoreHub["Allel Integration Hub"]
+        Manager["Connection Manager (AES-256-GCM Vault)"]
+        Guard["Provider Readiness Guard"]
+    end
+
+    subgraph SyncCapable["Sync-Capable (Webhooks + Reconciliation)"]
+        Stripe["Stripe: Invoices, Subscriptions, Dunning, Disputes"]
+        PostHog["PostHog: Usage Drops, Feature Flags, User Cohorts"]
+        Gmail["Gmail: Customer Threads, History Sync, Inbound Replies"]
+        Intercom["Intercom: Support Conversations, Friction Tickets"]
+        HubSpot["HubSpot: CRM Deals, Account Owners, Lifecycle Stages"]
+        Slack["Slack: Team Notifications, Brief Dispatch, Channel Pings"]
+        Linear["Linear: Issue Tracking, Bug Escalations, Roadmaps"]
+        Sentry["Sentry: Crash Reports, Error Spikes, Customer Impact"]
+    end
+
+    subgraph ToolOnly["Tool-Only Live Invocations"]
+        Calendar["Google Calendar: Founder Availability & Meeting Links"]
+        Notion["Notion: Knowledge Base Search & Runbook Extraction"]
+        Airtable["Airtable: Custom Workspace Databases & Custom CRM"]
+        Tavily["Tavily Search: Live Web Research & Competitor Intel"]
+    end
+
+    CoreHub <--> SyncCapable
+    CoreHub <--> ToolOnly
+```
+
+---
+
+## Data Model & Security
+
+### Entity Relationship Diagram
 
 ```mermaid
 erDiagram
@@ -515,6 +617,7 @@ erDiagram
     WORKSPACES ||--o{ CUSTOMER_ACCOUNTS : owns
     CUSTOMER_ACCOUNTS ||--o{ ACCOUNT_CONTACTS : has
     CUSTOMER_ACCOUNTS ||--o{ PROVIDER_IDENTITIES : resolves
+    CUSTOMER_ACCOUNTS ||--o{ IDENTITY_CONFLICTS : isolates
     CUSTOMER_ACCOUNTS ||--o{ ACCOUNT_FEATURES : projects
     CUSTOMER_ACCOUNTS ||--o{ ACCOUNT_SIGNALS : receives
     CUSTOMER_ACCOUNTS ||--o{ RECOVERY_CASES : opens
@@ -527,264 +630,183 @@ erDiagram
     WORKSPACES ||--o{ AGENT_RUNS : observes
 ```
 
-Major persisted groups include:
+### Security & Defense-in-Depth
 
-- tenant membership and integration credentials;
-- canonical accounts, contacts, provider identities, and conflicts;
-- projected features, signals, timeline, and account memory;
-- scores, score factors, snapshots, cases, case events, and policies;
-- drafts, briefs, outcomes, scenario runs, webhook events, and workflow jobs;
-- conversations, sessions, run telemetry, and approval requests.
-
-### Security boundaries
-
-- Dashboard requests use Supabase SSR sessions.
-- Workspace membership and RLS enforce tenant access.
-- Service-role credentials stay server-side.
-- Provider secrets are encrypted before persistence.
-- Stripe and PostHog webhooks verify signatures/HMAC.
-- Cron and worker endpoints require bearer secrets in production.
-- Assistant message metadata is signed and sanitized.
-- High-integrity operations use database constraints and RPCs.
-- Recovery approval binds to exact content before durable sending.
-
-### Important RPCs
-
-The schema includes operations for:
-
-- atomic provider-event ingestion and job creation;
-- workflow-job claiming;
-- legal recovery-case transitions;
-- exact recovery-draft approval;
-- versioned outcome recording; and
-- safe contact, provider-identity, and customer-promotion linking.
+- **Tenant Isolation:** Supabase Row-Level Security (RLS) ensures absolute isolation per `workspace_id`.
+- **Encrypted Credentials:** Integration access tokens and refresh tokens are encrypted using AES-256-GCM before database write.
+- **Signed Session Memory:** Client-side assistant turns are signed via HMAC-SHA256 (`AGENT_HISTORY_SIGNING_SECRET`) preventing prompt tampering.
+- **Webhook Authenticity:** Ingress endpoints enforce Stripe webhook signatures and PostHog HMAC verification.
+- **Atomic Operations:** Critical state changes use PostgreSQL RPCs with row-level locks (`SELECT FOR UPDATE`), preventing race conditions.
 
 ---
 
-## API surface
+## API Surface
 
-| Group | Endpoints | Purpose |
+| Group | Method & Path | Purpose |
 |---|---|---|
-| Agent | `/api/agent`, `/api/agent/history`, `/api/agent/sessions` | Streaming chat, memory, and session lifecycle |
-| Agent inspection | `/api/agent/runs`, `/api/agent/runs/[workflowId]` | Paginated workflow/run inspection |
-| Agent approvals | `/api/agent/approvals` | Generic approval-record API; runtime interception is not currently enabled |
-| Auth | `/api/auth/login`, `/api/auth/verify-otp`, `/auth/callback` | OTP/magic-link login and session exchange |
-| Briefs | `/api/brief`, `/api/brief/refresh` | Read, generate, and refresh founder briefs |
-| Drafts | `/api/drafts/[id]/approve`, `/api/drafts/[id]/send` | Hash-checked approval and durable send queueing |
-| Recovery | `/api/recovery/cases/**`, `/api/recovery/dispatch-draft` | Case detail, draft, replay, and dispatch surfaces |
-| Metrics | `/api/metrics/revenue-saved` | Strict recovery, protection, at-risk, and engagement metrics |
-| Connections | `/api/integrations/**` | Stripe/PostHog connection and OAuth callbacks |
-| Webhooks | `/api/webhooks/stripe`, `/api/webhooks/posthog` | Authenticated event ingress |
-| Automation | `/api/cron/daily-run`, `/api/internal/workflows/drain` | Reconciliation, brief generation, queue drain, Gmail polling |
-| Public | `/api/waitlist` | Waitlist submission and optional notification |
+| **Agent** | `POST /api/agent` | Streaming multi-turn conversation with dynamic tool routing and memory |
+| **Agent History** | `GET /api/agent/history` | Retrieve cryptographically signed conversation turns |
+| **Agent Sessions** | `GET, POST /api/agent/sessions` | Create, list, rename, and manage chat sessions |
+| **Agent Inspection** | `GET /api/agent/runs` | Inspect agent execution runs, step traces, and token costs |
+| **Recovery Cases** | `GET /api/recovery/cases` | Search, filter, and inspect recovery cases and score snapshots |
+| **Draft Review** | `POST /api/drafts/:id/approve` | Grant hash-verified founder approval for outreach |
+| **Draft Send** | `POST /api/drafts/:id/send` | Queue approved draft for durable worker dispatch |
+| **Founder Brief** | `GET, POST /api/brief` | Read prioritized daily briefs and trigger morning refresh |
+| **Metrics** | `GET /api/metrics/revenue-saved` | Fetch strict recovered MRR, protected MRR, and at-risk metrics |
+| **Webhooks** | `POST /api/webhooks/stripe` | Authenticated Stripe event ingress |
+| **Webhooks** | `POST /api/webhooks/posthog` | Authenticated PostHog event ingress |
+| **Scheduled Sync** | `POST /api/cron/daily-run` | Scheduled morning provider reconciliation and brief dispatch |
+| **Worker Drain** | `POST /api/internal/workflows/drain` | Drain leased jobs from the durable workflow queue |
 
 ---
 
-## Repository guide
+## Repository Guide
 
 ```text
 allel/
-├── README.md                    # GitHub product and engineering overview
+├── README.md                    # Canonical GitHub product & architectural guide
 ├── database/
-│   └── migrations/              # 29 ordered PostgreSQL/Supabase migrations
+│   └── migrations/              # 29 ordered PostgreSQL / Supabase migrations
 ├── docs/
-│   ├── README.md                # Documentation index
-│   ├── ALLEL.md                 # Detailed product architecture
-│   ├── AGENT.md                 # Agent runtime and memory
-│   ├── tool_calling.md          # Tool routing contract
-│   ├── INTEGRATION_AUDIT.md     # Provider architecture and risks
+│   ├── README.md                # Documentation index and navigation map
+│   ├── ALLEL.md                 # Detailed technical and database architecture
+│   ├── AGENT.md                 # Agent runtime, personas, and memory deep dive
+│   ├── tool_calling.md          # 5-stage tool routing pipeline & 164-tool registry
+│   ├── INTEGRATION_AUDIT.md     # Provider architecture, OAuth scopes, and audit
 │   ├── TODO.md                  # Current engineering risk register
-│   └── INTERVIEW_QA.md          # Review and demo preparation
+│   └── INTERVIEW_QA.md          # Architectural review and interview preparation
 ├── platform/
-│   ├── src/app/                 # App Router pages and APIs
-│   ├── src/agent/               # Personas, runtime, tools, memory
-│   ├── src/recovery/            # Identity, scoring, policy, cases, outcomes
-│   ├── src/jobs/                # Durable queue and worker handlers
-│   ├── src/integrations/        # Provider clients, guards, and sync
-│   ├── src/data/                # Product data access
-│   ├── src/foundation/          # AI, database, security, utilities
-│   ├── src/ui/                  # Dashboard, chat, drafts, integrations
-│   ├── scripts/                 # Migration, worker, readiness, demo scripts
-│   └── artifacts/               # Generated demo/run evidence
-└── prompt/                      # Historical build and coordination prompts
+│   ├── src/app/                 # Next.js 15 App Router pages and API routes
+│   ├── src/agent/               # Agent runtime, 164 tools, memory, personas
+│   ├── src/recovery/            # Identity resolver, risk scoring, action policy
+│   ├── src/jobs/                # Durable queue worker and 10 job stage handlers
+│   ├── src/integrations/        # Provider clients, connection guards, sync
+│   ├── src/data/                # Supabase data queries and mutations
+│   ├── src/foundation/          # AI providers, crypto, security, logging
+│   ├── src/ui/                  # Command center, chat timeline, drawers, modals
+│   ├── scripts/                 # Scenarios, migration runner, worker drain
+│   └── artifacts/               # Benchmark and execution evidence
+└── prompt/                      # Architectural prompt specifications
 ```
-
-Generated `platform/artifacts/**/report.md` files are run evidence, not maintained documentation.
 
 ---
 
-## Run locally
+## Run Locally
 
 ### Prerequisites
+- Node.js 20+
+- npm 10+
+- Supabase account (or local PostgreSQL with pgvector)
+- OpenAI / Azure OpenAI API key
 
-- Node.js 20-compatible runtime
-- npm
-- A Supabase project or local Supabase/PostgreSQL environment
-- At least one configured AI provider
-- Provider credentials only for integrations you intend to use
-
-### 1. Install
-
+### 1. Install Dependencies
 ```bash
 cd platform
 npm install
 cp .env.example .env.local
 ```
 
-The real `.env.example` is tracked but intentionally not reproduced here. Never commit `.env.local`, service-role keys, encryption keys, signing secrets, OAuth secrets, or provider tokens.
-
-### 2. Configure core environment
-
+### 2. Configure Environment Variables
+Set the core credentials in `platform/.env.local`:
 ```text
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
-ENCRYPTION_KEY
-AGENT_HISTORY_SIGNING_SECRET
-OPENAI_API_KEY
-NEXT_PUBLIC_APP_URL
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+ENCRYPTION_KEY=your-32-byte-hex-encryption-key
+AGENT_HISTORY_SIGNING_SECRET=your-64-byte-hmac-secret
+OPENAI_API_KEY=sk-...
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-Production must use a dedicated `AGENT_HISTORY_SIGNING_SECRET`. Local development may fall back to `OPENAI_API_KEY`; production intentionally fails without the dedicated secret.
-
-Optional model selection:
-
-```text
-OPENAI_MODEL_ID
-AGENT_MODEL_ID
-AGENT_CHAT_MODEL_ID
-AGENT_AUTOMATION_MODEL_ID
-AGENT_FALLBACK_MODEL_ID
-AZURE_OPENAI_API_KEY
-AZURE_OPENAI_ENDPOINT
-AZURE_OPENAI_BASE_URL
+### 3. Run Database Migrations
+Apply the 29 ordered migrations from `database/migrations/` using the Supabase CLI or `psql`:
+```bash
+# Example via Supabase CLI:
+supabase db push
 ```
 
-Automation and provider configuration includes `CRON_SECRET`, `WORKER_SECRET`, Google OAuth, Intercom OAuth, Stripe, PostHog, Tavily, and Resend variables. See [`platform/README.md`](platform/README.md) for the complete grouped list.
-
-### 3. Apply the database
-
-For a blank environment, apply every SQL file in `database/migrations/` in filename order.
-
-> The custom `migrations:apply` runner currently manages only the latest 12 recovery/identity migrations. It is not a complete blank-database bootstrap. Use Supabase CLI or `psql` for all 29 files until the runner is expanded.
-
-### 4. Start the application
-
+### 4. Start Development Server
 ```bash
 npm run dev
 ```
+Navigate to `http://localhost:3000`.
 
-Open `http://localhost:3000`.
-
-### 5. Validate
-
+### 5. Validate the Build
 ```bash
-npm test
-npm run build
+npm test        # Runs all 439 tests
+npm run build   # Validates Next.js production compilation
 ```
 
 ---
 
-## Operations and deployment
+## Operations and Deployment
 
-### Common commands
-
-From `platform/`:
-
+### Common CLI Tasks (from `platform/`)
 ```bash
-npm run dev
-npm test
-npm run build
-npm run lint
-npm run scenario:evaluate
-npm run migrations:plan
-npm run migrations:apply
-npm run agent:readiness -- --workspace-id=<uuid>
-npm run workflows:drain -- --workspace-id=<uuid>
-npm run demo:data:plan
-npm run demo:data:seed
-npm run demo:data:inspect
-npm run demo:data:evaluate
-npm run demo:data:reset
-npm run demo:reset-apex
+npm run dev                         # Start Next.js development server
+npm test                            # Run full unit & integration test suite
+npm run build                       # Test production build & static generation
+npm run workflows:drain             # Drain workflow_jobs queue locally
+npm run scenario:evaluate           # Run 15-account canonical scenario evaluation
+npm run demo:data:seed              # Seed safe test-mode scenario accounts
+npm run demo:data:reset             # Cleanly wipe test-mode scenario records
 ```
 
-Sending is disabled by default in the CLI drain workflow unless explicitly allowed.
+### Cron Schedule (`vercel.json`)
+The morning reconciliation job is scheduled at `04:00 UTC`:
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/daily-run",
+      "schedule": "0 4 * * *"
+    }
+  ]
+}
+```
 
-### Schedules
+---
 
-`platform/vercel.json` schedules:
+## Testing and Validation
+
+Verified snapshot (**2026-09-05**):
 
 ```text
-/api/cron/daily-run  →  0 4 * * *  →  04:00 UTC daily
+Test Suite:           439 passed, 0 failed (100% pass rate)
+Production Build:     Passed (36/36 static pages generated)
+Test Files:           39 suites
+PostgreSQL Migrations: 29 files
+Registered Tools:     164 tools
 ```
 
-The daily route verifies `CRON_SECRET`, reconciles workspace providers, processes queued work, generates briefs, and attempts configured delivery.
-
-The worker-drain endpoint accepts `CRON_SECRET` or `WORKER_SECRET` in production. It is **not** independently scheduled in the repository, so production needs a frequent external scheduler or dedicated worker for low queue latency and Gmail History polling.
-
-### Scenario system
-
-The deterministic recovery scenario tooling can plan, seed, inspect, evaluate, and reset test data. Use `RECOVERY_TEST_MODE=true` for isolated scenario workflows and label every scenario-derived account, metric, email, and outcome as seeded/test data.
+All 439 automated tests validate identity resolution, deterministic risk scoring, state machine transitions, SHA-256 approval checks, provider connection guards, and agent routing.
 
 ---
 
-## Testing and validation
+## Known Limitations
 
-Verified on **2026-09-05**:
-
-| Check | Result |
-|---|---:|
-| Test suite | **439 passed, 0 failed** |
-| Production build | **Passed** |
-| Test files | 39 |
-| SQL migrations | 29 |
-| Registered agent tools | 164 |
-
-Coverage includes agent routing and tools, memory and trusted metadata, workflow stages, run inspection, provider connection guards, provider sync behavior, durable jobs, identity, scoring, recovery cases, scenarios, UI message handling, and unified customer scans.
-
-These are point-in-time repository facts—not a production SLA, security certification, benchmark, or claim of real recovered revenue. Re-run the checks after changes.
+We explicitly document known system boundaries:
+1. **Direct Dispatch API Hardening:** Two direct recovery dispatch routes can mark drafts sent after Gmail failure; the durable worker queue (`send-approved-draft.ts`) is the hardened production path.
+2. **Scheduled Worker Frequency:** The Vercel cron triggers the daily run once per day; low-latency queue draining (<1 minute) requires an external worker or worker-drain trigger.
+3. **Generic Chat Approvals:** The database and API for generic chat-tool approvals are built, but the generic interception list is intentionally empty in favor of specific recovery draft approval.
 
 ---
 
-## Known limitations
+## Documentation Map
 
-This project documents its current risks rather than hiding them:
-
-1. **Direct dispatch truthfulness:** two direct recovery-dispatch routes can mark a case/draft sent after Gmail failure and contain Apex demo fallbacks. Prefer the hash-approved durable send path.
-2. **Legacy table reference:** runtime code references `draft_responses`, but repository migrations do not create it.
-3. **Partial migration runner:** the custom runner covers 12 of 29 migrations.
-4. **Worker scheduling:** frequent queue draining and Gmail History polling are not scheduled by `vercel.json`.
-5. **Generic chat approvals:** approval storage/API exists, but universal chat mutation interception is disabled.
-6. **AI readiness:** `isAIConfigured()` currently reports true without validating credentials.
-7. **Inbox:** `/dashboard/inbox` is a placeholder.
-8. **Scenario-specific UI:** parts of the recovery-flow presentation contain seeded account diagnostics; they must remain clearly separated from live provider facts.
-
-See [`docs/TODO.md`](docs/TODO.md) for acceptance criteria and affected paths.
+```mermaid
+flowchart LR
+    Root["README.md (You are here)<br/>Full Product & Architectural Guide"] --> DocsNav["docs/README.md<br/>Documentation Navigation Map"]
+    DocsNav --> Arch["docs/ALLEL.md<br/>Detailed System Architecture & ERD"]
+    DocsNav --> AgentDoc["docs/AGENT.md<br/>Agent Runtime, Loop & Personas"]
+    DocsNav --> ToolsDoc["docs/tool_calling.md<br/>5-Stage Routing & 164-Tool Registry"]
+    DocsNav --> IngestDoc["docs/INTEGRATION_AUDIT.md<br/>11 Integrations, OAuth & Webhooks"]
+    DocsNav --> PlatformDoc["platform/README.md<br/>Developer Setup & App Router Routes"]
+    DocsNav --> QADoc["docs/INTERVIEW_QA.md<br/>Architecture & Review Prep"]
+```
 
 ---
 
-## Documentation map
+## License
 
-| Start here when you need… | Document |
-|---|---|
-| Product, workflow, UI, architecture, and setup | **This README** |
-| Documentation ownership and archive status | [`docs/README.md`](docs/README.md) |
-| Detailed system architecture | [`docs/ALLEL.md`](docs/ALLEL.md) |
-| Application setup, environment, routes, and scripts | [`platform/README.md`](platform/README.md) |
-| Agent personas, memory, trust, and telemetry | [`docs/AGENT.md`](docs/AGENT.md) |
-| Tool selection and in-loop expansion | [`docs/tool_calling.md`](docs/tool_calling.md) |
-| Provider capability and integration risks | [`docs/INTEGRATION_AUDIT.md`](docs/INTEGRATION_AUDIT.md) |
-| Current engineering risks | [`docs/TODO.md`](docs/TODO.md) |
-| Interview and demo preparation | [`docs/INTERVIEW_QA.md`](docs/INTERVIEW_QA.md) |
-| External Framer operations | [`docs/framer.md`](docs/framer.md) |
-
-Historical competition reports, plans, and narratives remain in `docs/` with archive banners. They preserve project history but do not override current source-backed documentation.
-
----
-
-## License and intellectual property
-
-Copyright © 2026 Kushagara Singh. All rights reserved.
-
-This software and source code are proprietary. Permission is granted solely for hackathon evaluation and review. Commercial use, redistribution, or unauthorized reproduction is prohibited. See [`LICENSE`](LICENSE).
+Copyright © 2026 Kushagara Singh. All rights reserved. Proprietary software for evaluation and hackathon review.

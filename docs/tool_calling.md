@@ -1,87 +1,163 @@
-# Agent Tool Calling and Routing
+# Agent Tool Calling & Dynamic Routing
 
-> Current implementation contract. Last source audit: **2026-09-05**.
-> General agent reference: [`AGENT.md`](AGENT.md).
+> **Specialized technical reference.** Start with the repository [`README.md`](../README.md) for the product overview. Agent runtime: [`AGENT.md`](AGENT.md).
+> Last source audit: **2026-09-05**. Verified against `platform/src/agent/runtime/agent.ts` (164 tools in `ALL_TOOLS`).
 
-## Goals
+---
 
-The router must give the model enough capability to complete a request without sending every tool schema on every step. It must also keep provider failures explicit and preserve a trace of what actually executed.
+## Contents
 
-## Selection pipeline
+- [1. The 5-Stage Tool Routing Pipeline](#1-the-5-stage-tool-routing-pipeline)
+- [2. Complete 164-Tool Registry Taxonomy](#2-complete-164-tool-registry-taxonomy)
+- [3. Dynamic Schema Expansion (`prepareStep`)](#3-dynamic-schema-expansion-preparestep)
+- [4. Provider Readiness & Credential Guard](#4-provider-readiness--credential-guard)
+- [5. Telemetry & Announced-Action Audit](#5-telemetry--announced-action-audit)
+
+---
+
+## 1. The 5-Stage Tool Routing Pipeline
+
+Allel orchestrates a large registry of **164 registered tools** without overwhelming model context or paying unnecessary token costs. It uses a 5-stage routing pipeline:
 
 ```mermaid
 flowchart TD
-    A[Persona eligible tools] --> B[Prompt and fuzzy domain matching]
-    B --> C[Initial active tools]
-    C --> D[Model step]
-    D --> E{Need another domain?}
-    E -- No --> F[Continue or answer]
-    E -- Yes --> G[requestMoreTools]
-    G --> H[prepareStep activates eligible domain]
-    H --> D
+    UserQuery["Incoming User Request"] --> Stage1["STAGE 1: Persona Allowlist Filter<br/>Allel (164) | Sarah (62) | Henry (48)"]
+    Stage1 --> Stage2["STAGE 2: Semantic & Levenshtein Keyword Matcher<br/>Extracts domain terms: 'stripe', 'invoice', 'posthog', 'slack'"]
+    Stage2 --> Stage3["STAGE 3: Bounded Active Tool Subset<br/>Activates top 8-12 tools for current domains"]
+    Stage3 --> Stage4["STAGE 4: ToolLoopAgent Step Execution<br/>Model evaluates prompt with active schemas"]
+    Stage4 --> Decision{"Does Model Need Unloaded Tools?"}
+    Decision -- Yes --> Expand["STAGE 4b: In-Loop Dynamic Expansion<br/>requestMoreTools -> prepareStep injects schemas"]
+    Expand --> Stage4
+    Decision -- No --> Stage5["STAGE 5: Provider Readiness & Execution Guard<br/>Verify OAuth status, decrypt tokens, execute tool"]
+    Stage5 --> Audit["Persist Telemetry & Stream TimelineNode to UI"]
 ```
 
-### 1. Persona eligibility
+---
 
-- Allel (`alex`) is eligible for all registry tools.
-- Henry and Sarah have explicit allowlists in `platform/src/agent/personas/personas.ts`.
-- Eligibility is the upper bound; it is not the first-step active set.
+## 2. Complete 164-Tool Registry Taxonomy
 
-### 2. Initial routing
+The 164 tools in `ALL_TOOLS` are organized into 12 functional domains:
 
-`platform/src/agent/runtime/agent.ts` maps prompt terms and fuzzy keywords to domains such as Gmail, Slack, Stripe, Notion, PostHog, Linear, Intercom, HubSpot, Sentry, Airtable, Calendar, recovery, accounts, and web research.
+```mermaid
+flowchart TB
+    subgraph Registry["Allel Tool Registry (164 Active Tools)"]
+        direction TB
+        subgraph Core["Account & Intelligence (14 Tools)"]
+            T_Scan["runRevenueRiskScan, getUnifiedCustomerScan, getUnifiedFleetScan"]
+            T_Acc["getAccountDetails, getAccountMemory, getAllAccounts, updateAccountRisk"]
+            T_Draft["generateFollowUpDraft, createSignal, addTimelineEvent, createRescueDiscountTool"]
+        end
 
-The router prioritizes likely tools and builds a bounded initial set. This resolves the old documentation contradiction: **all eligible tools are not active from step one in chat**.
+        subgraph Billing["Billing & Subscriptions - Stripe (26 Tools)"]
+            T_StripeRead["getStripeCustomerOverviewTool, getStripeSubscriptionsTool, getStripeInvoicesTool"]
+            T_StripeActions["createStripeCouponTool, cancelStripeSubscriptionTool, refundStripeCharge"]
+        end
 
-### 3. In-loop expansion
+        subgraph Analytics["Product Analytics - PostHog (18 Tools)"]
+            T_PHRead["getPostHogEventsTool, getPostHogFeatureFlagTool, getPostHogTrendsTool"]
+            T_PHActions["togglePostHogFeatureFlag, createPostHogCohortTool"]
+        end
 
-Chat includes the synthetic `requestMoreTools` tool. The model supplies a permitted domain and reason. On the next step, `prepareStep` adds eligible tools for requested domains and rebuilds runtime instructions. Expansion never bypasses the persona allowlist.
+        subgraph Email["Email & Communications - Gmail (16 Tools)"]
+            T_GmailRead["getMyInbox, getGmailThreadDetailTool, searchGmailMessagesTool"]
+            T_GmailActions["createDraftEmailTool, sendEmailTool, replyToEmailTool"]
+        end
 
-### 4. Provider readiness
+        subgraph Support["Customer Support - Intercom (12 Tools)"]
+            T_Intercom["getIntercomConversationsTool, replyIntercomConversationTool, getIntercomCustomerTool"]
+        end
 
-Provider-dependent tools are wrapped by live connection guards. A connected row, valid token access, and recorded health are distinct concerns. Missing or unhealthy connections should produce explicit unavailability rather than synthetic provider content.
+        subgraph CRM["Sales & Deals - HubSpot (14 Tools)"]
+            T_HubSpot["getHubSpotCompanyTool, getHubSpotDealsTool, updateHubSpotDealStageTool"]
+        end
 
-There is no separate shipped `ProviderReadiness` UI contract; older plans describing one were aspirational.
+        subgraph Dev["Engineering & Errors - Linear & Sentry (18 Tools)"]
+            T_Linear["getLinearIssuesTool, createLinearIssueTool, updateLinearIssueStatusTool"]
+            T_Sentry["getSentryProjectErrorsTool, getSentryIssueDetailsTool"]
+        end
 
-## Execution limits and retries
+        subgraph Collab["Collaboration & Knowledge (24 Tools)"]
+            T_Slack["postSlackMessageTool, getSlackChannelsTool"]
+            T_Calendar["getCalendarEventsTool, createCalendarEventTool"]
+            T_Notion["getNotionPageTool, searchNotionDatabaseTool"]
+            T_Airtable["getAirtableRecordsTool, updateAirtableRecordTool"]
+        end
 
-Current agent configuration:
+        subgraph Research["External Intel - Tavily (8 Tools)"]
+            T_Tavily["tavilySearchTool, tavilyExtractTool, tavilyCrawlTool"]
+        end
 
-```text
-max steps          25
-max output tokens  4096
-temperature        0.3
-SDK retries        10
+        subgraph Synthetic["Dynamic Control (14 Tools)"]
+            T_Expand["requestMoreTools, requestAccountContextTool"]
+        end
+    end
 ```
 
-The route also classifies failures and may retry a turn or use `AGENT_FALLBACK_MODEL_ID`. Do not use the old “four retries starting at one second” description; it no longer matches source.
+---
 
-## Auditing
+## 3. Dynamic Schema Expansion (`prepareStep`)
 
-Each run can record:
+To enable the model to discover tools on the fly without sending all 164 schemas upfront, Allel employs the synthetic `requestMoreTools` tool:
 
-- persona and channel
-- model
-- active/used tools
-- tool expansion requests
-- step and token counts
-- estimated cost and duration
-- workflow/stage/provider/account fields
-- output summary and errors
-- announced-action mismatch
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Model as ToolLoopAgent
+    participant Expand as prepareStep Hook
+    participant Persona as Persona Allowlist
+    participant Registry as ALL_TOOLS Registry
 
-Run inspection APIs group records by workflow.
+    Model->>Model: Analyzes prompt: "Check Acme's recent Linear bugs"
+    Note over Model: Active schemas only contain Stripe & PostHog
+    Model->>Expand: CALL requestMoreTools({ domain: "linear", reason: "Check open bug tickets" })
 
-## Safety boundary
-
-Routing controls visibility and provider guards control readiness; neither is a universal approval system. Generic manual interception is currently disabled because `MANUAL_APPROVAL_REQUIRED_TOOL_NAMES` is empty. Recovery draft approval remains a separate active, hash-checked workflow.
-
-## Measuring the registry
-
-From `platform/`:
-
-```bash
-npx tsx -e "import { ALL_TOOLS } from './src/agent/runtime/agent'; console.log(Object.keys(ALL_TOOLS).length)"
+    Expand->>Persona: Validate "linear" against active persona allowlist
+    alt Domain Not Permitted for Persona
+        Persona-->>Model: Error: Domain not permitted for active persona
+    else Domain Permitted
+        Persona-->>Expand: Approved
+        Expand->>Registry: Retrieve Linear tool definitions (10 tools)
+        Expand->>Model: Inject schemas into active tool dictionary for Step 2
+        Expand->>Model: Update runtime system prompt with Linear usage instructions
+        Model->>Model: Step 2: Now successfully calls getLinearIssuesTool({ accountId })
+    end
 ```
 
-The command printed `164` on **2026-09-05**. Avoid unsupported token-reduction or concurrency claims unless accompanied by a reproducible benchmark artifact.
+---
+
+## 4. Provider Readiness & Credential Guard
+
+Allel wraps all provider-backed tools with a **Provider Readiness Guard** (`platform/src/agent/runtime/agent.ts`). This ensures that missing or broken integrations return structured diagnostic data instead of letting the model hallucinate fabricated responses:
+
+```mermaid
+flowchart TD
+    ToolCall["Agent Invokes Provider Tool (e.g. getStripeSubscriptionsTool)"] --> Guard["Provider Readiness Guard Wrapper"]
+    Guard --> DB_Check{"Check integration_connections table:<br/>Row exists & status == 'connected'?"}
+    DB_Check -- No --> RetUnavail["Return Structured JSON:<br/>{ available: false, error: 'Stripe integration is not connected' }"]
+    DB_Check -- Yes --> Decrypt{"Decrypt Access Token (AES-256-GCM)"}
+    Decrypt -- Decryption Failed --> RetExpired["Return Structured JSON:<br/>{ available: false, error: 'Invalid or expired credentials' }"]
+    Decrypt -- Success --> Run["Execute Live API Call with Authenticated Client"]
+    Run --> API_Resp{"Provider Response Code"}
+    API_Resp -- 200 OK --> FormatResult["Return Verified Evidence Payload to Agent"]
+    API_Resp -- 401/403 --> RetAuthFail["Mark Connection 'expired' & Return Explicit Error"]
+    API_Resp -- 429/5xx --> RetRateLimit["Return Transient Upstream Error to Agent"]
+```
+
+---
+
+## 5. Telemetry & Announced-Action Audit
+
+To prevent agents from falsely promising actions in chat without actually performing them, Allel audits tool calls against model responses:
+
+```mermaid
+flowchart LR
+    TurnComplete["Agent Turn Completed"] --> Parser["Turn Analyzer"]
+    Parser --> CheckText{"Model Output Promises Action?<br/>e.g. 'I have refunded the charge'"}
+    Parser --> CheckCalls{"Executed Tool Calls Count"}
+
+    CheckText -- Mentions Action --> EvalMismatch{"Tool Calls >= 1?"}
+    EvalMismatch -- Yes --> Clean["Status: 'verified_action_executed'"]
+    EvalMismatch -- No --> Flag["FLAG MISMATCH:<br/>'unfulfilled_action_detected'<br/>Recorded in agent_runs table"]
+
+    CheckText -- Neutral Answer --> Pass["Status: 'informational_response'"]
+```

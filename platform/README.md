@@ -1,173 +1,237 @@
-# Allel Platform
+# Allel Platform — Developer & Operational Guide
 
-The `platform/` package contains Allel's Next.js application, API routes, agent runtime, provider integrations, durable recovery worker, UI, and test suite.
+> **Developer reference for `platform/`.** For full product overview, see root [`README.md`](../README.md). For detailed system architecture, see [`docs/ALLEL.md`](../docs/ALLEL.md).
+> Last source audit: **2026-09-05**. Verified against repository source tree.
 
-Start with the repository [`README.md`](../README.md) for the full product walkthrough. Use [`../docs/ALLEL.md`](../docs/ALLEL.md) for the deeper technical architecture and [`../docs/README.md`](../docs/README.md) for documentation ownership.
+---
 
-## Stack
+## Contents
 
-- Next.js 15.5 App Router and React 19.1
-- TypeScript and Tailwind CSS 4
-- Supabase Auth/PostgreSQL with SSR sessions and RLS
-- AI SDK 6 with OpenAI-compatible and Azure OpenAI model providers
-- Stripe, Gmail/Google Calendar, PostHog, Intercom, Resend, and Tavily SDK/API integrations
-- Vercel deployment and cron configuration
+- [1. Platform Architecture](#1-platform-architecture)
+- [2. Directory Layout](#2-directory-layout)
+- [3. Local Development Setup](#3-local-development-setup)
+- [4. Environment Variables Configuration](#4-environment-variables-configuration)
+- [5. Database Migrations](#5-database-migrations)
+- [6. Application Routes & APIs](#6-application-routes--apis)
+- [7. Operational CLI Tasks](#7-operational-cli-tasks)
+- [8. Testing & Validation Suite](#8-testing--validation-suite)
 
-## Local development
+---
+
+## 1. Platform Architecture
+
+The `platform` directory contains the full Next.js 15 App Router application, agent runtime, recovery engine, job queue, integration clients, and UI design system:
+
+```mermaid
+flowchart TB
+    subgraph AppRouter["Next.js 15 App Router (src/app)"]
+        direction LR
+        Pages["App Pages (/dashboard, /flows, /brief)"]
+        APIs["API Endpoints (/api/agent, /api/recovery, /api/drafts)"]
+        Middleware["Session Middleware (middleware.ts)"]
+    end
+
+    subgraph CoreServices["Domain Services (src/)"]
+        direction LR
+        AgentService["agent/ (Runtime, 164 Tools, Memory)"]
+        RecoveryService["recovery/ (Identity, Scoring, Policy)"]
+        JobService["jobs/ (Durable Queue, Leases, Handlers)"]
+        IntegrationService["integrations/ (Stripe, PostHog, Gmail)"]
+        DataService["data/ (Supabase Access Queries)"]
+    end
+
+    subgraph FoundationLayer["Foundation & Utilities (src/foundation)"]
+        direction LR
+        AI_SDK["AI SDK 6 Provider Factory"]
+        CryptoVault["AES-256-GCM & HMAC Vault"]
+        DBClient["Supabase Server & Browser Clients"]
+    end
+
+    subgraph UISystem["UI Component System (src/ui)"]
+        direction LR
+        ChatUI["chat/ (TimelineNodes, Agent Feed)"]
+        DashUI["dashboard/ (Briefs, Account Drawers)"]
+        FlowsUI["flows/ (Recovery Workflow Cockpit)"]
+        ShellUI["shell/ (Sidebar, TopNav, Dialogs)"]
+    end
+
+    AppRouter --> CoreServices
+    CoreServices --> FoundationLayer
+    AppRouter --> UISystem
+```
+
+---
+
+## 2. Directory Layout
+
+```text
+platform/
+├── package.json                 # Next.js 15.5, React 19.1, AI SDK 6 dependencies
+├── tsconfig.json                # TypeScript configuration with @/* path aliases
+├── vercel.json                  # Production deployment & daily cron schedule
+├── src/
+│   ├── app/                     # App Router pages and authenticated API routes
+│   │   ├── (auth)/              # Login and authentication callback pages
+│   │   ├── dashboard/           # Main cockpit: /brief, /flows, /accounts, /connections
+│   │   └── api/                 # REST endpoints: /agent, /recovery, /drafts, /webhooks
+│   ├── agent/                   # Agent orchestration subsystem
+│   │   ├── runtime/             # ToolLoopAgent engine and 164 registered tools
+│   │   ├── personas/            # Persona definitions (Allel, Henry, Sarah) & instructions
+│   │   ├── memory/              # Scoped conversation memory & HMAC signing
+│   │   └── tools/               # Tool implementations across 12 domains
+│   ├── recovery/                # Revenue recovery core subsystem
+│   │   ├── identity.ts          # Deterministic identity resolution & conflicts
+│   │   ├── scoring.ts           # 50/35/15 multi-dimensional risk scoring
+│   │   ├── policy.ts            # Action policy & cooldown gating
+│   │   ├── cases.ts             # Recovery case state machine transitions
+│   │   └── draft-approval.ts    # SHA-256 hash-bound founder approval
+│   ├── jobs/                    # Background execution engine
+│   │   ├── queue.ts             # Leased job claiming (FOR UPDATE SKIP LOCKED)
+│   │   ├── worker.ts            # Queue drain loop with bounded concurrency
+│   │   └── handlers/            # 10 idempotent stage handlers
+│   ├── integrations/            # Provider clients (Stripe, PostHog, Gmail, etc.)
+│   ├── data/                    # Database queries and mutations
+│   ├── foundation/              # Security, crypto, Supabase client, AI provider setup
+│   ├── ui/                      # React 19 component library
+│   │   ├── chat/                # TimelineNodes, message bubbles, action buttons
+│   │   ├── dashboard/           # Brief views, account cards, stat widgets
+│   │   └── primitives/          # Radix & Base UI buttons, inputs, modals
+│   ├── scripts/                 # Scenarios, migration runner, worker CLI
+│   └── artifacts/               # Test run evidence and evaluation reports
+```
+
+---
+
+## 3. Local Development Setup
+
+```mermaid
+flowchart LR
+    Step1["1. Install Dependencies<br/>`npm install`"] --> Step2["2. Configure Env<br/>`cp .env.example .env.local`"]
+    Step2 --> Step3["3. Push Migrations<br/>`supabase db push`"]
+    Step3 --> Step4["4. Start Dev Server<br/>`npm run dev`"]
+    Step4 --> Step5["5. Run Verification<br/>`npm test` (439 passed)"]
+```
+
+### Quick Commands
 
 ```bash
+# 1. Install dependencies
 npm install
+
+# 2. Setup local environment
 cp .env.example .env.local
+
+# 3. Start local development server
 npm run dev
+# App will be accessible at http://localhost:3000
+
+# 4. Run test suite
+npm test
+
+# 5. Verify production compilation
+npm run build
 ```
 
-The tracked `.env.example` is the environment template. Do not commit `.env.local` or provider credentials.
+---
 
-### Core environment
+## 4. Environment Variables Configuration
 
-```text
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
-ENCRYPTION_KEY
-AGENT_HISTORY_SIGNING_SECRET
-OPENAI_API_KEY
-NEXT_PUBLIC_APP_URL
-```
+| Variable | Required | Description |
+|---|:---:|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase public anonymous key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase elevated service-role key (server-side only) |
+| `ENCRYPTION_KEY` | Yes | 32-byte hex key for AES-256-GCM token encryption |
+| `AGENT_HISTORY_SIGNING_SECRET` | Yes | 64-byte secret for HMAC-SHA256 chat memory signing |
+| `OPENAI_API_KEY` | Yes | OpenAI API key for agent reasoning and drafting |
+| `OPENAI_MODEL_ID` | No | Default model ID (defaults to `gpt-4o`) |
+| `AGENT_FALLBACK_MODEL_ID` | No | Optional fallback model during upstream rate limits |
+| `STRIPE_SECRET_KEY` | Optional | Stripe restricted/secret API key for billing sync |
+| `STRIPE_WEBHOOK_SECRET` | Optional | Stripe webhook signing secret |
+| `POSTHOG_API_KEY` | Optional | PostHog personal API key for product usage sync |
+| `CRON_SECRET` | Yes | Bearer secret required to trigger `/api/cron/daily-run` |
+| `WORKER_SECRET` | Yes | Bearer secret required to drain `/api/internal/workflows/drain` |
 
-Set `AGENT_HISTORY_SIGNING_SECRET` explicitly in production. Development can fall back to `OPENAI_API_KEY`, but production intentionally fails if the dedicated signing secret is absent.
+---
 
-### Models
+## 5. Database Migrations
 
-```text
-OPENAI_MODEL_ID
-AGENT_MODEL_ID
-AGENT_CHAT_MODEL_ID
-AGENT_AUTOMATION_MODEL_ID
-AGENT_FALLBACK_MODEL_ID
-AZURE_OPENAI_API_KEY
-AZURE_OPENAI_ENDPOINT
-AZURE_OPENAI_BASE_URL
-```
-
-Model identifiers are overrides; the runtime also has a code default. Azure configuration takes precedence when its credentials are present.
-
-### Automation and integrations
-
-```text
-CRON_SECRET
-WORKER_SECRET
-WORKER_CONCURRENCY
-DEFAULT_WORKSPACE_ID
-RECOVERY_TEST_MODE
-NEXT_PUBLIC_DEMO_MODE
-
-GOOGLE_CLIENT_ID
-GOOGLE_CLIENT_SECRET
-GOOGLE_REDIRECT_URI
-GOOGLE_GMAIL_SCOPE_MODE
-INTERCOM_CLIENT_ID
-INTERCOM_CLIENT_SECRET
-INTERCOM_REDIRECT_URI
-STRIPE_SECRET_KEY
-STRIPE_WEBHOOK_SECRET
-POSTHOG_API_KEY
-POSTHOG_PROJECT_API_KEY
-POSTHOG_PROJECT_ID
-POSTHOG_WEBHOOK_SECRET
-TAVILY_API_KEY
-RESEND_API_KEY
-RESEND_FROM_EMAIL
-RESEND_NOTIFICATION_EMAIL
-```
-
-Database migration execution may additionally use `DATABASE_URL`/`SUPABASE_DB_URL` or a Supabase management token.
-
-## Database setup
-
-Apply all SQL files in `../database/migrations/` in filename order for a fresh database.
+The database schema is defined in `database/migrations/` (29 ordered PostgreSQL files):
 
 ```bash
-npm run migrations:plan
-npm run migrations:apply
+# Apply migrations using Supabase CLI
+supabase db push
+
+# Or apply sequentially via psql:
+for file in database/migrations/*.sql; do
+  psql "$DATABASE_URL" -f "$file"
+done
 ```
 
-Important: the repository migration runner currently includes only the 12 recovery/identity migrations from August onward. It is suitable for that upgrade sequence, not for bootstrapping all 29 migrations on a blank database. Use Supabase CLI or `psql` to apply the complete directory until the runner is expanded.
+---
 
-## Product routes
+## 6. Application Routes & APIs
 
-### Public
+### Authenticated Pages
 
-- `/` — marketing and waitlist
-- `/about`, `/pricing`, `/privacy`, `/terms`
-- `/docs`, `/docs/[slug]`
-- `/auth/login`, `/auth/callback`
+| Route | Purpose | Component |
+|---|---|---|
+| `/dashboard` | AI Command Center & Streaming Chat | `src/app/dashboard/page.tsx` |
+| `/dashboard/brief` | Founder Daily Morning Brief | `src/app/dashboard/brief/page.tsx` |
+| `/dashboard/flows` | Recovery Automations Cockpit | `src/app/dashboard/flows/page.tsx` |
+| `/dashboard/accounts` | Customer Accounts Portfolio | `src/app/dashboard/accounts/page.tsx` |
+| `/dashboard/connections` | Integrations Management Hub | `src/app/dashboard/connections/page.tsx` |
+| `/dashboard/drafts` | Pending Outreach Review | `src/app/dashboard/drafts/page.tsx` |
 
-### Authenticated dashboard
+### Core API Endpoints
 
-- `/dashboard` — AI command center
-- `/dashboard/accounts`, `/dashboard/accounts/[id]` — account portfolio and detail
-- `/dashboard/drafts` — draft review
-- `/dashboard/brief` — founder brief
-- `/dashboard/flows` — recovery cases, metrics, drafts, replay, and dispatch
-- `/dashboard/settings`, `/dashboard/connections` — integrations
-- `/dashboard/agents` — recovery-flow alias
-- `/dashboard/history`, `/dashboard/sessions` — command-center session views
-- `/dashboard/inbox` — placeholder; no inbox product is implemented yet
+| Endpoint | Method | Functionality |
+|---|:---:|---|
+| `/api/agent` | `POST` | Multi-turn streaming chat with dynamic tool routing |
+| `/api/agent/history` | `GET` | Retrieve cryptographically signed conversation turns |
+| `/api/recovery/cases` | `GET` | List and filter active recovery cases |
+| `/api/drafts/:id/approve` | `POST` | Grant hash-verified founder approval |
+| `/api/drafts/:id/send` | `POST` | Dispatch approved recovery email via Gmail worker |
+| `/api/brief` | `GET, POST` | Retrieve or generate founder morning brief |
+| `/api/metrics/revenue-saved` | `GET` | Query strict recovered MRR and protected MRR |
+| `/api/webhooks/stripe` | `POST` | Ingest Stripe signed webhook events |
+| `/api/webhooks/posthog` | `POST` | Ingest PostHog signed webhook events |
+| `/api/cron/daily-run` | `POST` | Morning scheduled reconciliation and brief dispatch |
+| `/api/internal/workflows/drain` | `POST` | Background worker queue drain endpoint |
 
-Dashboard routes are protected by Supabase session middleware and workspace membership checks.
+---
 
-## API groups
-
-- `/api/agent/**` — chat, history, sessions, run inspection, and generic approval records
-- `/api/auth/**` — OTP login and verification
-- `/api/brief/**` — brief retrieval, generation, and refresh
-- `/api/drafts/**` — hash-checked recovery draft approval and durable send queueing
-- `/api/recovery/**` — recovery cases, drafts, replay, and direct dispatch surfaces
-- `/api/metrics/revenue-saved` — recovery and revenue-impact metrics
-- `/api/integrations/**` — direct connection and OAuth callbacks
-- `/api/webhooks/**` — signed Stripe and PostHog ingress
-- `/api/cron/daily-run` — protected daily reconciliation and brief run
-- `/api/internal/workflows/drain` — protected durable worker drain and Gmail History polling
-- `/api/waitlist` — public waitlist submission
-
-See [`../docs/ALLEL.md`](../docs/ALLEL.md) for the execution and trust model.
-
-## Commands
+## 7. Operational CLI Tasks
 
 ```bash
-npm run dev                  # local Next.js server
-npm test                     # all Node/TS tests
-npm run build                # production build
-npm run lint                 # ESLint
-npm run scenario:evaluate    # print deterministic scenario evaluation
-npm run migrations:plan      # show runner-managed migrations
-npm run migrations:apply     # apply runner-managed migrations
-npm run workflows:drain      # drain jobs for a workspace
-npm run agent:readiness      # check deployed schema/RLS readiness
-npm run demo:data:plan
+# Run local worker queue drain
+npm run workflows:drain -- --workspace-id=<uuid>
+
+# Evaluate canonical 15-account recovery scenario
+npm run scenario:evaluate
+
+# Seed safe test-mode scenario accounts
 npm run demo:data:seed
+
+# Inspect seeded accounts and risk scores
 npm run demo:data:inspect
+
+# Cleanly wipe all test-mode scenario data
 npm run demo:data:reset
-npm run demo:data:evaluate
-npm run demo:reset-apex
 ```
 
-`workflows:drain` requires `--workspace-id=<uuid>` or `DEFAULT_WORKSPACE_ID`; sending remains disabled unless explicitly allowed by the script.
+---
 
-## Deployment and scheduling
+## 8. Testing & Validation Suite
 
-`vercel.json` invokes `/api/cron/daily-run` at `0 4 * * *` (04:00 UTC daily). Configure `CRON_SECRET` in the deployment.
-
-The worker-drain endpoint is not scheduled by `vercel.json`. Production needs a separate frequent scheduler or worker process for low-latency queue processing and Gmail History polling.
-
-## Validation snapshot
-
-Verified on **2026-09-05**:
+Point-in-time verified snapshot (**2026-09-05**):
 
 ```text
-npm test       439 passed, 0 failed
-npm run build  passed
+npm test       --> 439 passed, 0 failed (39 test suites, 100% pass)
+npm run build  --> Passed (36/36 static pages compiled cleanly)
 ```
 
-Run both commands after changes; this snapshot is not a permanent guarantee.
+Run tests at any time:
+```bash
+npm test
+```

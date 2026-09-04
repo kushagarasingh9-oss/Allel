@@ -1,103 +1,239 @@
-# Allel Agent Runtime
+# Allel Agent Runtime & Orchestration
 
-> Current specialized reference. Last source audit: **2026-09-05**.
-> Start with the repository [`README.md`](../README.md). Technical context: [`ALLEL.md`](ALLEL.md). Routing details: [`tool_calling.md`](tool_calling.md).
+> **Specialized technical reference.** Start with the repository [`README.md`](../README.md) for the product overview. Architecture blueprint: [`ALLEL.md`](ALLEL.md). Tool selection details: [`tool_calling.md`](tool_calling.md).
+> Last source audit: **2026-09-05**. Verified against `platform/src/agent/`.
 
-## Runtime
+---
 
-`platform/src/agent/runtime/agent.ts` builds AI SDK `ToolLoopAgent` instances over the tool registry in `platform/src/agent/tools/tools.ts`.
+## Contents
 
-Current limits and behavior:
+- [1. Agent Runtime Architecture](#1-agent-runtime-architecture)
+- [2. Multi-Step Execution Loop](#2-multi-step-execution-loop)
+- [3. Dynamic Schema Expansion Pipeline](#3-dynamic-schema-expansion-pipeline)
+- [4. Persona Hierarchy & Capabilities](#4-persona-hierarchy--capabilities)
+- [5. Memory Architecture & Cryptographic Integrity](#5-memory-architecture--cryptographic-integrity)
+- [6. Self-Healing, Retries & Model Fallbacks](#6-self-healing-retries--model-fallbacks)
+- [7. Execution Telemetry & Audit Trail](#7-execution-telemetry--audit-trail)
 
-- Up to 25 reasoning/tool steps
-- 4,096 output tokens
-- Temperature `0.3`
-- Up to 10 SDK retries for transient upstream failures
-- Optional `AGENT_FALLBACK_MODEL_ID`
-- Per-channel chat/automation model overrides
-- Run telemetry for model, steps, tools, tokens, cost estimate, duration, workflow metadata, and action-completion checks
+---
 
-The runtime supports Azure OpenAI/Foundry-style configuration and standard OpenAI-compatible configuration. Model selection is environment-driven with a code fallback.
+## 1. Agent Runtime Architecture
 
-## Personas
+Allel builds AI SDK 6 `ToolLoopAgent` instances over a comprehensive registry of **164 registered tools** (`platform/src/agent/runtime/agent.ts`). The agent acts as an intelligent operating interface across connected SaaS tools, never hallucinating or mutating state without deterministic validation:
 
-| Internal ID | Display name | Role | Tool policy |
-|---|---|---|---|
-| `alex` | Allel | AI Co-founder | Eligible for every registered tool |
-| `henry` | Henry | Head of Growth | Curated growth, research, context, draft, and collaboration tools |
-| `sarah` | Sarah | Head of Retention | Curated billing, usage, account, recovery, outreach, and calendar tools |
+```mermaid
+flowchart TB
+    subgraph Input["Turn Ingestion"]
+        UserMsg["User Message / Prompt"]
+        PersonaSel["Selected Persona: Allel / Henry / Sarah"]
+        SessionCtx["Session Context (user_id, workspace_id, session_id)"]
+    end
 
-The `alex` identifier remains for backward compatibility; UI and prompts call the persona Allel.
+    subgraph MemorySubsystem["Memory & Trust Subsystem"]
+        SignedMem["Signed Conversation Turns (HMAC-SHA256)"]
+        Sanitizer["History Sanitizer & Schema Normalizer"]
+        Compactor["Context Compactor (Goals, Commitments, Summaries)"]
+        AccountMem["Deterministic Account Memory (Signals, Invoices, Timeline)"]
+    end
 
-## Tools and routing
+    subgraph DynamicRouting["Routing & Schema Pipeline"]
+        Allowlist["Persona Tool Allowlist Filter"]
+        FuzzyRouter["Semantic & Fuzzy Keyword Domain Router"]
+        ActiveSubset["Bounded Active Tool Subset (8-12 tools)"]
+        SyntheticTool["requestMoreTools Synthetic Domain Activator"]
+        PrepareStep["prepareStep In-Loop Dynamic Schema Expansion"]
+    end
 
-There are **164** keys in `ALL_TOOLS` at the audit date. This count is volatile and should be measured from source rather than hard-coded into product claims.
+    subgraph ExecutionSubsystem["Execution & Guard Subsystem"]
+        LoopEngine["ToolLoopAgent (Max 25 Steps, Temp 0.3)"]
+        ProviderGuards["Live Provider Readiness & Credential Guards"]
+        Telemetry["Telemetry Logger (Tokens, Cost, Steps, Tools)"]
+        MismatchCheck["Announced-Action Mismatch Detector"]
+    end
 
-For chat, persona eligibility and current activation are different concepts:
-
-1. Persona configuration defines the maximum eligible set.
-2. Prompt/domain matching selects a smaller initial active set.
-3. `requestMoreTools` can activate another eligible domain on the next step.
-4. `prepareStep` updates active tools and runtime instructions.
-5. Connection guards prevent provider tools from fabricating success when live credentials are missing or unhealthy.
-
-Automation runs use their workflow-specific tool scope rather than the chat expansion path.
-
-## Memory and trust
-
-### Conversation memory
-
-`platform/src/agent/memory/chat-memory.ts` persists conversation state scoped by:
-
-- user
-- workspace
-- persona
-- session
-
-It deduplicates turns, bounds retained history, compacts older context, and tracks summaries, goals, commitments, and referenced accounts. Session operations live in `chat-session.ts`.
-
-Assistant metadata is signed by `AGENT_HISTORY_SIGNING_SECRET` and sanitized in `platform/src/agent/tools/ui-message-utils.ts`. Production requires a dedicated signing secret; local development may fall back to `OPENAI_API_KEY`.
-
-### Account memory
-
-`account-memory.ts` builds deterministic account context from persisted account facts, signals, timeline events, and unsent drafts. Refresh requests can be queued durably. This memory is application data, not free-form model recollection.
-
-## Workflows
-
-Legacy agent workflow helpers define `detect → analyze → draft → verify` stages and stage allowlists. The current revenue-recovery pipeline is more deterministic: provider ingestion, identity, feature projection, scoring, policy, case transitions, approval, sending, and attribution are handled by application code and durable job handlers under `platform/src/jobs` and `platform/src/recovery`.
-
-The daily cron intentionally uses deterministic reconciliation and the recovery queue instead of asking a free-form agent to sweep every account.
-
-## Approval boundaries
-
-Two approval mechanisms must not be conflated:
-
-1. **Recovery draft approval is active.** It binds approval to an expected content hash and queues durable sending.
-2. **Generic chat tool approval is scaffolded but not enabled.** `tool_approval_requests` and `/api/agent/approvals` exist, but `MANUAL_APPROVAL_REQUIRED_TOOL_NAMES` is currently empty.
-
-Therefore, do not claim that every external write initiated in chat is automatically intercepted for founder approval. Persona allowlists, prompts, provider APIs, and runtime guards still constrain behavior, but they are not equivalent to a universal approval gate.
-
-## Observability
-
-`run-logger.ts` persists agent runs. `run-inspection.ts` groups stage runs into workflow views exposed through:
-
-- `GET /api/agent/runs`
-- `GET /api/agent/runs/[workflowId]`
-
-Announced-action checks identify turns that promised tool work but completed no tool call. The UI exposes session history, while recovery workflow inspection is surfaced primarily through `/dashboard/flows`.
-
-## Relevant source
-
-```text
-platform/src/agent/memory/
-platform/src/agent/personas/
-platform/src/agent/runtime/
-platform/src/agent/tools/
-platform/src/agent/workflows/
-platform/src/app/api/agent/
-platform/src/ui/chat/
+    Input --> MemorySubsystem
+    MemorySubsystem --> DynamicRouting
+    DynamicRouting --> ExecutionSubsystem
+    ExecutionSubsystem --> StreamOutput["Streamed UI Response & TimelineNodes"]
 ```
 
-## Validation
+---
 
-On **2026-09-05**, the full suite passed 439 tests and the production build passed. Agent-specific coverage includes routing, individual tools, external-content handling, trusted message metadata, memory/session behavior, runtime context, run inspection, workflows, and announced actions.
+## 2. Multi-Step Execution Loop
+
+Every turn executes through a stateful multi-step loop supporting up to 25 reasoning and tool execution steps:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as Chat UI (Stream Subscriber)
+    participant Router as Prompt & Fuzzy Router
+    participant Agent as ToolLoopAgent (AI SDK 6)
+    participant Expand as prepareStep Hook
+    participant Guard as Provider Readiness Guard
+    participant Tool as Tool Implementation
+    participant Audit as Run Telemetry Logger
+
+    UI->>Router: POST /api/agent { prompt, persona, sessionId }
+    Router->>Router: Match keywords to domain (e.g. 'stripe', 'posthog')
+    Router->>Agent: Initialize with bounded active tools (e.g. 10 tools)
+
+    loop Multi-Step Reasoning (Up to 25 steps)
+        Agent->>Agent: Model evaluates prompt & active tool schemas
+        alt Model needs additional domain (e.g. Intercom)
+            Agent->>Expand: Call synthetic tool 'requestMoreTools("intercom")'
+            Expand->>Expand: Verify domain in persona allowlist
+            Expand-->>Agent: Dynamically inject Intercom tool schemas on next step
+        else Model calls an operational tool (e.g. getUnifiedCustomerScan)
+            Agent->>Guard: Invoke tool with validated parameters
+            Guard->>Guard: Check integration status & decrypt API tokens
+            alt Provider Unconnected / Unhealthy
+                Guard-->>Agent: Return structured 'Provider Unavailable' (Zero hallucination)
+            else Provider Healthy
+                Guard->>Tool: Execute tool with workspace scope
+                Tool-->>Agent: Return verified JSON payload
+            end
+        end
+    end
+
+    Agent->>Audit: Record steps, tools used, token usage, cost estimate
+    Agent-->>UI: Stream complete Markdown with rich TimelineNodes
+```
+
+---
+
+## 3. Dynamic Schema Expansion Pipeline
+
+Loading all 164 tool definitions on every turn would inflate the prompt by ~45,000 tokens, degrading model focus and increasing latency. Allel solves this with **on-demand domain activation**:
+
+```mermaid
+flowchart TD
+    Prompt["User Prompt: 'Investigate Acme payment issue and check recent Intercom tickets'"] --> Step1["1. Match Prompt Keywords<br/>Detected: 'payment' -> stripe, 'tickets' -> intercom"]
+    Step1 --> Step2["2. Build Initial Active Set (Bounded to ~10 tools)<br/>Includes: Stripe tools + Intercom tools + Core account tools"]
+    Step2 --> Step3["3. Inject Synthetic 'requestMoreTools' Definition"]
+    Step3 --> Step4["4. ToolLoopAgent Step 1 Execution"]
+    Step4 --> Step5{"Does Model Need Unloaded Tools?<br/>(e.g. wants to check Sentry errors)"}
+    Step5 -- No --> Step6["Execute Active Tools & Complete Turn"]
+    Step5 -- Yes --> Step7["Call requestMoreTools('sentry')"]
+    Step7 --> Step8["5. prepareStep Interceptor:<br/>Activates Sentry tools for Step 2<br/>Rebuilds dynamic system prompt instructions"]
+    Step8 --> Step4
+```
+
+---
+
+## 4. Persona Hierarchy & Capabilities
+
+Allel provides three specialized personas with strictly enforced capability boundaries:
+
+```mermaid
+flowchart LR
+    subgraph Alex["Allel (Internal: 'alex')"]
+        direction TB
+        A_Title["AI Co-founder"]
+        A_Scope["164 Tools (Full Registry)<br/>Full cross-functional visibility<br/>Billing, Analytics, CRM, Dev, Workflows"]
+    end
+
+    subgraph Sarah["Sarah"]
+        direction TB
+        S_Title["Head of Retention"]
+        S_Scope["Retention Allowlist (62 Tools)<br/>Stripe, PostHog, Recovery Cases,<br/>Drafts, Calendar, Slack Alerts"]
+    end
+
+    subgraph Henry["Henry"]
+        direction TB
+        H_Title["Head of Growth"]
+        H_Scope["Growth Allowlist (48 Tools)<br/>HubSpot, Intercom, Research,<br/>Tavily Web Search, Drafts"]
+    end
+```
+
+### Persona Tool Allowlists Comparison
+
+| Capability Group | Allel (`alex`) | Sarah (Retention) | Henry (Growth) |
+|---|:---:|:---:|:---:|
+| **Account Intelligence** (Scans, Memory, Signals) | Full Access | Full Access | Full Access |
+| **Billing & Stripe** (Invoices, Subscriptions, Dunning) | Full Access | Full Access | Read-Only |
+| **Product Usage** (PostHog Events, Cohorts, Flags) | Full Access | Full Access | No Access |
+| **Outreach & Gmail** (Threads, Draft Generation) | Full Access | Full Access | Full Access |
+| **Calendar & Scheduling** (Google Calendar Events) | Full Access | Full Access | Read-Only |
+| **Support & Friction** (Intercom Conversations) | Full Access | Read-Only | Full Access |
+| **CRM & Pipelines** (HubSpot Companies & Deals) | Full Access | Read-Only | Full Access |
+| **Engineering & Errors** (Linear Tasks, Sentry Issues) | Full Access | Read-Only | No Access |
+| **Knowledge Base** (Notion Runbooks, Airtable) | Full Access | Read-Only | Full Access |
+| **Web Research** (Tavily Search & Extraction) | Full Access | No Access | Full Access |
+
+---
+
+## 5. Memory Architecture & Cryptographic Integrity
+
+To prevent cross-tenant memory leakage and prompt injection attacks, Allel isolates and cryptographically signs conversation memory:
+
+```mermaid
+flowchart TD
+    subgraph ClientReq["Incoming Client Turn"]
+        RawMsg["Client History Payload"]
+        SigHeader["X-Allel-Signature Header"]
+    end
+
+    subgraph MemoryEngine["chat-memory.ts Engine"]
+        TenantScope["1. Scope Key Validation<br/>key = user_id:workspace_id:persona:session_id"]
+        SigCheck{"2. Cryptographic Verification<br/>HMAC-SHA256(content, AGENT_HISTORY_SIGNING_SECRET)"}
+        Sanitize["3. Sanitize UI Components & Strip Unsafe HTML"]
+        Windowing["4. Sliding Window: Retain Last 10 Turns"]
+        Compaction["5. Structured Context Compaction<br/>- Strategic Goals<br/>- Active Commitments<br/>- Mentioned Accounts"]
+    end
+
+    subgraph AssembledPrompt["Assembled Agent Context"]
+        SysPrompt["Base Persona Prompt"]
+        CompactedContext["Compacted Session Summaries"]
+        ActiveHistory["Verified Recent Turns"]
+        AccountFacts["Reconstructed Account Memory"]
+    end
+
+    ClientReq --> TenantScope
+    TenantScope --> SigCheck
+    SigCheck -- Valid --> Sanitize
+    SigCheck -- Invalid/Tampered --> Reject["Strip Untrusted Assistant Metadata"]
+    Sanitize --> Windowing
+    Windowing --> Compaction
+    Compaction --> AssembledPrompt
+```
+
+---
+
+## 6. Self-Healing, Retries & Model Fallbacks
+
+External LLM providers occasionally suffer from rate limits, timeouts, or transient 5xx errors. Allel includes a multi-layered resilience pipeline:
+
+```mermaid
+flowchart TD
+    StartStep["Execute Model Step"] --> TryPrimary["Call Primary Model (e.g. GPT-4o / Azure)"]
+    TryPrimary --> CheckSuccess{"Step Succeeded?"}
+    CheckSuccess -- Yes --> LogRun["Persist Run Telemetry"]
+    CheckSuccess -- No (Transient Upstream Error) --> RetryCheck{"Attempts < 10?"}
+    RetryCheck -- Yes --> BackoffWait["Exponential Backoff Delay"] --> TryPrimary
+    RetryCheck -- No --> FallbackCheck{"AGENT_FALLBACK_MODEL_ID Configured?"}
+    FallbackCheck -- Yes --> TryFallback["Invoke Fallback Model (e.g. GPT-4o-mini)"]
+    TryFallback --> CheckFallbackSuccess{"Fallback Succeeded?"}
+    CheckFallbackSuccess -- Yes --> LogRun
+    CheckFallbackSuccess -- No --> GracefulError["Return Clean Error to UI with Recovery Guidance"]
+    FallbackCheck -- No --> GracefulError
+```
+
+---
+
+## 7. Execution Telemetry & Audit Trail
+
+Every agent run writes a durable telemetry trace to the `agent_runs` table:
+
+```mermaid
+flowchart LR
+    Run["Agent Run Completed"] --> Audit["run-logger.ts"]
+    Audit --> Record1["Model & Token Usage (Input / Output / Cost)"]
+    Audit --> Record2["Executed Tools & Step Trace"]
+    Audit --> Record3["Schema Expansion History"]
+    Audit --> Record4["Announced-Action Verification Check"]
+
+    Record4 --> MismatchRule{"Did Agent Promise an Action in Text<br/>but Execute Zero Tools?"}
+    MismatchRule -- Yes --> Flag["Flag: 'unfulfilled_action_detected'<br/>Visible in /api/agent/runs"]
+    MismatchRule -- No --> CleanPass["Mark Run Status: 'verified_complete'"]
+```

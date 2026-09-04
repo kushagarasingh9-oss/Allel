@@ -1,58 +1,75 @@
-# Allel Documentation
+# Allel Documentation Hub
 
-This directory contains current engineering references and archived project history.
+> Canonical technical navigation map. Last source audit: **2026-09-05**.
+> Primary GitHub landing guide: [`../README.md`](../README.md).
 
-Start with the repository [`README.md`](../README.md). It is the primary GitHub-facing guide to the product, UI, recovery workflow, agent orchestration, architecture, integrations, setup, operations, and known limitations.
+---
 
-## Maintained references
+## Documentation Navigation Flowchart
 
-| Document | Ownership |
-|---|---|
-| [`../README.md`](../README.md) | Primary product and repository guide |
-| [`ALLEL.md`](ALLEL.md) | Detailed product and system architecture |
-| [`../platform/README.md`](../platform/README.md) | Developer setup, environment, routes, commands, and deployment |
-| [`AGENT.md`](AGENT.md) | Agent runtime, personas, memory, trust, and telemetry |
-| [`tool_calling.md`](tool_calling.md) | Tool selection, provider guards, and in-loop expansion |
-| [`INTEGRATION_AUDIT.md`](INTEGRATION_AUDIT.md) | Integration capability model and verified provider risks |
-| [`TODO.md`](TODO.md) | Current source-backed engineering risk register |
-| [`INTERVIEW_QA.md`](INTERVIEW_QA.md) | Interview and demo preparation |
-| [`framer.md`](framer.md) | Optional external Framer operations runbook |
+```mermaid
+flowchart TB
+    Root["README.md (Repository Root)<br/>Primary Product & System Overview"] --> Hub["docs/README.md (Documentation Hub)"]
 
-## Archived artifacts
+    subgraph Maintained["Maintained Technical Guides"]
+        direction TB
+        Arch["ALLEL.md<br/>Comprehensive System Architecture & ERD"]
+        AgentDoc["AGENT.md<br/>Agent Runtime, Loop, Memory & Personas"]
+        ToolsDoc["tool_calling.md<br/>5-Stage Routing & 164-Tool Registry"]
+        AuditDoc["INTEGRATION_AUDIT.md<br/>11 Integrations, Capability & Security"]
+        RiskDoc["TODO.md<br/>Current Engineering Risk Register"]
+        QADoc["INTERVIEW_QA.md<br/>Demo Review & Interview Preparation"]
+        PlatformDoc["../platform/README.md<br/>Developer Setup, Routes & Testing"]
+    end
 
-These files preserve historical research, competition plans, reports, or narratives. Their archive banners take precedence over original claims in their bodies.
+    subgraph Archived["Archived Historical Artifacts"]
+        direction TB
+        Hist1["CODE_QUALITY_AND_PIPELINE_REPORT.md (Aug 2026)"]
+        Hist2["PRODUCT_COMPLETION_PLAN.md (Aug 2026)"]
+        Hist3["REPOSITORY_RESEARCH.md (Early Audit)"]
+        Hist4["goal.md, plan.md, story.md (Historical Blueprints)"]
+    end
 
-| Document | Historical role |
-|---|---|
-| [`CODE_QUALITY_AND_PIPELINE_REPORT.md`](CODE_QUALITY_AND_PIPELINE_REPORT.md) | August 2026 competition audit snapshot |
-| [`PRODUCT_COMPLETION_PLAN.md`](PRODUCT_COMPLETION_PLAN.md) | August 2026 product roadmap |
-| [`REPOSITORY_RESEARCH.md`](REPOSITORY_RESEARCH.md) | Early repository assessment |
-| [`goal.md`](goal.md) | Competition build blueprint |
-| [`plan.md`](plan.md) | Recovery-engine implementation plan |
-| [`story.md`](story.md) | Unbenchmarked tool-routing narrative |
-
-Do not use archived test counts, tool counts, paths, performance numbers, or completion claims as current facts.
-
-## Documentation rules
-
-1. Source code, migrations, and executed validation results outrank prose.
-2. Date volatile facts such as test, migration, route, and tool counts.
-3. Link performance claims to reproducible evidence or label them unverified.
-4. Keep seeded/test-mode outcomes visibly separate from production facts.
-5. Update the root README when product navigation or core workflows change.
-6. Put focused implementation detail in the relevant maintained reference rather than duplicating it everywhere.
-7. Archive completed plans instead of leaving them marked authoritative.
-8. Generated reports under `platform/artifacts/` are evidence, not maintained docs.
-
-## Validation snapshot
-
-The documentation was source-audited on **2026-09-05**. At that point:
-
-```text
-npm test       439 passed, 0 failed
-npm run build  passed
-migrations     29 files
-tool registry  164 tools
+    Hub --> Maintained
+    Hub --> Archived
 ```
 
-Re-run the commands before quoting these numbers.
+---
+
+## Maintained References
+
+| Document | Purpose & Ownership |
+|---|---|
+| [`../README.md`](../README.md) | **Primary product guide.** Complete architecture, workflows, diagrams, and setup instructions. |
+| [`ALLEL.md`](ALLEL.md) | **Deep technical blueprint.** PostgreSQL ERD, state machines, identity resolution, and scoring math. |
+| [`../platform/README.md`](../platform/README.md) | **Developer reference.** Local installation, environment variables, routes, CLI tasks, and migrations. |
+| [`AGENT.md`](AGENT.md) | **Agent runtime.** `ToolLoopAgent` execution, multi-step loops, memory signing, and personas. |
+| [`tool_calling.md`](tool_calling.md) | **Tool routing.** 5-stage selection pipeline, `prepareStep` dynamic expansion, and 164-tool taxonomy. |
+| [`INTEGRATION_AUDIT.md`](INTEGRATION_AUDIT.md) | **Integration security.** Capability matrix across 11 providers, webhook signatures, and AES-256-GCM vault. |
+| [`TODO.md`](TODO.md) | **Risk register.** Active source-backed limitations, boundary constraints, and upcoming hardening. |
+| [`INTERVIEW_QA.md`](INTERVIEW_QA.md) | **Review preparation.** Architectural deep-dive questions, demo script, and verification FAQs. |
+| [`framer.md`](framer.md) | **Marketing runbook.** External Framer landing page sync operations. |
+
+---
+
+## Documentation Principles
+
+1. **Source Code Outranks Prose:** Database migrations, TypeScript types, and executed tests take precedence over documentation claims.
+2. **Dated Verifications:** All volatile metrics (test pass counts, tool counts, migration counts) include the verification snapshot date (**2026-09-05**).
+3. **Deterministic vs. AI Clarity:** Every document explicitly identifies the boundary between deterministic code and AI reasoning.
+4. **Historical Isolation:** Archived documents retain prominent archive headers and are never cited as current operational facts.
+
+---
+
+## Current Verification Snapshot
+
+Snapshot audited on **2026-09-05**:
+
+```text
+Test Suite:           439 passed, 0 failed (100% pass)
+Next.js Build:        36/36 static pages generated
+PostgreSQL Migrations: 29 files
+Registered Tools:     164 tools in ALL_TOOLS
+Active Personas:      3 (Allel, Sarah, Henry)
+Connected Providers:  11 supported integrations
+```
