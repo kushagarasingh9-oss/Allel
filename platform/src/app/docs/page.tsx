@@ -12,6 +12,28 @@ const OVERRIDE_CSS = `
     opacity: 1 !important;
     transform: none !important;
   }
+  * {
+    --framer-appear-opacity: 1 !important;
+  }
+  [style*="opacity: 0"], [style*="opacity:0"], [style*="opacity: 0.001"], [style*="opacity:0.001"] {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
+  [style*="blur"] {
+    filter: none !important;
+  }
+  .framer-1amzxry, .framer-nv9y2n {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+  h1 span, h2 span, h3 span {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
   body, html {
     background-color: #0b0b0a !important;
   }

@@ -3,10 +3,17 @@ import path from 'path';
 
 const ROOT = process.cwd();
 
+function sanitizeFramerHtml(html) {
+  return html
+    .replace(/opacity:\s*0(?:\.001)?/gi, 'opacity:1')
+    .replace(/filter:\s*blur\([^)]+\)/gi, 'filter:none')
+    .replace(/transform:\s*translateY\([0-9]+px\)/gi, 'transform:none').replace(/transform:[^;"']+/gi, 'transform:none');
+}
+
 function extractFramerParts(html) {
   const styles = [...html.matchAll(/<style[\s\S]*?<\/style>/g)].map(m => m[0]).join('\n');
   const mainMatch = html.match(/<div id="main"[\s\S]*?<\/div>(?=\s*<div id="template-overlay">|\s*<script>|\s*<div id="svg-templates")/);
-  let main = mainMatch ? mainMatch[0] : '';
+  let main = mainMatch ? sanitizeFramerHtml(mainMatch[0]) : '';
   const svgMatch = html.match(/<div id="svg-templates"[\s\S]*?<\/div>/);
   const svg = svgMatch ? svgMatch[0] : '';
   return { styles, main, svg };
@@ -60,6 +67,28 @@ const OVERRIDE_CSS = \`
   [data-framer-appear-id] {
     opacity: 1 !important;
     transform: none !important;
+  }
+  * {
+    --framer-appear-opacity: 1 !important;
+  }
+  [style*="opacity: 0"], [style*="opacity:0"], [style*="opacity: 0.001"], [style*="opacity:0.001"] {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
+  [style*="blur"] {
+    filter: none !important;
+  }
+  .framer-1amzxry, .framer-nv9y2n {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+  h1 span, h2 span, h3 span {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+    visibility: visible !important;
   }
   body, html {
     background-color: #0b0b0a !important;
@@ -356,6 +385,28 @@ const OVERRIDE_CSS = \`
     opacity: 1 !important;
     transform: none !important;
   }
+  * {
+    --framer-appear-opacity: 1 !important;
+  }
+  [style*="opacity: 0"], [style*="opacity:0"], [style*="opacity: 0.001"], [style*="opacity:0.001"] {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
+  [style*="blur"] {
+    filter: none !important;
+  }
+  .framer-1amzxry, .framer-nv9y2n {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+  h1 span, h2 span, h3 span {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
   body, html {
     background-color: #0b0b0a !important;
   }
@@ -613,6 +664,28 @@ const OVERRIDE_CSS = \`
     opacity: 1 !important;
     transform: none !important;
   }
+  * {
+    --framer-appear-opacity: 1 !important;
+  }
+  [style*="opacity: 0"], [style*="opacity:0"], [style*="opacity: 0.001"], [style*="opacity:0.001"] {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
+  [style*="blur"] {
+    filter: none !important;
+  }
+  .framer-1amzxry, .framer-nv9y2n {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+  h1 span, h2 span, h3 span {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
   body, html {
     background-color: #0b0b0a !important;
   }
@@ -868,6 +941,28 @@ const OVERRIDE_CSS = \`
     opacity: 1 !important;
     transform: none !important;
   }
+  * {
+    --framer-appear-opacity: 1 !important;
+  }
+  [style*="opacity: 0"], [style*="opacity:0"], [style*="opacity: 0.001"], [style*="opacity:0.001"] {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
+  [style*="blur"] {
+    filter: none !important;
+  }
+  .framer-1amzxry, .framer-nv9y2n {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+  h1 span, h2 span, h3 span {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
   body, html {
     background-color: #0b0b0a !important;
   }
@@ -1058,6 +1153,28 @@ const OVERRIDE_CSS = \`
   [data-framer-appear-id] {
     opacity: 1 !important;
     transform: none !important;
+  }
+  * {
+    --framer-appear-opacity: 1 !important;
+  }
+  [style*="opacity: 0"], [style*="opacity:0"], [style*="opacity: 0.001"], [style*="opacity:0.001"] {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
+  [style*="blur"] {
+    filter: none !important;
+  }
+  .framer-1amzxry, .framer-nv9y2n {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+  h1 span, h2 span, h3 span {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+    visibility: visible !important;
   }
   body, html {
     background-color: #0b0b0a !important;
@@ -1339,6 +1456,28 @@ const OVERRIDE_CSS = \`
   [data-framer-appear-id] {
     opacity: 1 !important;
     transform: none !important;
+  }
+  * {
+    --framer-appear-opacity: 1 !important;
+  }
+  [style*="opacity: 0"], [style*="opacity:0"], [style*="opacity: 0.001"], [style*="opacity:0.001"] {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
+  [style*="blur"] {
+    filter: none !important;
+  }
+  .framer-1amzxry, .framer-nv9y2n {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+  h1 span, h2 span, h3 span {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+    visibility: visible !important;
   }
   body, html {
     background-color: #0b0b0a !important;
