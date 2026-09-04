@@ -116,10 +116,9 @@ export default function BriefPage() {
             alt="Allel"
             className="w-4 h-4 object-contain shrink-0"
           />
-          <h1 className="text-[17px] font-medium tracking-tight text-white">Brief</h1>
-          <span className="text-[13px] font-medium text-zinc-500 ml-2 px-2 py-0.5 rounded bg-white/[0.04]">
-            Daily Brief
-          </span>
+          <h1 className="text-[17px] font-medium tracking-tight">
+            <span className="brief-shimmer-text">Brief</span>
+          </h1>
         </div>
 
         <div className="flex items-center gap-2">
