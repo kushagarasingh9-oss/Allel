@@ -2094,31 +2094,110 @@ export const createRescueDiscountTool = tool({
 
 export const approveDraft = tool({
   description:
-    'Approve a pending email draft, changing its status to "ready_to_send". Use this when the founder confirms a draft is good to go. Requires the draft ID from getExistingDrafts.',
+    'Approve a pending email draft, changing its status to "ready_to_send". Use this when the founder confirms a draft is good to go, approves an outreach email, or asks to approve it. Provide draftId, or accountName/accountId to automatically locate the draft.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    draftId: z.string().uuid().describe('The draft UUID from getExistingDrafts'),
+    draftId: z.string().uuid().optional().describe('The draft UUID (optional if accountName or accountId is provided)'),
+    accountName: z.string().optional().describe('The customer account name (e.g. "Apex MultiRail") to find the draft for'),
+    accountId: z.string().uuid().optional().describe('The customer account UUID to find the draft for'),
   }),
-  execute: async ({ workspaceId, draftId }) => {
+  execute: async ({ workspaceId, draftId, accountName, accountId }) => {
     const supabase = createServiceClient()
     try {
+      let targetDraftId = draftId
+
+      if (!targetDraftId) {
+        let resolvedAccountId = accountId
+        if (!resolvedAccountId && accountName) {
+          const trimmed = accountName.trim()
+          const { data: acc } = await supabase
+            .from('customer_accounts')
+            .select('id')
+            .eq('workspace_id', workspaceId)
+            .ilike('name', `%${trimmed}%`)
+            .limit(1)
+            .maybeSingle()
+
+          if (acc?.id) {
+            resolvedAccountId = acc.id
+          } else {
+            const { data: contact } = await supabase
+              .from('account_contacts')
+              .select('customer_account_id')
+              .eq('workspace_id', workspaceId)
+              .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%`)
+              .limit(1)
+              .maybeSingle()
+
+            if (contact?.customer_account_id) {
+              resolvedAccountId = contact.customer_account_id
+            }
+          }
+        }
+
+        if (resolvedAccountId) {
+          const { data: d } = await supabase
+            .from('follow_up_drafts')
+            .select('id')
+            .eq('customer_account_id', resolvedAccountId)
+            .in('status', ['needs_review', 'ready_to_send'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          targetDraftId = d?.id
+        }
+
+        // Fallback: check most recent pending draft in the workspace
+        if (!targetDraftId) {
+          const { data: fallbackDraft } = await supabase
+            .from('follow_up_drafts')
+            .select('id')
+            .eq('workspace_id', workspaceId)
+            .in('status', ['needs_review', 'ready_to_send'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          targetDraftId = fallbackDraft?.id
+        }
+      }
+
+      if (!targetDraftId) {
+        return { error: 'Could not find a pending draft to approve. Please specify draftId or accountName.' }
+      }
+
       const result = await approveDraftForActor({
         supabase,
-        draftId,
+        draftId: targetDraftId,
         access: { kind: 'workspace', workspaceId },
-        actor: 'agent',
-        source: 'agent_tool',
+        actor: 'founder',
+        source: 'agent_chat_directive',
       })
 
       if (result.skipped) {
-        return { skipped: true, reason: 'Draft is already approved' }
+        return { skipped: true, reason: 'Draft is already approved', draftId: targetDraftId }
+      }
+
+      // Update linked recovery case status to monitoring if present
+      const { data: draftRecord } = await supabase
+        .from('follow_up_drafts')
+        .select('recovery_case_id')
+        .eq('id', targetDraftId)
+        .maybeSingle()
+
+      if (draftRecord?.recovery_case_id) {
+        await supabase
+          .from('recovery_cases')
+          .update({ status: 'monitoring', updated_at: new Date().toISOString() })
+          .eq('id', draftRecord.recovery_case_id)
       }
 
       return {
         success: true,
-        draftId,
+        draftId: targetDraftId,
         subject: result.subject,
         newStatus: result.status,
+        message: `Approved outreach draft "${result.subject}" on founder directive. Status is now ready_to_send.`,
       }
     } catch (error) {
       return {
@@ -2742,21 +2821,124 @@ export const composeNewEmail = tool({
 
 export const sendApprovedDraft = tool({
   description:
-    'Send an approved follow-up draft via Gmail. The draft must already be in "ready_to_send" status (use approveDraft first). This fetches the draft content and contact email, then sends it via Gmail. Use this when the founder says "send it" after approving a draft.',
+    'Approve and send a follow-up outreach email draft via Gmail upon founder command (e.g. "send it", "send that mail to Rohan", "sent him that mail", "dispatch draft"). Provide draftId, or accountName/accountId to automatically locate the draft. If the draft is in "needs_review", it is automatically approved and sent.',
   inputSchema: z.object({
     workspaceId: z.string().describe('The workspace ID'),
-    draftId: z.string().uuid().describe('The draft UUID (must be in ready_to_send status)'),
+    draftId: z.string().uuid().optional().describe('The draft UUID (optional if accountName or accountId is provided)'),
+    accountName: z.string().optional().describe('The customer account name or contact name (e.g. "Apex MultiRail" or "Rohan") to find the draft for'),
+    accountId: z.string().uuid().optional().describe('The customer account UUID to find the draft for'),
   }),
-  execute: async ({ workspaceId, draftId }) => {
+  execute: async ({ workspaceId, draftId, accountName, accountId }) => {
     const supabase = createServiceClient()
     try {
+      let targetDraftId = draftId
+
+      if (!targetDraftId) {
+        let resolvedAccountId = accountId
+
+        if (!resolvedAccountId && accountName) {
+          const trimmed = accountName.trim()
+          // 1. Match customer accounts by name
+          const { data: acc } = await supabase
+            .from('customer_accounts')
+            .select('id')
+            .eq('workspace_id', workspaceId)
+            .ilike('name', `%${trimmed}%`)
+            .limit(1)
+            .maybeSingle()
+
+          if (acc?.id) {
+            resolvedAccountId = acc.id
+          } else {
+            // 2. Match account contacts by name or email
+            const { data: contact } = await supabase
+              .from('account_contacts')
+              .select('customer_account_id')
+              .eq('workspace_id', workspaceId)
+              .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%`)
+              .limit(1)
+              .maybeSingle()
+
+            if (contact?.customer_account_id) {
+              resolvedAccountId = contact.customer_account_id
+            }
+          }
+        }
+
+        if (resolvedAccountId) {
+          const { data: d } = await supabase
+            .from('follow_up_drafts')
+            .select('id')
+            .eq('workspace_id', workspaceId)
+            .eq('customer_account_id', resolvedAccountId)
+            .in('status', ['needs_review', 'ready_to_send'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          targetDraftId = d?.id
+        }
+
+        // 3. Fallback: check most recent pending draft in the workspace
+        if (!targetDraftId) {
+          const { data: fallbackDraft } = await supabase
+            .from('follow_up_drafts')
+            .select('id')
+            .eq('workspace_id', workspaceId)
+            .in('status', ['needs_review', 'ready_to_send'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          targetDraftId = fallbackDraft?.id
+        }
+      }
+
+      if (!targetDraftId) {
+        return { error: 'Could not find a pending draft to send. Please specify draftId or accountName.' }
+      }
+
+      // Check current draft state before sending — if in needs_review or unapproved, auto-approve for founder
+      const { data: currentDraft } = await supabase
+        .from('follow_up_drafts')
+        .select('id, status, approved_at, approved_by_actor, recovery_case_id')
+        .eq('id', targetDraftId)
+        .maybeSingle()
+
+      if (!currentDraft) {
+        return { error: 'Draft not found' }
+      }
+
+      if (currentDraft.status === 'sent') {
+        return { success: true, draftStatus: 'sent', message: 'Draft was already sent.' }
+      }
+
+      if (currentDraft.status === 'needs_review' || !currentDraft.approved_at) {
+        await approveDraftForActor({
+          supabase,
+          draftId: targetDraftId,
+          access: { kind: 'workspace', workspaceId },
+          actor: 'founder',
+          source: 'agent_chat_directive',
+        })
+      }
+
       const result = await sendDraftForActor({
         supabase,
-        draftId,
+        draftId: targetDraftId,
         access: { kind: 'workspace', workspaceId },
-        actor: 'agent',
-        source: 'agent_tool',
+        actor: 'founder',
+        source: 'agent_chat_directive',
       })
+
+      // If linked to a recovery case in draft_ready, advance case to monitoring
+      if (currentDraft.recovery_case_id) {
+        await supabase
+          .from('recovery_cases')
+          .update({ status: 'monitoring', updated_at: new Date().toISOString() })
+          .eq('id', currentDraft.recovery_case_id)
+          .eq('status', 'draft_ready')
+      }
 
       return {
         success: true,
@@ -2764,7 +2946,7 @@ export const sendApprovedDraft = tool({
         to: result.recipient,
         subject: result.subject,
         draftStatus: result.status,
-        message: `Draft sent to ${result.recipient}`,
+        message: `DONE! Email sent to ${result.recipient}.`,
       }
     } catch (error) {
       return {

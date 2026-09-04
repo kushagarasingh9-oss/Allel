@@ -18,8 +18,6 @@ type TurnContextOptions = {
 }
 
 const HIDDEN_HUMAN_APPROVAL_ACTIONS = [
-  'approveDraft',
-  'sendApprovedDraft',
   'createBriefItem',
   'updateBriefSummary',
 ] as const
@@ -61,13 +59,12 @@ ${toolSurface}
 
 ${expansionDirectives}
 
-Do not attempt hidden human-approval or deterministic-brief tools:
+Do not attempt hidden deterministic-brief tools:
 ${HIDDEN_HUMAN_APPROVAL_ACTIONS.join(', ')}
 
 Current approval model:
-- You may create, update, or reject drafts only when those tools are exposed.
-- You cannot approve or send stored follow-up drafts from the agent loop.
-- Founder approval and final sending happen outside the agent tool loop through the draft review backend/UI.
+- You may create, update, or reject drafts when those tools are exposed.
+- Founder approval and final sending happen outside the agent tool loop through the draft review backend/UI, unless the founder explicitly directs you in chat to approveDraft or sendApprovedDraft.
 - You cannot directly create founder brief items or brief summaries. Live state changes first; deterministic brief generation rebuilds the brief.
 
 Operator loop:

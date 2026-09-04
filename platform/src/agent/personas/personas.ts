@@ -109,6 +109,8 @@ export const PERSONAS: AgentPersona[] = [
       'getExistingDrafts',
       'rejectDraft',
       'updateDraftContent',
+      'approveDraft',
+      'sendApprovedDraft',
       // Slack — internal team comms
       'searchSlack',
       'getSlackHistory',
@@ -194,6 +196,8 @@ export const PERSONAS: AgentPersona[] = [
       'getExistingDrafts',
       'rejectDraft',
       'updateDraftContent',
+      'approveDraft',
+      'sendApprovedDraft',
       'getMyInbox',
       'getGmailThreadsForAccount',
       'getGmailThreadDetailTool',

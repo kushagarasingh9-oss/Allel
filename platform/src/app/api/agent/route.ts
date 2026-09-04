@@ -582,6 +582,18 @@ The founder's message ("${latestUserText}") is an ongoing action for "${activeCu
     }
   }
 
+  const isSendDirective =
+    /\b(send|sent|dispatch|mail|shoot|fire)\b/i.test(latestText) &&
+    /\b(him|her|them|it|mail|email|draft|that|approved?|rohan|apex)\b/i.test(latestText)
+
+  if (isSendDirective) {
+    activeTurnInstruction += `\n\nCRITICAL FOUNDER DIRECTIVE - SEND DRAFT:
+The founder is commanding you to SEND/DISPATCH an outreach email draft right now (e.g. "sent him that mail", "send that mail", "send it", "mail Rohan").
+- Treat this as an imperative COMMAND to execute right now via the "sendApprovedDraft" tool. NEVER treat it as a past-tense statement or confirmation that the founder sent it externally!
+- Execute "sendApprovedDraft" now${activeCustomerName ? ` for "${activeCustomerName}"` : ''}. If the draft is in "needs_review", "sendApprovedDraft" will automatically approve and send it.
+- ABSOLUTE BAN: NEVER reply claiming that the email is out or sent without actually calling the send tool and getting a successful response!`
+  }
+
   const combinedSystemPrompt = [
     workspaceSystemContent,
     emojiToneContent,

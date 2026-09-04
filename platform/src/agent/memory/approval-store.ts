@@ -74,6 +74,8 @@ export type ApprovalDecision = {
 const TOOL_ACTION_SUMMARIES: Partial<Record<AgentToolName, string>> = {
   sendGmailReply: 'Send a Gmail reply',
   composeNewEmail: 'Compose and send a new email',
+  approveDraft: 'Approve a follow-up draft',
+  sendApprovedDraft: 'Send an approved follow-up draft',
   sendSlackMessage: 'Send a Slack message',
   editSlackMessage: 'Edit a Slack message',
   deleteSlackMsg: 'Delete a Slack message',

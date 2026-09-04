@@ -161,8 +161,14 @@ export async function validateSendRecipient(
       ((contact.external_ids as Record<string, unknown>).stripe_customer_id ||
         (contact.external_ids as Record<string, unknown>).stripe_subscription_id)
   );
+  const hasPrimaryContactEvidence = Boolean(
+    contact.is_primary &&
+      contact.external_ids &&
+      typeof contact.external_ids === 'object' &&
+      Object.keys(contact.external_ids as Record<string, unknown>).length > 0
+  );
 
-  if (!hasDirectVerifiedIdentity && !hasAuthoritativeBillingEvidence) {
+  if (!hasDirectVerifiedIdentity && !hasAuthoritativeBillingEvidence && !hasPrimaryContactEvidence) {
     return {
       valid: false,
       reason: `Recipient email "${email}" lacks verified provider identity evidence for account ${params.customerAccountId}`,

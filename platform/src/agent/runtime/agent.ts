@@ -63,6 +63,8 @@ import {
   // Write / Modify / Delete tools
   rejectDraft,
   updateDraftContent,
+  approveDraft,
+  sendApprovedDraft,
   resolveSignal,
   updateAccountInfo,
   addAccountNote,
@@ -257,6 +259,8 @@ export const ALL_TOOLS = {
   // Modify / Delete tools
   rejectDraft,
   updateDraftContent,
+  approveDraft,
+  sendApprovedDraft,
   resolveSignal,
   updateAccountInfo,
   addAccountNote,
@@ -455,6 +459,7 @@ const INTEGRATION_PROVIDER_BY_TOOL: Partial<Record<AgentToolName, string>> = {
   getGmailThreadDetailTool: 'gmail',
   sendGmailReply: 'gmail',
   composeNewEmail: 'gmail',
+  sendApprovedDraft: 'gmail',
 
   deliverSlackBriefTool: 'slack',
   sendSlackMessage: 'slack',
@@ -673,6 +678,8 @@ export const TOOL_DOMAIN_GROUPS: ReadonlyArray<ToolDomainGroup> = [
       'generateFollowUpDraft',
       'updateDraftContent',
       'rejectDraft',
+      'approveDraft',
+      'sendApprovedDraft',
     ],
   },
   {
@@ -736,6 +743,8 @@ export const TOOL_DOMAIN_GROUPS: ReadonlyArray<ToolDomainGroup> = [
       'listRecoveryCasesBySeverity',
       'suppressRecoveryCase',
       'updateRecoveryCaseNote',
+      'approveDraft',
+      'sendApprovedDraft',
       // Web research — agent can look up customer context when analyzing a case
       'webSearchTool',
       'webExtractTool',
@@ -1018,9 +1027,9 @@ export function scoreDomainMatch(
  */
 const DOMAIN_COMPANIONS: Partial<Record<ToolDomain, ToolDomain[]>> = {
   stripe: ['recovery', 'posthog'],
-  recovery: ['stripe', 'posthog'],
+  recovery: ['stripe', 'posthog', 'gmail'],
   posthog: ['recovery'],
-  gmail: [],
+  gmail: ['recovery'],
   slack: [],
 }
 
@@ -1079,8 +1088,8 @@ const INTENT_CORE_TOOLS: Array<{
       tools: ['getUnifiedCustomerScan', 'getUnifiedFleetScan', 'getRecentSignals'],
     },
     {
-      verbs: /\b(send|email|message|notify|draft|compose|reply)\b/i,
-      tools: ['generateFollowUpDraft', 'getMyInbox'],
+      verbs: /\b(send|sent|sending|dispatched?|email|emails|mail|mails|message|notify|draft|drafts|compose|reply|replies)\b/i,
+      tools: ['sendApprovedDraft', 'approveDraft', 'composeNewEmail', 'generateFollowUpDraft', 'getMyInbox'],
     },
     {
       verbs: /\b(recover|recovery|case|cases|risk|churn|at.risk|pipeline)\b/i,
