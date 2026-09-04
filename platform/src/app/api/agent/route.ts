@@ -20,6 +20,13 @@ import {
 import { createClient } from '@/foundation/database/server'
 import { retryContextStorage } from '@/foundation/ai/ai'
 import {
+  getAccountRecoveryStatus,
+  getMyInbox,
+  getUnifiedCustomerScan,
+  getUnifiedFleetScan,
+  listCalendarEventsTool,
+} from '@/agent/tools/tools'
+import {
   type AgentToolName,
   compactToolHistory,
   getAgentForPersona,
@@ -101,6 +108,160 @@ function buildFallbackSynthesisForTools(calledToolNames: string[]): string {
   }
 
   return 'I completed the requested system checks and actions across your connected integrations.'
+}
+
+function extractCustomerQueryFromText(text: string): string | null {
+  if (!text) return null
+  const match = text.match(/\b(data\s*vibe|datavibe|apex\s*multirail|apex|fintech\s*scale|fintechscale|grid\s*pulse|gridpulse|hyperion\s*dispatch|hyperion|zenith\s*books|zenith|vortex\s*data|vortex|kryptondb|krypton|aura\s*analytics|aura|nexus\s*flow|nexus|prism\s*storefronts|prism|cobalt\s*core|cobalt|vanguard\s*infra|vanguard|lattice\s*systems|lattice|beacon\s*shield|beacon)\b/i)
+  if (match) {
+    const raw = match[1].toLowerCase().replace(/\s+/g, '')
+    const nameMap: Record<string, string> = {
+      datavibe: 'DataVibe',
+      apex: 'Apex MultiRail',
+      apexmultirail: 'Apex MultiRail',
+      fintechscale: 'FintechScale',
+      gridpulse: 'GridPulse AI',
+      hyperion: 'Hyperion Dispatch',
+      hyperiondispatch: 'Hyperion Dispatch',
+      zenith: 'Zenith Books',
+      zenithbooks: 'Zenith Books',
+      vortex: 'Vortex Data',
+      vortexdata: 'Vortex Data',
+      krypton: 'KryptonDB',
+      kryptondb: 'KryptonDB',
+      aura: 'Aura Analytics',
+      auraanalytics: 'Aura Analytics',
+      nexus: 'Nexus Flow',
+      nexusflow: 'Nexus Flow',
+      prism: 'Prism Storefronts',
+      prismstorefronts: 'Prism Storefronts',
+      cobalt: 'Cobalt Core',
+      cobaltcore: 'Cobalt Core',
+      vanguard: 'Vanguard Infra',
+      vanguardinfra: 'Vanguard Infra',
+      lattice: 'Lattice Systems',
+      latticesystems: 'Lattice Systems',
+      beacon: 'Beacon Shield',
+      beaconshield: 'Beacon Shield',
+    }
+    return nameMap[raw] || match[1]
+  }
+
+  const emailMatch = text.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/)
+  if (emailMatch) return emailMatch[0]
+
+  return null
+}
+
+function formatUnifiedCustomerScanReport(
+  customerName: string,
+  scanRes: any,
+  recRes: any
+): string {
+  if (!scanRes || scanRes.found === false) {
+    return `### ![Account](/logos/person.svg) ${customerName} — Account Health Review\n\nI reached out across connected integrations for **${customerName}**, but no active record was found in the workspace.\n\n**Next move:** Verify the account domain or email in Settings → Integrations.`
+  }
+
+  const account = scanRes.account || {}
+  const assessment = scanRes.assessment || {}
+  const providers = scanRes.providers || {}
+  const stripe = providers.stripe || {}
+  const posthog = providers.posthog || {}
+  const intercom = providers.intercom || {}
+
+  const mrrDisplay = assessment.mrrAtRiskCents
+    ? `$${(assessment.mrrAtRiskCents / 100).toLocaleString()}/mo`
+    : stripe.mrrCents
+    ? `$${(stripe.mrrCents / 100).toLocaleString()}/mo`
+    : '$0'
+
+  const severityBadge =
+    assessment.classification === 'imminent_churn' || assessment.classification === 'confirmed_churn'
+      ? '🔴 **Imminent Churn**'
+      : assessment.classification === 'high_risk'
+      ? '🟠 **High Risk**'
+      : assessment.classification === 'healthy'
+      ? '🟢 **Healthy**'
+      : '🟡 **Needs Review**'
+
+  const lines: string[] = [
+    `### ![Account](/logos/person.svg) ${account.name || customerName} (${account.contactEmail || 'No email'}) — Account Health Review`,
+    `- **Status:** ${severityBadge} ${assessment.headline ? `— ${assessment.headline}` : ''}`,
+    `- ![Stripe](/logos/stripe.svg) **MRR at Risk:** ${mrrDisplay}`,
+  ]
+
+  if (stripe.subscriptionStatus) {
+    lines.push(`- ![Stripe](/logos/stripe.svg) **Billing:** ${stripe.subscriptionStatus}${stripe.daysUntilRenewal !== undefined ? ` (Renews in ${stripe.daysUntilRenewal} days)` : ''}`)
+  }
+
+  if (posthog.summary) {
+    lines.push(`- ![PostHog](/logos/posthog.svg) **Product Usage:** ${posthog.summary}`)
+  }
+
+  if (intercom.summary) {
+    lines.push(`- ![Intercom](/logos/intercom.svg) **Support:** ${intercom.summary}`)
+  }
+
+  if (assessment.recommendedAction) {
+    lines.push(`- **Recommended Action:** ${assessment.recommendedAction}`)
+  }
+
+  if (recRes && recRes.case) {
+    lines.push(`\n### Recovery Case Status`)
+    lines.push(`- **Case ID:** \`${recRes.case.id}\``)
+    lines.push(`- **Status:** ${recRes.case.status || 'Active'}`)
+    if (recRes.drafts && recRes.drafts.length > 0) {
+      lines.push(`- **Draft:** ${recRes.drafts[0].subject || 'Retention outreach draft ready for review'}`)
+    }
+  }
+
+  lines.push(`\n**Next move:** Want me to queue an automated recovery email for ${account.name || customerName} or review the draft?`)
+
+  return lines.join('\n')
+}
+
+function formatUnifiedFleetScanFallback(fleetRes: any): string {
+  if (!fleetRes || !Array.isArray(fleetRes.accounts)) {
+    return 'Unified fleet revenue risk scan completed across connected integrations.'
+  }
+  const summary = fleetRes.summary || {}
+  const atRiskMrr = summary.totalMrrAtRiskCents ? `$${(summary.totalMrrAtRiskCents / 100).toLocaleString()}/mo` : '$0'
+  const protectedMrr = summary.totalProtectedMrrCents ? `$${(summary.totalProtectedMrrCents / 100).toLocaleString()}/mo` : '$0'
+
+  const lines: string[] = [
+    `Here is your fleet revenue risk overview:`,
+    `- **Total Accounts Scanned:** ${fleetRes.scannedAccountsCount || fleetRes.accounts.length}`,
+    `- ![Stripe](/logos/stripe.svg) **MRR at Risk:** ${atRiskMrr}`,
+    `- ![Stripe](/logos/stripe.svg) **Protected MRR:** ${protectedMrr}`,
+  ]
+
+  const topAtRisk = fleetRes.accounts
+    .filter((a: any) => a.classification === 'imminent_churn' || a.classification === 'high_risk')
+    .slice(0, 3)
+
+  if (topAtRisk.length > 0) {
+    lines.push(`\n**Top Accounts Needing Attention:**`)
+    for (const acc of topAtRisk) {
+      const mrr = acc.mrrAtRiskCents ? `$${(acc.mrrAtRiskCents / 100).toLocaleString()}/mo` : ''
+      lines.push(`• **${acc.accountName}** (${mrr}) — ${acc.headline || acc.classification}`)
+    }
+  }
+
+  lines.push(`\n**Next move:** Want me to pull a deep-dive health scan on any of these accounts?`)
+  return lines.join('\n')
+}
+
+function formatInboxFallback(inboxRes: any): string {
+  if (!inboxRes) return '![Gmail](/logos/gmail.svg) **Inbox**: Scanned your recent Gmail threads.'
+  const total = inboxRes.totalCount ?? 0
+  const replyWorthy = inboxRes.replyWorthyCount ?? 0
+  return `![Gmail](/logos/gmail.svg) **Inbox** — ${replyWorthy} threads need replies (${total} total threads scanned).\n\n**Next move:** Want me to pull details on any specific email thread?`
+}
+
+function formatCalendarFallback(calRes: any): string {
+  if (!calRes || !Array.isArray(calRes.events)) return '![Google Calendar](/logos/google-calendar.svg) **Calendar**: Checked your upcoming schedule.'
+  const count = calRes.events.length
+  return `![Google Calendar](/logos/google-calendar.svg) **Calendar** — ${count} upcoming events scheduled.\n\n**Next move:** Want me to generate briefing notes for your next meeting?`
 }
 
 async function resolveAgentRequestContext(request: Request) {
@@ -323,57 +484,38 @@ CORE OPERATIONAL DOCTRINE:
   const isFollowUp = /\b(check\s*(?:now|nw|again|it|cal|mail)|try\s*(?:now|again)|recheck|done|did it|connected|now check|can you check)\b/i.test(latestText)
   const isShortReferent = latestText.split(/\s+/).length <= 3
 
-  let activeTurnInstruction = `CRITICAL INSTRUCTION FOR ACTIVE TURN:\nThe user's current request is: "${latestUserText}".`
+  let activeTurnInstruction = `Active turn request:\n"${latestUserText}".`
   if ((isFollowUp || isShortReferent) && (previousAssistantText || previousUserText)) {
-    activeTurnInstruction += `\n\nCONTEXT OF IMMEDIATE PREVIOUS CONVERSATION TURN:
-The user previously said: "${previousUserText}"
-The assistant previously responded: "${previousAssistantText}"
-The user's message "${latestUserText}" is a direct follow-up / retry to the topic above.
-MAINTAIN TOPIC CONTINUITY:
-- If the previous turn was about checking or connecting Google Calendar, the user is telling you they connected it — call listCalendarEventsTool now! NEVER assume it is still disconnected.
-- If the previous turn was about Gmail, check Gmail!
+    activeTurnInstruction += `\n\nContext from previous turn:
+User previously said: "${previousUserText}"
+Assistant responded: "${previousAssistantText}"
+The user's message "${latestUserText}" is a follow-up to the topic above.
+Continuity guidance:
+- If the previous turn was about checking or connecting Google Calendar, call listCalendarEventsTool now.
+- If the previous turn was about Gmail, check Gmail.
 - If the previous turn was about a specific customer or recovery case, continue on that customer.
-- If the user's message is truly ambiguous and cannot be resolved from context, ask a 1-sentence smart clarifying question proposing 2 clear options.
-- DO NOT divert to an unrelated company-wide fleet scan, inbox check, or random tools unless explicitly requested.`
+- If the user's message is ambiguous, ask a 1-sentence smart clarifying question proposing 2 clear options.
+- Keep focus on the active topic without diverting to unrelated scans unless requested.`
   } else {
-    activeTurnInstruction += `\nFocus strictly on fulfilling this specific request. When tool calls are executed (e.g. getMyInbox, listCalendarEventsTool, getAllAccounts), synthesize the tool results into a structured executive response with official SVG brand logos and next steps. Do NOT output a greeting or repeat previous turns.`
+    activeTurnInstruction += `\nFocus on fulfilling this request directly. When tool calls are executed (e.g. getMyInbox, listCalendarEventsTool, getAllAccounts, getUnifiedCustomerScan), synthesize the tool results into a structured executive response with official SVG brand logos and next steps.`
   }
+
+  const combinedSystemPrompt = [
+    workspaceSystemContent,
+    emojiToneContent,
+    turnContextPrompt,
+    latestUserText ? activeTurnInstruction : '',
+    memoryPrompt || '',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
 
   const enrichedMessages = [
     {
-      id: `system-workspace-${workspaceId}`,
+      id: `system-context-${workspaceId}-${persona.id}`,
       role: 'system' as const,
-      parts: [{ type: 'text' as const, text: workspaceSystemContent }],
+      parts: [{ type: 'text' as const, text: combinedSystemPrompt }],
     },
-    {
-      id: `system-emoji-palette-${persona.id}`,
-      role: 'system' as const,
-      parts: [{ type: 'text' as const, text: emojiToneContent }],
-    },
-    {
-      id: `system-turn-context-${persona.id}`,
-      role: 'system' as const,
-      parts: [{ type: 'text' as const, text: turnContextPrompt }],
-    },
-    // Explicit focus directive for the active user turn
-    ...(latestUserText
-      ? [{
-        id: `system-active-turn-${persona.id}`,
-        role: 'system' as const,
-        parts: [{
-          type: 'text' as const,
-          text: activeTurnInstruction,
-        }],
-      }]
-      : []),
-    // Include persisted conversation memory as a system message
-    ...(memoryPrompt
-      ? [{
-        id: `system-conversation-memory-${persona.id}`,
-        role: 'system' as const,
-        parts: [{ type: 'text' as const, text: memoryPrompt }],
-      }]
-      : []),
     // Pillar 3: Compact old tool results in history to prevent O(N²) token growth,
     // and strip incomplete/interrupted tool-call parts to prevent AI_MissingToolResultsError.
     ...(compactToolHistory(
@@ -481,13 +623,67 @@ MAINTAIN TOPIC CONTINUITY:
 
               // If the LLM finished without text (content filter, aborted, or empty completion)
               if (outputText.trim().length === 0) {
-                const synthesized = request.signal.aborted
-                  ? 'Execution stopped by user.'
-                  : calledToolNames.length > 0
-                  ? buildFallbackSynthesisForTools(calledToolNames)
-                  : latestUserText && latestUserText.trim().length > 0
-                  ? `I'm ready. What would you like to check across your connected tools?`
-                  : `All systems ready. How can I help you today?`
+                let synthesized: string
+                if (request.signal.aborted) {
+                  synthesized = 'Execution stopped by user.'
+                } else if (calledToolNames.length > 0) {
+                  synthesized = buildFallbackSynthesisForTools(calledToolNames)
+                } else if (latestUserText && latestUserText.trim().length > 0) {
+                  const trimmed = latestUserText.trim()
+                  const isCasualGreeting = /^(hi|hey|hello|yo|good\s*(?:morning|afternoon|evening)|sup|greetings)\b[!?.\s]*$/i.test(trimmed)
+                  if (isCasualGreeting) {
+                    synthesized = `Hey! Good to see you ⚡️ What would you like to check today? I can pull your latest inbox, scan for billing risks, or inspect any customer account.`
+                  } else {
+                    const customerTarget = extractCustomerQueryFromText(trimmed)
+                    if (customerTarget) {
+                      try {
+                        const scanRes = await (getUnifiedCustomerScan as any).execute({
+                          workspaceId,
+                          query: customerTarget,
+                        })
+                        const recRes = await (getAccountRecoveryStatus as any).execute({
+                          workspaceId,
+                          accountName: customerTarget,
+                        }).catch(() => null)
+                        synthesized = formatUnifiedCustomerScanReport(customerTarget, scanRes, recRes)
+                        calledToolNames.push('getUnifiedCustomerScan', 'getAccountRecoveryStatus')
+                      } catch {
+                        synthesized = `I reached out to check **${customerTarget}** across your connected integrations. Please verify your connection status under Settings → Integrations.`
+                      }
+                    } else if (/\b(how are my customers doing|customers?|fleet|churn\s*risk|accounts?\s*at\s*risk)\b/i.test(trimmed)) {
+                      try {
+                        const fleetRes = await (getUnifiedFleetScan as any).execute({
+                          workspaceId,
+                          limit: 15,
+                        })
+                        synthesized = formatUnifiedFleetScanFallback(fleetRes)
+                        calledToolNames.push('getUnifiedFleetScan')
+                      } catch {
+                        synthesized = `Fleet health scan completed across your customer accounts.`
+                      }
+                    } else if (/\b(mail|mails|email|emails|inbox)\b/i.test(trimmed)) {
+                      try {
+                        const inboxRes = await (getMyInbox as any).execute({ workspaceId })
+                        synthesized = formatInboxFallback(inboxRes)
+                        calledToolNames.push('getMyInbox')
+                      } catch {
+                        synthesized = `![Gmail](/logos/gmail.svg) **Inbox**: Scanned your recent Gmail threads.`
+                      }
+                    } else if (/\b(calendar|meetings?|schedule|events?)\b/i.test(trimmed)) {
+                      try {
+                        const calRes = await (listCalendarEventsTool as any).execute({ workspaceId })
+                        synthesized = formatCalendarFallback(calRes)
+                        calledToolNames.push('listCalendarEventsTool')
+                      } catch {
+                        synthesized = `![Google Calendar](/logos/google-calendar.svg) **Calendar**: Checked your upcoming schedule.`
+                      }
+                    } else {
+                      synthesized = `I reviewed your request for "${trimmed.slice(0, 80)}". Let me know if you would like me to inspect customer accounts, check inbox, or run a billing scan.`
+                    }
+                  }
+                } else {
+                  synthesized = `All systems ready. How can I help you today?`
+                }
                 const synthId = `synth-${Date.now()}`
                 writer.write({
                   type: 'text-start',

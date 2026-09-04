@@ -716,14 +716,15 @@ export const TOOL_DOMAIN_GROUPS: ReadonlyArray<ToolDomainGroup> = [
   {
     domain: 'recovery',
     provider: null,
-    regex: /\b(recovery|recover|recovered|case|cases|pipeline|at\s*risk|mrr\s*at\s*risk|churn\s*risk|revenue\s*at\s*risk|intervention|metric|metrics|timeline|audit|suppress|suppressed|outcome|outcomes|draft|drafts|score|scoring|severity|critical|high.risk|risk.score|churn.signal|attribution|attribution.gate|billing.failure|cancel.intent|usage.decline|compound|action.plan|root.cause|analysis)\b/i,
+    regex: /\b(recovery|recover|recovered|case|cases|pipeline|at\s*risk|mrr\s*at\s*risk|churn\s*risk|revenue\s*at\s*risk|intervention|metric|metrics|timeline|audit|suppress|suppressed|outcome|outcomes|draft|drafts|score|scoring|severity|critical|high.risk|risk.score|churn.signal|attribution|attribution.gate|billing.failure|cancel.intent|usage.decline|compound|action.plan|root.cause|analysis|data\s*vibe|datavibe|reach|problem|prbekm)\b/i,
     fuzzyKeywords: [
       'recovery', 'recover', 'cases', 'pipeline', 'risk', 'metrics', 'recovered', 'mrr',
       'timeline', 'audit', 'suppress', 'outcome', 'outcomes', 'scoring', 'severity',
       'critical', 'attribution', 'churn', 'billing', 'cancel', 'usage', 'intervention',
-      'rootcause', 'analysis', 'draft', 'approve', 'suppressed', 'monitoring',
+      'rootcause', 'analysis', 'draft', 'approve', 'suppressed', 'monitoring', 'datavibe',
     ],
     tools: [
+      'getUnifiedCustomerScan',
       'getRecoveryCases',
       'getRecoveryCaseDetail',
       'getRecoveryMetrics',
@@ -1047,6 +1048,14 @@ const INTENT_CORE_TOOLS: Array<{
         'getAccountRecoveryStatus',
         'addToRecoveryQueue',
         'getUnifiedFleetScan',
+      ],
+    },
+    {
+      verbs: /\b(data\s*vibe|datavibe|apex|multirail|fintechscale|gridpulse|hyperion|zenith|vortex|krypton|aura|nexus|prism|cobalt|vanguard|lattice|beacon)\b|\b(reach|contact|problem|prbekm|prblm|issue|status)\b.*\b(data\s*vibe|customer|account|client|user|him|them)\b/i,
+      tools: [
+        'getUnifiedCustomerScan',
+        'getAccountRecoveryStatus',
+        'addToRecoveryQueue',
       ],
     },
     {

@@ -100,16 +100,15 @@ export function buildTurnContextSystemPrompt(options: TurnContextOptions) {
 
   if (options.latestUserText?.trim()) {
     lines.push(
-      `ACTIVE TURN GOAL (Focus and act ONLY on this): "${options.latestUserText
+      `Active request: "${options.latestUserText
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 500)}"`
     )
+    lines.push(
+      'Execution guidance: Focus tool calls on fulfilling this active request. Treat earlier conversation turns as contextual history without re-executing previously finished actions.'
+    )
   }
-
-  lines.push(
-    'CRITICAL EXECUTION RULE: Address and execute tools ONLY for the ACTIVE TURN GOAL above. All earlier user messages in the thread are completed history — do NOT re-execute tools or re-perform tasks from earlier turns.'
-  )
 
   return lines.join('\n')
 }
