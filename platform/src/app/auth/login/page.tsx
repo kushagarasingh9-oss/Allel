@@ -124,7 +124,7 @@ export default function LoginPage() {
             <h2 className="mb-1.5 text-[20px] font-medium text-white tracking-tight">
               Enter OTP
             </h2>
-            <p className="text-[13.5px] leading-relaxed text-[#777] max-w-[340px] mb-6">
+            <p className="text-[13.5px] leading-relaxed text-[#777] max-w-[340px] mb-10">
               Enter the 6-digit code sent to <span className="text-white font-medium">{email}</span>
             </p>
 

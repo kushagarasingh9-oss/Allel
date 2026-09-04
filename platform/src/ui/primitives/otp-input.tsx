@@ -384,23 +384,23 @@ export function OtpInput({
           return (
             <div
               key={i}
-              className={`relative h-[52px] w-[44px] sm:h-[56px] sm:w-[46px] ${gap ? "ml-3 sm:ml-4" : ""}`}
+              className={`relative h-12 w-10 ${gap ? "ml-2" : ""}`}
             >
               <input
                 {...getCellProps(i)}
                 aria-label={`${label}, character ${i + 1} of ${length}`}
                 aria-invalid={error || undefined}
                 aria-describedby={hasStatus ? statusId : undefined}
-                className={`h-full w-full rounded-xl border text-center text-transparent caret-transparent outline-none transition-all duration-200 selection:bg-transparent focus-visible:outline-none disabled:opacity-50 ${
+                className={`h-12 w-10 rounded-[10px] border text-center text-[16px] text-transparent caret-transparent outline-none transition-all duration-150 selection:bg-transparent focus-visible:outline-none disabled:opacity-50 ${
                   error
-                    ? "border-red-500/80 bg-red-950/20 text-red-200 shadow-[0_0_0_1px_rgba(239,68,68,0.3)]"
+                    ? "border-red-500/80 bg-red-950/20 text-red-200"
                     : success
-                      ? "border-emerald-500/80 bg-emerald-950/20 text-emerald-200 shadow-[0_0_0_1px_rgba(16,185,129,0.3)]"
+                      ? "border-emerald-500/80 bg-emerald-950/20 text-emerald-200"
                       : active
-                        ? "border-white bg-[#181818] shadow-[0_0_0_1px_rgba(255,255,255,0.5),0_4px_12px_rgba(0,0,0,0.5)]"
+                        ? "border-blue-500 bg-[#161616] shadow-[0_0_0_1px_rgba(59,130,246,0.5)]"
                         : char
-                          ? "border-white/30 bg-[#141414]"
-                          : "border-white/[0.12] bg-[#0c0c0c] hover:border-white/25 shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)]"
+                          ? "border-white/20 bg-[#141414]"
+                          : "border-white/10 bg-[#0e0e0e] shadow-[inset_0_1px_2px_rgba(0,0,0,0.45)]"
                 }`}
               />
 
@@ -415,16 +415,16 @@ export function OtpInput({
                       initial={
                         reduced
                           ? false
-                          : { opacity: 0, scale: 0.95, y: 8, filter: "blur(4px)" }
+                          : { opacity: 0, scale: 0.97, y: 10, filter: "blur(6px)" }
                       }
                       animate={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
                       exit={
                         reduced
                           ? { opacity: 0 }
-                          : { opacity: 0, scale: 0.95, y: -6, filter: "blur(2px)" }
+                          : { opacity: 0, scale: 0.98, y: -6, filter: "blur(3px)" }
                       }
                       transition={enter}
-                      className="col-start-1 row-start-1 font-mono text-[18px] sm:text-[20px] font-medium tabular-nums text-white"
+                      className="col-start-1 row-start-1 font-mono text-[16px] font-semibold tabular-nums text-white"
                     >
                       {char}
                     </motion.span>
@@ -433,14 +433,14 @@ export function OtpInput({
 
                 {active && !char && !disabled ? (
                   <motion.span
-                    className="col-start-1 row-start-1 block h-[20px] w-[2px] rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.6)]"
+                    className="col-start-1 row-start-1 block h-[18px] w-[1.5px] rounded-[1px] bg-blue-400"
                     initial={{ opacity: 1 }}
                     animate={reduced ? { opacity: 1 } : { opacity: [1, 1, 0, 0] }}
                     transition={
                       reduced
                         ? { duration: 0 }
                         : {
-                            duration: 1.0,
+                            duration: 1.06,
                             times: [0, 0.5, 0.5, 1],
                             repeat: Infinity,
                             ease: "linear",
