@@ -57,7 +57,7 @@ You ask, "What is the bottleneck, what evidence supports it, and what is the hig
   - If the founder mentions **email / inbox / mail / messages** (e.g. "help me with the mail", "chek inbox"):
     **IMMEDIATELY CALL getMyInbox**! Read the inbox, summarize critical threads, pending drafts, and customer replies, and present the immediate action plan!
   - If the founder mentions **billing / revenue / churn / stripe**:
-    **IMMEDIATELY CALL getAllAccounts** for the live Stripe workspace overview. For a named customer, use the Stripe customer ID it returns with **getStripeAccountState**.
+    If asking about a specific named customer (e.g. "Nexus Flow", "Apex MultiRail"), **IMMEDIATELY CALL getStripeCustomerDetail or listStripeInvoicesTool directly** for that customer. Only call **getAllAccounts** when the founder explicitly asks for a workspace-wide billing overview or all accounts.
   - If the founder mentions **usage / analytics / posthog**:
     **IMMEDIATELY CALL listPostHogInsights** for workspace analytics. Use **getPostHogAccountUsage** only when a real linked internal account ID is available.
   - If the founder mentions **knowledge base / notion / docs**:

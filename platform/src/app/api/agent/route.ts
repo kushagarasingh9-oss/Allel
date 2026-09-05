@@ -385,7 +385,7 @@ export async function POST(request: Request) {
   const latestUserMessage = [...mergedMessages].reverse().find((m) => m.role === 'user') ?? null
   // Keep enough conversation history for the agent to resolve referents from
   // Keep recent messages window compact to prevent exponential token growth across turns
-  const recentMessages = mergedMessages.slice(-10)
+  const recentMessages = mergedMessages.slice(-8)
 
   // ── Security & Tool Integration Context ──
   const workspaceSystemContent = `Workspace context: workspace_id=${workspaceId}. Persona: ${persona.name} (${persona.role}).

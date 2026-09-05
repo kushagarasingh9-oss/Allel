@@ -1070,10 +1070,10 @@ export function scoreDomainMatch(
  *  gmail  → accounts (email threads are linked to accounts)
  */
 const DOMAIN_COMPANIONS: Partial<Record<ToolDomain, ToolDomain[]>> = {
-  stripe: ['recovery', 'posthog'],
-  recovery: ['stripe', 'posthog', 'gmail'],
-  posthog: ['recovery'],
-  gmail: ['recovery'],
+  stripe: ['recovery'],
+  recovery: ['stripe'],
+  posthog: [],
+  gmail: [],
   slack: [],
 }
 
@@ -1118,7 +1118,13 @@ const INTENT_CORE_TOOLS: Array<{
         'listStripeInvoicesTool',
         'getStripeSubscriptionDetail',
         'getStripeCustomerDetail',
+      ],
+    },
+    {
+      verbs: /\b(upcoming\s*invoices?|next\s*invoice|next\s*bill|preview\s*(?:next\s*)?invoice|future\s*charges?|what\s*will\s*(?:he|they|we)\s*be\s*charged)\b/i,
+      tools: [
         'getUpcomingStripeInvoice',
+        'getStripeSubscriptionDetail',
       ],
     },
     {
@@ -1143,11 +1149,17 @@ const INTENT_CORE_TOOLS: Array<{
       tools: [
         'getUnifiedCustomerScan',
         'getAccountRecoveryStatus',
-        'addToRecoveryQueue',
       ],
     },
     {
-      verbs: /\b(brief|daily|morning|today|overview|standup|summary|updated?|uodated?|update|what'?s (up|new|happening))\b/i,
+      verbs: /\b(who\s*is|look\s*up\s*contact|find\s*contact|resolve\s*contact|contact\s*email|customer\s*contact)\b/i,
+      tools: [
+        'resolveAccountByContact',
+        'getAccountDetails',
+      ],
+    },
+    {
+      verbs: /\b(morning\s*brief|daily\s*brief|founder\s*brief|morning\s*update|daily\s*update|standup\s*update|brief\s*update|status\s*update|daily\s*standup)\b|\b(brief|daily|morning|standup|overview)\b|\bwhat'?s (up|new|happening)\b/i,
       tools: [
         'listCalendarEventsTool',
         'getMyInbox',
@@ -1175,17 +1187,16 @@ const INTENT_CORE_TOOLS: Array<{
       tools: ['getRecoveryCases', 'getRecoveryMetrics'],
     },
     {
-      verbs: /\b(investigate|deep.?dive|complete profile|everything on|situation|analyse|analyze|breakdown|score|why|reason|explain|diagnose)\b/i,
+      verbs: /\b(investigate|deep.?dive|complete profile|everything on|full profile|situation|analyse|analyze|breakdown|diagnose account)\b/i,
       tools: [
         'getUnifiedCustomerScan',
         'getAccountFullProfile',
         'getRecoveryCaseDetail',
         'getAccountRecoveryStatus',
-        'addToRecoveryQueue',
       ],
     },
     {
-      verbs: /\b(sync|refresh|update|reconnect)\b/i,
+      verbs: /\b(sync|refresh|reconnect)\b/i,
       tools: ['inspectIntegrationConnectionsTool'],
     },
   ]
@@ -1309,10 +1320,6 @@ export function selectRelevantToolsForPrompt(
     'inspectIntegrationConnectionsTool',
     'webSearchTool',
     'getAccountDetails',
-    'getUnifiedCustomerScan',
-    'addToRecoveryQueue',
-    'getAccountRecoveryStatus',
-    'resolveAccountByContact',
   ]
   const availableCoreTools = coreTools.filter((t) => availableToolNames.includes(t))
 
@@ -1813,36 +1820,58 @@ function serializeMessageContent(msg: CompactableMessage): string {
 export function compactToolHistory<T extends CompactableMessage>(messages: T[]): T[] {
   if (messages.length === 0) return messages
 
-  // Find the index of the last tool-role message
+  // Find the index of the last message that contains tool calls/results
   let lastToolIdx = -1
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === 'tool') {
+    const msg = messages[i]
+    if (
+      msg.role === 'tool' ||
+      (msg.role === 'assistant' &&
+        Array.isArray(msg.parts) &&
+        msg.parts.some((p) => String(p.type ?? '').startsWith('tool-') || p.type === 'dynamic-tool'))
+    ) {
       lastToolIdx = i
       break
     }
   }
 
-  // No tool messages at all — nothing to compact
+  // No tool messages or tool parts at all — nothing to compact
   if (lastToolIdx === -1) return messages
 
   return messages.map((msg, idx) => {
-    // Keep non-tool messages and the last tool message verbatim
-    if (msg.role !== 'tool' || idx >= lastToolIdx) return msg
-
-    const text = serializeMessageContent(msg)
-
-    // If already short, no compaction needed
-    if (text.length <= COMPACT_THRESHOLD) return msg
-
-    // Build a compact summary
-    const preview = text.slice(0, 160).replace(/\s+/g, ' ').trim()
-    const compacted = `[compacted — ${text.length} chars] ${preview}…`
-
-    // Return with compacted parts if UIMessage, or compacted content if CoreMessage
-    if (Array.isArray(msg.parts)) {
-      return { ...msg, parts: [{ type: 'text' as const, text: compacted }] }
+    // 1. CoreMessage shape with role: 'tool'
+    if (msg.role === 'tool') {
+      if (idx >= lastToolIdx) return msg
+      const text = serializeMessageContent(msg)
+      if (text.length <= COMPACT_THRESHOLD) return msg
+      const preview = text.slice(0, 160).replace(/\s+/g, ' ').trim()
+      const compacted = `[compacted — ${text.length} chars] ${preview}…`
+      return { ...msg, content: compacted }
     }
-    return { ...msg, content: compacted }
+
+    // 2. UIMessage shape with role: 'assistant' containing tool parts from an older turn
+    if (msg.role === 'assistant' && Array.isArray(msg.parts) && idx < lastToolIdx) {
+      const compactedParts = msg.parts.map((p) => {
+        const typeStr = String(p.type ?? '')
+        if (typeStr.startsWith('tool-') || typeStr === 'dynamic-tool') {
+          const rawOutput = p.output !== undefined ? p.output : (p as Record<string, unknown>).result
+          if (rawOutput !== undefined) {
+            const str = typeof rawOutput === 'string' ? rawOutput : JSON.stringify(rawOutput)
+            if (str.length > COMPACT_THRESHOLD) {
+              const preview = str.slice(0, 120).replace(/\s+/g, ' ').trim()
+              return {
+                ...p,
+                output: `[compacted tool output — ${str.length} chars: ${preview}…]`,
+              }
+            }
+          }
+        }
+        return p
+      })
+      return { ...msg, parts: compactedParts } as T
+    }
+
+    return msg
   })
 }
 

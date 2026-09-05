@@ -5479,6 +5479,8 @@ export const listStripeInvoicesTool = tool({
           invoiceUrl: inv.hosted_invoice_url,
           attemptCount: inv.attempt_count,
           paid: inv.status === 'paid',
+          failureReason: inv.last_finalization_error?.message ?? null,
+          failureCode: inv.last_finalization_error?.code ?? null,
         })),
         count: invoices.length,
       }
@@ -5562,7 +5564,10 @@ export const getUpcomingStripeInvoice = tool({
           msg.includes('You must provide at least one of') ||
           msg.includes('No upcoming invoice') ||
           msg.includes('no upcoming invoice') ||
-          msg.includes('does not have an active subscription')
+          msg.includes('does not have an active subscription') ||
+          msg.includes('canceled subscription') ||
+          msg.includes('cannot preview') ||
+          msg.includes('incomplete_expired')
         ) {
           return {
             success: true,
@@ -5574,7 +5579,7 @@ export const getUpcomingStripeInvoice = tool({
             periodStart: null,
             periodEnd: null,
             lines: [],
-            message: `No upcoming invoice scheduled for customer ${resolvedCustomerId} (no active renewing subscription found).`,
+            message: `No upcoming invoice scheduled for customer ${resolvedCustomerId} (subscription is canceled, expired, or inactive).`,
           }
         }
         throw stripeErr
