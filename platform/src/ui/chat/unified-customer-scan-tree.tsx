@@ -670,6 +670,10 @@ export function DraftedEmailCard({
                   <span className="text-neutral-400 italic text-[11px] line-clamp-2">
                     &quot;{body.replace(/\n+/g, ' ')}&quot;
                   </span>
+                ) : isSent ? (
+                  <span className="text-neutral-500 italic text-[11px]">
+                    Delivered to inbox
+                  </span>
                 ) : null}
               </span>
             ) : null
@@ -692,7 +696,7 @@ export function DraftedEmailCard({
             </div>
           )}
           <div className="whitespace-pre-wrap font-sans text-neutral-200">
-            {body || 'No message body available.'}
+            {body || (isSent ? 'Email body was delivered via Gmail.' : 'No message body available.')}
           </div>
 
           <div className="mt-3 pt-2.5 border-t border-white/5 flex justify-end">

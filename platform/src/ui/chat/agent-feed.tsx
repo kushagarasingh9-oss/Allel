@@ -811,7 +811,15 @@ function ToolResultSummary({
     const inputObj = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
     const recipient = String(data.recipientEmail ?? data.to ?? inputObj.to ?? inputObj.recipientEmail ?? 'Recipient')
     const subject = String(data.subject ?? inputObj.subject ?? (toolName === 'sendGmailReply' ? 'Email reply' : 'Outreach email'))
-    const body = String(data.body ?? inputObj.body ?? '')
+    const body = String(
+      data.body ??
+      data.body_full ??
+      data.body_preview ??
+      data.preview ??
+      inputObj.body ??
+      inputObj.context ??
+      ''
+    )
 
     return (
       <div className="flex flex-col gap-1 mb-2">
@@ -823,6 +831,30 @@ function ToolResultSummary({
           }}
           badge={data.messageId ? `Delivered (ID: ${String(data.messageId).slice(0, 8)}…)` : 'Delivered via Gmail'}
           type="sent"
+        />
+      </div>
+    )
+  }
+
+  // Draft content updated
+  if (toolName === 'updateDraftContent' && data.success) {
+    const inputObj = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
+    const recipient = String(data.recipientEmail ?? data.to ?? inputObj.contactEmail ?? inputObj.accountName ?? 'Customer Contact')
+    const subject = String(data.subject ?? inputObj.newSubject ?? 'Follow-up draft')
+    const body = String(data.body ?? data.body_preview ?? data.body_full ?? inputObj.newBody ?? '')
+    const caseId = data.caseId ? String(data.caseId) : undefined
+
+    return (
+      <div className="flex flex-col gap-1 mb-2">
+        <DraftedEmailCard
+          draft={{
+            subject,
+            recipientEmail: recipient,
+            body,
+            caseId,
+          }}
+          badge="Draft Updated · Ready to Send"
+          type="draft"
         />
       </div>
     )

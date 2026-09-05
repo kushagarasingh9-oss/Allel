@@ -2501,26 +2501,56 @@ export const updateDraftContent = tool({
     if (!targetDraftId) {
       let resolvedAccountId = accountId
       if (!resolvedAccountId && accountName) {
+        const trimmed = accountName.trim()
+        // 1. Match customer accounts by name
         const { data: acc } = await supabase
           .from('customer_accounts')
           .select('id')
           .eq('workspace_id', workspaceId)
-          .ilike('name', `%${accountName.trim()}%`)
+          .ilike('name', `%${trimmed}%`)
           .limit(1)
           .maybeSingle()
-        resolvedAccountId = acc?.id
+        if (acc?.id) {
+          resolvedAccountId = acc.id
+        } else {
+          // 2. Match account contacts by name or email (e.g. "Rishi" or "rishi@nexusflow.ai")
+          const { data: contact } = await supabase
+            .from('account_contacts')
+            .select('customer_account_id')
+            .eq('workspace_id', workspaceId)
+            .or(`name.ilike.%${trimmed}%,email.ilike.%${trimmed}%`)
+            .limit(1)
+            .maybeSingle()
+          if (contact?.customer_account_id) {
+            resolvedAccountId = contact.customer_account_id
+          }
+        }
       }
 
       if (resolvedAccountId) {
         const { data: d } = await supabase
           .from('follow_up_drafts')
           .select('id')
+          .eq('workspace_id', workspaceId)
           .eq('customer_account_id', resolvedAccountId)
           .in('status', ['needs_review', 'ready_to_send'])
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle()
         targetDraftId = d?.id
+      }
+
+      // 3. Fallback: match most recent pending draft in the workspace
+      if (!targetDraftId) {
+        const { data: fallbackDraft } = await supabase
+          .from('follow_up_drafts')
+          .select('id')
+          .eq('workspace_id', workspaceId)
+          .in('status', ['needs_review', 'ready_to_send'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        targetDraftId = fallbackDraft?.id
       }
     }
 
@@ -2530,7 +2560,7 @@ export const updateDraftContent = tool({
 
     const { data: draft, error: fetchError } = await supabase
       .from('follow_up_drafts')
-      .select('id, subject, body_preview, status')
+      .select('id, subject, body_preview, body_full, recipient_email, status, customer_account_id, recovery_case_id')
       .eq('id', targetDraftId)
       .eq('workspace_id', workspaceId)
       .single()
@@ -2540,7 +2570,10 @@ export const updateDraftContent = tool({
 
     const updates: Record<string, string> = { updated_at: new Date().toISOString() }
     if (newSubject) updates.subject = newSubject
-    if (newBody) updates.body_preview = newBody
+    if (newBody) {
+      updates.body_preview = newBody
+      updates.body_full = newBody
+    }
 
     const { error } = await supabase
       .from('follow_up_drafts')
@@ -2549,11 +2582,18 @@ export const updateDraftContent = tool({
 
     if (error) return { error: error.message }
 
+    const finalSubject = newSubject ?? draft.subject
+    const finalBody = newBody ?? draft.body_full ?? draft.body_preview ?? ''
+
     return {
       success: true,
       draftId: targetDraftId,
       updatedFields: Object.keys(updates).filter(k => k !== 'updated_at'),
-      subject: newSubject ?? draft.subject,
+      subject: finalSubject,
+      body: finalBody,
+      recipientEmail: draft.recipient_email ?? undefined,
+      caseId: draft.recovery_case_id ?? undefined,
+      message: `Updated draft for "${finalSubject}"`,
     }
   },
 })
@@ -3260,7 +3300,7 @@ export const sendApprovedDraft = tool({
       // Check current draft state before sending — if in needs_review or unapproved, auto-approve for founder
       const { data: currentDraft } = await supabase
         .from('follow_up_drafts')
-        .select('id, status, approved_at, approved_by_actor, recovery_case_id, customer_account_id')
+        .select('id, status, approved_at, approved_by_actor, recovery_case_id, customer_account_id, subject, body_preview, body_full, recipient_email')
         .eq('id', targetDraftId)
         .maybeSingle()
 
@@ -3328,13 +3368,19 @@ export const sendApprovedDraft = tool({
         })
       }
 
+      const sentRecipient = result.recipient || currentDraft?.recipient_email || ''
+      const sentSubject = result.subject || currentDraft?.subject || 'Outreach Email'
+      const sentBody = currentDraft?.body_full || currentDraft?.body_preview || ''
+
       return {
         success: true,
         messageId: result.messageId,
-        to: result.recipient,
-        subject: result.subject,
+        to: sentRecipient,
+        recipientEmail: sentRecipient,
+        subject: sentSubject,
+        body: sentBody,
         draftStatus: result.status,
-        message: `DONE! Email sent to ${result.recipient}.`,
+        message: `DONE! Email sent to ${sentRecipient}.`,
       }
     } catch (error) {
       return {
@@ -3991,8 +4037,9 @@ export const searchPostHogPersons = tool({
   }),
   execute: async ({ workspaceId, search, limit }) => {
     try {
-      const { apiKey, projectId } = await getPostHogCredentials(workspaceId)
-      const persons = await searchPostHogPersonsApi(apiKey, projectId, search, limit ?? 10)
+      const { apiKey, projectId, apiHost } = await getPostHogCredentials(workspaceId)
+      const host = apiHost || POSTHOG_DEFAULT_HOST
+      const persons = await searchPostHogPersonsApi(apiKey, projectId, search, limit ?? 10, host)
       return {
         persons: persons.map((p) => ({
           id: p.id,
@@ -4004,7 +4051,15 @@ export const searchPostHogPersons = tool({
         count: persons.length,
       }
     } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Failed to search persons' }
+      const errMsg = err instanceof Error ? err.message : 'Failed to search persons'
+      if (errMsg.toLowerCase().includes('timeout') || errMsg.toLowerCase().includes('timed out')) {
+        return {
+          persons: [],
+          count: 0,
+          warning: 'PostHog user search timed out. Querying specific user distinct_id or event stream is recommended.',
+        }
+      }
+      return { error: errMsg }
     }
   },
 })
