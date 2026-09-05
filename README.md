@@ -670,6 +670,7 @@ allel/
 ├── docs/
 │   ├── README.md                # Documentation index and navigation map
 │   ├── ALLEL.md                 # Detailed technical and database architecture
+│   ├── REPOSITORY_RESEARCH.md   # Codebase architecture & reviewer file locator
 │   ├── AGENT.md                 # Agent runtime, personas, and memory deep dive
 │   ├── tool_calling.md          # 5-stage tool routing pipeline & 164-tool registry
 │   └── INTEGRATION_AUDIT.md     # Provider architecture, OAuth scopes, and audit
@@ -795,6 +796,7 @@ We explicitly document known system boundaries:
 flowchart LR
     Root["README.md (You are here)<br/>Full Product & Architectural Guide"] --> DocsNav["docs/README.md<br/>Documentation Navigation Map"]
     DocsNav --> Arch["docs/ALLEL.md<br/>Detailed System Architecture & ERD"]
+    DocsNav --> RepoDoc["docs/REPOSITORY_RESEARCH.md<br/>Codebase & File Locator"]
     DocsNav --> AgentDoc["docs/AGENT.md<br/>Agent Runtime, Loop & Personas"]
     DocsNav --> ToolsDoc["docs/tool_calling.md<br/>5-Stage Routing & 164-Tool Registry"]
     DocsNav --> IngestDoc["docs/INTEGRATION_AUDIT.md<br/>11 Integrations, OAuth & Webhooks"]

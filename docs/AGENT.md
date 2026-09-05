@@ -14,6 +14,7 @@
 - [5. Memory Architecture & Cryptographic Integrity](#5-memory-architecture--cryptographic-integrity)
 - [6. Self-Healing, Retries & Model Fallbacks](#6-self-healing-retries--model-fallbacks)
 - [7. Execution Telemetry & Audit Trail](#7-execution-telemetry--audit-trail)
+- [8. Codebase Implementation & Source Locations](#8-codebase-implementation--source-locations)
 
 ---
 
@@ -237,3 +238,24 @@ flowchart LR
     MismatchRule -- Yes --> Flag["Flag: 'unfulfilled_action_detected'<br/>Visible in /api/agent/runs"]
     MismatchRule -- No --> CleanPass["Mark Run Status: 'verified_complete'"]
 ```
+
+---
+
+## 8. Codebase Implementation & Source Locations
+
+For code reviewers inspecting the agent runtime, memory, and orchestration layer, key implementation files in `platform/` include:
+
+| Subsystem Component | Source Code Path | Architectural Responsibility |
+|---|---|---|
+| **AI SDK 6 Agent Loop** | [`platform/src/agent/runtime/agent.ts`](../platform/src/agent/runtime/agent.ts) | Core `ToolLoopAgent` orchestration, multi-step execution, dynamic schema expansion, and streaming. |
+| **Session Memory & Cryptography** | [`platform/src/agent/memory/chat-memory.ts`](../platform/src/agent/memory/chat-memory.ts) | HMAC-SHA256 signature verification, history sanitization, sliding window, and context compaction. |
+| **Account Memory Extraction** | [`platform/src/agent/memory/account-memory.ts`](../platform/src/agent/memory/account-memory.ts) | Extracts deterministic customer facts (signals, invoices, timeline) from Supabase. |
+| **Persona Instructions & Allowlist** | [`platform/src/agent/personas/`](../platform/src/agent/personas/) | Persona prompt definitions (`allel-instructions.ts`, `sarah-instructions.ts`, `henry-instructions.ts`, `intent-identity-instructions.ts`). |
+| **Run Telemetry & Token Audit** | [`platform/src/agent/runtime/run-logger.ts`](../platform/src/agent/runtime/run-logger.ts) | Writes execution metrics, model costs, tool traces, and unfulfilled action flags to `agent_runs`. |
+| **Error Classifier & Fallbacks** | [`platform/src/agent/runtime/error-classifier.ts`](../platform/src/agent/runtime/error-classifier.ts) | Classifies 429/5xx errors, schedules exponential backoff retries, and switches to fallback models. |
+| **Chat Streaming API Route** | [`platform/src/app/api/agent/route.ts`](../platform/src/app/api/agent/route.ts) | Edge/Node App Router route streaming agent tokens, tool events, and TimelineNodes to UI. |
+| **Run Inspection API** | [`platform/src/app/api/agent/runs/route.ts`](../platform/src/app/api/agent/runs/route.ts) | Inspects and paginates execution traces, step latencies, and tool calls. |
+| **Test Matrix: Memory Integrity** | [`platform/src/agent/memory/chat-memory.test.ts`](../platform/src/agent/memory/chat-memory.test.ts) | Validates HMAC tamper detection, session isolation, and turn reconciliation. |
+| **Test Matrix: Session Management** | [`platform/src/agent/memory/chat-session.test.ts`](../platform/src/agent/memory/chat-session.test.ts) | Tests scoped session keys, deduplication, and workspace scoping. |
+| **Test Matrix: Telemetry Logging** | [`platform/src/agent/runtime/run-inspection.test.ts`](../platform/src/agent/runtime/run-inspection.test.ts) | Tests run serialization, redaction, and token cost attribution. |
+

@@ -12,6 +12,7 @@
 - [3. Dynamic Schema Expansion (`prepareStep`)](#3-dynamic-schema-expansion-preparestep)
 - [4. Provider Readiness & Credential Guard](#4-provider-readiness--credential-guard)
 - [5. Telemetry & Announced-Action Audit](#5-telemetry--announced-action-audit)
+- [6. Codebase Implementation & Source Locations](#6-codebase-implementation--source-locations)
 
 ---
 
@@ -161,3 +162,23 @@ flowchart LR
 
     CheckText -- Neutral Answer --> Pass["Status: 'informational_response'"]
 ```
+
+---
+
+## 6. Codebase Implementation & Source Locations
+
+For code reviewers inspecting the dynamic tool routing and calling engine, key implementation files in `platform/` include:
+
+| Subsystem Component | Source Code Path | Architectural Responsibility |
+|---|---|---|
+| **164 Tool Registry** | [`platform/src/agent/tools/tools.ts`](../platform/src/agent/tools/tools.ts) | Complete implementation of all 164 registered tools with Zod schema definitions. |
+| **Tool Loop Agent & Runtime** | [`platform/src/agent/runtime/agent.ts`](../platform/src/agent/runtime/agent.ts) | AI SDK 6 agent instantiation, `ToolLoopAgent` execution, and 5-stage routing pipeline. |
+| **In-Loop Dynamic Expansion** | [`platform/src/agent/runtime/agent.ts`](../platform/src/agent/runtime/agent.ts) | `prepareStep` hook and synthetic `requestMoreTools` domain schema injector. |
+| **Provider Connection Guards** | [`platform/src/integrations/_core/connection-guard.ts`](../platform/src/integrations/_core/connection-guard.ts) | `wrapToolWithLiveIntegrationGuard` interceptors verifying provider status and decrypting credentials. |
+| **Credential Cryptography** | [`platform/src/integrations/_core/encryption.ts`](../platform/src/integrations/_core/encryption.ts) | AES-256-GCM symmetric token encryption and decryption. |
+| **Announced-Action Verifier** | [`platform/src/agent/workflows/announced-action.ts`](../platform/src/agent/workflows/announced-action.ts) | Semantic verification preventing unfulfilled model promises. |
+| **Timeline Node Streamer** | [`platform/src/agent/tools/ui-message-utils.ts`](../platform/src/agent/tools/ui-message-utils.ts) | Formats structured diagnostic payloads and timeline event nodes for UI streaming. |
+| **Test Matrix: Tool Validation** | [`platform/src/agent/tools/all-tools-individual.test.ts`](../platform/src/agent/tools/all-tools-individual.test.ts) | Automated schema and execution verification across the tool catalog. |
+| **Test Matrix: Router & Expansion** | [`platform/src/agent/tools/agent.test.ts`](../platform/src/agent/tools/agent.test.ts) | Unit tests for Levenshtein fuzzy matching, schema pruning, and `prepareStep` expansion. |
+| **Test Matrix: Action Auditing** | [`platform/src/agent/workflows/announced-action.test.ts`](../platform/src/agent/workflows/announced-action.test.ts) | Tests detecting unfulfilled tool promises in agent prose. |
+

@@ -18,6 +18,7 @@
 - [9. Durable Job Queue & Worker Pipeline](#9-durable-job-queue--worker-pipeline)
 - [10. Closed-Loop Revenue Attribution (G1–G5)](#10-closed-loop-revenue-attribution-g1g5)
 - [11. Daily Cron & Brief Delivery Pipeline](#11-daily-cron--brief-delivery-pipeline)
+- [12. Codebase Implementation & Reviewer Navigation Guide](#12-codebase-implementation--reviewer-navigation-guide)
 
 ---
 
@@ -561,3 +562,26 @@ sequenceDiagram
 
     CronAPI-->>Vercel: 200 OK { success: true, workspaces_processed: N }
 ```
+
+---
+
+## 12. Codebase Implementation & Reviewer Navigation Guide
+
+For engineers and evaluators reviewing Allel's implementation, the table below maps each architectural component directly to its concrete source code files in `platform/` and `database/migrations/`:
+
+| Subsystem Layer | Implementation File(s) | Architectural Responsibility |
+|---|---|---|
+| **Identity Resolution** | [`platform/src/recovery/identity/identity-resolver.ts`](../platform/src/recovery/identity/identity-resolver.ts)<br/>[`database/migrations/20260831_identity_atomic_rpcs.sql`](../database/migrations/20260831_identity_atomic_rpcs.sql) | Atomic database RPCs for email anchor matching, conflict isolation, and deterministic tenant isolation. |
+| **Risk Scoring Engine** | [`platform/src/recovery/scoring/risk-scorer.ts`](../platform/src/recovery/scoring/risk-scorer.ts)<br/>[`platform/src/recovery/config.ts`](../platform/src/recovery/config.ts) | Formulaic $50/35/15$ risk scoring, hard override circuit breakers (payment failures, usage crashes), and confidence computation. |
+| **Action Policy Engine** | [`platform/src/recovery/policy/action-policy.ts`](../platform/src/recovery/policy/action-policy.ts) | 72h billing and 7d usage contact cooldown enforcement and account suppression rules. |
+| **Case State Machine** | [`platform/src/recovery/state/case-machine.ts`](../platform/src/recovery/state/case-machine.ts)<br/>[`database/migrations/20260822_recovery_core.sql`](../database/migrations/20260822_recovery_core.sql) | Legal transition state machine backed by atomic PostgreSQL RPC `transition_recovery_case` with row locks. |
+| **Hash-Bound Approvals** | [`platform/src/drafts/send-draft.ts`](../platform/src/drafts/send-draft.ts)<br/>[`platform/src/app/api/drafts/[id]/approve/route.ts`](../platform/src/app/api/drafts/[id]/approve/route.ts) | Cryptographic SHA-256 verification ensuring emails sent via Gmail match founder-reviewed content down to the byte. |
+| **Durable Job Queue** | [`platform/src/jobs/queue.ts`](../platform/src/jobs/queue.ts)<br/>[`platform/src/jobs/worker.ts`](../platform/src/jobs/worker.ts)<br/>[`platform/src/jobs/handlers/`](../platform/src/jobs/handlers/) | PostgreSQL `workflow_jobs` queue with leases (`FOR UPDATE SKIP LOCKED`), retries, and 12 specialized stage handlers. |
+| **Outcome Attribution** | [`platform/src/drafts/outcome-tracker.ts`](../platform/src/drafts/outcome-tracker.ts)<br/>[`platform/src/recovery/metrics.ts`](../platform/src/recovery/metrics.ts) | Financial outcome attribution across 5 verification gates (G1–G5) with strict MRR partition invariants. |
+| **Provider Integrations** | [`platform/src/integrations/`](../platform/src/integrations/)<br/>[`platform/src/integrations/_core/encryption.ts`](../platform/src/integrations/_core/encryption.ts) | 11 provider adapters, AES-256-GCM token encryption, HMAC webhook ingress verification, and connection guards. |
+| **Agent Runtime Loop** | [`platform/src/agent/runtime/agent.ts`](../platform/src/agent/runtime/agent.ts)<br/>[`platform/src/agent/tools/tools.ts`](../platform/src/agent/tools/tools.ts) | AI SDK 6 `ToolLoopAgent` with 164 registered tools, dynamic domain routing, and `prepareStep` schema expansion. |
+| **Session Memory** | [`platform/src/agent/memory/chat-memory.ts`](../platform/src/agent/memory/chat-memory.ts) | HMAC-SHA256 memory signing, prompt injection sanitization, and structured context compaction. |
+| **Automations Console UI** | [`platform/src/app/dashboard/flows/page.tsx`](../platform/src/app/dashboard/flows/page.tsx) | Live recovery case dashboard, diagnostic scenario inspector, and drawer views for reviewer inspection. |
+| **Daily Cron Pipeline** | [`platform/src/app/api/cron/daily-run/route.ts`](../platform/src/app/api/cron/daily-run/route.ts) | Multi-tenant daily reconciliation loop, queue draining, and Founder Daily Brief generation. |
+| **Full Regression Suite** | [`platform/src/drafts/draft-workflows.test.ts`](../platform/src/drafts/draft-workflows.test.ts)<br/>[`platform/scripts/scenario-evaluator.ts`](../platform/scripts/scenario-evaluator.ts) | 439 passing automated unit/integration tests and 15-scenario deterministic evaluation matrix. |
+

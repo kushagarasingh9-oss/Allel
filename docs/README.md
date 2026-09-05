@@ -14,6 +14,7 @@ flowchart TB
     subgraph Maintained["Maintained Technical Guides"]
         direction TB
         Arch["ALLEL.md<br/>Comprehensive System Architecture & ERD"]
+        RepoDoc["REPOSITORY_RESEARCH.md<br/>Codebase Architecture & File Locator"]
         AgentDoc["AGENT.md<br/>Agent Runtime, Loop, Memory & Personas"]
         ToolsDoc["tool_calling.md<br/>5-Stage Routing & 164-Tool Registry"]
         AuditDoc["INTEGRATION_AUDIT.md<br/>11 Integrations, Capability & Security"]
@@ -33,6 +34,7 @@ flowchart TB
 |---|---|
 | [`../README.md`](../README.md) | **Primary product guide.** Complete architecture, workflows, diagrams, and setup instructions. |
 | [`ALLEL.md`](ALLEL.md) | **Deep technical blueprint.** PostgreSQL ERD, state machines, identity resolution, and scoring math. |
+| [`REPOSITORY_RESEARCH.md`](REPOSITORY_RESEARCH.md) | **Reviewer guide.** Complete codebase file locator, end-to-end trace walkthroughs, and architecture map. |
 | [`../platform/README.md`](../platform/README.md) | **Developer reference.** Local installation, environment variables, routes, CLI tasks, and migrations. |
 | [`AGENT.md`](AGENT.md) | **Agent runtime.** `ToolLoopAgent` execution, multi-step loops, memory signing, and personas. |
 | [`tool_calling.md`](tool_calling.md) | **Tool routing.** 5-stage selection pipeline, `prepareStep` dynamic expansion, and 164-tool taxonomy. |
