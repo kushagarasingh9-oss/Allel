@@ -17,10 +17,7 @@ flowchart TB
         RepoDoc["REPOSITORY_RESEARCH.md<br/>Codebase Architecture & File Locator"]
         AgentDoc["AGENT.md<br/>Agent Runtime, Loop, Memory & Personas"]
         ToolsDoc["tool_calling.md<br/>5-Stage Routing & 164-Tool Registry"]
-        AuditDoc["INTEGRATION_AUDIT.md<br/>11 Integrations, Capability & Security"]
         PlatformDoc["../platform/README.md<br/>Developer Setup, Routes & Testing"]
-        StoryDoc["story.md<br/>Token Optimization Architecture"]
-        FramerDoc["framer.md<br/>Marketing Runbook"]
     end
 
     Hub --> Maintained
@@ -33,14 +30,11 @@ flowchart TB
 | Document | Purpose & Ownership |
 |---|---|
 | [`../README.md`](../README.md) | **Primary product guide.** Complete architecture, workflows, diagrams, and setup instructions. |
-| [`ALLEL.md`](ALLEL.md) | **Deep technical blueprint.** PostgreSQL ERD, state machines, identity resolution, and scoring math. |
-| [`REPOSITORY_RESEARCH.md`](REPOSITORY_RESEARCH.md) | **Reviewer guide.** Complete codebase file locator, end-to-end trace walkthroughs, and architecture map. |
+| [`ALLEL.md`](ALLEL.md) | **Deep technical blueprint.** PostgreSQL ERD, state machines, identity resolution, integrations mesh, and scoring math. |
+| [`REPOSITORY_RESEARCH.md`](REPOSITORY_RESEARCH.md) | **Reviewer guide.** Complete codebase file locator, database research, end-to-end trace walkthroughs, and architecture map. |
 | [`../platform/README.md`](../platform/README.md) | **Developer reference.** Local installation, environment variables, routes, CLI tasks, and migrations. |
 | [`AGENT.md`](AGENT.md) | **Agent runtime.** `ToolLoopAgent` execution, multi-step loops, memory signing, and personas. |
 | [`tool_calling.md`](tool_calling.md) | **Tool routing.** 5-stage selection pipeline, `prepareStep` dynamic expansion, and 164-tool taxonomy. |
-| [`INTEGRATION_AUDIT.md`](INTEGRATION_AUDIT.md) | **Integration security.** Capability matrix across 11 providers, webhook signatures, and AES-256-GCM vault. |
-| [`story.md`](story.md) | **Optimization narrative.** Token reduction and parallel multi-tool routing design. |
-| [`framer.md`](framer.md) | **Marketing runbook.** External Framer landing page sync operations. |
 
 ---
 

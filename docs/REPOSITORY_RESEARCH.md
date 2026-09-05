@@ -2,7 +2,7 @@
 
 > **Canonical Code Reviewer Guide.** Audited **2026-09-05**.
 > Designed for evaluators, code reviewers, and system architects inspecting the Allel codebase.
-> Companion architecture specifications: [`ALLEL.md`](ALLEL.md), [`AGENT.md`](AGENT.md), [`tool_calling.md`](tool_calling.md), [`INTEGRATION_AUDIT.md`](INTEGRATION_AUDIT.md).
+> Companion architecture specifications: [`ALLEL.md`](ALLEL.md), [`AGENT.md`](AGENT.md), [`tool_calling.md`](tool_calling.md).
 
 ---
 
@@ -94,10 +94,7 @@ allel/
 │   ├── ALLEL.md                            # Comprehensive architecture blueprint & ERD
 │   ├── AGENT.md                            # AI SDK 6 runtime, loop, and memory architecture
 │   ├── tool_calling.md                     # 5-stage dynamic tool routing & 164-tool taxonomy
-│   ├── INTEGRATION_AUDIT.md                # 11 provider integrations & OAuth security audit
-│   ├── REPOSITORY_RESEARCH.md              # (You are here) Reviewer codebase & locator guide
-│   ├── story.md                            # Token optimization narrative
-│   └── framer.md                           # Marketing page runbook
+│   └── REPOSITORY_RESEARCH.md              # (You are here) Reviewer codebase & locator guide
 └── platform/                               # Next.js 15 App Router application
     ├── src/
     │   ├── app/                            # Pages and API endpoints
@@ -241,20 +238,84 @@ Reviewers can trace four primary execution paths through the codebase:
 
 ## 5. Database Schema & Migration Matrix
 
-Allel maintains 29 ordered migrations in `database/migrations/`. Core tables include:
+Allel maintains **29 ordered PostgreSQL migrations** in `database/migrations/`. The database is not merely a passive datastore—it actively enforces tenant isolation, atomic state transitions, concurrency locking, and identity consistency via PostgreSQL Stored Procedures (RPCs).
 
-| Table Name | Migration File | Purpose & Constraints |
-|---|---|---|
-| `customer_accounts` | `20260406_init_product_tables.sql` | Canonical customer accounts, normalized names, MRR, churn risk tier. |
-| `account_contacts` | `20260406_init_product_tables.sql` | Primary customer contacts with validated emails used for recovery outreach. |
-| `integration_connections` | `20260408_expand_integration_catalog.sql` | Stores encrypted OAuth tokens (AES-256-GCM) and health status per provider. |
-| `recovery_cases` | `20260822_recovery_core.sql` | Legal state machine for at-risk customers (`open`, `review_pending`, `monitoring`, `resolved`). |
-| `follow_up_drafts` | `20260822_recovery_core.sql` | Recovery email drafts bound to SHA-256 content hashes. |
-| `draft_outcomes` | `20260709_draft_outcome_tracking.sql` | Financial attribution records with recovered/protected MRR cents and gate ID. |
-| `workflow_jobs` | `20260822_recovery_queue.sql` | PostgreSQL durable worker queue supporting row locking and retries. |
-| `identity_conflicts` | `20260831_identity_atomic_rpcs.sql` | Quarantines conflicting provider IDs requiring human resolution. |
-| `agent_runs` | `20260424_agent_memory_and_run_logging.sql` | Audit log recording token consumption, costs, executed tools, and mismatch flags. |
-| `agent_conversations` | `20260424_agent_conversation_sessions.sql` | Scoped session conversation turns protected by HMAC-SHA256 signatures. |
+### 5.1 Core Database Tables & Schema
+
+| Table Name | Primary Key | Foreign Keys / Scoping | Indexes & Invariants | Architectural Responsibility |
+|---|---|---|---|---|
+| `workspaces` | `id (uuid)` | N/A | `slug` (unique) | Top-level tenant boundary. All data is isolated by `workspace_id`. |
+| `customer_accounts` | `id (uuid)` | `workspace_id -> workspaces.id` | `(workspace_id, domain)` (unique) | Canonical customer account record, normalized MRR, and churn risk level. |
+| `account_contacts` | `id (uuid)` | `account_id -> customer_accounts.id` | `(account_id, email)` | Verified primary customer contacts for outreach dispatch. |
+| `provider_identities` | `id (uuid)` | `account_id -> customer_accounts.id` | `(workspace_id, provider, provider_id)` (unique) | Maps external provider records (e.g. Stripe `cus_123`, PostHog `distinct_id`) to the canonical account. |
+| `identity_conflicts` | `id (uuid)` | `workspace_id -> workspaces.id` | `(workspace_id, provider, provider_id)` | Isolates ambiguous provider identities when multiple accounts share credentials. |
+| `recovery_cases` | `id (uuid)` | `account_id -> customer_accounts.id` | `(workspace_id, status)` | State machine for at-risk accounts (`open`, `review_pending`, `approved`, `monitoring`, `resolved`). |
+| `follow_up_drafts` | `id (uuid)` | `case_id -> recovery_cases.id` | `(workspace_id, status)` | Outreach email drafts bound to SHA-256 cryptographic content hashes. |
+| `draft_outcomes` | `id (uuid)` | `case_id -> recovery_cases.id` | `(workspace_id, verified_at)` | Verifiable financial recovery records (`recovered_mrr_cents`, `protected_mrr_cents`, `attribution_gate`). |
+| `workflow_jobs` | `id (uuid)` | `workspace_id -> workspaces.id` | `(status, run_at, locked_until)` | Durable background job queue supporting row leasing (`FOR UPDATE SKIP LOCKED`). |
+| `agent_runs` | `id (uuid)` | `workspace_id -> workspaces.id` | `(workspace_id, created_at)` | Observability store recording token usage, model execution costs, and unfulfilled action flags. |
+| `agent_conversations` | `id (uuid)` | `workspace_id -> workspaces.id` | `(user_id, workspace_id, session_id)` | Scoped chat history turns cryptographically protected by HMAC-SHA256 signatures. |
+| `agent_memories` | `id (uuid)` | `account_id -> customer_accounts.id` | `(workspace_id, account_id)` | Reconstructed customer facts (signals, invoices, timeline events) for agent context. |
+
+---
+
+### 5.2 Atomic PostgreSQL RPCs & Concurrency Guarantees
+
+To ensure 100% financial and operational correctness under concurrent webhook traffic, Allel uses database-enforced Stored Procedures:
+
+1. **`transition_recovery_case(p_case_id, p_new_status, p_actor, p_reason)`**
+   - Implemented in: `database/migrations/20260822_recovery_core.sql` & `20260830_recovery_authoritative_integrity.sql`
+   - Locks the target row with `SELECT ... FOR UPDATE`.
+   - Validates legal state transitions (e.g. `review_pending` cannot jump directly to `resolved`).
+   - Atomically writes an immutable event into `recovery_case_events` with timestamps and actor attribution.
+
+2. **`resolve_customer_identity(p_workspace_id, p_provider, p_provider_id, p_email, p_domain, p_name)`**
+   - Implemented in: `database/migrations/20260831_identity_atomic_rpcs.sql`
+   - Executes atomic customer identification by matching email domain anchors and existing provider mappings.
+   - If an ambiguous match is detected (e.g. email matches two distinct accounts), it automatically routes the record to `identity_conflicts` without corrupting customer data.
+
+3. **`claim_workflow_jobs(p_worker_id, p_batch_size, p_lease_seconds)`**
+   - Implemented in: `database/migrations/20260822_recovery_queue.sql`
+   - Uses PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` to guarantee exactly-once leasing across distributed worker instances.
+
+---
+
+### 5.3 Complete Migration History (29 Files)
+
+The database schema has evolved through 29 structured, chronological migrations:
+
+```text
+database/migrations/
+├── 1.  20260406_init_product_tables.sql              # Workspaces, accounts, contacts, initial schema
+├── 2.  20260407_backend_engine.sql                   # Accounts and customer data projections
+├── 3.  20260407_backend_reliability.sql              # Idempotency and error state tracking
+├── 4.  20260408_expand_integration_catalog.sql       # Integration connections and token storage
+├── 5.  20260408_fix_workspace_members_rls_recursion.sql # Infinite recursion fix in member policies
+├── 6.  20260421_agent_write_tools.sql                # Write permissions and tool state tracking
+├── 7.  20260422_backend_completeness.sql             # Expanded contact fields and account signals
+├── 8.  20260422_fix_integration_provider_constraints.sql # Provider enum and health checks
+├── 9.  20260424_account_memories.sql                 # Account memory table and facts queue
+├── 10. 20260424_agent_conversation_sessions.sql      # Multi-persona chat session state
+├── 11. 20260424_agent_memory_and_run_logging.sql     # agent_runs and execution trace storage
+├── 12. 20260424_chat_compaction_and_run_inspection.sql # Conversation compaction schemas
+├── 13. 20260424_workflow_hardening_and_memory_queue.sql # Workflow step hardening
+├── 14. 20260709_draft_outcome_tracking.sql           # draft_outcomes and financial attribution
+├── 15. 20260711_score_history.sql                    # Historical score snapshots
+├── 16. 20260715_tool_approval_requests.sql           # Generic tool approval request schema
+├── 17. 20260822_recovery_core.sql                    # Core recovery cases, RPCs, and drafts
+├── 18. 20260822_recovery_hardening.sql               # State transition validation constraints
+├── 19. 20260822_recovery_queue.sql                   # Durable workflow_jobs queue table
+├── 20. 20260822_recovery_rls_and_rpc.sql             # RLS policies and transition RPCs
+├── 21. 20260829_recovery_scenario_runs.sql           # Test-mode scenario isolation
+├── 22. 20260829_recovery_workflow_integrity.sql      # Worker queue leases and backoff logic
+├── 23. 20260830_recovery_authoritative_integrity.sql # Exact approval hash binding RPCs
+├── 24. 20260831_identity_atomic_rpcs.sql             # Atomic identity resolution & conflict tables
+├── 25. 20260831_identity_hardening.sql               # Identity foreign keys and provider anchors
+├── 26. 20260901_agent_conversation_delete_policy.sql # Session pruning and cleanup policies
+├── 27. 20260901_identity_security_and_integrity.sql  # Provider token scoping and validation
+├── 28. 20260902_identity_integrity_hardening.sql     # Conflict quarantine RPCs
+└── 29. 20260906_fix_draft_outcomes_draft_id_nullable.sql # Draft outcome attribution edge cases
+```
 
 ---
 

@@ -18,7 +18,8 @@
 - [9. Durable Job Queue & Worker Pipeline](#9-durable-job-queue--worker-pipeline)
 - [10. Closed-Loop Revenue Attribution (G1–G5)](#10-closed-loop-revenue-attribution-g1g5)
 - [11. Daily Cron & Brief Delivery Pipeline](#11-daily-cron--brief-delivery-pipeline)
-- [12. Codebase Implementation & Reviewer Navigation Guide](#12-codebase-implementation--reviewer-navigation-guide)
+- [12. Integrations Mesh, Capability Matrix & Ingress Security](#12-integrations-mesh-capability-matrix--ingress-security)
+- [13. Codebase Implementation & Reviewer Navigation Guide](#13-codebase-implementation--reviewer-navigation-guide)
 
 ---
 
@@ -565,7 +566,63 @@ sequenceDiagram
 
 ---
 
-## 12. Codebase Implementation & Reviewer Navigation Guide
+## 12. Integrations Mesh, Capability Matrix & Ingress Security
+
+Allel connects with external SaaS platforms across three distinct capability tiers:
+
+```mermaid
+flowchart TB
+    subgraph Hub["Allel Integration Manager"]
+        direction TB
+        Vault["AES-256-GCM Credential Vault"]
+        Guard["Provider Readiness Guard Wrapper"]
+        Reconciler["Daily Sync Reconciler (04:00 UTC)"]
+    end
+
+    subgraph Tier1["Tier 1: Sync-Capable (Webhooks + Nightly Reconciliation)"]
+        direction TB
+        Stripe["Stripe: Invoices, Subscriptions, Dunning, Chargebacks"]
+        PostHog["PostHog: 30d Active Users, Feature Dropoffs, Cohorts"]
+        Gmail["Gmail: Customer Threads, Inbound Reply History"]
+        Intercom["Intercom: Support Friction, Open Tickets, Frustration"]
+        HubSpot["HubSpot: Deals, Lifecycle Stages, Account Owner"]
+        Slack["Slack: Daily Brief Delivery, Churn Alerts"]
+        Linear["Linear: Issue Impact, Customer Escalations"]
+        Sentry["Sentry: Error Spikes, Crash Volume"]
+    end
+
+    subgraph Tier2["Tier 2: Tool-Only Live Invocations"]
+        direction TB
+        Calendar["Google Calendar: Founder Availability & Meeting Links"]
+        Notion["Notion: Knowledge Base Articles, Runbook Search"]
+        Airtable["Airtable: Custom Workspace Databases & Custom Fields"]
+        Tavily["Tavily Search: Live Web Crawl & Competitor Intel"]
+    end
+
+    Hub <--> Tier1
+    Hub <--> Tier2
+```
+
+### Complete 11-Provider Capability Matrix
+
+| Provider | Connection Type | Webhook Support | Encryption / Auth | Primary Use Case |
+|---|---|:---:|---|---|
+| **Stripe** | API Key / Restricted Token | Signed HMAC (`stripe-signature`) | AES-256-GCM | Subscriptions, failed payments, dunning state, refunds |
+| **PostHog** | Personal API Key / Project ID | Signed HMAC (`x-posthog-signature`) | AES-256-GCM | 30d usage dropoffs, feature flag toggles, user cohorts |
+| **Gmail** | Google OAuth 2.0 | History Polling | Refresh Token Vault | Account email threads, draft creation, durable sending |
+| **Intercom** | OAuth 2.0 / Access Token | Ingestion Sync | AES-256-GCM | Support tickets, customer frustration signals |
+| **HubSpot** | Private App Token | Ingestion Sync | AES-256-GCM | CRM deals, contact mapping, lifecycle changes |
+| **Slack** | Bot OAuth Token | Event Ingress | AES-256-GCM | Daily brief delivery, founder escalation channels |
+| **Linear** | Personal API Key | Ingestion Sync | AES-256-GCM | Engineering bugs linked to customer churn |
+| **Sentry** | Integration Token | Ingestion Sync | AES-256-GCM | Production exceptions impacting accounts |
+| **Google Calendar** | Google OAuth 2.0 | Tool Invocations | OAuth 2.0 Tokens | Founder availability & rescue meeting booking |
+| **Notion** | Internal Integration Token | Tool Invocations | AES-256-GCM | SOP & runbook extraction for AI reasoning |
+| **Airtable** | Personal Access Token | Tool Invocations | AES-256-GCM | Ad-hoc workspace record queries |
+| **Tavily** | Server Environment Key | Agent Tool | N/A | Live web research & corporate profile lookups |
+
+---
+
+## 13. Codebase Implementation & Reviewer Navigation Guide
 
 For engineers and evaluators reviewing Allel's implementation, the table below maps each architectural component directly to its concrete source code files in `platform/` and `database/migrations/`:
 
@@ -584,4 +641,5 @@ For engineers and evaluators reviewing Allel's implementation, the table below m
 | **Automations Console UI** | [`platform/src/app/dashboard/flows/page.tsx`](../platform/src/app/dashboard/flows/page.tsx) | Live recovery case dashboard, diagnostic scenario inspector, and drawer views for reviewer inspection. |
 | **Daily Cron Pipeline** | [`platform/src/app/api/cron/daily-run/route.ts`](../platform/src/app/api/cron/daily-run/route.ts) | Multi-tenant daily reconciliation loop, queue draining, and Founder Daily Brief generation. |
 | **Full Regression Suite** | [`platform/src/drafts/draft-workflows.test.ts`](../platform/src/drafts/draft-workflows.test.ts)<br/>[`platform/scripts/scenario-evaluator.ts`](../platform/scripts/scenario-evaluator.ts) | 439 passing automated unit/integration tests and 15-scenario deterministic evaluation matrix. |
+
 

@@ -672,8 +672,7 @@ allel/
 │   ├── ALLEL.md                 # Detailed technical and database architecture
 │   ├── REPOSITORY_RESEARCH.md   # Codebase architecture & reviewer file locator
 │   ├── AGENT.md                 # Agent runtime, personas, and memory deep dive
-│   ├── tool_calling.md          # 5-stage tool routing pipeline & 164-tool registry
-│   └── INTEGRATION_AUDIT.md     # Provider architecture, OAuth scopes, and audit
+│   └── tool_calling.md          # 5-stage tool routing pipeline & 164-tool registry
 └── platform/
     ├── src/app/                 # Next.js 15 App Router pages and API routes
     ├── src/agent/               # Agent runtime, 164 tools, memory, personas
@@ -799,7 +798,6 @@ flowchart LR
     DocsNav --> RepoDoc["docs/REPOSITORY_RESEARCH.md<br/>Codebase & File Locator"]
     DocsNav --> AgentDoc["docs/AGENT.md<br/>Agent Runtime, Loop & Personas"]
     DocsNav --> ToolsDoc["docs/tool_calling.md<br/>5-Stage Routing & 164-Tool Registry"]
-    DocsNav --> IngestDoc["docs/INTEGRATION_AUDIT.md<br/>11 Integrations, OAuth & Webhooks"]
     DocsNav --> PlatformDoc["platform/README.md<br/>Developer Setup & App Router Routes"]
 ```
 
