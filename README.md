@@ -672,21 +672,18 @@ allel/
 │   ├── ALLEL.md                 # Detailed technical and database architecture
 │   ├── AGENT.md                 # Agent runtime, personas, and memory deep dive
 │   ├── tool_calling.md          # 5-stage tool routing pipeline & 164-tool registry
-│   ├── INTEGRATION_AUDIT.md     # Provider architecture, OAuth scopes, and audit
-│   ├── TODO.md                  # Current engineering risk register
-│   └── INTERVIEW_QA.md          # Architectural review and interview preparation
-├── platform/
-│   ├── src/app/                 # Next.js 15 App Router pages and API routes
-│   ├── src/agent/               # Agent runtime, 164 tools, memory, personas
-│   ├── src/recovery/            # Identity resolver, risk scoring, action policy
-│   ├── src/jobs/                # Durable queue worker and 10 job stage handlers
-│   ├── src/integrations/        # Provider clients, connection guards, sync
-│   ├── src/data/                # Supabase data queries and mutations
-│   ├── src/foundation/          # AI providers, crypto, security, logging
-│   ├── src/ui/                  # Command center, chat timeline, drawers, modals
-│   ├── scripts/                 # Scenarios, migration runner, worker drain
-│   └── artifacts/               # Benchmark and execution evidence
-└── prompt/                      # Architectural prompt specifications
+│   └── INTEGRATION_AUDIT.md     # Provider architecture, OAuth scopes, and audit
+└── platform/
+    ├── src/app/                 # Next.js 15 App Router pages and API routes
+    ├── src/agent/               # Agent runtime, 164 tools, memory, personas
+    ├── src/recovery/            # Identity resolver, risk scoring, action policy
+    ├── src/jobs/                # Durable queue worker and 10 job stage handlers
+    ├── src/integrations/        # Provider clients, connection guards, sync
+    ├── src/data/                # Supabase data queries and mutations
+    ├── src/foundation/          # AI providers, crypto, security, logging
+    ├── src/ui/                  # Command center, chat timeline, drawers, modals
+    ├── scripts/                 # Scenarios, migration runner, worker drain
+    └── artifacts/               # Benchmark and execution evidence
 ```
 
 ---
@@ -802,7 +799,6 @@ flowchart LR
     DocsNav --> ToolsDoc["docs/tool_calling.md<br/>5-Stage Routing & 164-Tool Registry"]
     DocsNav --> IngestDoc["docs/INTEGRATION_AUDIT.md<br/>11 Integrations, OAuth & Webhooks"]
     DocsNav --> PlatformDoc["platform/README.md<br/>Developer Setup & App Router Routes"]
-    DocsNav --> QADoc["docs/INTERVIEW_QA.md<br/>Architecture & Review Prep"]
 ```
 
 ---

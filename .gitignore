@@ -48,3 +48,15 @@ scratch_playwright/node_modules/
 # Gemini/Agent
 .agents/
 .gemini/
+
+# Private interview & internal notes (local only)
+*interview*
+*INTERVIEW*
+docs/INTERVIEW_QA.md
+docs/TODO.md
+docs/goal.md
+docs/plan.md
+docs/PRODUCT_COMPLETION_PLAN.md
+docs/REPOSITORY_RESEARCH.md
+docs/CODE_QUALITY_AND_PIPELINE_REPORT.md
+prompt/

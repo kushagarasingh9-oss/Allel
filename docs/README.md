@@ -17,21 +17,12 @@ flowchart TB
         AgentDoc["AGENT.md<br/>Agent Runtime, Loop, Memory & Personas"]
         ToolsDoc["tool_calling.md<br/>5-Stage Routing & 164-Tool Registry"]
         AuditDoc["INTEGRATION_AUDIT.md<br/>11 Integrations, Capability & Security"]
-        RiskDoc["TODO.md<br/>Current Engineering Risk Register"]
-        QADoc["INTERVIEW_QA.md<br/>Demo Review & Interview Preparation"]
         PlatformDoc["../platform/README.md<br/>Developer Setup, Routes & Testing"]
-    end
-
-    subgraph Archived["Archived Historical Artifacts"]
-        direction TB
-        Hist1["CODE_QUALITY_AND_PIPELINE_REPORT.md (Aug 2026)"]
-        Hist2["PRODUCT_COMPLETION_PLAN.md (Aug 2026)"]
-        Hist3["REPOSITORY_RESEARCH.md (Early Audit)"]
-        Hist4["goal.md, plan.md, story.md (Historical Blueprints)"]
+        StoryDoc["story.md<br/>Token Optimization Architecture"]
+        FramerDoc["framer.md<br/>Marketing Runbook"]
     end
 
     Hub --> Maintained
-    Hub --> Archived
 ```
 
 ---
@@ -46,8 +37,7 @@ flowchart TB
 | [`AGENT.md`](AGENT.md) | **Agent runtime.** `ToolLoopAgent` execution, multi-step loops, memory signing, and personas. |
 | [`tool_calling.md`](tool_calling.md) | **Tool routing.** 5-stage selection pipeline, `prepareStep` dynamic expansion, and 164-tool taxonomy. |
 | [`INTEGRATION_AUDIT.md`](INTEGRATION_AUDIT.md) | **Integration security.** Capability matrix across 11 providers, webhook signatures, and AES-256-GCM vault. |
-| [`TODO.md`](TODO.md) | **Risk register.** Active source-backed limitations, boundary constraints, and upcoming hardening. |
-| [`INTERVIEW_QA.md`](INTERVIEW_QA.md) | **Review preparation.** Architectural deep-dive questions, demo script, and verification FAQs. |
+| [`story.md`](story.md) | **Optimization narrative.** Token reduction and parallel multi-tool routing design. |
 | [`framer.md`](framer.md) | **Marketing runbook.** External Framer landing page sync operations. |
 
 ---
