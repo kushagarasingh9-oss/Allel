@@ -466,39 +466,18 @@ export function MonologueBlock({
   }, [text])
 
   const hasText = Boolean(sanitizedText)
-  const [expanded, setExpanded] = React.useState(isExecuting && hasText)
-  const prevExecutingRef = React.useRef(isExecuting)
-  const prevHasTextRef = React.useRef(hasText)
+  const [expanded, setExpanded] = React.useState(false)
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
   const startTimeRef = React.useRef(Date.now())
   const [elapsedSeconds, setElapsedSeconds] = React.useState(0)
   const [durationSeconds, setDurationSeconds] = React.useState<number | null>(null)
 
-  // Auto-scroll internally inside the thinking box as new tokens stream in
+  // Auto-scroll internally inside the thinking box as new tokens stream in if user manually opened it
   React.useEffect(() => {
     if (expanded && scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
     }
   }, [sanitizedText, expanded])
-
-  // When reasoning text first arrives while executing, expand smoothly into view
-  React.useEffect(() => {
-    if (!prevHasTextRef.current && hasText && isExecuting) {
-      setExpanded(true)
-    }
-    prevHasTextRef.current = hasText
-  }, [hasText, isExecuting])
-
-  // When execution finishes (isExecuting goes from true -> false), smoothly auto-collapse (compress) the drawer
-  React.useEffect(() => {
-    if (prevExecutingRef.current && !isExecuting) {
-      const timer = setTimeout(() => {
-        setExpanded(false)
-      }, 400)
-      return () => clearTimeout(timer)
-    }
-    prevExecutingRef.current = isExecuting
-  }, [isExecuting])
 
   React.useEffect(() => {
     if (isExecuting) {
@@ -525,6 +504,10 @@ export function MonologueBlock({
         </span>
       </div>
     )
+  }
+
+  if (!hasText && !isExecuting) {
+    return null
   }
 
   // Phase 2 & 3: Active thoughts in-flight or completed
