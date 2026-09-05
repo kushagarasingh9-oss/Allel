@@ -2560,7 +2560,7 @@ export const updateDraftContent = tool({
 
     const { data: draft, error: fetchError } = await supabase
       .from('follow_up_drafts')
-      .select('id, subject, body_preview, body_full, recipient_email, status, customer_account_id, recovery_case_id')
+      .select('id, subject, body_preview, status, customer_account_id, recovery_case_id, approval_metadata')
       .eq('id', targetDraftId)
       .eq('workspace_id', workspaceId)
       .single()
@@ -2570,10 +2570,7 @@ export const updateDraftContent = tool({
 
     const updates: Record<string, string> = { updated_at: new Date().toISOString() }
     if (newSubject) updates.subject = newSubject
-    if (newBody) {
-      updates.body_preview = newBody
-      updates.body_full = newBody
-    }
+    if (newBody) updates.body_preview = newBody
 
     const { error } = await supabase
       .from('follow_up_drafts')
@@ -2583,7 +2580,8 @@ export const updateDraftContent = tool({
     if (error) return { error: error.message }
 
     const finalSubject = newSubject ?? draft.subject
-    const finalBody = newBody ?? draft.body_full ?? draft.body_preview ?? ''
+    const finalBody = newBody ?? draft.body_preview ?? ''
+    const recipientEmail = (draft.approval_metadata as Record<string, any> | null)?.recipient_email
 
     return {
       success: true,
@@ -2591,7 +2589,7 @@ export const updateDraftContent = tool({
       updatedFields: Object.keys(updates).filter(k => k !== 'updated_at'),
       subject: finalSubject,
       body: finalBody,
-      recipientEmail: draft.recipient_email ?? undefined,
+      recipientEmail: recipientEmail ?? undefined,
       caseId: draft.recovery_case_id ?? undefined,
       message: `Updated draft for "${finalSubject}"`,
     }
@@ -3300,7 +3298,7 @@ export const sendApprovedDraft = tool({
       // Check current draft state before sending — if in needs_review or unapproved, auto-approve for founder
       const { data: currentDraft } = await supabase
         .from('follow_up_drafts')
-        .select('id, status, approved_at, approved_by_actor, recovery_case_id, customer_account_id, subject, body_preview, body_full, recipient_email')
+        .select('id, status, approved_at, approved_by_actor, recovery_case_id, customer_account_id, subject, body_preview, approval_metadata')
         .eq('id', targetDraftId)
         .maybeSingle()
 
@@ -3368,9 +3366,10 @@ export const sendApprovedDraft = tool({
         })
       }
 
-      const sentRecipient = result.recipient || currentDraft?.recipient_email || ''
+      const recipientFromMeta = (currentDraft?.approval_metadata as Record<string, any> | null)?.recipient_email
+      const sentRecipient = result.recipient || recipientFromMeta || ''
       const sentSubject = result.subject || currentDraft?.subject || 'Outreach Email'
-      const sentBody = currentDraft?.body_full || currentDraft?.body_preview || ''
+      const sentBody = currentDraft?.body_preview || ''
 
       return {
         success: true,

@@ -86,11 +86,38 @@ type CaseDetail = {
   }>
 }
 
+const DOMAINS: Record<string, string> = {
+  'Apex MultiRail': 'apexmultirail.co',
+  'Vanguard Infra': 'vanguardinfra.io',
+  'Nexus Flow': 'nexusflow.ai',
+  'Zenith Books': 'zenithbooks.co',
+  'Aura Analytics': 'auraanalytics.com',
+  'FintechScale': 'fintechscale.io',
+  'GridPulse AI': 'gridpulse.io',
+  'DataVibe': 'datavibe.io',
+  'Hyperion Dispatch': 'hyperiondispatch.com',
+  'Cobalt Core': 'cobaltcore.io',
+  'KryptonDB': 'kryptondb.org',
+  'Vortex Data': 'vortexdata.ai',
+  'Beacon Shield': 'beaconshield.com',
+  'Lattice Systems': 'latticesys.io',
+  'Prism Storefronts': 'prismstorefronts.com',
+}
+
+const DOMAIN_TO_NAME: Record<string, string> = Object.fromEntries(
+  Object.entries(DOMAINS).map(([name, domain]) => [domain, name])
+)
+
 function accountName(item: ApiCase) {
   const relation = Array.isArray(item.customer_accounts)
     ? item.customer_accounts[0]
     : item.customer_accounts
-  return relation?.name || relation?.domain || 'Unknown account'
+  const rawName = relation?.name || relation?.domain || 'Unknown account'
+  const rawDomain = relation?.domain || ''
+  if (rawName.startsWith('Scenario ') && rawDomain && DOMAIN_TO_NAME[rawDomain]) {
+    return DOMAIN_TO_NAME[rawDomain]
+  }
+  return rawName
 }
 
 function formatMoney(cents: number | null | undefined) {
@@ -115,23 +142,6 @@ function accountDomain(item: ApiCase) {
   }
 
   const name = accountName(item)
-  const DOMAINS: Record<string, string> = {
-    'Apex MultiRail': 'apexmultirail.co',
-    'Vanguard Infra': 'vanguardinfra.io',
-    'Nexus Flow': 'nexusflow.ai',
-    'Zenith Books': 'zenithbooks.co',
-    'Aura Analytics': 'auraanalytics.com',
-    'FintechScale': 'fintechscale.io',
-    'GridPulse AI': 'gridpulse.io',
-    'DataVibe': 'datavibe.io',
-    'Hyperion Dispatch': 'hyperiondispatch.com',
-    'Cobalt Core': 'cobaltcore.io',
-    'KryptonDB': 'kryptondb.org',
-    'Vortex Data': 'vortexdata.ai',
-    'Beacon Shield': 'beaconshield.com',
-    'Lattice Systems': 'latticesys.io',
-    'Prism Storefronts': 'prismstorefronts.com',
-  }
   return DOMAINS[name] || (rawDomain && !rawDomain.includes('example.com') ? rawDomain : null)
 }
 
@@ -154,6 +164,19 @@ type CaseDiagnostics = {
 }
 
 const KNOWN_ACCOUNT_DIAGNOSTICS: Record<string, Partial<CaseDiagnostics>> = {
+  'Nexus Flow': {
+    exactReason: 'High Growth Expansion · Quota Upgrade In-Flight',
+    issueSummary: 'Workflow execution volume increased 38.9% week-over-week. Customer reached out to upgrade to enterprise without downtime.',
+    stripe: { label: 'Stripe Billing', detail: 'Active Growth Tier · $900/mo', status: 'active' },
+    posthog: { label: 'PostHog Telemetry', detail: '+38.9% weekly workflow growth', status: 'stable' },
+    support: { label: 'Support / Intercom', detail: 'Rishi requested enterprise upgrade migration' },
+  },
+  'Vanguard Infra': {
+    exactReason: 'Healthy Baseline Monitoring · Low Risk',
+    issueSummary: 'Baseline telemetry and billing healthy with zero churn risk. Telemetry monitored continuously.',
+    stripe: { label: 'Stripe Billing', detail: 'Active Tier · $500/mo', status: 'active' },
+    posthog: { label: 'PostHog Telemetry', detail: 'Stable usage pattern (120 events/wk)', status: 'stable' },
+  },
   'Apex MultiRail': {
     exactReason: '2x Card Retries Failed · 504 Webhook Blocker',
     issueSummary: 'Consecutive billing retries declined on Card ····4242 while core query telemetry dropped 65% following unresolved 504 webhook gateway timeouts.',
