@@ -30,6 +30,7 @@ flowchart TB
 | Document | Purpose & Ownership |
 |---|---|
 | [`../README.md`](../README.md) | **Primary product guide.** Complete architecture, workflows, diagrams, and setup instructions. |
+| [`AUDIT_TRAIL.md`](AUDIT_TRAIL.md) | **"The Bar" evaluator guide.** Measured money recovered, compliant escalation, stopping rules, and audit trail proof. |
 | [`ALLEL.md`](ALLEL.md) | **Deep technical blueprint.** PostgreSQL ERD, state machines, identity resolution, integrations mesh, and scoring math. |
 | [`REPOSITORY_RESEARCH.md`](REPOSITORY_RESEARCH.md) | **Reviewer guide.** Complete codebase file locator, database research, end-to-end trace walkthroughs, and architecture map. |
 | [`../platform/README.md`](../platform/README.md) | **Developer reference.** Local installation, environment variables, routes, CLI tasks, and migrations. |
