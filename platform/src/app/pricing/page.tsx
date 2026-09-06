@@ -156,7 +156,7 @@ export default function PricingPage() {
         } else if (text === 'start with starter' || text === 'get started') {
           btn.setAttribute('href', targetDestination);
         } else if (text === 'join the waitlist') {
-          btn.setAttribute('href', '/#waitlist');
+          btn.setAttribute('href', targetDestination);
         }
       });
 
