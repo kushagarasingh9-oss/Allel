@@ -31,7 +31,7 @@ const OVERRIDE_CSS = `
     background-color: #0b0b0a !important;
   }
 
-  /* Sticky Navigation Bar firmly locked flush to top edge */
+  /* Sticky Navigation Bar firmly locked flush to top edge with explicit border */
   nav.framer-18q8gw8,
   [data-framer-name="Navigation"] {
     position: sticky !important;
@@ -44,6 +44,7 @@ const OVERRIDE_CSS = `
     backdrop-filter: blur(16px) !important;
     -webkit-backdrop-filter: blur(16px) !important;
     margin: 0 auto !important;
+    border-bottom: 1px solid #282825 !important;
   }
 
   .framer-1y8ilu8 {
@@ -55,9 +56,10 @@ const OVERRIDE_CSS = `
     position: sticky !important;
     top: 0 !important;
     z-index: 99 !important;
-    background-color: #0b0b0a !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
+    background-color: rgba(11, 11, 10, 0.92) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border-bottom: 1px solid #282825 !important;
   }
 
   /* Force all headings and text elements to be fully visible and opaque */
