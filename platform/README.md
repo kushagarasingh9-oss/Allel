@@ -2,6 +2,9 @@
 
 > **Developer reference for `platform/`.** For full product overview, see root [`README.md`](../README.md). For detailed system architecture, see [`docs/ALLEL.md`](../docs/ALLEL.md).
 > Last source audit: **2026-09-05**. Verified against repository source tree.
+> 
+> 🚀 **Live Production Deployment:** [**https://www.allel.co**](https://www.allel.co) | **Dashboard:** [**https://www.allel.co/dashboard**](https://www.allel.co/dashboard)  
+> ⚡ **Testing Integrations:** Connect tools at [`/dashboard/connections`](https://www.allel.co/dashboard/connections). OAuth apps are in developer mode; direct sandbox API keys (Stripe, PostHog, Linear) can be tested immediately!
 
 ---
 

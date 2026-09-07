@@ -10,6 +10,21 @@ Allel connects fragmented customer signals from billing, product analytics, emai
 
 ---
 
+### 🚀 Live Product Access & Evaluator Testing
+
+* **Live Application:** [**https://www.allel.co**](https://www.allel.co)
+* **Command Center & Dashboard:** [**https://www.allel.co/dashboard**](https://www.allel.co/dashboard) (Passwordless magic OTP login)
+* **Connect Your Stack:** [**https://www.allel.co/dashboard/connections**](https://www.allel.co/dashboard/connections)
+
+> [!TIP]
+> **Connecting Integrations & Developer Mode Note:**
+> * **Connect Real or Sandbox Tools:** In [`/dashboard/connections`](https://www.allel.co/dashboard/connections), you can connect any of the 11 supported integrations (Stripe, PostHog, Gmail, Intercom, Slack, Linear, Notion, Sentry, HubSpot, Airtable).
+> * **OAuth Developer Mode:** Because Allel is in public beta, third-party OAuth apps (Google/Gmail, Intercom) are currently in developer testing mode. If Google displays an *"unverified app"* consent screen, click **Advanced &rarr; Go to Allel (unsafe)** to authenticate your test mailbox.
+> * **Direct API Key Mode (Recommended for Evaluators):** If you prefer not to use OAuth, you can connect your tools in 1 click using sandbox or test API keys (e.g. Stripe `sk_test_...`, PostHog personal key, Linear key, Intercom access token) via the **"Direct Connect / API Key"** option on each integration card.
+> * **Pre-Loaded Evaluator Dataset:** If you want to evaluate without connecting external accounts, Allel is pre-populated with a 15-account scenario dataset in [`/dashboard/flows`](https://www.allel.co/dashboard/flows) and [`/dashboard/accounts`](https://www.allel.co/dashboard/accounts).
+
+---
+
 ## Contents
 
 - [Evaluator & Judge Quickstart: Meeting "The Bar"](#evaluator--judge-quickstart-meeting-the-bar)

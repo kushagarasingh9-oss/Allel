@@ -2,6 +2,9 @@
 
 > Canonical technical navigation map. Last source audit: **2026-09-05**.
 > Primary GitHub landing guide: [`../README.md`](../README.md).
+> 
+> 🚀 **Live Production Application:** [**https://www.allel.co**](https://www.allel.co) | **Dashboard:** [**https://www.allel.co/dashboard**](https://www.allel.co/dashboard)  
+> ⚡ **Testing Live Integrations:** You can connect real or sandbox tools in [`/dashboard/connections`](https://www.allel.co/dashboard/connections). Note: OAuth providers (Google/Intercom) are currently in developer testing mode; evaluators can use Direct API Keys (Stripe `sk_test_...`, PostHog, Linear) to test live data pipelines instantly!
 
 ---
 
