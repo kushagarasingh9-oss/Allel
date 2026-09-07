@@ -2,9 +2,6 @@
 
 > Canonical technical navigation map. Last source audit: **2026-09-05**.
 > Primary GitHub landing guide: [`../README.md`](../README.md).
-> 
-> 🚀 **Live Product:** [**https://www.allel.co**](https://www.allel.co) · [**Dashboard**](https://www.allel.co/dashboard)  
-> Sign in via magic OTP, connect your stack at [`/dashboard/connections`](https://www.allel.co/dashboard/connections), and test recovery live.
 
 ---
 

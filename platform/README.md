@@ -2,9 +2,6 @@
 
 > **Developer reference for `platform/`.** For full product overview, see root [`README.md`](../README.md). For detailed system architecture, see [`docs/ALLEL.md`](../docs/ALLEL.md).
 > Last source audit: **2026-09-05**. Verified against repository source tree.
-> 
-> 🚀 **Live Product:** [**https://www.allel.co**](https://www.allel.co) · [**Dashboard**](https://www.allel.co/dashboard)  
-> Sign in via magic OTP, connect your stack at [`/dashboard/connections`](https://www.allel.co/dashboard/connections), and test recovery live.
 
 ---
 

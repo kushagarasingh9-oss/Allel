@@ -8,8 +8,10 @@ Allel connects fragmented customer signals from billing, product analytics, emai
 
 > **The Architectural Rule:** AI helps Allel reason, explain, draft, research, and operate connected tools. It does **not** own customer identity, risk truth, policy, approval integrity, case transitions, or revenue attribution. Those boundaries remain deterministic, database-enforced, and auditable.
 
-> 🚀 **Live Product:** [**https://www.allel.co**](https://www.allel.co) · [**Dashboard**](https://www.allel.co/dashboard)  
-> Sign in via magic OTP, connect your stack at [`/dashboard/connections`](https://www.allel.co/dashboard/connections), and test recovery live.
+**Live Application:** [https://www.allel.co](https://www.allel.co) · [Dashboard](https://www.allel.co/dashboard)
+
+Log in with an instant magic OTP at [allel.co](https://www.allel.co) to access the dashboard.  
+Third-party OAuth integrations (Google, Intercom) are currently in developer test mode—either bypass the unverified app prompt or connect test/sandbox API keys (Stripe, PostHog, Linear) under [`/dashboard/connections`](https://www.allel.co/dashboard/connections).
 
 ---
 
