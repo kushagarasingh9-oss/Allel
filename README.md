@@ -2,9 +2,44 @@
 
 ![Allel logo](platform/public/logo-icon.png)
 
-**Allel is your AI cofounder that manages all your DevOps & Revops as as your Cofounder and helps you save your revenue.**
+**Allel is your AI cofounder that manages all your DevOps & Revops as your Cofounder and helps you save your revenue.**
 
 **Link:** [https://www.allel.co](https://www.allel.co)
+
+<table width="100%">
+  <tr>
+    <td width="25%" align="center" valign="top">
+      <a href="docs/screenshots/r1.png"><img src="docs/screenshots/r1.png" alt="Multi-Signal Diagnosis" /></a><br/>
+      <sub><b>1. Signal Diagnosis</b></sub>
+    </td>
+    <td width="25%" align="center" valign="top">
+      <a href="docs/screenshots/r2.png"><img src="docs/screenshots/r2.png" alt="Root-Cause Analysis" /></a><br/>
+      <sub><b>2. Root-Cause & Recovery Plan</b></sub>
+    </td>
+    <td width="25%" align="center" valign="top">
+      <a href="docs/screenshots/r3.png"><img src="docs/screenshots/r3.png" alt="Rescue Discount Generation" /></a><br/>
+      <sub><b>3. Rescue Discount Execution</b></sub>
+    </td>
+    <td width="25%" align="center" valign="top">
+      <a href="docs/screenshots/r4.png"><img src="docs/screenshots/r4.png" alt="Calendar Operations" /></a><br/>
+      <sub><b>4. Calendar Operations</b></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="25%" align="center" valign="top">
+      <a href="docs/screenshots/r5.png"><img src="docs/screenshots/r5.png" alt="Autonomous Email Delivery" /></a><br/>
+      <sub><b>5. Autonomous Email Delivery</b></sub>
+    </td>
+    <td width="25%" align="center" valign="top">
+      <a href="docs/screenshots/r6.png"><img src="docs/screenshots/r6.png" alt="Revenue Recovery Hub" /></a><br/>
+      <sub><b>6. Recovery Command Center</b></sub>
+    </td>
+    <td width="50%" colspan="2" align="center" valign="top">
+      <a href="docs/screenshots/r7.png"><img src="docs/screenshots/r7.png" alt="Connected Signal Mesh" /></a><br/>
+      <sub><b>7. Connected Signal Mesh (11+ Integrations)</b></sub>
+    </td>
+  </tr>
+</table>
 
 ---
 
