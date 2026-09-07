@@ -9,34 +9,44 @@
 <table width="100%">
   <tr>
     <td width="25%" align="center" valign="top">
-      <a href="docs/screenshots/r1.png"><img src="docs/screenshots/r1.png" alt="Multi-Signal Diagnosis" /></a><br/>
-      <sub><b>1. Signal Diagnosis</b></sub>
+      <a href="docs/screenshots/r1.png"><img src="docs/screenshots/r1.png" alt="Diagnosis" /></a><br/>
+      <sub><b>Diagnosis</b></sub>
     </td>
     <td width="25%" align="center" valign="top">
-      <a href="docs/screenshots/r2.png"><img src="docs/screenshots/r2.png" alt="Root-Cause Analysis" /></a><br/>
-      <sub><b>2. Root-Cause & Recovery Plan</b></sub>
+      <a href="docs/screenshots/r2.png"><img src="docs/screenshots/r2.png" alt="Plan" /></a><br/>
+      <sub><b>Plan</b></sub>
     </td>
     <td width="25%" align="center" valign="top">
-      <a href="docs/screenshots/r3.png"><img src="docs/screenshots/r3.png" alt="Rescue Discount Generation" /></a><br/>
-      <sub><b>3. Rescue Discount Execution</b></sub>
+      <a href="docs/screenshots/r3.png"><img src="docs/screenshots/r3.png" alt="Discounts" /></a><br/>
+      <sub><b>Discounts</b></sub>
     </td>
     <td width="25%" align="center" valign="top">
-      <a href="docs/screenshots/r4.png"><img src="docs/screenshots/r4.png" alt="Calendar Operations" /></a><br/>
-      <sub><b>4. Calendar Operations</b></sub>
+      <a href="docs/screenshots/r4.png"><img src="docs/screenshots/r4.png" alt="Calendar" /></a><br/>
+      <sub><b>Calendar</b></sub>
     </td>
   </tr>
   <tr>
     <td width="25%" align="center" valign="top">
-      <a href="docs/screenshots/r5.png"><img src="docs/screenshots/r5.png" alt="Autonomous Email Delivery" /></a><br/>
-      <sub><b>5. Autonomous Email Delivery</b></sub>
+      <a href="docs/screenshots/r5.png"><img src="docs/screenshots/r5.png" alt="Email" /></a><br/>
+      <sub><b>Email</b></sub>
     </td>
     <td width="25%" align="center" valign="top">
-      <a href="docs/screenshots/r6.png"><img src="docs/screenshots/r6.png" alt="Revenue Recovery Hub" /></a><br/>
-      <sub><b>6. Recovery Command Center</b></sub>
+      <a href="docs/screenshots/r6.png"><img src="docs/screenshots/r6.png" alt="Recovery" /></a><br/>
+      <sub><b>Recovery</b></sub>
     </td>
-    <td width="50%" colspan="2" align="center" valign="top">
-      <a href="docs/screenshots/r7.png"><img src="docs/screenshots/r7.png" alt="Connected Signal Mesh" /></a><br/>
-      <sub><b>7. Connected Signal Mesh (11+ Integrations)</b></sub>
+    <td width="25%" align="center" valign="top">
+      <a href="docs/screenshots/r8.png"><img src="docs/screenshots/r8.png" alt="Investigation" /></a><br/>
+      <sub><b>Investigation</b></sub>
+    </td>
+    <td width="25%" align="center" valign="top">
+      <a href="docs/screenshots/r9.png"><img src="docs/screenshots/r9.png" alt="Approvals" /></a><br/>
+      <sub><b>Approvals</b></sub>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="4" align="center" valign="top">
+      <a href="docs/screenshots/r7.png"><img src="docs/screenshots/r7.png" alt="Integrations" /></a><br/>
+      <sub><b>Integrations</b></sub>
     </td>
   </tr>
 </table>
