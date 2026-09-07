@@ -2,16 +2,11 @@
 
 ![Allel logo](platform/public/logo-icon.png)
 
-**An AI-assisted revenue-recovery operating system for founder-led B2B SaaS teams.**
+**Allel is your AI cofounder that manages all your RevOps as a founder and helps you save your revenue.**
 
 Allel connects fragmented customer signals from billing, product analytics, email, support, CRM, and engineering systems. It resolves those signals to the correct account, computes risk deterministically, creates an auditable recovery case, helps prepare the right response, routes the exact draft through founder approval, and measures what happened next.
 
-> **The Architectural Rule:** AI helps Allel reason, explain, draft, research, and operate connected tools. It does **not** own customer identity, risk truth, policy, approval integrity, case transitions, or revenue attribution. Those boundaries remain deterministic, database-enforced, and auditable.
-
-**Live Application:** [https://www.allel.co](https://www.allel.co) · [Dashboard](https://www.allel.co/dashboard)
-
-Log in with an instant magic OTP at [allel.co](https://www.allel.co) to access the dashboard.  
-Third-party OAuth integrations (Google, Intercom) are currently in developer test mode—either bypass the unverified app prompt or connect test/sandbox API keys (Stripe, PostHog, Linear) under [`/dashboard/connections`](https://www.allel.co/dashboard/connections).
+**Link:** [https://www.allel.co](https://www.allel.co)
 
 ---
 
