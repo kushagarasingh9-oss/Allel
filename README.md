@@ -8,20 +8,9 @@ Allel connects fragmented customer signals from billing, product analytics, emai
 
 > **The Architectural Rule:** AI helps Allel reason, explain, draft, research, and operate connected tools. It does **not** own customer identity, risk truth, policy, approval integrity, case transitions, or revenue attribution. Those boundaries remain deterministic, database-enforced, and auditable.
 
----
-
-### 🚀 Live Product Access & Evaluator Testing
-
-* **Live Application:** [**https://www.allel.co**](https://www.allel.co)
-* **Command Center & Dashboard:** [**https://www.allel.co/dashboard**](https://www.allel.co/dashboard) (Passwordless magic OTP login)
-* **Connect Your Stack:** [**https://www.allel.co/dashboard/connections**](https://www.allel.co/dashboard/connections)
-
-> [!TIP]
-> **Connecting Integrations & Developer Mode Note:**
-> * **Connect Real or Sandbox Tools:** In [`/dashboard/connections`](https://www.allel.co/dashboard/connections), you can connect any of the 11 supported integrations (Stripe, PostHog, Gmail, Intercom, Slack, Linear, Notion, Sentry, HubSpot, Airtable).
-> * **OAuth Developer Mode:** Because Allel is in public beta, third-party OAuth apps (Google/Gmail, Intercom) are currently in developer testing mode. If Google displays an *"unverified app"* consent screen, click **Advanced &rarr; Go to Allel (unsafe)** to authenticate your test mailbox.
-> * **Direct API Key Mode (Recommended for Evaluators):** If you prefer not to use OAuth, you can connect your tools in 1 click using sandbox or test API keys (e.g. Stripe `sk_test_...`, PostHog personal key, Linear key, Intercom access token) via the **"Direct Connect / API Key"** option on each integration card.
-> * **Pre-Loaded Evaluator Dataset:** If you want to evaluate without connecting external accounts, Allel is pre-populated with a 15-account scenario dataset in [`/dashboard/flows`](https://www.allel.co/dashboard/flows) and [`/dashboard/accounts`](https://www.allel.co/dashboard/accounts).
+> 🚀 **Experience Allel Live:** [**https://www.allel.co**](https://www.allel.co)  
+> Welcome! We'd love for you to explore Allel in live production: sign in with an instant passwordless OTP at [**allel.co**](https://www.allel.co) to enter the [Command Center](https://www.allel.co/dashboard).  
+> Connect your stack (Stripe, PostHog, Slack, Linear, etc.) under [`/dashboard/connections`](https://www.allel.co/dashboard/connections) using live integrations or sandbox API keys to watch deterministic risk scoring, autonomous agent investigations, and human-in-the-loop recovery workflows operate in real time.
 
 ---
 
