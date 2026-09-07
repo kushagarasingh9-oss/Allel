@@ -3,8 +3,8 @@
 > **Developer reference for `platform/`.** For full product overview, see root [`README.md`](../README.md). For detailed system architecture, see [`docs/ALLEL.md`](../docs/ALLEL.md).
 > Last source audit: **2026-09-05**. Verified against repository source tree.
 > 
-> 🚀 **Experience Allel Live:** [**https://www.allel.co**](https://www.allel.co)  
-> Welcome! We'd love for you to explore Allel in live production: sign in with an instant passwordless OTP at [**allel.co**](https://www.allel.co) to enter the [Command Center](https://www.allel.co/dashboard). Connect your stack under [`/dashboard/connections`](https://www.allel.co/dashboard/connections) (live or sandbox) to test deterministic risk scoring and recovery pipelines in real time.
+> 🚀 **Live Product:** [**https://www.allel.co**](https://www.allel.co) · [**Dashboard**](https://www.allel.co/dashboard)  
+> Sign in via magic OTP, connect your stack at [`/dashboard/connections`](https://www.allel.co/dashboard/connections), and test recovery live.
 
 ---
 
