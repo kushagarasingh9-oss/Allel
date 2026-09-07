@@ -451,14 +451,58 @@ function sanitizeReasoningText(raw: string): string {
   return clean
 }
 
+// Global in-memory cache of resolved thought durations per messageId
+const thoughtDurationCache = new Map<string, number>()
+
+function getCachedThoughtDuration(messageId?: string): number | null {
+  if (!messageId) return null
+  if (thoughtDurationCache.has(messageId)) {
+    return thoughtDurationCache.get(messageId)!
+  }
+  if (typeof window !== "undefined") {
+    try {
+      const stored = window.sessionStorage.getItem(`allel.thought-duration.${messageId}`)
+      if (stored) {
+        const val = parseInt(stored, 10)
+        if (!isNaN(val) && val > 0) {
+          thoughtDurationCache.set(messageId, val)
+          return val
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+  return null
+}
+
+function setCachedThoughtDuration(messageId: string, duration: number) {
+  thoughtDurationCache.set(messageId, duration)
+  if (typeof window !== "undefined") {
+    try {
+      window.sessionStorage.setItem(`allel.thought-duration.${messageId}`, String(duration))
+    } catch {
+      // Ignore
+    }
+  }
+}
+
 export function MonologueBlock({
   text,
   label,
   isExecuting = false,
+  messageId,
+  turnStartTime,
+  toolCount = 0,
+  initialDuration,
 }: {
   text: string
   label?: string
   isExecuting?: boolean
+  messageId?: string
+  turnStartTime?: number
+  toolCount?: number
+  initialDuration?: number
 }) {
   const sanitizedText = React.useMemo(() => {
     if (!text || !text.trim()) return ""
@@ -468,9 +512,45 @@ export function MonologueBlock({
   const hasText = Boolean(sanitizedText)
   const [expanded, setExpanded] = React.useState(false)
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
-  const startTimeRef = React.useRef(Date.now())
-  const [elapsedSeconds, setElapsedSeconds] = React.useState(0)
-  const [durationSeconds, setDurationSeconds] = React.useState<number | null>(null)
+  const startTimeRef = React.useRef(turnStartTime || Date.now())
+
+  // Keep startTimeRef synchronized if turnStartTime is provided or updated
+  React.useEffect(() => {
+    if (turnStartTime && isExecuting) {
+      startTimeRef.current = turnStartTime
+    }
+  }, [turnStartTime, isExecuting])
+
+  const computedFallbackDuration = React.useMemo(() => {
+    if (initialDuration && initialDuration > 0) return initialDuration
+
+    const cached = getCachedThoughtDuration(messageId)
+    if (cached && cached > 0) return cached
+
+    const words = sanitizedText.split(/\s+/).filter(Boolean).length
+    const seed = messageId
+      ? Math.abs(messageId.split("").reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) | 0, 0))
+      : words
+    const jitter = seed % 3 // 0, 1, or 2
+
+    const toolWeight = toolCount > 0 ? toolCount * 2 + 1 : 2
+    const wordWeight = Math.floor(words / 25)
+    return Math.max(2, Math.min(16, toolWeight + wordWeight + jitter))
+  }, [sanitizedText, messageId, toolCount, initialDuration])
+
+  const [elapsedSeconds, setElapsedSeconds] = React.useState(() => {
+    if (isExecuting) {
+      return Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000))
+    }
+    return computedFallbackDuration
+  })
+
+  const [durationSeconds, setDurationSeconds] = React.useState<number | null>(() => {
+    if (!isExecuting) {
+      return getCachedThoughtDuration(messageId) ?? initialDuration ?? computedFallbackDuration
+    }
+    return null
+  })
 
   // Auto-scroll internally inside the thinking box as new tokens stream in if user manually opened it
   React.useEffect(() => {
@@ -488,11 +568,15 @@ export function MonologueBlock({
       return () => clearInterval(interval)
     } else {
       if (durationSeconds === null) {
-        const finalSec = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000))
+        const measured = Math.max(2, Math.round((Date.now() - startTimeRef.current) / 1000))
+        const finalSec = measured > 1 ? measured : computedFallbackDuration
         setDurationSeconds(finalSec)
+        if (messageId) {
+          setCachedThoughtDuration(messageId, finalSec)
+        }
       }
     }
-  }, [isExecuting, durationSeconds])
+  }, [isExecuting, durationSeconds, messageId, computedFallbackDuration])
 
   // Phase 1: Initial prompt submission before thinking tokens arrive (first 4-5s)
   // Render clean non-expandable shimmering Thinking... text
@@ -511,7 +595,7 @@ export function MonologueBlock({
   }
 
   // Phase 2 & 3: Active thoughts in-flight or completed
-  const displayDuration = durationSeconds ?? (elapsedSeconds > 0 ? elapsedSeconds : Math.max(1, Math.min(15, Math.round(sanitizedText.split(/\s+/).length / 25))))
+  const displayDuration = durationSeconds ?? (elapsedSeconds > 0 ? elapsedSeconds : computedFallbackDuration)
 
   return (
     <div className="group text-[13px] text-neutral-400 font-normal leading-relaxed py-0.5">

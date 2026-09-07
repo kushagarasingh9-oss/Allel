@@ -1618,7 +1618,15 @@ function buildDynamicOperationalThought(toolNames: string[], messageParts: Array
 
 // ─── Single Message Renderer ─────────────────────────────────────────
 
-function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatarUrl: string | null }) {
+function AgentMessageBubble({
+  message,
+  avatarUrl,
+  activeTurnStartTime,
+}: {
+  message: UIMessage
+  avatarUrl: string | null
+  activeTurnStartTime?: number
+}) {
   const { sendMessage, status } = useChatContext()
   const isChatStreaming = status === "streaming" || status === "submitted"
   if (message.role === "user") {
@@ -1996,6 +2004,9 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
     rendered.push(
       <MonologueBlock
         key={`thinking-${message.id}`}
+        messageId={message.id}
+        turnStartTime={activeTurnStartTime}
+        toolCount={toolBatchCount}
         text={finalThinkingText}
         isExecuting={isExecutingTurn}
       />
@@ -2055,12 +2066,13 @@ function AgentMessageBubble({ message, avatarUrl }: { message: UIMessage; avatar
 }
 
 // ─── Structured Thinking Indicator ──────────────────────────────────
-function AgentThinking() {
+function AgentThinking({ turnStartTime }: { turnStartTime?: number }) {
   return (
     <div className="w-full relative z-10 pt-2 mb-4">
       <MonologueBlock
         text=""
         isExecuting={true}
+        turnStartTime={turnStartTime}
       />
     </div>
   )
@@ -2411,6 +2423,15 @@ export function AgentFeed() {
   const feedRef = React.useRef<HTMLDivElement>(null)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
   const prevSessionIdRef = React.useRef(currentSessionId)
+  const activeTurnStartTimeRef = React.useRef<number>(Date.now())
+  const prevStatusRef = React.useRef(status)
+
+  React.useEffect(() => {
+    if ((status === "submitted" || status === "streaming") && prevStatusRef.current === "ready") {
+      activeTurnStartTimeRef.current = Date.now()
+    }
+    prevStatusRef.current = status
+  }, [status])
 
   // Filter out temporary test artifacts, deduplicate identical repeated messages, and avoid repeating stopped banners
   const displayMessages = React.useMemo(() => {
@@ -2632,6 +2653,7 @@ export function AgentFeed() {
             key={typeof message.id === "string" && message.id.trim().length > 0 ? message.id : `msg-${message.role}-${idx}`}
             message={message}
             avatarUrl={avatarUrl}
+            activeTurnStartTime={activeTurnStartTimeRef.current}
           />
         ))}
 
@@ -2640,7 +2662,7 @@ export function AgentFeed() {
           const lastMsg = messages[messages.length - 1]
           if (!lastMsg || lastMsg.role === "user") {
             // Prompt was just submitted and assistant stream hasn't pushed first message yet
-            return <AgentThinking />
+            return <AgentThinking turnStartTime={activeTurnStartTimeRef.current} />
           }
           return null
         })()}
