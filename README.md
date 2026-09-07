@@ -2,9 +2,7 @@
 
 ![Allel logo](platform/public/logo-icon.png)
 
-**Allel is your AI cofounder that manages all your RevOps as a founder and helps you save your revenue.**
-
-Allel connects fragmented customer signals from billing, product analytics, email, support, CRM, and engineering systems. It resolves those signals to the correct account, computes risk deterministically, creates an auditable recovery case, helps prepare the right response, routes the exact draft through founder approval, and measures what happened next.
+**Allel is your AI cofounder that manages all your DevOps & Revops as as your Cofounder and helps you save your revenue.**
 
 **Link:** [https://www.allel.co](https://www.allel.co)
 
