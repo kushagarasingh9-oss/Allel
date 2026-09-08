@@ -136,3 +136,32 @@ function InlineTool({ name, icon }: { name: string; icon: string }) {
     <DevinChatBox ... />
   </div>
   ```
+
+---
+
+## 5. Canonical Button Tokens & Non-Negotiable Rules
+
+Allel adheres to strict button design rules to keep visual noise minimal:
+
+1. **Connect Integration Pill (`ConnectIntegrationPill`):**
+   - **Background & Border:** `bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-700/80 hover:border-neutral-600`
+   - **Border Radius:** `rounded-lg` (`8px`)
+   - **Layout:** `group/btn flex items-center gap-2 px-2.5 py-1.5 transition-all text-left`
+   - **Icon:** Official monochrome or brand SVG from `/logos/` at `14x14` (`w-3.5 h-3.5 object-contain shrink-0`)
+   - **Chevron:** `<ChevronRight className="w-3 h-3 text-neutral-500 group-hover/btn:text-neutral-300 ml-auto transition-colors shrink-0" />`
+   - **Invariant:** Must be placed as an inline or pill element **below** the agent chat speech block. Never nest inside card wrappers, timeline status nodes, or multi-column grids.
+
+2. **Primary White Button (`PrimaryButton`):**
+   - **Token:** `bg-white text-zinc-950 font-medium hover:bg-zinc-200 active:scale-[0.98] transition-all rounded-lg shadow-xs`
+   - **Disabled State:** `disabled:opacity-40 disabled:pointer-events-none disabled:active:scale-100`
+
+3. **Secondary Ghost Button (`SecondaryButton`):**
+   - **Token:** `bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white border border-white/[0.08] hover:border-white/15 active:scale-[0.98] transition-all rounded-lg`
+
+4. **Approval Button (`ApproveButton`):**
+   - **Token:** `bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-medium transition-all rounded-md shadow-xs`
+
+5. **Circular Chat Send Button (`CircularSendButton`):**
+   - **Active:** `w-8 h-8 rounded-full bg-white text-black hover:bg-zinc-200 shadow-md active:scale-95`
+   - **Disabled:** `bg-[#5a5a5a] text-[#1c1c1c] cursor-not-allowed opacity-90`
+   - **Streaming/Stop:** Displays `<Square className="w-3.5 h-3.5 fill-current" />`
