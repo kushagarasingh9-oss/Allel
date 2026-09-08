@@ -59,10 +59,18 @@ export async function GET() {
     .eq('workspace_id', workspace.id)
     .eq('status', 'connected')
 
+  const meta = user.user_metadata || {}
+  const fullName = meta.full_name || meta.name || meta.display_name || ''
+  const firstName = fullName ? fullName.trim().split(' ')[0] : (user.email ? user.email.split('@')[0] : 'Founder')
+
   return NextResponse.json({
     brief,
     items,
     integrations: integrations || [],
+    user: {
+      firstName,
+      email: user.email,
+    },
   })
 }
 
@@ -92,10 +100,25 @@ export async function POST() {
       .eq('founder_brief_id', result.briefId)
       .order('sort_order', { ascending: true })
 
+    const { data: integrations } = await supabase
+      .from('integration_connections')
+      .select('provider, status, last_synced_at')
+      .eq('workspace_id', workspace.id)
+      .eq('status', 'connected')
+
+    const meta = user.user_metadata || {}
+    const fullName = meta.full_name || meta.name || meta.display_name || ''
+    const firstName = fullName ? fullName.trim().split(' ')[0] : (user.email ? user.email.split('@')[0] : 'Founder')
+
     return NextResponse.json({
       success: true,
       brief,
       items: items || [],
+      integrations: integrations || [],
+      user: {
+        firstName,
+        email: user.email,
+      },
     })
   } catch (error: any) {
     return NextResponse.json(

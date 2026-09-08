@@ -251,7 +251,7 @@ function buildSummary(
   const connected = integrations.filter(isUsableLiveIntegration)
 
   if (connected.length === 0) {
-    return 'Connect your first integration to start building your daily brief. Head to Settings → Integrations to connect Stripe, PostHog, Gmail, or Intercom.'
+    return 'Connect your first integration to start building your daily brief. Head to Connections to connect Stripe, PostHog, Gmail, or Intercom.'
   }
 
   const parts: string[] = []

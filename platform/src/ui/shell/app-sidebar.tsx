@@ -41,8 +41,8 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
   const [mounted, setMounted] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string>("kushagra singh");
-  const [userEmail, setUserEmail] = useState<string>("kushagrasingh175@gmail.com");
+  const [userName, setUserName] = useState<string>("Founder");
+  const [userEmail, setUserEmail] = useState<string>("");
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProjectsOpen, setIsProjectsOpen] = useState(true);
   const [isHistoryOpen, setIsHistoryOpen] = useState(true);
@@ -172,19 +172,19 @@ export function AppSidebarContainer({ children }: { children: React.ReactNode })
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         
-        const activeEmail = user?.email || "kushagrasingh175@gmail.com";
+        const activeEmail = user?.email || "";
         setUserEmail(activeEmail);
 
         const meta = user?.user_metadata ?? {};
-        const name = meta.full_name || meta.name || meta.display_name || activeEmail.split('@')[0] || "kushagra singh";
+        const name = meta.full_name || meta.name || meta.display_name || (activeEmail ? activeEmail.split('@')[0] : "Founder");
         setUserName(name);
 
         // Fetch exact profile picture from Google OAuth metadata or unavatar service for the logged-in Gmail address
-        const pic = meta.avatar_url || meta.picture || meta.avatar_path || `https://unavatar.io/${encodeURIComponent(activeEmail)}`;
+        const pic = meta.avatar_url || meta.picture || meta.avatar_path || (activeEmail ? `https://unavatar.io/${encodeURIComponent(activeEmail)}` : null);
         setAvatarUrl(pic);
       } catch (err) {
         console.error("Failed to load user info:", err);
-        setAvatarUrl(`https://unavatar.io/kushagrasingh175@gmail.com`);
+        setAvatarUrl(null);
       }
     }
     loadUser();
