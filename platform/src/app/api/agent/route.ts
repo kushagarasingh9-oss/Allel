@@ -159,7 +159,7 @@ function formatUnifiedCustomerScanReport(
   recRes: any
 ): string {
   if (!scanRes || scanRes.found === false || scanRes.error) {
-    return `### ![Account](/logos/person.svg) ${customerName} — Account Health Review\n\nI reached out across connected integrations for **${customerName}**, but no active record was found in the workspace.\n\n**Next move:** Verify the account domain or email in Settings → Integrations.`
+    return `### ![Account](/logos/person.svg) ${customerName} — Account Health Review\n\nI reached out across connected integrations for **${customerName}**, but no active record was found in the workspace.\n\n**Next move:** Verify the account domain or email in [Connections](/dashboard/connections).`
   }
 
   const accountName = scanRes.accountName || scanRes.account?.name || customerName
@@ -407,10 +407,11 @@ CRITICAL EARLY-STOPPING RULES FOR NEW / UNCONNECTED WORKSPACES:
    - You may call at most ONE read/verification tool (e.g. "getAccountDetails" or "inspectIntegrationConnectionsTool") to check.
    - ONCE IT RETURNS that the account does not exist or integrations are not connected: STOP TOOL EXECUTION IMMEDIATELY.
    - ABSOLUTE PROHIBITION: DO NOT chain more tools (such as searching Stripe, then scanning recovery cases, then calling "generateFollowUpDraft"). NEVER call "generateFollowUpDraft", "createSignal", "addToRecoveryQueue", or write tools when no customer account or integration exists!
-2. Response format:
-   - State clearly and concisely why the action cannot proceed: no integrations are connected yet in this workspace.
-   - Specifically mention which integrations need to be connected (e.g. ![Stripe](/logos/stripe.svg) **Stripe** for customer accounts & billing, and ![Gmail](/logos/gmail.svg) **Gmail** for drafting & sending emails).
-   - Advise them to connect their tools in Connections (/dashboard/connections).`
+2. STRICT RESPONSE FORMAT (2-3 SENTENCES MAX):
+   - State simply and directly: no integrations are connected in this workspace yet, so there is no customer data or inbox context available.
+   - Guide the founder to connect their integrations in [Connections](/dashboard/connections).
+   - ABSOLUTE BAN ON "Settings -> Integrations" or "Settings → Integrations" — the only correct path is [Connections](/dashboard/connections).
+   - ABSOLUTE BAN ON MANUAL FORM REQUESTS: NEVER ask the user to manually provide customer emails, MRR, plan tier, or churn trigger reasons. Allel is an automated agent, not a manual form. Keep it clean, simple, and direct with the link to [Connections](/dashboard/connections).`
     : `WORKSPACE INTEGRATION STATUS: Active connected integrations: ${activeProvidersList}.
 CRITICAL ADAPTIVE STOPPING RULE:
 If a customer lookup (e.g. "getAccountDetails", "searchStripeCustomersTool", or "getUnifiedCustomerScan") indicates that the requested customer was NOT found in the workspace:
@@ -778,7 +779,7 @@ The founder is commanding you to SEND/DISPATCH the outreach email draft right no
                         synthesized = formatUnifiedCustomerScanReport(customerTarget, scanRes, recRes)
                         calledToolNames.push('getUnifiedCustomerScan', 'getAccountRecoveryStatus')
                       } catch {
-                        synthesized = `I reached out to check **${customerTarget}** across your connected integrations. Please verify your connection status under Settings → Integrations.`
+                        synthesized = `I reached out to check **${customerTarget}** across your connected integrations. Please verify your connection status in [Connections](/dashboard/connections).`
                       }
                     } else if (/\b(how are my customers doing|customers?|fleet|churn\s*risk|accounts?\s*at\s*risk)\b/i.test(trimmed)) {
                       try {

@@ -1558,7 +1558,7 @@ function wrapToolWithLiveIntegrationGuard(
           : `${provider} is not connected for this workspace.`
         return {
           error: errorMessage,
-          recovery_hint: `Tell the founder to reconnect their ${provider} integration from the Allel dashboard under Settings → Integrations. Once reconnected, retry this action.`,
+          recovery_hint: `Tell the founder to connect their ${provider} integration in Connections (/dashboard/connections). Once connected, retry this action.`,
           integrationProvider: provider,
           dataSource: 'connection_guard',
           observedAt,

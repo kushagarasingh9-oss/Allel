@@ -1984,7 +1984,7 @@ export const getGmailThreadsForAccount = tool({
     if (!isGmailReadSyncEnabled()) {
       return {
         error:
-          'Gmail is connected in send-only mode. Reconnect it in Settings > Connections with inbox-read permission to search live mail.',
+          'Gmail is connected in send-only mode. Reconnect it in Connections (/dashboard/connections) with inbox-read permission to search live mail.',
       }
     }
 
@@ -2083,7 +2083,7 @@ export const getMyInbox = tool({
     if (!isGmailReadSyncEnabled()) {
       return {
         error:
-          'Gmail is connected in send-only mode. Reconnect it in Settings > Connections with inbox-read permission to read live mail.',
+          'Gmail is connected in send-only mode. Reconnect it in Connections (/dashboard/connections) with inbox-read permission to read live mail.',
       }
     }
 
@@ -2892,7 +2892,7 @@ export const getGmailThreadDetailTool = tool({
     if (!isGmailReadSyncEnabled()) {
       return {
         error:
-          'Gmail is connected in send-only mode. Reconnect it in Settings > Connections with inbox-read permission to read thread details.',
+          'Gmail is connected in send-only mode. Reconnect it in Connections (/dashboard/connections) with inbox-read permission to read thread details.',
       }
     }
 

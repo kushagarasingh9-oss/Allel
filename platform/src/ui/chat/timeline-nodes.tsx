@@ -804,20 +804,9 @@ export function AgentSpeechBlock({
       /\bzero\s+(?:\(0\)\s+)?(?:integrations|providers)\s+connected\b/i.test(text)
 
     if (allDisconnected) {
-      // Prioritize Stripe and Gmail as core requirements for accounts & outreach
-      const core = ['stripe', 'gmail']
-      if (/posthog/i.test(text)) core.push('posthog')
-      if (/intercom/i.test(text)) core.push('intercom')
-      if (/slack/i.test(text)) core.push('slack')
-
-      for (const slug of core) {
-        const p = PROVIDERS_CONFIG.find((item) => item.slug === slug)
-        if (p && !addedSlugs.has(p.slug)) {
-          found.push({ name: p.name, slug: p.slug, logoUrl: p.logoUrl })
-          addedSlugs.add(p.slug)
-        }
-      }
-      return found
+      // When all integrations are disconnected / workspace is new, do not render a row of buttons.
+      // The text itself has the direct inline link to Connections.
+      return []
     }
 
     for (const p of PROVIDERS_CONFIG) {
@@ -860,6 +849,14 @@ export function AgentSpeechBlock({
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
+            a: ({ href, children }) => (
+              <a
+                href={href}
+                className="text-white font-medium underline underline-offset-4 decoration-zinc-500 hover:decoration-white hover:text-white transition-colors cursor-pointer"
+              >
+                {children}
+              </a>
+            ),
             img: ({ src, alt }) => (
               <SafeMarkdownImage src={src} alt={alt} />
             ),
