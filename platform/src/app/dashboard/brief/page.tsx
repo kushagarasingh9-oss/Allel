@@ -5,16 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useChatContext } from '@/ui/chat/chat-provider'
 import { DevinChatBox } from '@/ui/primitives/devin-chat-box'
 import { createClient } from '@/foundation/database/client'
-import {
-  RefreshCw,
-  ArrowRight,
-  ShieldCheck,
-  Zap,
-  AlertTriangle,
-  Sparkles,
-  CheckCircle2,
-  ExternalLink,
-} from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 
 const PROVIDER_ICONS: Record<string, string> = {
   stripe: '/logos/stripe.svg',
@@ -28,56 +19,6 @@ const PROVIDER_ICONS: Record<string, string> = {
   google_calendar: '/logos/google-calendar.svg',
 }
 
-const PROVIDER_LABELS: Record<string, string> = {
-  stripe: 'Stripe',
-  gmail: 'Gmail',
-  posthog: 'PostHog',
-  intercom: 'Intercom',
-  slack: 'Slack',
-  hubspot: 'HubSpot',
-  linear: 'Linear',
-  sentry: 'Sentry',
-  google_calendar: 'Google Calendar',
-}
-
-const CORE_INTEGRATIONS = [
-  {
-    provider: 'stripe',
-    name: 'Stripe',
-    icon: '/logos/stripe.svg',
-    tag: 'Billing & Subscriptions',
-    desc: 'Monitors failed card charges, dunning retry attempts, and subscription churn.',
-  },
-  {
-    provider: 'gmail',
-    name: 'Gmail',
-    icon: '/logos/gmail.svg',
-    tag: 'Customer Inbox',
-    desc: 'Surfaces unanswered founder threads, customer churn signals, and invoice updates.',
-  },
-  {
-    provider: 'posthog',
-    name: 'PostHog',
-    icon: '/logos/posthog.svg',
-    tag: 'Product Telemetry',
-    desc: 'Flags feature usage decay, session drop-offs, and cancellation export events.',
-  },
-  {
-    provider: 'intercom',
-    name: 'Intercom',
-    icon: '/logos/intercom.svg',
-    tag: 'Support Messaging',
-    desc: 'Catches dissatisfaction sentiment, complaint trends, and unresolved blockers.',
-  },
-  {
-    provider: 'slack',
-    name: 'Slack',
-    icon: '/logos/slack.svg',
-    tag: 'Team Escalations',
-    desc: 'Dispatches real-time at-risk customer alerts and daily retention digests.',
-  },
-]
-
 function InlineTool({ name, icon }: { name: string; icon: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 font-medium text-white align-middle mx-1">
@@ -90,14 +31,6 @@ function InlineTool({ name, icon }: { name: string; icon: string }) {
       <span>{name}</span>
     </span>
   )
-}
-
-function formatCurrency(cents: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(cents / 100)
 }
 
 export default function BriefPage() {
@@ -351,13 +284,13 @@ export default function BriefPage() {
       {/* Main Content Area */}
       <div className="flex-1 h-full min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
         <div className="w-full max-w-[760px] mx-auto px-6 h-full flex flex-col relative min-h-0">
-          <div className="w-full pt-8 pb-36 h-full overflow-y-auto">
+          <div className="w-full pt-10 pb-36 h-full overflow-y-auto">
             {/* Header Greeting */}
-            <div className="mb-6">
-              <h2 className="text-[19px] font-medium tracking-tight text-white">
+            <div className="mb-2">
+              <h2 className="text-[17px] font-medium tracking-tight text-white">
                 <span className="silver-shimmer-text">Hey {userName}</span>, {greeting}.
               </h2>
-              {headlineText && (
+              {hasConnectedIntegrations && headlineText && headlineText !== 'Connect your tools to get started' && (
                 <p className="text-xs text-zinc-400 mt-1 font-normal">
                   {headlineText}
                 </p>
@@ -366,248 +299,86 @@ export default function BriefPage() {
 
             {/* Loading Skeleton */}
             {isLoading && !briefData && (
-              <div className="space-y-4 animate-pulse pt-2">
+              <div className="space-y-4 animate-pulse pt-4">
                 <div className="h-4 bg-white/[0.04] rounded w-3/4" />
                 <div className="h-4 bg-white/[0.04] rounded w-full" />
                 <div className="h-4 bg-white/[0.04] rounded w-5/6" />
-                <div className="h-24 bg-white/[0.02] border border-white/[0.04] rounded-xl mt-6" />
               </div>
             )}
 
-            {/* State 1: New User / Zero Integrations Onboarding State */}
+            {/* State 1: New User / Zero Integrations Onboarding State — Pure Editorial Text, Zero Cards */}
             {!isLoading && !hasConnectedIntegrations && (
-              <div className="space-y-6 animate-in fade-in duration-200">
-                <div className="p-5 rounded-xl border border-white/[0.08] bg-white/[0.02] space-y-3">
-                  <div className="flex items-center gap-2 text-amber-400 text-xs font-medium">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Autonomous Daily Brief</span>
-                  </div>
-                  <h3 className="text-[16px] font-medium text-white tracking-tight">
-                    Connect your workspace tools to activate your daily brief
-                  </h3>
-                  <p className="text-sm text-zinc-400 leading-relaxed">
-                    Allel operates as your autonomous retention co-pilot. Every morning at 4:00 AM, the agent reviews customer accounts across your connected billing, product telemetry, and communications to flag churn risks, detect failed payments, and queue follow-up drafts for your approval.
-                  </p>
-                  <div className="pt-2">
-                    <button
-                      onClick={() => router.push('/dashboard/connections')}
-                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-white text-zinc-950 font-medium text-xs hover:bg-zinc-200 transition-colors cursor-pointer"
-                    >
-                      <span>Connect Integrations</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
+              <div className="space-y-4 text-zinc-300 animate-in fade-in duration-150 text-[14.5px] leading-relaxed pt-2">
+                <p>
+                  Your autonomous daily brief is waiting for your live integrations. Once connected, Allel monitors customer retention health across <InlineTool name="Stripe" icon="/logos/stripe.svg" />, <InlineTool name="Gmail" icon="/logos/gmail.svg" />, <InlineTool name="PostHog" icon="/logos/posthog.svg" />, and <InlineTool name="Intercom" icon="/logos/intercom.svg" /> every morning at 4:00 AM.
+                </p>
 
-                <div>
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3">
-                    Supported Integrations
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {CORE_INTEGRATIONS.map(item => (
-                      <div
-                        key={item.provider}
-                        className="p-3.5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] transition-colors flex flex-col justify-between gap-3"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shrink-0">
-                            <img
-                              src={item.icon}
-                              alt={item.name}
-                              className="w-4 h-4 object-contain"
-                            />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-white">{item.name}</span>
-                              <span className="text-[10px] text-zinc-500 font-normal">
-                                {item.tag}
-                              </span>
-                            </div>
-                            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                              {item.desc}
-                            </p>
-                          </div>
-                        </div>
+                <p>
+                  Head to <span onClick={() => router.push('/dashboard/connections')} className="text-white font-medium underline underline-offset-4 decoration-zinc-500 hover:decoration-white cursor-pointer transition-colors">Connections</span> to connect your tools and generate your real-time daily brief.
+                </p>
 
-                        <button
-                          onClick={() => router.push('/dashboard/connections')}
-                          className="self-end text-xs font-medium text-zinc-400 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
-                        >
-                          <span>Connect</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <p className="pt-2 text-zinc-400 leading-relaxed">
+                  Would you like me to guide you through connecting <span onClick={() => router.push('/dashboard/connections')} className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white cursor-pointer transition-colors">Stripe</span> or <span onClick={() => router.push('/dashboard/connections')} className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white cursor-pointer transition-colors">Gmail</span>, explain how autonomous retention recovery works, or answer any questions about your workspace?
+                </p>
               </div>
             )}
 
-            {/* State 2: Active Workspace Brief */}
+            {/* State 2: Active Workspace Brief — Pure Editorial Typography, Zero Cards */}
             {!isLoading && hasConnectedIntegrations && (
-              <div className="space-y-6 animate-in fade-in duration-200 pb-4">
-                {/* Active Integrations Bar */}
-                <div className="flex flex-wrap items-center gap-2 py-1">
-                  <span className="text-xs text-zinc-500 mr-1">Active sources:</span>
-                  {connectedIntegrations.map(conn => {
-                    const label = PROVIDER_LABELS[conn.provider] || conn.provider
-                    const icon = PROVIDER_ICONS[conn.provider] || '/logos/account.svg'
-                    return <InlineTool key={conn.provider} name={label} icon={icon} />
-                  })}
-                </div>
-
-                {/* Executive Summary */}
+              <div className="space-y-4 text-zinc-300 animate-in fade-in duration-150 text-[14.5px] leading-relaxed pt-2">
+                {/* Formatted Executive Summary */}
                 {summaryText ? (
                   renderFormattedSummary(summaryText)
                 ) : (
-                  <p className="text-sm text-zinc-400">
-                    No anomalies or updates recorded in this cycle. All connected sources are monitored.
+                  <p>
+                    All customer accounts are healthy. No churn risks, gateway timeouts, or failed payment retries were detected across your connected sources during the latest audit run.
                   </p>
                 )}
 
-                {/* Actionable Accounts Section */}
-                {actionableItems.length > 0 ? (
-                  <div className="pt-3 space-y-3">
-                    <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                        Priority Accounts &amp; Actions
-                      </h3>
-                      <span className="text-xs text-zinc-500">
-                        {actionableItems.length}{' '}
-                        {actionableItems.length === 1 ? 'account flagged' : 'accounts flagged'}
-                      </span>
-                    </div>
+                {/* Priority Accounts & Actions Rendered as Pristine Editorial Paragraphs */}
+                {actionableItems.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    {actionableItems.map((item, idx) => {
+                      const accountName =
+                        item.customer_accounts?.name || item.headline.split(' ')[0]
 
-                    <div className="space-y-3">
-                      {actionableItems.map((item, idx) => {
-                        const accountName =
-                          item.customer_accounts?.name || item.headline.split(' ')[0]
-                        const mrr = item.customer_accounts?.mrr_cents
-                          ? formatCurrency(item.customer_accounts.mrr_cents) + '/mo'
-                          : null
-
-                        return (
-                          <div
-                            key={item.id || idx}
-                            className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04] transition-all"
+                      return (
+                        <p key={item.id || idx}>
+                          <span
+                            onClick={() => handleSubmit(`Inspect customer ${accountName}`)}
+                            className="text-white font-medium cursor-pointer hover:underline"
                           >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-2">
-                                <span
-                                  onClick={() => handleSubmit(`Inspect customer ${accountName}`)}
-                                  className="text-[14.5px] font-semibold text-white hover:underline cursor-pointer"
-                                >
-                                  {accountName}
-                                </span>
-                                {mrr && (
-                                  <span className="text-xs font-mono bg-white/[0.06] px-1.5 py-0.5 rounded text-zinc-300">
-                                    {mrr}
-                                  </span>
-                                )}
-                              </div>
-
-                              <span
-                                className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${
-                                  item.risk_level === 'high'
-                                    ? 'border-red-500/30 bg-red-500/10 text-red-400'
-                                    : item.risk_level === 'medium'
-                                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
-                                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                                }`}
-                              >
-                                {item.risk_level === 'high'
-                                  ? 'High Risk'
-                                  : item.risk_level === 'medium'
-                                  ? 'Medium Risk'
-                                  : 'Low Risk'}
-                              </span>
-                            </div>
-
-                            <p className="text-sm text-zinc-300 mt-2 leading-relaxed">
-                              {item.headline}
-                            </p>
-
-                            {item.detail && item.detail !== item.headline && (
-                              <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
-                                {item.detail}
-                              </p>
-                            )}
-
-                            {item.evidence && item.evidence.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mt-2.5">
-                                {item.evidence.slice(0, 3).map((ev, eIdx) => (
-                                  <span
-                                    key={eIdx}
-                                    className="text-[11px] text-zinc-400 bg-white/[0.04] border border-white/[0.06] px-2 py-0.5 rounded-md"
-                                  >
-                                    {ev}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-
-                            {item.next_step && (
-                              <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between">
-                                <span className="text-xs text-zinc-400">
-                                  Action: <span className="text-zinc-200">{item.next_step}</span>
-                                </span>
-                                <button
-                                  onClick={() =>
-                                    handleSubmit(
-                                      `Execute action for ${accountName}: ${item.next_step}`
-                                    )
-                                  }
-                                  className="text-xs font-medium text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors cursor-pointer"
-                                >
-                                  <span>Take action</span>
-                                  <ArrowRight className="w-3 h-3" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] flex items-start gap-3">
-                    <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="text-sm font-medium text-emerald-300">
-                        All accounts are healthy
-                      </h4>
-                      <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                        No critical churn risks, gateway timeouts, or failed payment retries were detected across your connected sources during the latest audit run.
-                      </p>
-                    </div>
+                            {accountName}
+                          </span>
+                          {item.risk_level === 'high' ? (
+                            <span className="text-red-400 font-medium"> (High Risk)</span>
+                          ) : item.risk_level === 'medium' ? (
+                            <span className="text-amber-400 font-medium"> (Medium Risk)</span>
+                          ) : null}
+                          : {item.headline}.{' '}
+                          {item.detail && item.detail !== item.headline && (
+                            <span className="text-zinc-400">{item.detail} </span>
+                          )}
+                          {item.next_step && (
+                            <span
+                              onClick={() =>
+                                handleSubmit(`Execute action for ${accountName}: ${item.next_step}`)
+                              }
+                              className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white cursor-pointer transition-colors"
+                            >
+                              {item.next_step}
+                            </span>
+                          )}
+                        </p>
+                      )
+                    })}
                   </div>
                 )}
 
-                {/* Quick Action Suggestions */}
-                <div className="pt-2">
-                  <span className="text-xs text-zinc-500 block mb-2">Quick prompts:</span>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => handleSubmit('Inspect all high-risk accounts and root causes')}
-                      className="text-xs px-2.5 py-1 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white border border-white/[0.06] transition-colors cursor-pointer"
-                    >
-                      Inspect all high-risk accounts
-                    </button>
-                    <button
-                      onClick={() => handleSubmit('Draft recovery emails for past-due accounts')}
-                      className="text-xs px-2.5 py-1 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white border border-white/[0.06] transition-colors cursor-pointer"
-                    >
-                      Draft recovery emails
-                    </button>
-                    <button
-                      onClick={() => handleSubmit('Audit customer health across Stripe and PostHog')}
-                      className="text-xs px-2.5 py-1 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white border border-white/[0.06] transition-colors cursor-pointer"
-                    >
-                      Audit customer health
-                    </button>
-                  </div>
-                </div>
+                {/* Editorial Prompt Suggestion */}
+                <p className="pt-2 text-zinc-400 leading-relaxed">
+                  Would you like me to inspect any account details, draft tailored recovery emails, or push these cases to your <span onClick={() => handleSubmit('Add these at-risk accounts to the revenue recovery queue')} className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white hover:decoration-zinc-400 cursor-pointer transition-colors">Revenue Recovery</span> queue?
+                </p>
               </div>
             )}
           </div>
