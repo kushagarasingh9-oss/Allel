@@ -1100,7 +1100,13 @@ export const generateFollowUpDraft = tool({
       }
     }
 
-    if (!account) return { error: 'Account not found' }
+    if (!account) {
+      return {
+        error: `Customer account "${accountName || accountId || 'unknown'}" not found in this workspace.`,
+        recovery_hint:
+          'Customer accounts are synced from Stripe or CRM. Connect Stripe in Connections (/dashboard/connections) to import live customer accounts, then try drafting again.',
+      }
+    }
     const resolvedAccountId = account.id
 
     // Get primary contact

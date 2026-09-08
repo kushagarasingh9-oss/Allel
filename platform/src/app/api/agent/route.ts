@@ -388,7 +388,39 @@ export async function POST(request: Request) {
   const recentMessages = mergedMessages.slice(-8)
 
   // ── Security & Tool Integration Context ──
+  const supabase = await createClient()
+  const { data: connectedIntegrations } = await supabase
+    .from('integration_connections')
+    .select('provider, status')
+    .eq('workspace_id', workspaceId)
+    .eq('status', 'connected')
+
+  const hasZeroIntegrations = !connectedIntegrations || connectedIntegrations.length === 0
+  const activeProvidersList = (connectedIntegrations || []).map((c: { provider: string }) => c.provider).join(', ')
+
+  const workspaceIntegrationDirective = hasZeroIntegrations
+    ? `WORKSPACE INTEGRATION STATUS: ZERO (0) LIVE INTEGRATIONS CONNECTED.
+All integrations (Stripe, Gmail, PostHog, Intercom, Slack, etc.) are currently DISCONNECTED in this workspace.
+CRITICAL EARLY-STOPPING RULES FOR NEW / UNCONNECTED WORKSPACES:
+1. When asked to draft emails, inspect customer accounts, diagnose churn, or check customer status (e.g. "Draft a recovery email for FintechScale", "Check account Acme", "Check my inbox"):
+   - You MUST recognize that this new workspace has no customer records, billing telemetry, or email history yet.
+   - You may call at most ONE read/verification tool (e.g. "getAccountDetails" or "inspectIntegrationConnectionsTool") to check.
+   - ONCE IT RETURNS that the account does not exist or integrations are not connected: STOP TOOL EXECUTION IMMEDIATELY.
+   - ABSOLUTE PROHIBITION: DO NOT chain more tools (such as searching Stripe, then scanning recovery cases, then calling "generateFollowUpDraft"). NEVER call "generateFollowUpDraft", "createSignal", "addToRecoveryQueue", or write tools when no customer account or integration exists!
+2. Response format:
+   - State clearly and concisely why the action cannot proceed: no integrations are connected yet in this workspace.
+   - Specifically mention which integrations need to be connected (e.g. ![Stripe](/logos/stripe.svg) **Stripe** for customer accounts & billing, and ![Gmail](/logos/gmail.svg) **Gmail** for drafting & sending emails).
+   - Advise them to connect their tools in Connections (/dashboard/connections).`
+    : `WORKSPACE INTEGRATION STATUS: Active connected integrations: ${activeProvidersList}.
+CRITICAL ADAPTIVE STOPPING RULE:
+If a customer lookup (e.g. "getAccountDetails", "searchStripeCustomersTool", or "getUnifiedCustomerScan") indicates that the requested customer was NOT found in the workspace:
+- STOP TOOL EXECUTION IMMEDIATELY.
+- NEVER proceed to call "generateFollowUpDraft" or write tools for a customer that does not exist in this workspace!
+- Conclude immediately and explain that the account was not found in their active workspace.`
+
   const workspaceSystemContent = `Workspace context: workspace_id=${workspaceId}. Persona: ${persona.name} (${persona.role}).
+
+${workspaceIntegrationDirective}
 
 CORE OPERATIONAL DOCTRINE:
 1. NATURAL DYNAMIC CONVERSATION & PROACTIVE ASSISTANCE:

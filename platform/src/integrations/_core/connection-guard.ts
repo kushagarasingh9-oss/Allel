@@ -107,7 +107,7 @@ export class IntegrationConnectionError extends Error {
           : 'is not connected'
 
     super(
-      `${label} ${detail} for this workspace. Connect or repair it in Settings > Connections to use live data.`
+      `${label} ${detail} for this workspace. Connect or repair it in Connections (/dashboard/connections) to use live data.`
     )
     this.name = 'IntegrationConnectionError'
     this.provider = provider

@@ -795,12 +795,38 @@ export function AgentSpeechBlock({
     ]
 
     const found: Array<{ name: string; slug: string; logoUrl?: string }> = []
+    const addedSlugs = new Set<string>()
+
+    const allDisconnected =
+      /\b(?:all|every|no)\s+integrations?\s+(?:are\s+)?(?:disconnected|not connected|unconnected)\b/i.test(text) ||
+      /\b(?:every\s+provider|all\s+providers)\s+.*?\b(?:disconnected|not connected)\b/i.test(text) ||
+      /\bno\s+integrations\s+(?:are\s+)?connected\b/i.test(text) ||
+      /\bzero\s+(?:\(0\)\s+)?(?:integrations|providers)\s+connected\b/i.test(text)
+
+    if (allDisconnected) {
+      // Prioritize Stripe and Gmail as core requirements for accounts & outreach
+      const core = ['stripe', 'gmail']
+      if (/posthog/i.test(text)) core.push('posthog')
+      if (/intercom/i.test(text)) core.push('intercom')
+      if (/slack/i.test(text)) core.push('slack')
+
+      for (const slug of core) {
+        const p = PROVIDERS_CONFIG.find((item) => item.slug === slug)
+        if (p && !addedSlugs.has(p.slug)) {
+          found.push({ name: p.name, slug: p.slug, logoUrl: p.logoUrl })
+          addedSlugs.add(p.slug)
+        }
+      }
+      return found
+    }
 
     for (const p of PROVIDERS_CONFIG) {
-      // Must explicitly state that the integration itself is not configured or disconnected in settings
+      // Must explicitly state that the integration itself is not configured or disconnected
       const disconnectedPatterns = [
-        new RegExp(`(?:your|the|workspace)?\\s*\\b${p.slug}\\b\\s+(?:integration\\s+)?(?:is\\s+)?(?:not connected|unconnected|not configured|missing credentials|needs to be connected)`, 'i'),
-        new RegExp(`(?:please\\s+)?connect\\s+(?:your\\s+)?\\b${p.slug}\\b\\s+(?:integration|account|in settings)`, 'i'),
+        new RegExp(`(?:your|the|workspace)?\\s*\\b${p.slug}\\b[^.\\n]*?(?:not connected|unconnected|disconnected|not configured|missing credentials|needs to be connected|shows as disconnected)`, 'i'),
+        new RegExp(`(?:please\\s+)?connect\\s+[^.\\n]*?\\b${p.slug}\\b`, 'i'),
+        new RegExp(`without\\s+a\\s+connected\\s+\\b${p.slug}\\b`, 'i'),
+        new RegExp(`\\b${p.slug}\\b\\s+(?:is\\s+)?(?:not connected|disconnected)`, 'i'),
       ]
 
       const isExplicitlyDisconnected = disconnectedPatterns.some((rgx) => rgx.test(text))
@@ -809,11 +835,12 @@ export function AgentSpeechBlock({
       const isFoundOrActive =
         new RegExp(`(?:found|active|connected|synced|past due|events|invoices|telemetry|usage)\\s+[^.\\n]*?\\b${p.slug}\\b`, 'i').test(text) ||
         new RegExp(`\\b${p.slug}\\b[^.\\n]*?(?:found|active|synced|past due|live|events|telemetry|usage)`, 'i').test(text) ||
-        (p.slug === 'posthog' && /usage|events|telemetry|signals/i.test(text) && !/posthog integration is not connected/i.test(text)) ||
-        (p.slug === 'stripe' && /mrr|invoices|billing|revenue/i.test(text) && !/stripe integration is not connected/i.test(text))
+        (p.slug === 'posthog' && /tracking \d+ users|usage delta/i.test(text) && !/posthog[^.\n]*?not connected/i.test(text)) ||
+        (p.slug === 'stripe' && /mrr|invoices|billing status is/i.test(text) && !/stripe[^.\n]*?not connected/i.test(text))
 
-      if (isExplicitlyDisconnected && !isFoundOrActive) {
+      if (isExplicitlyDisconnected && !isFoundOrActive && !addedSlugs.has(p.slug)) {
         found.push({ name: p.name, slug: p.slug, logoUrl: p.logoUrl })
+        addedSlugs.add(p.slug)
       }
     }
 
@@ -859,17 +886,17 @@ export function AgentSpeechBlock({
       </div>
 
       {detectMissingIntegrations.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 mt-2 pt-1">
+        <div className="flex flex-wrap items-center gap-2 mt-3 pt-2 border-t border-white/[0.06]">
           {detectMissingIntegrations.map((item) => (
             <a
               key={item.slug}
-              href="/dashboard/settings"
-              className="inline-flex items-center gap-1.5 px-3 py-1 text-[11.5px] font-medium text-neutral-200 hover:text-white bg-neutral-900 hover:bg-neutral-800 border border-neutral-700/80 hover:border-neutral-500 rounded-full transition-all duration-150 shadow-sm"
+              href="/dashboard/connections"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-neutral-200 hover:text-white bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-700/80 hover:border-neutral-500 rounded-lg transition-all duration-150 shadow-sm"
             >
               {item.logoUrl && (
                 <img src={item.logoUrl} alt={item.name} className="w-3.5 h-3.5 object-contain shrink-0" />
               )}
-              <span>Connect</span>
+              <span>Connect {item.name}</span>
               <ChevronRight className="w-3 h-3 text-neutral-400" />
             </a>
           ))}
