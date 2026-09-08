@@ -804,9 +804,25 @@ export function AgentSpeechBlock({
       /\bzero\s+(?:\(0\)\s+)?(?:integrations|providers)\s+connected\b/i.test(text)
 
     if (allDisconnected) {
-      // When all integrations are disconnected / workspace is new, do not render a row of buttons.
-      // The text itself has the direct inline link to Connections.
-      return []
+      // Prioritize integrations relevant to the conversation or core stack (Stripe, Gmail)
+      const core: string[] = []
+      if (/stripe|revenue|mrr|billing|invoic|payout|payment|charg/i.test(text)) core.push('stripe')
+      if (/gmail|mail|inbox|email|reply|outreach/i.test(text)) core.push('gmail')
+      if (/posthog|telemetry|event|usage|drop|analytics/i.test(text)) core.push('posthog')
+      if (/intercom|ticket|support|complaint/i.test(text)) core.push('intercom')
+
+      if (core.length === 0) {
+        core.push('stripe', 'gmail')
+      }
+
+      for (const slug of core) {
+        const p = PROVIDERS_CONFIG.find((item) => item.slug === slug)
+        if (p && !addedSlugs.has(p.slug)) {
+          found.push({ name: p.name, slug: p.slug, logoUrl: p.logoUrl })
+          addedSlugs.add(p.slug)
+        }
+      }
+      return found
     }
 
     for (const p of PROVIDERS_CONFIG) {

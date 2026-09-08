@@ -1246,18 +1246,9 @@ function ToolResultSummary({
     const connected = rawList.filter((c: any) => c && (c.isUsable || c.status === 'connected' || c.status === 'active'))
     if (connected.length === 0) {
       return (
-        <div className="text-[12px] text-neutral-400 flex items-center justify-between py-1 px-2.5 mb-2 bg-neutral-900/60 border border-neutral-800 rounded-lg">
-          <div className="flex items-center gap-1.5 text-amber-400">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-            <span className="text-zinc-300">No integrations connected yet</span>
-          </div>
-          <a
-            href="/dashboard/connections"
-            className="inline-flex items-center gap-1 text-[11.5px] font-medium text-blue-400 hover:text-blue-300 transition-colors"
-          >
-            <span>Connect tools</span>
-            <ChevronRight className="w-3 h-3" />
-          </a>
+        <div className="text-[12px] text-neutral-400 py-1 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 shrink-0" />
+          <span>No integrations connected across your workspace. Head over to <a href="/dashboard/connections" className="text-neutral-200 underline underline-offset-2 hover:text-white transition-colors">Connections</a>.</span>
         </div>
       )
     }
