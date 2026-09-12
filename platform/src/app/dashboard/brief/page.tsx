@@ -206,69 +206,87 @@ export default function BriefPage() {
   const summaryText = briefData?.brief?.summary || ''
   const headlineText = briefData?.brief?.headline || ''
 
-  // Format summary text into paragraphs with rich inline badges for detected providers
+  // Format summary text into clean, structured paragraphs with inline badges
+  const cleanText = (text: string): string => {
+    if (!text) return ''
+    return text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+  }
+
   const renderFormattedSummary = (text: string) => {
     if (!text) return null
 
-    const sentences = text.split(/(?<=\.)\s+/).filter(s => s.trim().length > 0)
+    const cleaned = cleanText(text)
+    const sentences = cleaned.split(/(?<=\.)\s+/).filter(s => s.trim().length > 0)
     if (sentences.length === 0) {
-      return <p className="leading-relaxed text-zinc-300">{text}</p>
+      return <p className="leading-relaxed text-zinc-300">{cleaned}</p>
     }
 
+    const toolItems: React.ReactNode[] = []
+    const narrativeSentences: string[] = []
+
+    sentences.forEach((sentence, idx) => {
+      const trimmed = sentence.trim()
+      const match = trimmed.match(
+        /^(?:In\s+)?(Gmail|Stripe|PostHog|Intercom|Slack|Linear|Sentry|HubSpot|Google Calendar)[:,\s]*(.*)$/i
+      )
+
+      if (match) {
+        const providerName = match[1]
+        let detail = match[2].trim()
+        if (detail.endsWith('.')) detail = detail.slice(0, -1)
+        const providerKey = providerName.toLowerCase().replace(' ', '_')
+        const icon = PROVIDER_ICONS[providerKey] || '/logos/account.svg'
+
+        toolItems.push(
+          <span key={idx} className="inline-flex items-center gap-1">
+            <InlineTool name={providerName} icon={icon} />
+            <span className="text-zinc-400 font-normal">({detail})</span>
+          </span>
+        )
+      } else {
+        narrativeSentences.push(trimmed)
+      }
+    })
+
     return (
-      <div className="space-y-3 text-zinc-300 text-[14.5px] leading-relaxed">
-        {sentences.map((sentence, idx) => {
-          const trimmed = sentence.trim()
-          // Match tool prefixes like "Gmail:", "Stripe:", "PostHog:", etc.
-          const match = trimmed.match(
-            /^(Gmail|Stripe|PostHog|Intercom|Slack|Linear|Sentry|HubSpot):\s*(.*)$/i
-          )
+      <div className="space-y-3.5 text-zinc-300 text-[14.5px] leading-relaxed">
+        {toolItems.length > 0 && (
+          <p className="leading-relaxed">
+            <span className="text-zinc-400">Connected workspace audit: </span>
+            {toolItems.map((tool, i) => (
+              <React.Fragment key={i}>
+                {tool}
+                {i < toolItems.length - 1 ? <span className="text-zinc-600"> &middot; </span> : '. '}
+              </React.Fragment>
+            ))}
+          </p>
+        )}
 
-          if (match) {
-            const providerName = match[1]
-            const rest = match[2]
-            const providerKey = providerName.toLowerCase().replace(' ', '_')
-            const icon = PROVIDER_ICONS[providerKey] || '/logos/account.svg'
-
-            return (
-              <p key={idx}>
-                In <InlineTool name={providerName} icon={icon} />, {rest}
-              </p>
-            )
-          }
-
-          return <p key={idx}>{trimmed}</p>
-        })}
+        {narrativeSentences.length > 0 && (
+          <p className="leading-relaxed text-zinc-300">
+            {narrativeSentences.join(' ')}
+          </p>
+        )}
       </div>
     )
   }
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#0d0d0f] text-[#F4F4F5] relative overflow-hidden font-sans select-none">
-      {/* Clean Top Header */}
-      <header className="h-12 px-8 flex items-center justify-between shrink-0 bg-[#0d0d0f] z-30 border-b border-white/[0.04]">
+      {/* Clean Top Header — Zero bottom border */}
+      <header className="h-12 px-8 flex items-center justify-between shrink-0 bg-[#0d0d0f] z-30">
         <div className="flex items-center gap-2.5">
           <img
             src="/dot.png"
             alt="Allel"
             className="w-4 h-4 object-contain shrink-0"
           />
-          <h1 className="text-[17px] font-medium tracking-tight">
-            <span className="brief-shimmer-text">Brief</span>
+          <h1 className="text-[17px] font-medium tracking-tight text-white">
+            Brief
           </h1>
         </div>
 
         <div className="flex items-center gap-3">
-          {hasConnectedIntegrations && (
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/[0.03] border border-white/[0.06] text-xs text-zinc-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-              <span>
-                {connectedIntegrations.length}{' '}
-                {connectedIntegrations.length === 1 ? 'source' : 'sources'} connected
-              </span>
-            </div>
-          )}
-
           <button
             onClick={() => void handleRefreshBrief()}
             disabled={isRefreshing}
@@ -285,14 +303,14 @@ export default function BriefPage() {
       <div className="flex-1 h-full min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
         <div className="w-full max-w-[760px] mx-auto px-6 h-full flex flex-col relative min-h-0">
           <div className="w-full pt-10 pb-36 h-full overflow-y-auto">
-            {/* Header Greeting */}
+            {/* Header Greeting — Clean solid typography */}
             <div className="mb-2">
               <h2 className="text-[17px] font-medium tracking-tight text-white">
-                <span className="silver-shimmer-text">Hey {userName}</span>, {greeting}.
+                Hey {userName}, {greeting}.
               </h2>
               {hasConnectedIntegrations && headlineText && headlineText !== 'Connect your tools to get started' && (
                 <p className="text-xs text-zinc-400 mt-1 font-normal">
-                  {headlineText}
+                  {headlineText.replace(/^[⚠!\s]+/, '').trim()}
                 </p>
               )}
             </div>
@@ -323,7 +341,7 @@ export default function BriefPage() {
               </div>
             )}
 
-            {/* State 2: Active Workspace Brief — Pure Editorial Typography, Zero Cards */}
+            {/* State 2: Active Workspace Brief — Pure Structured Editorial Typography */}
             {!isLoading && hasConnectedIntegrations && (
               <div className="space-y-4 text-zinc-300 animate-in fade-in duration-150 text-[14.5px] leading-relaxed pt-2">
                 {/* Formatted Executive Summary */}
@@ -337,36 +355,38 @@ export default function BriefPage() {
 
                 {/* Priority Accounts & Actions Rendered as Pristine Editorial Paragraphs */}
                 {actionableItems.length > 0 && (
-                  <div className="space-y-3 pt-2">
+                  <div className="space-y-3 pt-1">
                     {actionableItems.map((item, idx) => {
                       const accountName =
                         item.customer_accounts?.name || item.headline.split(' ')[0]
 
+                      let headline = cleanText(item.headline)
+                      if (headline.toLowerCase().startsWith(accountName.toLowerCase())) {
+                        headline = headline.slice(accountName.length).replace(/^[\s—–:-]+/, '').trim()
+                      }
+                      const detail = cleanText(item.detail)
+                      const nextStep = cleanText(item.next_step)
+
                       return (
-                        <p key={item.id || idx}>
+                        <p key={item.id || idx} className="text-zinc-300 leading-relaxed text-[14.5px]">
                           <span
                             onClick={() => handleSubmit(`Inspect customer ${accountName}`)}
                             className="text-white font-medium cursor-pointer hover:underline"
                           >
                             {accountName}
                           </span>
-                          {item.risk_level === 'high' ? (
-                            <span className="text-red-400 font-medium"> (High Risk)</span>
-                          ) : item.risk_level === 'medium' ? (
-                            <span className="text-amber-400 font-medium"> (Medium Risk)</span>
-                          ) : null}
-                          : {item.headline}.{' '}
-                          {item.detail && item.detail !== item.headline && (
-                            <span className="text-zinc-400">{item.detail} </span>
+                          {headline ? ` — ${headline}. ` : '. '}
+                          {detail && detail !== headline && (
+                            <span className="text-zinc-400">{detail} </span>
                           )}
-                          {item.next_step && (
+                          {nextStep && (
                             <span
                               onClick={() =>
-                                handleSubmit(`Execute action for ${accountName}: ${item.next_step}`)
+                                handleSubmit(`Execute action for ${accountName}: ${nextStep}`)
                               }
                               className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white cursor-pointer transition-colors"
                             >
-                              {item.next_step}
+                              {nextStep}
                             </span>
                           )}
                         </p>
