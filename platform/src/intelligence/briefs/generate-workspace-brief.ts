@@ -208,7 +208,7 @@ function buildHeadline(
   // Check for high-risk accounts first
   const highRisk = accounts.filter(a => a.risk_level === 'high')
   if (highRisk.length > 0) {
-    return `⚠ ${highRisk.length} account${highRisk.length === 1 ? '' : 's'} need${highRisk.length === 1 ? 's' : ''} attention`
+    return `${highRisk.length} account${highRisk.length === 1 ? '' : 's'} need${highRisk.length === 1 ? 's' : ''} attention`
   }
 
   // Check for recent activity worth highlighting
@@ -233,9 +233,8 @@ function buildHeadline(
     return 'Your follow-ups are going out — nice work'
   }
 
-  // Default: platform summary
-  const sourceNames = connected.map(i => PROVIDER_LABELS[i.provider] ?? i.provider)
-  return `${sourceNames.join(', ')} connected and syncing`
+  // Default: clean status
+  return 'Workspace retention monitor is active'
 }
 
 function isWithinHours(dateStr: string, hours: number): boolean {

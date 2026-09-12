@@ -206,68 +206,212 @@ export default function BriefPage() {
   const summaryText = briefData?.brief?.summary || ''
   const headlineText = briefData?.brief?.headline || ''
 
-  // Format summary text into clean, structured paragraphs with inline badges
+  const isGenericHeadline =
+    !headlineText ||
+    headlineText === 'Connect your tools to get started' ||
+    headlineText.toLowerCase().includes('connected and syncing') ||
+    headlineText.toLowerCase().includes('sources connected') ||
+    headlineText.toLowerCase().includes('accounts synced')
+
+  // Helpers for editorial typography
   const cleanText = (text: string): string => {
     if (!text) return ''
     return text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
   }
 
-  const renderFormattedSummary = (text: string) => {
-    if (!text) return null
+  const renderAccountLink = (name: string) => (
+    <span
+      key={name}
+      onClick={() => handleSubmit(`Inspect customer ${name}`)}
+      className="text-white font-medium cursor-pointer hover:underline"
+    >
+      {name}
+    </span>
+  )
 
-    const cleaned = cleanText(text)
-    const sentences = cleaned.split(/(?<=\.)\s+/).filter(s => s.trim().length > 0)
-    if (sentences.length === 0) {
-      return <p className="leading-relaxed text-zinc-300">{cleaned}</p>
+  const getAccountReason = (item: { headline: string; detail: string; customer_accounts?: { name: string } | null }): string => {
+    const text = `${cleanText(item.headline)} ${cleanText(item.detail)}`.toLowerCase()
+    if (text.includes('504') || text.includes('gateway timeout')) {
+      return 'is blocked by 504 gateway timeouts on billing webhooks'
     }
+    if (text.includes('repeated payment') || text.includes('card charge') || text.includes('failed payment')) {
+      return 'has repeated card charge failures requiring payment updates'
+    }
+    if (text.includes('cancelled')) {
+      return 'is cancelled and requires churn rescue outreach'
+    }
+    if (text.includes('past due')) {
+      return 'is past due and needs billing recovery follow-up'
+    }
+    if (text.includes('drop') || text.includes('decline') || text.includes('usage')) {
+      return 'shows a critical usage drop indicating immediate churn risk'
+    }
+    if (text.includes('replied') || text.includes('reply')) {
+      return 'sent an inquiry requiring immediate follow-up'
+    }
+    let headline = cleanText(item.headline)
+    const name = item.customer_accounts?.name || item.headline.split(' ')[0]
+    if (headline.toLowerCase().startsWith(name.toLowerCase())) {
+      headline = headline.slice(name.length).replace(/^[\s—–:-]+/, '').trim()
+    }
+    return headline ? `needs review: ${headline}` : 'needs immediate attention'
+  }
 
-    const toolItems: React.ReactNode[] = []
-    const narrativeSentences: string[] = []
+  const renderEditorialParagraph = () => {
+    // Group actionable items by tool
+    const stripeItems: typeof actionableItems = []
+    const posthogItems: typeof actionableItems = []
+    const gmailItems: typeof actionableItems = []
+    const intercomItems: typeof actionableItems = []
+    const otherItems: typeof actionableItems = []
 
-    sentences.forEach((sentence, idx) => {
-      const trimmed = sentence.trim()
-      const match = trimmed.match(
-        /^(?:In\s+)?(Gmail|Stripe|PostHog|Intercom|Slack|Linear|Sentry|HubSpot|Google Calendar)[:,\s]*(.*)$/i
-      )
-
-      if (match) {
-        const providerName = match[1]
-        let detail = match[2].trim()
-        if (detail.endsWith('.')) detail = detail.slice(0, -1)
-        const providerKey = providerName.toLowerCase().replace(' ', '_')
-        const icon = PROVIDER_ICONS[providerKey] || '/logos/account.svg'
-
-        toolItems.push(
-          <span key={idx} className="inline-flex items-center gap-1">
-            <InlineTool name={providerName} icon={icon} />
-            <span className="text-zinc-400 font-normal">({detail})</span>
-          </span>
-        )
+    actionableItems.forEach(item => {
+      const text = `${cleanText(item.headline)} ${cleanText(item.detail)} ${(item.evidence || []).join(' ')}`.toLowerCase()
+      if (text.includes('504') || text.includes('webhook') || text.includes('intercom') || text.includes('ticket') || text.includes('conversation')) {
+        intercomItems.push(item)
+      } else if (text.includes('usage') || text.includes('drop') || text.includes('decline') || text.includes('posthog') || text.includes('activity')) {
+        posthogItems.push(item)
+      } else if (text.includes('gmail') || text.includes('email') || text.includes('reply') || text.includes('inbox') || text.includes('thread')) {
+        gmailItems.push(item)
+      } else if (text.includes('billing') || text.includes('payment') || text.includes('card') || text.includes('stripe') || text.includes('invoice') || text.includes('cancelled') || text.includes('past due')) {
+        stripeItems.push(item)
       } else {
-        narrativeSentences.push(trimmed)
+        otherItems.push(item)
       }
     })
 
-    return (
-      <div className="space-y-3.5 text-zinc-300 text-[14.5px] leading-relaxed">
-        {toolItems.length > 0 && (
-          <p className="leading-relaxed">
-            <span className="text-zinc-400">Connected workspace audit: </span>
-            {toolItems.map((tool, i) => (
-              <React.Fragment key={i}>
-                {tool}
-                {i < toolItems.length - 1 ? <span className="text-zinc-600"> &middot; </span> : '. '}
-              </React.Fragment>
-            ))}
-          </p>
-        )}
+    const connectedProviders = new Set(
+      (briefData?.integrations || [])
+        .filter(i => i.status === 'connected')
+        .map(i => i.provider.toLowerCase().replace(' ', '_'))
+    )
 
-        {narrativeSentences.length > 0 && (
-          <p className="leading-relaxed text-zinc-300">
-            {narrativeSentences.join(' ')}
-          </p>
-        )}
-      </div>
+    // Build tool-specific customer intelligence clauses
+    const clauses: React.ReactNode[] = []
+
+    // 1. Stripe
+    if (connectedProviders.has('stripe') || stripeItems.length > 0) {
+      if (stripeItems.length >= 2) {
+        const name1 = stripeItems[0].customer_accounts?.name || stripeItems[0].headline.split(' ')[0]
+        const name2 = stripeItems[1].customer_accounts?.name || stripeItems[1].headline.split(' ')[0]
+        clauses.push(
+          <span key="stripe">
+            Across <InlineTool name="Stripe" icon="/logos/stripe.svg" />, {renderAccountLink(name1)} {getAccountReason(stripeItems[0])}, and {renderAccountLink(name2)} {getAccountReason(stripeItems[1])}.
+          </span>
+        )
+      } else if (stripeItems.length === 1) {
+        const name1 = stripeItems[0].customer_accounts?.name || stripeItems[0].headline.split(' ')[0]
+        clauses.push(
+          <span key="stripe">
+            Across <InlineTool name="Stripe" icon="/logos/stripe.svg" />, {renderAccountLink(name1)} {getAccountReason(stripeItems[0])}.
+          </span>
+        )
+      } else {
+        clauses.push(
+          <span key="stripe">
+            Across <InlineTool name="Stripe" icon="/logos/stripe.svg" />, billing pipelines and subscriptions are active with no overdue invoices.
+          </span>
+        )
+      }
+    }
+
+    // 2. PostHog
+    if (connectedProviders.has('posthog') || posthogItems.length > 0) {
+      if (posthogItems.length >= 2) {
+        const name1 = posthogItems[0].customer_accounts?.name || posthogItems[0].headline.split(' ')[0]
+        const name2 = posthogItems[1].customer_accounts?.name || posthogItems[1].headline.split(' ')[0]
+        clauses.push(
+          <span key="posthog">
+            Across <InlineTool name="PostHog" icon="/logos/posthog.svg" />, {renderAccountLink(name1)} {getAccountReason(posthogItems[0])}, while {renderAccountLink(name2)} {getAccountReason(posthogItems[1])}.
+          </span>
+        )
+      } else if (posthogItems.length === 1) {
+        const name1 = posthogItems[0].customer_accounts?.name || posthogItems[0].headline.split(' ')[0]
+        clauses.push(
+          <span key="posthog">
+            Across <InlineTool name="PostHog" icon="/logos/posthog.svg" />, {renderAccountLink(name1)} {getAccountReason(posthogItems[0])}.
+          </span>
+        )
+      } else {
+        clauses.push(
+          <span key="posthog">
+            Across <InlineTool name="PostHog" icon="/logos/posthog.svg" />, telemetry indicates steady user retention and healthy session engagement.
+          </span>
+        )
+      }
+    }
+
+    // 3. Gmail
+    if (connectedProviders.has('gmail') || gmailItems.length > 0) {
+      if (gmailItems.length > 0) {
+        const name1 = gmailItems[0].customer_accounts?.name || gmailItems[0].headline.split(' ')[0]
+        clauses.push(
+          <span key="gmail">
+            Across <InlineTool name="Gmail" icon="/logos/gmail.svg" />, customer inquiries regarding {renderAccountLink(name1)} require follow-up.
+          </span>
+        )
+      } else {
+        clauses.push(
+          <span key="gmail">
+            Across <InlineTool name="Gmail" icon="/logos/gmail.svg" />, inbox threads are clear with no pending replies or unaddressed churn emails.
+          </span>
+        )
+      }
+    }
+
+    // 4. Intercom
+    if (connectedProviders.has('intercom') || intercomItems.length > 0) {
+      if (intercomItems.length > 0) {
+        const name1 = intercomItems[0].customer_accounts?.name || intercomItems[0].headline.split(' ')[0]
+        clauses.push(
+          <span key="intercom">
+            Across <InlineTool name="Intercom" icon="/logos/intercom.svg" />, open customer conversations report that {renderAccountLink(name1)} {getAccountReason(intercomItems[0])}.
+          </span>
+        )
+      } else {
+        clauses.push(
+          <span key="intercom">
+            Across <InlineTool name="Intercom" icon="/logos/intercom.svg" />, customer support channels have no unresolved escalation tickets.
+          </span>
+        )
+      }
+    }
+
+    // 5. Remaining non-categorized items
+    if (otherItems.length > 0) {
+      const topOther = otherItems.slice(0, 2)
+      clauses.push(
+        <span key="other">
+          Additionally,{' '}
+          {topOther.map((item, idx) => {
+            const name = item.customer_accounts?.name || item.headline.split(' ')[0]
+            return (
+              <React.Fragment key={idx}>
+                {renderAccountLink(name)} {getAccountReason(item)}
+                {idx < topOther.length - 1 ? ', and ' : '.'}
+              </React.Fragment>
+            )
+          })}
+        </span>
+      )
+    }
+
+    if (clauses.length === 0) {
+      return (
+        <p className="text-zinc-300 leading-relaxed text-[14.5px]">
+          Across your connected workspace, all customer accounts are healthy. Subscriptions and communication channels are fully up to date with no detected payment failures or retention risks.
+        </p>
+      )
+    }
+
+    return (
+      <p className="text-zinc-300 leading-relaxed text-[14.5px] space-x-1.5">
+        {clauses.map((clause, idx) => (
+          <React.Fragment key={idx}>
+            {clause}{' '}
+          </React.Fragment>
+        ))}
+      </p>
     )
   }
 
@@ -281,8 +425,8 @@ export default function BriefPage() {
             alt="Allel"
             className="w-4 h-4 object-contain shrink-0"
           />
-          <h1 className="text-[17px] font-medium tracking-tight text-white">
-            Brief
+          <h1 className="text-[17px] font-medium tracking-tight">
+            <span className="brief-shimmer-text">Brief</span>
           </h1>
         </div>
 
@@ -303,12 +447,12 @@ export default function BriefPage() {
       <div className="flex-1 h-full min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
         <div className="w-full max-w-[760px] mx-auto px-6 h-full flex flex-col relative min-h-0">
           <div className="w-full pt-10 pb-36 h-full overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            {/* Header Greeting — Clean solid typography */}
+            {/* Header Greeting — Restored silver shimmer typography */}
             <div className="mb-2">
               <h2 className="text-[17px] font-medium tracking-tight text-white">
-                Hey {userName}, {greeting}.
+                <span className="silver-shimmer-text">Hey {userName}</span>, {greeting}.
               </h2>
-              {hasConnectedIntegrations && headlineText && headlineText !== 'Connect your tools to get started' && (
+              {hasConnectedIntegrations && !isGenericHeadline && (
                 <p className="text-xs text-zinc-400 mt-1 font-normal">
                   {headlineText.replace(/^[⚠!\s]+/, '').trim()}
                 </p>
@@ -344,56 +488,8 @@ export default function BriefPage() {
             {/* State 2: Active Workspace Brief — Pure Structured Editorial Typography */}
             {!isLoading && hasConnectedIntegrations && (
               <div className="space-y-4 text-zinc-300 animate-in fade-in duration-150 text-[14.5px] leading-relaxed pt-2">
-                {/* Formatted Executive Summary */}
-                {summaryText ? (
-                  renderFormattedSummary(summaryText)
-                ) : (
-                  <p>
-                    All customer accounts are healthy. No churn risks, gateway timeouts, or failed payment retries were detected across your connected sources during the latest audit run.
-                  </p>
-                )}
-
-                {/* Priority Accounts & Actions Rendered as Pristine Editorial Paragraphs */}
-                {actionableItems.length > 0 && (
-                  <div className="space-y-3 pt-1">
-                    {actionableItems.map((item, idx) => {
-                      const accountName =
-                        item.customer_accounts?.name || item.headline.split(' ')[0]
-
-                      let headline = cleanText(item.headline)
-                      if (headline.toLowerCase().startsWith(accountName.toLowerCase())) {
-                        headline = headline.slice(accountName.length).replace(/^[\s—–:-]+/, '').trim()
-                      }
-                      const detail = cleanText(item.detail)
-                      const nextStep = cleanText(item.next_step)
-
-                      return (
-                        <p key={item.id || idx} className="text-zinc-300 leading-relaxed text-[14.5px]">
-                          <span
-                            onClick={() => handleSubmit(`Inspect customer ${accountName}`)}
-                            className="text-white font-medium cursor-pointer hover:underline"
-                          >
-                            {accountName}
-                          </span>
-                          {headline ? ` — ${headline}. ` : '. '}
-                          {detail && detail !== headline && (
-                            <span className="text-zinc-400">{detail} </span>
-                          )}
-                          {nextStep && (
-                            <span
-                              onClick={() =>
-                                handleSubmit(`Execute action for ${accountName}: ${nextStep}`)
-                              }
-                              className="text-zinc-200 underline underline-offset-4 decoration-zinc-600 hover:text-white cursor-pointer transition-colors"
-                            >
-                              {nextStep}
-                            </span>
-                          )}
-                        </p>
-                      )
-                    })}
-                  </div>
-                )}
+                {/* Single Cohesive Editorial Narrative */}
+                {renderEditorialParagraph()}
 
                 {/* Editorial Prompt Suggestion */}
                 <p className="pt-2 text-zinc-400 leading-relaxed">
