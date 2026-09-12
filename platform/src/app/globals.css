@@ -110,6 +110,18 @@
   display: inline-block;
 }
 
+/* Utility to completely hide scrollbars across all browsers while preserving scrollability */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
+}
+
 /* Global Theme Color Tokens */
 html.dark {
   color-scheme: dark;

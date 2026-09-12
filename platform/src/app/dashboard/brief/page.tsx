@@ -302,7 +302,7 @@ export default function BriefPage() {
       {/* Main Content Area */}
       <div className="flex-1 h-full min-h-0 relative flex flex-col items-center justify-between overflow-hidden">
         <div className="w-full max-w-[760px] mx-auto px-6 h-full flex flex-col relative min-h-0">
-          <div className="w-full pt-10 pb-36 h-full overflow-y-auto">
+          <div className="w-full pt-10 pb-36 h-full overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {/* Header Greeting — Clean solid typography */}
             <div className="mb-2">
               <h2 className="text-[17px] font-medium tracking-tight text-white">
