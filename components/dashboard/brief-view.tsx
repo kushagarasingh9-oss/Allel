@@ -21,7 +21,7 @@ const PROVIDER_ICONS: Record<string, string> = {
 
 function InlineTool({ name, icon }: { name: string; icon: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 font-medium text-white align-middle mx-1">
+    <span className="inline-flex items-center gap-1.5 font-medium text-white align-middle ml-1 mr-0.5">
       <img
         src={icon}
         alt={name}
@@ -229,6 +229,12 @@ export default function BriefPage() {
     </span>
   )
 
+  const getCleanAccountName = (item: { headline: string; customer_accounts?: { name: string } | null }): string => {
+    if (item.customer_accounts?.name) return item.customer_accounts.name
+    const raw = item.headline.split(/[—–:-]/)[0].trim()
+    return raw || item.headline
+  }
+
   const getAccountReason = (item: { headline: string; detail: string; customer_accounts?: { name: string } | null }): string => {
     const text = `${cleanText(item.headline)} ${cleanText(item.detail)}`.toLowerCase()
     if (text.includes('504') || text.includes('gateway timeout')) {
@@ -250,7 +256,7 @@ export default function BriefPage() {
       return 'sent an inquiry requiring immediate follow-up'
     }
     let headline = cleanText(item.headline)
-    const name = item.customer_accounts?.name || item.headline.split(' ')[0]
+    const name = getCleanAccountName(item)
     if (headline.toLowerCase().startsWith(name.toLowerCase())) {
       headline = headline.slice(name.length).replace(/^[\s—–:-]+/, '').trim()
     }
@@ -292,15 +298,15 @@ export default function BriefPage() {
     // 1. Stripe
     if (connectedProviders.has('stripe') || stripeItems.length > 0) {
       if (stripeItems.length >= 2) {
-        const name1 = stripeItems[0].customer_accounts?.name || stripeItems[0].headline.split(' ')[0]
-        const name2 = stripeItems[1].customer_accounts?.name || stripeItems[1].headline.split(' ')[0]
+        const name1 = getCleanAccountName(stripeItems[0])
+        const name2 = getCleanAccountName(stripeItems[1])
         clauses.push(
           <span key="stripe">
             Across <InlineTool name="Stripe" icon="/logos/stripe.svg" />, {renderAccountLink(name1)} {getAccountReason(stripeItems[0])}, and {renderAccountLink(name2)} {getAccountReason(stripeItems[1])}.
           </span>
         )
       } else if (stripeItems.length === 1) {
-        const name1 = stripeItems[0].customer_accounts?.name || stripeItems[0].headline.split(' ')[0]
+        const name1 = getCleanAccountName(stripeItems[0])
         clauses.push(
           <span key="stripe">
             Across <InlineTool name="Stripe" icon="/logos/stripe.svg" />, {renderAccountLink(name1)} {getAccountReason(stripeItems[0])}.
@@ -318,15 +324,15 @@ export default function BriefPage() {
     // 2. PostHog
     if (connectedProviders.has('posthog') || posthogItems.length > 0) {
       if (posthogItems.length >= 2) {
-        const name1 = posthogItems[0].customer_accounts?.name || posthogItems[0].headline.split(' ')[0]
-        const name2 = posthogItems[1].customer_accounts?.name || posthogItems[1].headline.split(' ')[0]
+        const name1 = getCleanAccountName(posthogItems[0])
+        const name2 = getCleanAccountName(posthogItems[1])
         clauses.push(
           <span key="posthog">
             Across <InlineTool name="PostHog" icon="/logos/posthog.svg" />, {renderAccountLink(name1)} {getAccountReason(posthogItems[0])}, while {renderAccountLink(name2)} {getAccountReason(posthogItems[1])}.
           </span>
         )
       } else if (posthogItems.length === 1) {
-        const name1 = posthogItems[0].customer_accounts?.name || posthogItems[0].headline.split(' ')[0]
+        const name1 = getCleanAccountName(posthogItems[0])
         clauses.push(
           <span key="posthog">
             Across <InlineTool name="PostHog" icon="/logos/posthog.svg" />, {renderAccountLink(name1)} {getAccountReason(posthogItems[0])}.
@@ -344,7 +350,7 @@ export default function BriefPage() {
     // 3. Gmail
     if (connectedProviders.has('gmail') || gmailItems.length > 0) {
       if (gmailItems.length > 0) {
-        const name1 = gmailItems[0].customer_accounts?.name || gmailItems[0].headline.split(' ')[0]
+        const name1 = getCleanAccountName(gmailItems[0])
         clauses.push(
           <span key="gmail">
             Across <InlineTool name="Gmail" icon="/logos/gmail.svg" />, customer inquiries regarding {renderAccountLink(name1)} require follow-up.
@@ -362,7 +368,7 @@ export default function BriefPage() {
     // 4. Intercom
     if (connectedProviders.has('intercom') || intercomItems.length > 0) {
       if (intercomItems.length > 0) {
-        const name1 = intercomItems[0].customer_accounts?.name || intercomItems[0].headline.split(' ')[0]
+        const name1 = getCleanAccountName(intercomItems[0])
         clauses.push(
           <span key="intercom">
             Across <InlineTool name="Intercom" icon="/logos/intercom.svg" />, open customer conversations report that {renderAccountLink(name1)} {getAccountReason(intercomItems[0])}.
@@ -384,7 +390,7 @@ export default function BriefPage() {
         <span key="other">
           Additionally,{' '}
           {topOther.map((item, idx) => {
-            const name = item.customer_accounts?.name || item.headline.split(' ')[0]
+            const name = getCleanAccountName(item)
             return (
               <React.Fragment key={idx}>
                 {renderAccountLink(name)} {getAccountReason(item)}
@@ -452,11 +458,6 @@ export default function BriefPage() {
               <h2 className="text-[17px] font-medium tracking-tight text-white">
                 <span className="silver-shimmer-text">Hey {userName}</span>, {greeting}.
               </h2>
-              {hasConnectedIntegrations && !isGenericHeadline && (
-                <p className="text-xs text-zinc-400 mt-1 font-normal">
-                  {headlineText.replace(/^[⚠!\s]+/, '').trim()}
-                </p>
-              )}
             </div>
 
             {/* Loading Skeleton */}
